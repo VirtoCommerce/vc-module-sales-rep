@@ -1,0 +1,24 @@
+{
+  "sales-rep": {
+    "blades": {
+      "hello-world": {
+        "title": "Hello world blade"
+      }
+    }
+  },
+  "permissions": {
+    "sales-rep:access": "Open Sales Rep menu",
+    "sales-rep:create": "Create Sales Rep related data",
+    "sales-rep:read": "View Sales Rep related data",
+    "sales-rep:update": "Update Sales Rep related data",
+    "sales-rep:delete": "Delete Sales Rep related data"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "Sales Rep Enabled",
+        "description": "Sales Rep Enabled setting"
+      }
+    }
+  }
+}

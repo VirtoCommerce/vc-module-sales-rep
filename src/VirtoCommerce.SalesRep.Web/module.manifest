@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<module>
+  <id>VirtoCommerce.SalesRep</id>
+  <version>3.1000.0</version>
+  <version-tag></version-tag>
+
+  <platformVersion>3.1007.10</platformVersion>
+  <dependencies>
+    <dependency id="VirtoCommerce.Xapi" version="3.1003.0" />
+  </dependencies>
+
+  <title>Virto Commerce Sales Rep</title>
+  <description>Virto Commerce Sales Rep</description>
+
+  <authors>
+    <author>Alla Volkova</author>
+  </authors>
+  <owners>
+    <owner>Virto Commerce</owner>
+  </owners>
+
+  <projectUrl>https://github.com/Virto Commerce/vc-module-sales-rep</projectUrl>
+  <iconUrl>Modules/$(VirtoCommerce.SalesRep)/Content/logo.png</iconUrl>
+  <requireLicenseAcceptance>false</requireLicenseAcceptance>
+
+  <assemblyFile>VirtoCommerce.SalesRep.Web.dll</assemblyFile>
+  <moduleType>VirtoCommerce.SalesRep.Web.Module, VirtoCommerce.SalesRep.Web</moduleType>
+
+  <releaseNotes>First version.</releaseNotes>
+  <copyright>Copyright © 2026 Virto Commerce. All rights reserved</copyright>
+  <tags>extension module</tags>
+  <useFullTypeNameInSwagger>false</useFullTypeNameInSwagger>
+</module>

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <SonarQubeTestProject>false</SonarQubeTestProject>
+    <NoWarn>1591;NU1608</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Remove="dist\**" />
+    <Content Remove="dist\**" />
+    <EmbeddedResource Remove="dist\**" />
+    <None Remove="dist\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Update="Localizations\**">
+      <CopyToPublishDirectory>Never</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Data.MySql\VirtoCommerce.SalesRep.Data.MySql.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Data.PostgreSql\VirtoCommerce.SalesRep.Data.PostgreSql.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Data.SqlServer\VirtoCommerce.SalesRep.Data.SqlServer.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.ExperienceApi\VirtoCommerce.SalesRep.ExperienceApi.csproj" />
+  </ItemGroup>
+</Project>
