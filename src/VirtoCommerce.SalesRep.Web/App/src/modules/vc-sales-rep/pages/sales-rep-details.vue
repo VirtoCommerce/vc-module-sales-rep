@@ -10,17 +10,11 @@
         <!-- Profile -->
         <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.PROFILE')">
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
-            <div class="tw-flex tw-flex-col md:tw-flex-row tw-gap-4">
+            <div class="tw-flex tw-flex-row tw-gap-4">
               <VcInput
                 v-model="salesRep.firstName"
                 class="tw-flex-1"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.FIRST_NAME')"
-                :max-length="128"
-              />
-              <VcInput
-                v-model="salesRep.middleName"
-                class="tw-flex-1"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.MIDDLE_NAME')"
                 :max-length="128"
               />
               <VcInput
@@ -29,32 +23,49 @@
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LAST_NAME')"
                 :max-length="128"
               />
-            </div>
-            <div class="tw-flex tw-flex-col md:tw-flex-row tw-gap-4">
               <VcInput
-                v-model="salesRep.birthDate"
-                type="date"
+                v-model="salesRep.middleName"
                 class="tw-flex-1"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.BIRTH_DATE')"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.MIDDLE_NAME')"
+                :max-length="128"
               />
-              <VcInput
+            </div>
+            <VcInput
+              v-model="salesRep.birthDate"
+              type="date"
+              class="tw-w-1/3"
+              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.BIRTH_DATE')"
+            />
+            <div class="tw-flex tw-flex-row tw-gap-4">
+              <VcSelect
                 v-model="salesRep.timeZone"
                 class="tw-flex-1"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.TIME_ZONE')"
+                :options="timeZones"
+                option-value="id"
+                option-label="title"
+                searchable
+                clearable
               />
-            </div>
-            <div class="tw-flex tw-flex-col md:tw-flex-row tw-gap-4">
-              <VcInput
+              <VcSelect
                 v-model="salesRep.defaultLanguage"
                 class="tw-flex-1"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LANGUAGE')"
-                :placeholder="'en-US'"
+                :options="languages"
+                option-value="id"
+                option-label="title"
+                searchable
+                clearable
               />
-              <VcInput
+              <VcSelect
                 v-model="salesRep.currencyCode"
                 class="tw-flex-1"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.CURRENCY')"
-                :placeholder="'USD'"
+                :options="currencies"
+                option-value="id"
+                option-label="title"
+                searchable
+                clearable
               />
             </div>
             <VcTextarea
@@ -67,21 +78,32 @@
         <!-- Account -->
         <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.ACCOUNT')">
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
-            <Field
-              v-slot="{ errors, errorMessage, handleChange }"
-              :model-value="primaryEmail"
-              name="email"
-              rules="required"
-            >
+            <div class="tw-flex tw-flex-row tw-gap-4">
+              <Field
+                v-slot="{ errors, errorMessage, handleChange }"
+                :model-value="primaryEmail"
+                name="email"
+                rules="required"
+              >
+                <VcInput
+                  v-model="primaryEmail"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.EMAIL')"
+                  required
+                  :error="errors.length > 0"
+                  :error-message="errorMessage"
+                  @update:model-value="handleChange"
+                />
+              </Field>
+
               <VcInput
-                v-model="primaryEmail"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.EMAIL')"
-                required
-                :error="errors.length > 0"
-                :error-message="errorMessage"
-                @update:model-value="handleChange"
+                v-model="salesRep.password"
+                class="tw-flex-1"
+                type="password"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
+                :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
               />
-            </Field>
+            </div>
 
             <VcSelect
               v-if="isNew"
@@ -91,13 +113,6 @@
               option-value="id"
               option-label="name"
               required
-            />
-
-            <VcInput
-              v-model="salesRep.password"
-              type="password"
-              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
-              :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
             />
           </div>
         </VcCard>
@@ -131,7 +146,13 @@ import { computed, onMounted } from "vue";
 import { useI18n } from "vue-i18n";
 import { Field } from "vee-validate";
 import { IBladeToolbar, usePermissions, useBlade, useLoading, useBladeForm } from "@vc-shell/framework";
-import { useSalesRepDetails, useSalesRepPermissions, useStores, useOrganizations } from "../composables";
+import {
+  useSalesRepDetails,
+  useSalesRepPermissions,
+  useStores,
+  useOrganizations,
+  useDictionaries,
+} from "../composables";
 import { VcBlade, VcContainer, VcForm, VcCard, VcInput, VcTextarea, VcSelect } from "@vc-shell/framework/ui";
 
 defineBlade({
@@ -160,6 +181,7 @@ const {
 const { createSalesRepPermission, updateSalesRepPermission } = useSalesRepPermissions();
 const { stores, loadStores, loadingStores } = useStores();
 const { loadOrganizations } = useOrganizations();
+const { timeZones, languages, currencies } = useDictionaries();
 
 const storeOptions = computed(() => stores.value.map((x) => ({ id: x.id, name: x.name })));
 
