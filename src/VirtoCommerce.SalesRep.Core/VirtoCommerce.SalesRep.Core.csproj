@@ -4,6 +4,13 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.1007.10" />
+    <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.1039.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Dev-time shim: compile against the local customer 'dev' source so the API surface
+         matches the runtime customer module. Private=false => don't copy customer assemblies into
+         our bin; at runtime they are provided by the customer module (declared manifest dependency).
+         Revert to a PackageReference before shipping. -->
+    <ProjectReference Include="..\..\..\vc-module-customer\src\VirtoCommerce.CustomerModule.Core\VirtoCommerce.CustomerModule.Core.csproj" Private="false" />
   </ItemGroup>
 </Project>

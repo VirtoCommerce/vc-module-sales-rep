@@ -1,0 +1,81 @@
+{
+  "VC_SALES_REP": {
+    "MENU": {
+      "DASHBOARD": "Dashboard",
+      "SALES_REPS": "Sales Reps",
+      "BLOCKED": "Blocked Sales Reps",
+      "UNASSIGNED": "Not assigned Sales Reps",
+      "ORGANIZATIONS": "Organizations",
+      "UNASSIGNED_ORGANIZATIONS": "Not assigned Organizations"
+    },
+    "PAGES": {
+      "DASHBOARD": {
+        "TITLE": "Sales Reps dashboard",
+        "SUBTITLE": "Manage your sales representatives, their organizations and accounts."
+      },
+      "PLACEHOLDER": {
+        "SUBTITLE": "This view is coming soon."
+      },
+      "LIST": {
+        "SEARCH": {
+          "PLACEHOLDER": "Search by name or email"
+        },
+        "TOOLBAR": {
+          "REFRESH": "Refresh",
+          "ADD": "Add",
+          "DELETE": "Delete"
+        },
+        "TABLE": {
+          "HEADER": {
+            "NAME": "Name",
+            "EMAIL": "Email",
+            "ORGANIZATIONS": "Organizations",
+            "BLOCKED": "Blocked",
+            "GLOBAL_ROLE": "Global role",
+            "CREATED_DATE": "Created date"
+          }
+        },
+        "ALERTS": {
+          "DELETE_SELECTED_CONFIRMATION_MESSAGE": "Are you sure you want to delete {count} sales rep(s)? This deletes the contact and its account."
+        }
+      },
+      "DETAILS": {
+        "TITLE": "Sales Rep",
+        "TITLE_NEW": "New Sales Rep",
+        "BLOCKS": {
+          "PROFILE": "Profile",
+          "ACCOUNT": "Account",
+          "ORGANIZATIONS": "Served organizations"
+        },
+        "FORM": {
+          "FIRST_NAME": "First name",
+          "MIDDLE_NAME": "Middle name",
+          "LAST_NAME": "Last name",
+          "BIRTH_DATE": "Birth date",
+          "TIME_ZONE": "Time zone",
+          "LANGUAGE": "Language",
+          "CURRENCY": "Currency",
+          "ABOUT": "About",
+          "EMAIL": "Email (login)",
+          "STORE": "Store",
+          "PASSWORD": "Password",
+          "PASSWORD_KEEP": "Leave blank to keep current password",
+          "GLOBAL_ROLE": "Global Sales Rep role",
+          "GLOBAL_ROLE_HINT": "Grants the sales-rep:access permission everywhere. Lets the rep exist without being assigned to any organization.",
+          "BLOCKED": "Blocked",
+          "BLOCKED_HINT": "Locks the account so the rep cannot sign in.",
+          "ORGANIZATIONS": "Organizations served as Sales Rep",
+          "ORGANIZATIONS_PLACEHOLDER": "Search organizations...",
+          "ORGANIZATIONS_HINT": "The rep acts as a Sales Representative for the selected organizations."
+        },
+        "TOOLBAR": {
+          "SAVE": "Save",
+          "RESET": "Reset"
+        },
+        "ALERTS": {
+          "CLOSE_CONFIRMATION": "You have unsaved changes. Do you want to discard them?"
+        }
+      }
+    }
+  }
+}

@@ -1,22 +1,12 @@
-using GraphQL.MicrosoftDI;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Settings;
-using VirtoCommerce.Platform.Data.MySql.Extensions;
-using VirtoCommerce.Platform.Data.PostgreSql.Extensions;
-using VirtoCommerce.Platform.Data.SqlServer.Extensions;
-using VirtoCommerce.Xapi.Core.Extensions;
-using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.SalesRep.Core;
-using VirtoCommerce.SalesRep.Data.MySql;
-using VirtoCommerce.SalesRep.Data.PostgreSql;
-using VirtoCommerce.SalesRep.Data.Repositories;
-using VirtoCommerce.SalesRep.Data.SqlServer;
-using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Services;
 
 namespace VirtoCommerce.SalesRep.Web;
 
@@ -27,39 +17,10 @@ public class Module : IModule, IHasConfiguration
 
     public void Initialize(IServiceCollection serviceCollection)
     {
-        serviceCollection.AddDbContext<SalesRepDbContext>(options =>
-        {
-            var databaseProvider = Configuration.GetValue("DatabaseProvider", "SqlServer");
-            var connectionString = Configuration.GetConnectionString(ModuleInfo.Id) ?? Configuration.GetConnectionString("VirtoCommerce");
-
-            switch (databaseProvider)
-            {
-                case "MySql":
-                    options.UseMySqlDatabase(connectionString, typeof(MySqlDataAssemblyMarker), Configuration);
-                    break;
-                case "PostgreSql":
-                    options.UsePostgreSqlDatabase(connectionString, typeof(PostgreSqlDataAssemblyMarker), Configuration);
-                    break;
-                default:
-                    options.UseSqlServerDatabase(connectionString, typeof(SqlServerDataAssemblyMarker), Configuration);
-                    break;
-            }
-        });
-
-        // Override models
-        //AbstractTypeFactory<OriginalModel>.OverrideType<OriginalModel, ExtendedModel>().MapToType<ExtendedEntity>();
-        //AbstractTypeFactory<OriginalEntity>.OverrideType<OriginalEntity, ExtendedEntity>();
-
-        // Register services
-        //serviceCollection.AddTransient<IMyService, MyService>();
-
-        // Register GraphQL schema
-        _ = new GraphQLBuilder(serviceCollection, builder =>
-        {
-            builder.AddSchema(serviceCollection, typeof(XapiAssemblyMarker));
-        });
-
-        serviceCollection.AddSingleton<ScopedSchemaFactory<XapiAssemblyMarker>>();
+        // This module owns no tables — it composes existing Member / ApplicationUser / OrganizationMembership data.
+        serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
+        serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
     }
 
     public void PostInitialize(IApplicationBuilder appBuilder)
@@ -74,13 +35,11 @@ public class Module : IModule, IHasConfiguration
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
 
-        // Register partial GraphQL schema
-        appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
-
-        // Apply migrations
-        using var serviceScope = serviceProvider.CreateScope();
-        using var dbContext = serviceScope.ServiceProvider.GetRequiredService<SalesRepDbContext>();
-        dbContext.Database.Migrate();
+        // Ensure a default role granting "sales-rep:access" exists (create-if-absent; never reseeded,
+        // so admins may rename/replace it). Detection of Sales Reps keys off the permission, not this role.
+        using var scope = serviceProvider.CreateScope();
+        var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
+        roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
     }
 
     public void Uninstall()

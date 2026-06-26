@@ -4,9 +4,13 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1007.10" />
+    <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1039.0" />
+    <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1039.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
+    <!-- Dev-time shim: see Core.csproj note. Private=false => runtime uses the customer module's own assemblies. -->
+    <ProjectReference Include="..\..\..\vc-module-customer\src\VirtoCommerce.CustomerModule.Core\VirtoCommerce.CustomerModule.Core.csproj" Private="false" />
+    <ProjectReference Include="..\..\..\vc-module-customer\src\VirtoCommerce.CustomerModule.Data\VirtoCommerce.CustomerModule.Data.csproj" Private="false" />
   </ItemGroup>
 </Project>

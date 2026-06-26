@@ -24,6 +24,16 @@ public static class ModuleConstants
                 Delete,
             ];
         }
+
+        public static class Roles
+        {
+            /// <summary>
+            /// Stable id of the global "Sales Representative" role. Seeded once (create-if-absent),
+            /// so an admin may rename it without it being re-seeded.
+            /// </summary>
+            public const string SalesRepRoleId = "sales-rep";
+            public const string SalesRepRoleName = "Sales Representative";
+        }
     }
 
     public static class Settings
