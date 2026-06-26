@@ -144,7 +144,7 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<ApplicationUser> CreateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole)
     {
-        var email = salesRep.Emails.FirstOrDefault();
+        var email = contact.Emails.FirstOrDefault();
 
         var user = AbstractTypeFactory<ApplicationUser>.TryCreateInstance();
         user.UserName = !string.IsNullOrEmpty(salesRep.UserName) ? salesRep.UserName : email;
@@ -182,7 +182,7 @@ public class SalesRepService : ISalesRepService
             return await CreateAccountAsync(userManager, contact, salesRep, assignableRole);
         }
 
-        var email = salesRep.Emails.FirstOrDefault();
+        var email = contact.Emails.FirstOrDefault();
         if (!string.IsNullOrEmpty(email))
         {
             user.Email = email;
@@ -336,8 +336,16 @@ public class SalesRepService : ISalesRepService
         contact.PhotoUrl = salesRep.PhotoUrl;
         contact.Status = !string.IsNullOrEmpty(salesRep.Status) ? salesRep.Status : contact.Status;
 
-        contact.Emails = salesRep.Emails?.ToList() ?? [];
-        contact.Phones = salesRep.Phones?.ToList() ?? [];
+        // Combine login (emails[0]) + additional emails into one de-duplicated list (case-insensitive,
+        // order preserved so the login stays first). The login email cannot be dropped (it's the account).
+        contact.Emails = salesRep.Emails?
+            .Where(e => !string.IsNullOrWhiteSpace(e))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
+        contact.Phones = salesRep.Phones?
+            .Where(p => !string.IsNullOrWhiteSpace(p))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList() ?? [];
         contact.Addresses = salesRep.Addresses?.ToList() ?? [];
 
         contact.Organizations = salesRep.Organizations?

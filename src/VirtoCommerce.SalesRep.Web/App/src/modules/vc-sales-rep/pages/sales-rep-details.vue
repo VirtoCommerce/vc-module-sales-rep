@@ -30,12 +30,20 @@
                 :max-length="128"
               />
             </div>
-            <VcInput
-              v-model="salesRep.birthDate"
-              type="date"
-              class="tw-w-1/3"
-              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.BIRTH_DATE')"
-            />
+            <div class="tw-flex tw-flex-row tw-gap-4">
+              <VcInput
+                v-model="salesRep.birthDate"
+                type="date"
+                class="tw-w-1/3"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.BIRTH_DATE')"
+              />
+              <VcInput
+                v-model="salesRep.salutation"
+                class="tw-w-1/3"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.SALUTATION')"
+                :max-length="64"
+              />
+            </div>
             <div class="tw-flex tw-flex-row tw-gap-4">
               <VcSelect
                 v-model="salesRep.timeZone"
@@ -70,7 +78,20 @@
             </div>
             <VcTextarea
               v-model="salesRep.about"
+              style="--textarea-height: 60px"
               :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ABOUT')"
+            />
+            <VcMultivalue
+              v-model="additionalEmailItems"
+              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDITIONAL_EMAILS')"
+              :placeholder="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDITIONAL_EMAILS_PLACEHOLDER')"
+              option-label="id"
+            />
+            <VcMultivalue
+              v-model="phoneItems"
+              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PHONES')"
+              :placeholder="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PHONES_PLACEHOLDER')"
+              option-label="id"
             />
           </div>
         </VcCard>
@@ -78,24 +99,23 @@
         <!-- Account -->
         <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.ACCOUNT')">
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
-            <div class="tw-flex tw-flex-row tw-gap-4">
-              <Field
-                v-slot="{ errors, errorMessage, handleChange }"
-                :model-value="primaryEmail"
-                name="email"
-                rules="required"
-              >
-                <VcInput
-                  v-model="primaryEmail"
-                  class="tw-flex-1"
-                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.EMAIL')"
-                  required
-                  :error="errors.length > 0"
-                  :error-message="errorMessage"
-                  @update:model-value="handleChange"
-                />
-              </Field>
+            <Field
+              v-slot="{ errors, errorMessage, handleChange }"
+              :model-value="primaryEmail"
+              name="email"
+              rules="required"
+            >
+              <VcInput
+                v-model="primaryEmail"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.EMAIL')"
+                required
+                :error="errors.length > 0"
+                :error-message="errorMessage"
+                @update:model-value="handleChange"
+              />
+            </Field>
 
+            <div class="tw-flex tw-flex-row tw-gap-4">
               <VcInput
                 v-model="salesRep.password"
                 class="tw-flex-1"
@@ -103,17 +123,114 @@
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
                 :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
               />
+              <VcSelect
+                v-if="isNew"
+                v-model="salesRep.storeId"
+                class="tw-flex-1"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.STORE')"
+                :options="storeOptions"
+                option-value="id"
+                option-label="name"
+                required
+              />
             </div>
+          </div>
+        </VcCard>
 
-            <VcSelect
-              v-if="isNew"
-              v-model="salesRep.storeId"
-              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.STORE')"
-              :options="storeOptions"
-              option-value="id"
-              option-label="name"
-              required
-            />
+        <!-- Addresses -->
+        <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.ADDRESSES')">
+          <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
+            <div
+              v-for="(address, index) in salesRep.addresses"
+              :key="index"
+              class="tw-flex tw-flex-col tw-gap-3 tw-rounded tw-border tw-border-solid tw-border-[color:var(--neutrals-200)] tw-p-3"
+            >
+              <div class="tw-flex tw-flex-row tw-items-center tw-justify-between">
+                <span class="tw-font-medium">{{ $t("VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS") }} {{ index + 1 }}</span>
+                <VcButton
+                  icon="lucide-trash-2"
+                  text
+                  @click="removeAddress(index)"
+                />
+              </div>
+              <div class="tw-flex tw-flex-row tw-gap-4">
+                <VcSelect
+                  v-model="address.addressType"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_TYPE')"
+                  :options="addressTypeOptions"
+                  option-value="id"
+                  option-label="title"
+                />
+                <VcInput
+                  v-model="address.firstName"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.FIRST_NAME')"
+                />
+                <VcInput
+                  v-model="address.lastName"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LAST_NAME')"
+                />
+              </div>
+              <VcInput
+                v-model="address.line1"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_LINE1')"
+              />
+              <VcInput
+                v-model="address.line2"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_LINE2')"
+              />
+              <div class="tw-flex tw-flex-row tw-gap-4">
+                <VcInput
+                  v-model="address.city"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_CITY')"
+                />
+                <VcInput
+                  v-model="address.regionName"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_REGION')"
+                />
+                <VcInput
+                  v-model="address.postalCode"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_POSTAL_CODE')"
+                />
+              </div>
+              <div class="tw-flex tw-flex-row tw-gap-4">
+                <VcInput
+                  v-model="address.countryCode"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_COUNTRY_CODE')"
+                />
+                <VcInput
+                  v-model="address.countryName"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_COUNTRY_NAME')"
+                />
+              </div>
+              <div class="tw-flex tw-flex-row tw-gap-4">
+                <VcInput
+                  v-model="address.phone"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_PHONE')"
+                />
+                <VcInput
+                  v-model="address.email"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_EMAIL')"
+                />
+              </div>
+            </div>
+            <div>
+              <VcButton
+                icon="lucide-plus"
+                @click="addAddress"
+              >
+                {{ $t("VC_SALES_REP.PAGES.DETAILS.FORM.ADD_ADDRESS") }}
+              </VcButton>
+            </div>
           </div>
         </VcCard>
 
@@ -153,7 +270,18 @@ import {
   useOrganizations,
   useDictionaries,
 } from "../composables";
-import { VcBlade, VcContainer, VcForm, VcCard, VcInput, VcTextarea, VcSelect } from "@vc-shell/framework/ui";
+import { AddressType, CustomerAddress } from "../../../api_client/virtocommerce.salesrep";
+import {
+  VcBlade,
+  VcContainer,
+  VcForm,
+  VcCard,
+  VcInput,
+  VcTextarea,
+  VcSelect,
+  VcMultivalue,
+  VcButton,
+} from "@vc-shell/framework/ui";
 
 defineBlade({
   url: "/sales-rep-details",
@@ -185,12 +313,48 @@ const { timeZones, languages, currencies } = useDictionaries();
 
 const storeOptions = computed(() => stores.value.map((x) => ({ id: x.id, name: x.name })));
 
+// emails[0] is the account sign-in login (bound to the account — always kept, can't be removed here);
+// emails[1..] are additional emails edited via the multi-value below. The service dedups the combined list.
 const primaryEmail = computed<string | undefined>({
   get: () => salesRep.value.emails?.[0],
   set: (value) => {
-    salesRep.value.emails = value ? [value] : [];
+    const rest = (salesRep.value.emails ?? []).slice(1);
+    salesRep.value.emails = [value ?? "", ...rest];
   },
 });
+
+// VcMultivalue (free-form) models chips as { [optionLabel]: value }; we key on `id` (its default item
+// shape). `id` is both the value and the displayed chip label.
+const additionalEmailItems = computed({
+  get: () => (salesRep.value.emails ?? []).slice(1).map((email) => ({ id: email })),
+  set: (items: { id?: string }[]) => {
+    const login = salesRep.value.emails?.[0] ?? "";
+    const extra = (items ?? []).map((x) => x.id ?? "").filter(Boolean);
+    salesRep.value.emails = [login, ...extra];
+  },
+});
+
+const phoneItems = computed({
+  get: () => (salesRep.value.phones ?? []).map((phone) => ({ id: phone })),
+  set: (items: { id?: string }[]) => {
+    salesRep.value.phones = (items ?? []).map((x) => x.id ?? "").filter(Boolean);
+  },
+});
+
+const addressTypeOptions = Object.values(AddressType)
+  .filter((value) => value !== AddressType.Undefined)
+  .map((value) => ({ id: value, title: value }));
+
+const addAddress = () => {
+  if (!salesRep.value.addresses) {
+    salesRep.value.addresses = [];
+  }
+  salesRep.value.addresses.push({ addressType: AddressType.BillingAndShipping } as CustomerAddress);
+};
+
+const removeAddress = (index: number) => {
+  salesRep.value.addresses?.splice(index, 1);
+};
 
 const selectedOrganizations = computed({
   get: () => (salesRep.value.organizations ?? []).map((o) => ({ id: o.organizationId, name: o.organizationName })),
