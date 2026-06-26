@@ -62,15 +62,15 @@
           "PASSWORD_KEEP": "Leave blank to keep current password",
           "GLOBAL_ROLE": "Global Sales Rep role",
           "GLOBAL_ROLE_HINT": "Grants the sales-rep:access permission everywhere. Lets the rep exist without being assigned to any organization.",
-          "BLOCKED": "Blocked",
-          "BLOCKED_HINT": "Locks the account so the rep cannot sign in.",
           "ORGANIZATIONS": "Organizations served as Sales Rep",
           "ORGANIZATIONS_PLACEHOLDER": "Search organizations...",
           "ORGANIZATIONS_HINT": "The rep acts as a Sales Representative for the selected organizations."
         },
         "TOOLBAR": {
           "SAVE": "Save",
-          "RESET": "Reset"
+          "RESET": "Reset",
+          "BLOCK": "Block",
+          "UNBLOCK": "Unblock"
         },
         "ALERTS": {
           "CLOSE_CONFIRMATION": "You have unsaved changes. Do you want to discard them?"

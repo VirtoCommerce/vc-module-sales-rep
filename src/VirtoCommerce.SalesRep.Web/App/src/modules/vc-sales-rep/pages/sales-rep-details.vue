@@ -106,11 +106,6 @@
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.GLOBAL_ROLE')"
                 :label-tooltip="$t('VC_SALES_REP.PAGES.DETAILS.FORM.GLOBAL_ROLE_HINT')"
               />
-              <VcSwitch
-                v-model="salesRep.isLocked"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.BLOCKED')"
-                :label-tooltip="$t('VC_SALES_REP.PAGES.DETAILS.FORM.BLOCKED_HINT')"
-              />
             </div>
           </div>
         </VcCard>
@@ -158,8 +153,18 @@ const { hasAccess } = usePermissions();
 
 const isNew = computed(() => !param.value);
 
-const { salesRep, loadSalesRep, saveSalesRep, resetSalesRep, salesRepIsDirty, loadingOrSavingSalesRep } =
-  useSalesRepDetails();
+const {
+  salesRep,
+  loadSalesRep,
+  saveSalesRep,
+  resetSalesRep,
+  salesRepIsDirty,
+  blockSalesRep,
+  unblockSalesRep,
+  salesRepCanBlock,
+  salesRepCanUnblock,
+  loadingOrSavingSalesRep,
+} = useSalesRepDetails();
 const { createSalesRepPermission, updateSalesRepPermission } = useSalesRepPermissions();
 const { stores, loadStores, loadingStores } = useStores();
 const { loadOrganizations } = useOrganizations();
@@ -227,6 +232,28 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
             resetSalesRep();
             setBaseline();
           },
+        },
+        {
+          id: "block",
+          icon: "lucide-lock",
+          title: t("VC_SALES_REP.PAGES.DETAILS.TOOLBAR.BLOCK"),
+          clickHandler: async () => {
+            await blockSalesRep();
+            callParent("reload");
+            callParent("reOpenDetailsBlade", salesRep.value.id);
+          },
+          isVisible: hasAccess(updateSalesRepPermission) && salesRepCanBlock.value,
+        },
+        {
+          id: "unblock",
+          icon: "lucide-lock-open",
+          title: t("VC_SALES_REP.PAGES.DETAILS.TOOLBAR.UNBLOCK"),
+          clickHandler: async () => {
+            await unblockSalesRep();
+            callParent("reload");
+            callParent("reOpenDetailsBlade", salesRep.value.id);
+          },
+          isVisible: hasAccess(updateSalesRepPermission) && salesRepCanUnblock.value,
         },
       ]),
 ]);

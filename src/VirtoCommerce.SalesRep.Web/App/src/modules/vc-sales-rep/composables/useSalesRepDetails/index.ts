@@ -49,12 +49,38 @@ export default () => {
     }
   });
 
+  const { loading: blockingSalesRep, action: blockSalesRep } = useAsync(async () => {
+    if (salesRep.value.id) {
+      const apiClient = await getApiClient();
+      await apiClient.block(salesRep.value.id);
+    }
+  });
+
+  const { loading: unblockingSalesRep, action: unblockSalesRep } = useAsync(async () => {
+    if (salesRep.value.id) {
+      const apiClient = await getApiClient();
+      await apiClient.unblock(salesRep.value.id);
+    }
+  });
+
+  // Block/Unblock are dedicated actions (like news Archive/Unarchive): only on a saved, pristine rep.
+  const salesRepCanBlock = computed(
+    () => !salesRepIsDirty.value && !!originalSalesRep.value.id && !originalSalesRep.value.isLocked,
+  );
+  const salesRepCanUnblock = computed(
+    () => !salesRepIsDirty.value && !!originalSalesRep.value.id && !!originalSalesRep.value.isLocked,
+  );
+
   return {
     salesRep,
     loadSalesRep,
     saveSalesRep,
     resetSalesRep,
     salesRepIsDirty,
-    loadingOrSavingSalesRep: useLoading(loadingSalesRep, savingSalesRep),
+    blockSalesRep,
+    unblockSalesRep,
+    salesRepCanBlock,
+    salesRepCanUnblock,
+    loadingOrSavingSalesRep: useLoading(loadingSalesRep, savingSalesRep, blockingSalesRep, unblockingSalesRep),
   };
 };
