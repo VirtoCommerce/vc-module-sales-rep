@@ -99,14 +99,6 @@
               :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
               :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
             />
-
-            <div class="tw-flex tw-flex-col tw-gap-3 tw-mt-1">
-              <VcSwitch
-                v-model="salesRep.hasGlobalSalesRepRole"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.GLOBAL_ROLE')"
-                :label-tooltip="$t('VC_SALES_REP.PAGES.DETAILS.FORM.GLOBAL_ROLE_HINT')"
-              />
-            </div>
           </div>
         </VcCard>
 
@@ -140,7 +132,7 @@ import { useI18n } from "vue-i18n";
 import { Field } from "vee-validate";
 import { IBladeToolbar, usePermissions, useBlade, useLoading, useBladeForm } from "@vc-shell/framework";
 import { useSalesRepDetails, useSalesRepPermissions, useStores, useOrganizations } from "../composables";
-import { VcBlade, VcContainer, VcForm, VcCard, VcInput, VcTextarea, VcSelect, VcSwitch } from "@vc-shell/framework/ui";
+import { VcBlade, VcContainer, VcForm, VcCard, VcInput, VcTextarea, VcSelect } from "@vc-shell/framework/ui";
 
 defineBlade({
   url: "/sales-rep-details",

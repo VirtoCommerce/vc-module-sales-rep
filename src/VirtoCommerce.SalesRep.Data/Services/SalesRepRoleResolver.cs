@@ -47,39 +47,38 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
         return roles.Select(x => x.Id).ToHashSet();
     }
 
+    /// <summary>
+    /// The single role used for assignment (global and per-organization). Deterministic by stable id
+    /// (<c>sales-rep</c>) so there is never ambiguity when several roles grant the permission.
+    /// Seeded once (create-if-absent, never reseeded → admins may rename it); if the seeded role exists
+    /// but lost the permission, it is re-added so assigned reps keep their access.
+    /// </summary>
     public virtual async Task<Role> EnsureSalesRepRoleAsync()
     {
-        var granting = await GetRolesGrantingAccessAsync();
+        using var roleManager = _roleManagerFactory();
 
-        // Prefer the default seeded role (by stable id) when it still grants access; else any granting role.
-        var assignable = granting.FirstOrDefault(x => x.Id == ModuleConstants.Security.Roles.SalesRepRoleId)
-                         ?? granting.FirstOrDefault();
-        if (assignable != null)
+        var existing = await roleManager.FindByIdAsync(ModuleConstants.Security.Roles.SalesRepRoleId);
+        if (existing != null)
         {
-            return assignable;
+            if (existing.Permissions?.Any(p => p.Name == AccessPermission) != true)
+            {
+                existing.Permissions = [.. existing.Permissions ?? [], new Permission { Name = AccessPermission }];
+                await roleManager.UpdateAsync(existing);
+            }
+            return existing;
         }
 
-        // Nothing grants the permission yet — seed a sensible default (create-if-absent, never reseeded).
         var role = AbstractTypeFactory<Role>.TryCreateInstance();
         role.Id = ModuleConstants.Security.Roles.SalesRepRoleId;
         role.Name = ModuleConstants.Security.Roles.SalesRepRoleName;
+        role.Description = "Grants Sales Rep access (sales-rep:access).";
         role.Permissions = [new Permission { Name = AccessPermission }];
 
-        using var roleManager = _roleManagerFactory();
-        var existing = await roleManager.FindByIdAsync(role.Id);
-        if (existing == null)
+        var result = await roleManager.CreateAsync(role);
+        if (!result.Succeeded)
         {
-            var result = await roleManager.CreateAsync(role);
-            if (!result.Succeeded)
-            {
-                throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
-            }
-            return role;
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
-
-        // A role with the default id exists but lacks the permission — add it.
-        existing.Permissions = [.. existing.Permissions ?? [], new Permission { Name = AccessPermission }];
-        await roleManager.UpdateAsync(existing);
-        return existing;
+        return role;
     }
 }

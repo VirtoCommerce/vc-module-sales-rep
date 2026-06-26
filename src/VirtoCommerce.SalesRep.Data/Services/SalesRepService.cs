@@ -153,7 +153,8 @@ public class SalesRepService : ISalesRepService
         user.StoreId = salesRep.StoreId;
         user.UserType = "Customer";
 
-        if (salesRep.HasGlobalSalesRepRole && assignableRole != null)
+        // Every new Sales Rep gets the global Sales Rep role assignment (deterministic seeded role).
+        if (assignableRole != null)
         {
             user.Roles = [assignableRole];
         }

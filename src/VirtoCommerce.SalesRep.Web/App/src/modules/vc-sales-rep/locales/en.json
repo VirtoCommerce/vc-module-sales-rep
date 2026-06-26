@@ -60,8 +60,6 @@
           "STORE": "Store",
           "PASSWORD": "Password",
           "PASSWORD_KEEP": "Leave blank to keep current password",
-          "GLOBAL_ROLE": "Global Sales Rep role",
-          "GLOBAL_ROLE_HINT": "Grants the sales-rep:access permission everywhere. Lets the rep exist without being assigned to any organization.",
           "ORGANIZATIONS": "Organizations served as Sales Rep",
           "ORGANIZATIONS_PLACEHOLDER": "Search organizations...",
           "ORGANIZATIONS_HINT": "The rep acts as a Sales Representative for the selected organizations."
