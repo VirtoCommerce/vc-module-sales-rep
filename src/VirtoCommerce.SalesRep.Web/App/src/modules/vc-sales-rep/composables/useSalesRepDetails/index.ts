@@ -9,7 +9,6 @@ function emptySalesRep(): SalesRepDetails {
     phones: [],
     addresses: [],
     organizations: [],
-    hasGlobalSalesRepRole: true,
     isLocked: false,
   } as unknown as SalesRepDetails;
 }

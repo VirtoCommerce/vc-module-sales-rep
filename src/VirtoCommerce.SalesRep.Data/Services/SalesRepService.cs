@@ -111,9 +111,12 @@ public class SalesRepService : ISalesRepService
         await _memberService.SaveChangesAsync([contact]);
         salesRep.Id = contact.Id;
 
-        // Role chosen in the UI (must grant the permission); falls back to the lazily seeded default.
-        var assignableRole = await _roleResolver.GetAssignableRoleAsync(salesRep.RoleId);
-        var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
+        // Resolve the granting-role set once and derive both the id-set and the role to assign from it
+        // (the UI-chosen role if it grants the permission, else the lazily seeded default).
+        var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
+        var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
+            ?? await _roleResolver.EnsureSalesRepRoleAsync();
+        var grantingRoleIds = grantingRoles.Select(r => r.Id).Append(assignableRole.Id).ToHashSet();
 
         using var userManager = _userManagerFactory();
 

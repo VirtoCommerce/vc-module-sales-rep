@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Identity;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -22,26 +21,21 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 /// </summary>
 public class SalesRepSearchService : ISalesRepSearchService
 {
-    private const int UserIdChunkSize = 1000;
-
     private readonly IUserSearchService _userSearchService;
     private readonly IMemberService _memberService;
     private readonly IOrganizationMembershipService _membershipService;
     private readonly ISalesRepRoleResolver _roleResolver;
-    private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
 
     public SalesRepSearchService(
         IUserSearchService userSearchService,
         IMemberService memberService,
         IOrganizationMembershipService membershipService,
-        ISalesRepRoleResolver roleResolver,
-        Func<UserManager<ApplicationUser>> userManagerFactory)
+        ISalesRepRoleResolver roleResolver)
     {
         _userSearchService = userSearchService;
         _memberService = memberService;
         _membershipService = membershipService;
         _roleResolver = roleResolver;
-        _userManagerFactory = userManagerFactory;
     }
 
     public virtual async Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria)
@@ -149,15 +143,16 @@ public class SalesRepSearchService : ISalesRepSearchService
             return;
         }
 
-        using var userManager = _userManagerFactory();
-        for (var i = 0; i < missing.Count; i += UserIdChunkSize)
+        // Reuse the platform user search (honors ObjectIds, eager-loads roles) rather than hand-chunking UserManager.Users.
+        var loaded = (await _userSearchService.SearchUsersAsync(new UserSearchCriteria
         {
-            var chunk = missing.Skip(i).Take(UserIdChunkSize).ToList();
-            var loaded = userManager.Users.Where(u => chunk.Contains(u.Id)).ToList();
-            foreach (var user in loaded)
-            {
-                usersById[user.Id] = user;
-            }
+            ObjectIds = missing,
+            Take = missing.Count,
+        })).Results;
+
+        foreach (var user in loaded)
+        {
+            usersById[user.Id] = user;
         }
     }
 

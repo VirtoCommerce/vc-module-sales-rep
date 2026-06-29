@@ -452,11 +452,8 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
 ]);
 
 onMounted(async () => {
-  await loadStores();
-  await loadRoles();
-  if (param.value) {
-    await loadSalesRep({ id: param.value });
-  }
+  // These loaders are independent — run them concurrently to cut blade-open latency.
+  await Promise.all([loadStores(), loadRoles(), param.value ? loadSalesRep({ id: param.value }) : Promise.resolve()]);
   // Default the role on a new rep so the required dropdown is pre-filled.
   if (!param.value && !salesRep.value.roleId && roles.value.length) {
     salesRep.value.roleId = roles.value[0].id;

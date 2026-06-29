@@ -20,18 +20,9 @@ const version = import.meta.env.PACKAGE_VERSION;
 
 const { isAuthenticated } = useUser();
 
-onMounted(async () => {
-  try {
-    if (isAuthenticated.value) {
-      isReady.value = true;
-    }
-  } catch (e) {
-    console.log(e);
-    throw e;
-  }
+onMounted(() => {
+  isReady.value = isAuthenticated.value;
 });
-
-console.debug(`Initializing App`);
 </script>
 
 <style lang="scss">
