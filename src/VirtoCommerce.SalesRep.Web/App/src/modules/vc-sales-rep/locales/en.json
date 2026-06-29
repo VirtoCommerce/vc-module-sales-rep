@@ -92,6 +92,9 @@
         },
         "ALERTS": {
           "CLOSE_CONFIRMATION": "You have unsaved changes. Do you want to discard them?"
+        },
+        "VALIDATION": {
+          "PASSWORD_MIN": "Password must be at least {min} characters."
         }
       }
     }

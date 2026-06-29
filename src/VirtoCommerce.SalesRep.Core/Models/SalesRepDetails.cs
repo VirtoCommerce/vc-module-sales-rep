@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using VirtoCommerce.CustomerModule.Core.Model;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
@@ -39,7 +40,9 @@ public class SalesRepDetails
     // Account
     public string StoreId { get; set; }
 
-    /// <summary>Write-only. When set on create/update, (re)sets the account password.</summary>
+    /// <summary>Write-only. When set on create/update, (re)sets the account password. Accepted on input but
+    /// never serialized back in a response (it is never populated when reading a rep).</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public string Password { get; set; }
 
     /// <summary>Account-level lockout (blocked sign-in everywhere).</summary>

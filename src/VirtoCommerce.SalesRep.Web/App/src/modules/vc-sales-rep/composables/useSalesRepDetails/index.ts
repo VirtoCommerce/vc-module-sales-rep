@@ -10,7 +10,7 @@ function emptySalesRep(): SalesRepDetails {
     addresses: [],
     organizations: [],
     isLocked: false,
-  } as unknown as SalesRepDetails;
+  };
 }
 
 export default () => {

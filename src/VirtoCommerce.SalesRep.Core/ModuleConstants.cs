@@ -25,10 +25,10 @@ public static class ModuleConstants
         public static class Roles
         {
             /// <summary>
-            /// Stable id of the global "Sales Representative" role. Seeded once (create-if-absent),
-            /// so an admin may rename it without it being re-seeded.
+            /// Display name of the default role created (with a random id) the first time a Sales Rep is saved
+            /// and no role yet grants <see cref="Permissions.Access"/>. Admins may rename or delete it — a Sales
+            /// Rep is identified by holding the permission, never by this role's id.
             /// </summary>
-            public const string SalesRepRoleId = "sales-rep";
             public const string SalesRepRoleName = "Sales Representative";
         }
     }

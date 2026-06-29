@@ -16,12 +16,22 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
 
     private readonly Func<RoleManager<Role>> _roleManagerFactory;
 
+    // Memoized for the lifetime of this (transient, per-request) resolver. A single SaveChanges/GetById
+    // queries the granting-role set several times; the scan below is the expensive part. Invalidated when
+    // EnsureSalesRepRoleAsync creates a new granting role.
+    private IList<Role> _grantingRolesCache;
+
     public SalesRepRoleResolver(Func<RoleManager<Role>> roleManagerFactory)
     {
         _roleManagerFactory = roleManagerFactory;
     }
 
     public virtual async Task<IList<Role>> GetRolesGrantingAccessAsync()
+    {
+        return _grantingRolesCache ??= await LoadRolesGrantingAccessAsync();
+    }
+
+    protected virtual async Task<IList<Role>> LoadRolesGrantingAccessAsync()
     {
         using var roleManager = _roleManagerFactory();
 
@@ -60,45 +70,25 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
         return roles;
     }
 
-    public virtual async Task<Role> GetAssignableRoleAsync(string roleId)
-    {
-        if (!string.IsNullOrEmpty(roleId))
-        {
-            using var roleManager = _roleManagerFactory();
-            var role = await roleManager.FindByIdAsync(roleId);
-            if (role?.Permissions?.Any(p => p.Name == AccessPermission) == true)
-            {
-                return role;
-            }
-        }
-
-        // No (valid) role selected — fall back to the lazily seeded default.
-        return await EnsureSalesRepRoleAsync();
-    }
-
     /// <summary>
-    /// The single role used for assignment (global and per-organization). Deterministic by stable id
-    /// (<c>sales-rep</c>) so there is never ambiguity when several roles grant the permission.
-    /// Seeded once (create-if-absent, never reseeded → admins may rename it); if the seeded role exists
-    /// but lost the permission, it is re-added so assigned reps keep their access.
+    /// Returns a role granting the permission, creating a default one ONLY when none currently does.
+    /// The created role gets a random (GUID) id — never a well-known constant — so nothing keys off the id;
+    /// a Sales Rep is identified by holding the permission. Because a granting role then exists, subsequent
+    /// calls return it instead of creating another, so an admin can delete the built-in role and replace it
+    /// with their own without it being re-seeded.
     /// </summary>
     public virtual async Task<Role> EnsureSalesRepRoleAsync()
     {
-        using var roleManager = _roleManagerFactory();
-
-        var existing = await roleManager.FindByIdAsync(ModuleConstants.Security.Roles.SalesRepRoleId);
-        if (existing != null)
+        var granting = await GetRolesGrantingAccessAsync();
+        if (granting.Count > 0)
         {
-            if (existing.Permissions?.Any(p => p.Name == AccessPermission) != true)
-            {
-                existing.Permissions = [.. existing.Permissions ?? [], new Permission { Name = AccessPermission }];
-                await roleManager.UpdateAsync(existing);
-            }
-            return existing;
+            return granting[0];
         }
 
+        using var roleManager = _roleManagerFactory();
+
         var role = AbstractTypeFactory<Role>.TryCreateInstance();
-        role.Id = ModuleConstants.Security.Roles.SalesRepRoleId;
+        role.Id = Guid.NewGuid().ToString("N");
         role.Name = ModuleConstants.Security.Roles.SalesRepRoleName;
         role.Description = "Grants Sales Rep access (sales-rep:access).";
         role.Permissions = [new Permission { Name = AccessPermission }];
@@ -108,6 +98,8 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
         {
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
+
+        _grantingRolesCache = null; // a new granting role now exists — drop the memoized (empty) set
         return role;
     }
 }

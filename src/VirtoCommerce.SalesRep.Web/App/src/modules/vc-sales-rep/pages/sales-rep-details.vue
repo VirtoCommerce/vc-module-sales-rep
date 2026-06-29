@@ -27,13 +27,23 @@
                   @update:model-value="handleChange"
                 />
               </Field>
-              <VcInput
-                v-model="salesRep.password"
+              <Field
+                v-slot="{ errors, errorMessage, handleChange }"
+                :model-value="salesRep.password"
+                name="password"
+                :rules="passwordRules"
                 class="tw-flex-1"
-                type="password"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
-                :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
-              />
+              >
+                <VcInput
+                  v-model="salesRep.password"
+                  type="password"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
+                  :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
+                  :error="errors.length > 0"
+                  :error-message="errorMessage"
+                  @update:model-value="handleChange"
+                />
+              </Field>
             </div>
             <div class="tw-flex tw-flex-row tw-gap-4">
               <VcSelect
@@ -328,6 +338,19 @@ const { roles, loadRoles, loadingRoles } = useRoles();
 
 const storeOptions = computed(() => stores.value.map((x) => ({ id: x.id, name: x.name })));
 const roleOptions = computed(() => roles.value.map((x) => ({ id: x.id, title: x.name })));
+
+// Minimum account password length. Kept in sync with the platform's default security policy; no client API
+// exposes the configured value, so it is a constant here.
+const PASSWORD_MIN_LENGTH = 8;
+// Validate length only when a password is entered: a blank password keeps the current one on edit (and, on
+// create, an account may be created without a password). vee-validate runs rules on empty values too, so the
+// empty case is allowed explicitly.
+const passwordRules = (value: unknown) => {
+  const password = typeof value === "string" ? value : "";
+  return !password || password.length >= PASSWORD_MIN_LENGTH
+    ? true
+    : t("VC_SALES_REP.PAGES.DETAILS.VALIDATION.PASSWORD_MIN", { min: PASSWORD_MIN_LENGTH });
+};
 
 // emails[0] is the account sign-in login (bound to the account — always kept, can't be removed here);
 // emails[1..] are additional emails edited via the multi-value below. The service dedups the combined list.

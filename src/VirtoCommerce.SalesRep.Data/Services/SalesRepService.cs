@@ -102,6 +102,19 @@ public class SalesRepService : ISalesRepService
 
         var isNew = string.IsNullOrEmpty(salesRep.Id);
 
+        if (isNew)
+        {
+            // A login account is mandatory for a Sales Rep. Without a login email (or an explicit user name)
+            // account creation fails with an opaque Identity error AFTER the contact was already saved, so
+            // reject early with a clear message instead.
+            var hasLogin = !string.IsNullOrWhiteSpace(salesRep.UserName)
+                || salesRep.Emails?.Any(e => !string.IsNullOrWhiteSpace(e)) == true;
+            if (!hasLogin)
+            {
+                throw new InvalidOperationException("A Sales Rep requires a login email (or user name).");
+            }
+        }
+
         var contact = isNew
             ? AbstractTypeFactory<Contact>.TryCreateInstance()
             : await _memberService.GetByIdAsync(salesRep.Id, MemberResponseGroup.Full.ToString()) as Contact
@@ -111,25 +124,51 @@ public class SalesRepService : ISalesRepService
         await _memberService.SaveChangesAsync([contact]);
         salesRep.Id = contact.Id;
 
-        // Resolve the granting-role set once and derive both the id-set and the role to assign from it
-        // (the UI-chosen role if it grants the permission, else the lazily seeded default).
-        var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
-        var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
-            ?? await _roleResolver.EnsureSalesRepRoleAsync();
-        var grantingRoleIds = grantingRoles.Select(r => r.Id).Append(assignableRole.Id).ToHashSet();
-
-        using var userManager = _userManagerFactory();
-
-        var user = isNew
-            ? await CreateAccountAsync(userManager, contact, salesRep, assignableRole)
-            : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleIds);
-
-        if (user != null)
+        try
         {
-            await SyncMembershipsAsync(user.Id, salesRep, assignableRole, grantingRoleIds);
+            // Resolve the granting-role set once and derive both the id-set and the role to assign from it
+            // (the UI-chosen role if it grants the permission, else the lazily seeded default).
+            var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
+            var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
+                ?? await _roleResolver.EnsureSalesRepRoleAsync();
+            var grantingRoleIds = grantingRoles.Select(r => r.Id).Append(assignableRole.Id).ToHashSet();
+
+            using var userManager = _userManagerFactory();
+
+            var user = isNew
+                ? await CreateAccountAsync(userManager, contact, salesRep, assignableRole)
+                : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleIds);
+
+            if (user != null)
+            {
+                await SyncMembershipsAsync(user.Id, salesRep, assignableRole, grantingRoleIds);
+            }
+        }
+        catch when (isNew)
+        {
+            // The contact was persisted before the account/membership step failed. There is no cross-service
+            // transaction, so compensate: roll the just-created contact back (reusing the module's own delete,
+            // which also removes any partially-created account) so a failed create never leaves an orphan
+            // member. The original exception is rethrown to the caller.
+            await TryRollbackContactAsync(contact.Id);
+            throw;
         }
 
         return await GetByIdAsync(salesRep.Id);
+    }
+
+    /// <summary>Best-effort rollback of a contact (and its account) after a failed create. Cleanup errors are
+    /// swallowed so the caller can rethrow the original failure that triggered the rollback.</summary>
+    protected virtual async Task TryRollbackContactAsync(string memberId)
+    {
+        try
+        {
+            await DeleteAsync([memberId]);
+        }
+        catch (Exception)
+        {
+            // Intentionally ignored — see summary above.
+        }
     }
 
     public virtual async Task DeleteAsync(string[] ids)
@@ -176,15 +215,9 @@ public class SalesRepService : ISalesRepService
     public virtual async Task SetPasswordAsync(string id, string newPassword)
     {
         using var userManager = _userManagerFactory();
-        var user = await GetTrackedUserAsync(userManager, id);
-        if (user == null)
-        {
-            return;
-        }
-
-        var token = await userManager.GeneratePasswordResetTokenAsync(user);
-        var result = await userManager.ResetPasswordAsync(user, token, newPassword);
-        ThrowIfFailed(result);
+        var user = await GetTrackedUserAsync(userManager, id)
+            ?? throw new InvalidOperationException($"No account found for Sales Rep '{id}'.");
+        await ResetPasswordAsync(userManager, user, newPassword);
     }
 
     public virtual async Task<IList<SalesRepRole>> GetRolesAsync()
@@ -198,15 +231,23 @@ public class SalesRepService : ISalesRepService
     protected virtual async Task SetLockoutAsync(string id, DateTimeOffset? lockoutEnd)
     {
         using var userManager = _userManagerFactory();
-        var user = await GetTrackedUserAsync(userManager, id);
-        if (user == null)
-        {
-            return;
-        }
+        var user = await GetTrackedUserAsync(userManager, id)
+            ?? throw new InvalidOperationException($"No account found for Sales Rep '{id}'.");
+        await ApplyLockoutAsync(userManager, user, lockoutEnd);
+    }
 
+    /// <summary>Enable lockout and set the end date on a user already tracked by <paramref name="userManager"/>.</summary>
+    protected static async Task ApplyLockoutAsync(UserManager<ApplicationUser> userManager, ApplicationUser user, DateTimeOffset? lockoutEnd)
+    {
         await userManager.SetLockoutEnabledAsync(user, true);
-        var result = await userManager.SetLockoutEndDateAsync(user, lockoutEnd);
-        ThrowIfFailed(result);
+        ThrowIfFailed(await userManager.SetLockoutEndDateAsync(user, lockoutEnd));
+    }
+
+    /// <summary>Reset the password of a user already tracked by <paramref name="userManager"/>.</summary>
+    protected static async Task ResetPasswordAsync(UserManager<ApplicationUser> userManager, ApplicationUser user, string newPassword)
+    {
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        ThrowIfFailed(await userManager.ResetPasswordAsync(user, token, newPassword));
     }
 
     protected virtual async Task<ApplicationUser> CreateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole)
@@ -233,8 +274,7 @@ public class SalesRepService : ISalesRepService
 
         if (salesRep.IsLocked)
         {
-            await userManager.SetLockoutEnabledAsync(user, true);
-            await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.MaxValue);
+            await ApplyLockoutAsync(userManager, user, DateTimeOffset.MaxValue);
         }
 
         return user;
@@ -267,14 +307,14 @@ public class SalesRepService : ISalesRepService
         }
         user.Roles = roles;
 
-        var result = await userManager.UpdateAsync(user);
-        ThrowIfFailed(result);
+        ThrowIfFailed(await userManager.UpdateAsync(user));
 
-        await SetLockoutAsync(contact.Id, salesRep.IsLocked ? DateTimeOffset.MaxValue : null);
+        // Apply lockout + password on the user already tracked by this UserManager (no extra fetch/manager).
+        await ApplyLockoutAsync(userManager, user, salesRep.IsLocked ? DateTimeOffset.MaxValue : null);
 
         if (!string.IsNullOrEmpty(salesRep.Password))
         {
-            await SetPasswordAsync(contact.Id, salesRep.Password);
+            await ResetPasswordAsync(userManager, user, salesRep.Password);
         }
 
         return user;
