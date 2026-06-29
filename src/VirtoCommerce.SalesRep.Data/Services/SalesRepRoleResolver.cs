@@ -47,6 +47,35 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
         return roles.Select(x => x.Id).ToHashSet();
     }
 
+    public virtual async Task<IList<Role>> GetSelectableRolesAsync()
+    {
+        var roles = await GetRolesGrantingAccessAsync();
+
+        // Lazy seed: if no role grants the permission yet, create the default so the picker is never empty.
+        if (roles.Count == 0)
+        {
+            roles = [await EnsureSalesRepRoleAsync()];
+        }
+
+        return roles;
+    }
+
+    public virtual async Task<Role> GetAssignableRoleAsync(string roleId)
+    {
+        if (!string.IsNullOrEmpty(roleId))
+        {
+            using var roleManager = _roleManagerFactory();
+            var role = await roleManager.FindByIdAsync(roleId);
+            if (role?.Permissions?.Any(p => p.Name == AccessPermission) == true)
+            {
+                return role;
+            }
+        }
+
+        // No (valid) role selected — fall back to the lazily seeded default.
+        return await EnsureSalesRepRoleAsync();
+    }
+
     /// <summary>
     /// The single role used for assignment (global and per-organization). Deterministic by stable id
     /// (<c>sales-rep</c>) so there is never ambiguity when several roles grant the permission.

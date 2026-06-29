@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -28,6 +29,15 @@ public class SalesRepController : Controller
     public async Task<ActionResult<SalesRepSearchResult>> Search([FromBody] SalesRepSearchCriteria criteria)
     {
         var result = await _salesRepSearchService.SearchAsync(criteria);
+        return Ok(result);
+    }
+
+    /// <summary>Roles selectable for a Sales Rep (those granting "sales-rep:access"); seeds a default if none.</summary>
+    [HttpGet("roles")]
+    [Authorize(Permissions.Read)]
+    public async Task<ActionResult<IList<SalesRepRole>>> GetRoles()
+    {
+        var result = await _salesRepService.GetRolesAsync();
         return Ok(result);
     }
 

@@ -60,6 +60,26 @@
           </div>
         </VcCard>
 
+        <!-- Served organizations -->
+        <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.ORGANIZATIONS')">
+          <div class="tw-flex tw-flex-col tw-gap-2 tw-p-4">
+            <VcSelect
+              v-model="selectedOrganizations"
+              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ORGANIZATIONS')"
+              :placeholder="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ORGANIZATIONS_PLACEHOLDER')"
+              :options="loadOrganizations"
+              option-value="id"
+              option-label="name"
+              multiple
+              searchable
+              :emit-value="false"
+            />
+            <span class="tw-text-xs tw-text-[color:var(--neutrals-500)]">
+              {{ $t("VC_SALES_REP.PAGES.DETAILS.FORM.ORGANIZATIONS_HINT") }}
+            </span>
+          </div>
+        </VcCard>
+
         <!-- Profile -->
         <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.PROFILE')">
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
@@ -243,26 +263,6 @@
                 {{ $t("VC_SALES_REP.PAGES.DETAILS.FORM.ADD_ADDRESS") }}
               </VcButton>
             </div>
-          </div>
-        </VcCard>
-
-        <!-- Served organizations -->
-        <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.ORGANIZATIONS')">
-          <div class="tw-flex tw-flex-col tw-gap-2 tw-p-4">
-            <VcSelect
-              v-model="selectedOrganizations"
-              :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ORGANIZATIONS')"
-              :placeholder="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ORGANIZATIONS_PLACEHOLDER')"
-              :options="loadOrganizations"
-              option-value="id"
-              option-label="name"
-              multiple
-              searchable
-              :emit-value="false"
-            />
-            <span class="tw-text-xs tw-text-[color:var(--neutrals-500)]">
-              {{ $t("VC_SALES_REP.PAGES.DETAILS.FORM.ORGANIZATIONS_HINT") }}
-            </span>
           </div>
         </VcCard>
       </VcForm>

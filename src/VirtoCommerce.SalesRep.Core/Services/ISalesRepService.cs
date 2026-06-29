@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Models;
 
@@ -25,4 +26,10 @@ public interface ISalesRepService
 
     /// <summary>Set a new password for the rep's account.</summary>
     Task SetPasswordAsync(string id, string newPassword);
+
+    /// <summary>
+    /// Roles selectable for a Sales Rep (those granting "sales-rep:access"). Seeds a default role
+    /// when none currently grants the permission, so the list is never empty.
+    /// </summary>
+    Task<IList<SalesRepRole>> GetRolesAsync();
 }

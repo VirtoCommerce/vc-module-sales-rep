@@ -18,8 +18,19 @@ public interface ISalesRepRoleResolver
     Task<ISet<string>> GetRoleIdsGrantingAccessAsync();
 
     /// <summary>
-    /// Returns a role suitable to assign to a new/edited Sales Rep (one that grants the permission).
-    /// Seeds a default "Sales Representative" role when none currently grants it.
+    /// Roles selectable in the UI for a Sales Rep (those granting the permission). Seeds and returns the
+    /// default role when none currently grants it, so the list is never empty (lazy seeding).
+    /// </summary>
+    Task<IList<Role>> GetSelectableRolesAsync();
+
+    /// <summary>
+    /// Resolves the role to assign to a rep: the role with <paramref name="roleId"/> when given and it
+    /// grants the permission; otherwise the (lazily seeded) default role.
+    /// </summary>
+    Task<Role> GetAssignableRoleAsync(string roleId);
+
+    /// <summary>
+    /// Seeds (create-if-absent) and returns the default "Sales Representative" role granting the permission.
     /// </summary>
     Task<Role> EnsureSalesRepRoleAsync();
 }

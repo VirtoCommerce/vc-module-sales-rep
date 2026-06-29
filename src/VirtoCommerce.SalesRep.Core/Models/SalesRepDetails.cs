@@ -48,6 +48,14 @@ public class SalesRepDetails
     /// <summary>True when the account holds a global role granting "sales-rep:access".</summary>
     public bool HasGlobalSalesRepRole { get; set; }
 
+    /// <summary>
+    /// Id of the role (granting "sales-rep:access") assigned to this rep — applied both as the global role
+    /// and as the per-organization membership role. Changing it on edit re-points all existing assignments.
+    /// </summary>
+    public string RoleId { get; set; }
+
+    public string RoleName { get; set; }
+
     /// <summary>Organizations the rep serves (per-org role granting "sales-rep:access").</summary>
     public IList<SalesRepOrganization> Organizations { get; set; } = new List<SalesRepOrganization>();
 }

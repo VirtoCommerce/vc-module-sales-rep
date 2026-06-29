@@ -49,7 +49,13 @@ public class SalesRepService : ISalesRepService
         {
             var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
 
-            result.HasGlobalSalesRepRole = user.Roles?.Any(r => grantingRoleIds.Contains(r.Id)) == true;
+            var globalRole = user.Roles?.FirstOrDefault(r => grantingRoleIds.Contains(r.Id));
+            result.HasGlobalSalesRepRole = globalRole != null;
+            if (globalRole != null)
+            {
+                result.RoleId = globalRole.Id;
+                result.RoleName = globalRole.Name;
+            }
 
             var memberships = await GetSalesRepMembershipsAsync(user.Id, grantingRoleIds);
             result.Organizations = memberships
@@ -60,6 +66,19 @@ public class SalesRepService : ISalesRepService
                     MembershipId = m.Id,
                 })
                 .ToList();
+
+            // No global role (per-org-only rep) — derive the role from a membership.
+            if (string.IsNullOrEmpty(result.RoleId))
+            {
+                var membershipRole = memberships
+                    .SelectMany(m => m.Roles)
+                    .FirstOrDefault(r => grantingRoleIds.Contains(r.RoleId));
+                if (membershipRole != null)
+                {
+                    result.RoleId = membershipRole.RoleId;
+                    result.RoleName = membershipRole.RoleName;
+                }
+            }
         }
 
         return result;
@@ -80,7 +99,8 @@ public class SalesRepService : ISalesRepService
         await _memberService.SaveChangesAsync([contact]);
         salesRep.Id = contact.Id;
 
-        var assignableRole = await _roleResolver.EnsureSalesRepRoleAsync();
+        // Role chosen in the UI (must grant the permission); falls back to the lazily seeded default.
+        var assignableRole = await _roleResolver.GetAssignableRoleAsync(salesRep.RoleId);
         var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
 
         using var userManager = _userManagerFactory();
@@ -126,6 +146,14 @@ public class SalesRepService : ISalesRepService
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var result = await userManager.ResetPasswordAsync(user, token, newPassword);
         ThrowIfFailed(result);
+    }
+
+    public virtual async Task<IList<SalesRepRole>> GetRolesAsync()
+    {
+        var roles = await _roleResolver.GetSelectableRolesAsync();
+        return roles
+            .Select(r => new SalesRepRole { Id = r.Id, Name = r.Name })
+            .ToList();
     }
 
     protected virtual async Task SetLockoutAsync(string id, DateTimeOffset? lockoutEnd)
@@ -192,18 +220,14 @@ public class SalesRepService : ISalesRepService
             user.UserName = salesRep.UserName;
         }
 
-        // Sync the global role granting the permission.
-        var roles = user.Roles?.ToList() ?? [];
-        var hasGranting = roles.Any(r => grantingRoleIds.Contains(r.Id));
-        if (salesRep.HasGlobalSalesRepRole && !hasGranting && assignableRole != null)
+        // Set the global role to the selected one: drop any other granting role, ensure the target is present.
+        // (Switching the role re-points the global assignment.)
+        var roles = (user.Roles ?? []).Where(r => !grantingRoleIds.Contains(r.Id)).ToList();
+        if (assignableRole != null)
         {
             roles.Add(assignableRole);
-            user.Roles = roles;
         }
-        else if (!salesRep.HasGlobalSalesRepRole && hasGranting)
-        {
-            user.Roles = [.. roles.Where(r => !grantingRoleIds.Contains(r.Id))];
-        }
+        user.Roles = roles;
 
         var result = await userManager.UpdateAsync(user);
         ThrowIfFailed(result);
@@ -232,14 +256,20 @@ public class SalesRepService : ISalesRepService
         var toSave = new List<OrganizationMembership>();
         var toDelete = new List<string>();
 
-        // Grant the sales-rep role on served orgs (creating the membership when absent).
+        // Grant the selected role on served orgs (creating the membership when absent). On an existing
+        // membership, drop any other granting role and set the selected one so a role change re-points it.
         foreach (var orgId in servedOrgIds)
         {
             if (existingByOrg.TryGetValue(orgId, out var membership))
             {
-                if (!membership.Roles.Any(r => grantingRoleIds.Contains(r.RoleId)))
+                var alreadyCorrect = membership.Roles.Any(r => r.RoleId == assignableRole.Id);
+                var hasOtherGranting = membership.Roles.Any(r => grantingRoleIds.Contains(r.RoleId) && r.RoleId != assignableRole.Id);
+                if (!alreadyCorrect || hasOtherGranting)
                 {
-                    membership.Roles.Add(CreateMembershipRole(assignableRole));
+                    membership.Roles = [
+                        .. membership.Roles.Where(r => !grantingRoleIds.Contains(r.RoleId)),
+                        CreateMembershipRole(assignableRole),
+                    ];
                     toSave.Add(membership);
                 }
             }

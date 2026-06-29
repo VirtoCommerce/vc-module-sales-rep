@@ -35,11 +35,9 @@ public class Module : IModule, IHasConfiguration
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
 
-        // Ensure a default role granting "sales-rep:access" exists (create-if-absent; never reseeded,
-        // so admins may rename/replace it). Detection of Sales Reps keys off the permission, not this role.
-        using var scope = serviceProvider.CreateScope();
-        var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
-        roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
+        // Note: the default "Sales Representative" role is NOT seeded at startup. It is seeded lazily the
+        // first time the selectable roles are queried (GET api/sales-rep/roles) when no role grants the
+        // permission yet — see ISalesRepRoleResolver.GetSelectableRolesAsync.
     }
 
     public void Uninstall()
