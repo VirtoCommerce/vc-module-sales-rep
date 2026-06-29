@@ -26,7 +26,8 @@ export default (options: {
   const { showConfirmation } = usePopup();
   const { openBlade, closeChildren } = useBlade();
   const { hasAccess } = usePermissions();
-  const { createSalesRepPermission, deleteSalesRepPermission } = useSalesRepPermissions();
+  const { createSalesRepPermission, deleteSalesRepPermission, accountCreatePermission, accountDeletePermission } =
+    useSalesRepPermissions();
 
   const bladeToolbar = computed((): IBladeToolbar[] => [
     {
@@ -44,7 +45,7 @@ export default (options: {
       clickHandler: async () => {
         openDetailsBlade(undefined);
       },
-      isVisible: () => hasAccess(createSalesRepPermission),
+      isVisible: () => hasAccess(createSalesRepPermission) && hasAccess(accountCreatePermission),
     },
     {
       id: "delete",
@@ -64,7 +65,7 @@ export default (options: {
           await options.searchSalesReps();
         }
       },
-      isVisible: () => hasAccess(deleteSalesRepPermission),
+      isVisible: () => hasAccess(deleteSalesRepPermission) && hasAccess(accountDeletePermission),
     },
   ]);
 

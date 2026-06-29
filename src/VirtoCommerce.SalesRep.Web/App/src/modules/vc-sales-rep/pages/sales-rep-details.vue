@@ -319,7 +319,8 @@ const {
   salesRepCanUnblock,
   loadingOrSavingSalesRep,
 } = useSalesRepDetails();
-const { createSalesRepPermission, updateSalesRepPermission } = useSalesRepPermissions();
+const { createSalesRepPermission, updateSalesRepPermission, accountCreatePermission, accountManagementPermission } =
+  useSalesRepPermissions();
 const { stores, loadStores, loadingStores } = useStores();
 const { loadOrganizations } = useOrganizations();
 const { timeZones, languages, currencies } = useDictionaries();
@@ -383,7 +384,12 @@ const selectedOrganizations = computed({
 
 const loading = useLoading(loadingOrSavingSalesRep, loadingStores, loadingRoles);
 
-const savePermission = computed(() => (isNew.value ? createSalesRepPermission : updateSalesRepPermission));
+// Saving creates/edits both the member and the login account, so it needs both permissions (matches the API).
+const hasSaveAccess = computed(() =>
+  isNew.value
+    ? hasAccess(createSalesRepPermission) && hasAccess(accountCreatePermission)
+    : hasAccess(updateSalesRepPermission) && hasAccess(accountManagementPermission),
+);
 
 const { canSave, setBaseline } = useBladeForm({
   data: salesRep,
@@ -411,7 +417,7 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
         callParent("reOpenDetailsBlade", salesRep.value.id);
       }
     },
-    isVisible: hasAccess(savePermission.value),
+    isVisible: hasSaveAccess.value,
   },
   ...(isNew.value
     ? []
@@ -435,7 +441,7 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
             callParent("reload");
             callParent("reOpenDetailsBlade", salesRep.value.id);
           },
-          isVisible: hasAccess(updateSalesRepPermission) && salesRepCanBlock.value,
+          isVisible: hasAccess(accountManagementPermission) && salesRepCanBlock.value,
         },
         {
           id: "unblock",
@@ -446,7 +452,7 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
             callParent("reload");
             callParent("reOpenDetailsBlade", salesRep.value.id);
           },
-          isVisible: hasAccess(updateSalesRepPermission) && salesRepCanUnblock.value,
+          isVisible: hasAccess(accountManagementPermission) && salesRepCanUnblock.value,
         },
       ]),
 ]);
