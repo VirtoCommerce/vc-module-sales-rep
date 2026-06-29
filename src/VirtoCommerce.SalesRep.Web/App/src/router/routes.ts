@@ -2,7 +2,6 @@ import { RouteRecordRaw } from "vue-router";
 import App from "../pages/App.vue";
 import { Invite, Login, ResetPassword, ChangePasswordPage, ForgotPassword } from "@vc-shell/framework";
 import whiteLogoImage from "/assets/logo-white.svg";
-import bgImage from "/assets/background.jpg";
 
 const version = import.meta.env.PACKAGE_VERSION;
 

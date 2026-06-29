@@ -38,10 +38,14 @@ public class SalesRepSearchService : ISalesRepSearchService
         _roleResolver = roleResolver;
     }
 
-    public virtual async Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria)
+    public virtual Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
+        return SearchInternalAsync(criteria);
+    }
 
+    protected virtual async Task<SalesRepSearchResult> SearchInternalAsync(SalesRepSearchCriteria criteria)
+    {
         var result = new SalesRepSearchResult();
 
         var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
@@ -51,29 +55,14 @@ public class SalesRepSearchService : ISalesRepSearchService
         }
 
         var grantingRoleIds = grantingRoles.Select(r => r.Id).ToArray();
-        var grantingRoleNames = grantingRoles.Select(r => r.Name).Where(x => !string.IsNullOrEmpty(x)).ToArray();
         var orgScoped = !string.IsNullOrEmpty(criteria.OrganizationId);
 
-        // Source A: users with a global role granting the permission (skipped for an org-scoped view).
+        // Source A: users whose GLOBAL role grants the permission (skipped for an org-scoped view).
         var usersById = new Dictionary<string, ApplicationUser>();
-        var globalRoleUserIds = new HashSet<string>();
-        if (!orgScoped && grantingRoleNames.Length > 0)
-        {
-            var globalUsers = (await _userSearchService.SearchUsersAsync(new UserSearchCriteria
-            {
-                Roles = grantingRoleNames,
-                Take = int.MaxValue,
-            })).Results;
+        HashSet<string> globalRoleUserIds = orgScoped ? [] : await LoadGlobalRoleUsersAsync(grantingRoles, usersById);
 
-            foreach (var user in globalUsers)
-            {
-                usersById[user.Id] = user;
-                globalRoleUserIds.Add(user.Id);
-            }
-        }
-
-        // Source B: per-org reps (DB-side aggregate). When org-scoped, candidates are users serving that org;
-        // total org counts are resolved separately so the displayed count reflects all served organizations.
+        // Source B: per-org reps via a DB-side aggregate. An org-scoped view counts only users serving that
+        // org, so total org counts are then resolved separately to reflect all of a rep's served organizations.
         var orgIds = orgScoped ? new[] { criteria.OrganizationId } : null;
         var scopedCounts = await _membershipService.GetOrganizationCountsByUserAsync(grantingRoleIds, orgIds);
         var totalCounts = orgScoped
@@ -81,14 +70,56 @@ public class SalesRepSearchService : ISalesRepSearchService
             : scopedCounts;
 
         var candidateUserIds = new HashSet<string>(globalRoleUserIds);
-        foreach (var userId in scopedCounts.Keys)
-        {
-            candidateUserIds.Add(userId);
-        }
+        candidateUserIds.UnionWith(scopedCounts.Keys);
 
         await LoadMissingUsersAsync(usersById, candidateUserIds);
 
-        // Build candidate rows + apply id-level filters.
+        var rows = BuildRows(criteria, candidateUserIds, usersById, totalCounts, globalRoleUserIds);
+
+        var items = await EnrichAsync(rows);
+        items = ApplyKeyword(items, criteria.Keyword);
+        items = ApplySort(items, criteria.SortInfos);
+
+        result.TotalCount = items.Count;
+        var take = criteria.Take <= 0 ? items.Count : criteria.Take;
+        result.Results = items.Skip(criteria.Skip).Take(take).ToList();
+
+        return result;
+    }
+
+    /// <summary>Load users whose global role grants the permission into <paramref name="usersById"/> and return their ids.</summary>
+    protected virtual async Task<HashSet<string>> LoadGlobalRoleUsersAsync(IList<Role> grantingRoles, Dictionary<string, ApplicationUser> usersById)
+    {
+        var ids = new HashSet<string>();
+        var roleNames = grantingRoles.Select(r => r.Name).Where(x => !string.IsNullOrEmpty(x)).ToArray();
+        if (roleNames.Length == 0)
+        {
+            return ids;
+        }
+
+        var globalUsers = (await _userSearchService.SearchUsersAsync(new UserSearchCriteria
+        {
+            Roles = roleNames,
+            Take = int.MaxValue,
+        })).Results;
+
+        foreach (var user in globalUsers)
+        {
+            usersById[user.Id] = user;
+            ids.Add(user.Id);
+        }
+
+        return ids;
+    }
+
+    /// <summary>Project the candidate users into rows, applying the id-level filters and deduping to one row per member.</summary>
+    protected virtual List<CandidateRow> BuildRows(
+        SalesRepSearchCriteria criteria,
+        HashSet<string> candidateUserIds,
+        Dictionary<string, ApplicationUser> usersById,
+        IDictionary<string, int> totalCounts,
+        HashSet<string> globalRoleUserIds)
+    {
         var rows = new List<CandidateRow>();
         foreach (var userId in candidateUserIds)
         {
@@ -98,13 +129,9 @@ public class SalesRepSearchService : ISalesRepSearchService
             }
 
             var orgCount = totalCounts.TryGetValue(userId, out var count) ? count : 0;
-            var isLocked = IsLocked(user);
+            var isLocked = IsAccountLocked(user);
 
-            if (criteria.OnlyBlocked && !isLocked)
-            {
-                continue;
-            }
-            if (criteria.OnlyUnassigned && orgCount > 0)
+            if (!PassesFilters(criteria, isLocked, orgCount))
             {
                 continue;
             }
@@ -122,17 +149,17 @@ public class SalesRepSearchService : ISalesRepSearchService
         }
 
         // One account per member expected; dedupe defensively.
-        rows = rows.GroupBy(r => r.MemberId).Select(g => g.First()).ToList();
+        return rows.GroupBy(r => r.MemberId).Select(g => g.First()).ToList();
+    }
 
-        var items = await EnrichAsync(rows);
-        items = ApplyKeyword(items, criteria.Keyword);
-        items = ApplySort(items, criteria.SortInfos);
+    protected static bool PassesFilters(SalesRepSearchCriteria criteria, bool isLocked, int orgCount)
+    {
+        if (criteria.OnlyBlocked && !isLocked)
+        {
+            return false;
+        }
 
-        result.TotalCount = items.Count;
-        var take = criteria.Take <= 0 ? items.Count : criteria.Take;
-        result.Results = items.Skip(criteria.Skip).Take(take).ToList();
-
-        return result;
+        return !criteria.OnlyUnassigned || orgCount == 0;
     }
 
     protected virtual async Task LoadMissingUsersAsync(Dictionary<string, ApplicationUser> usersById, HashSet<string> candidateUserIds)
@@ -199,28 +226,28 @@ public class SalesRepSearchService : ISalesRepSearchService
             .ToList();
     }
 
+    // Logical sort column (lower-cased) -> key selector. Default (and any unknown column) is FullName.
+    private static readonly Dictionary<string, Func<SalesRepListItem, object>> _sortSelectors = new()
+    {
+        ["email"] = i => i.Email,
+        ["organizationscount"] = i => i.OrganizationsCount,
+        ["createddate"] = i => i.CreatedDate,
+        ["modifieddate"] = i => i.ModifiedDate,
+        ["islocked"] = i => i.IsLocked,
+        ["fullname"] = i => i.FullName,
+    };
+
     protected static List<SalesRepListItem> ApplySort(List<SalesRepListItem> items, IList<SortInfo> sortInfos)
     {
         var sort = sortInfos?.FirstOrDefault();
         var column = sort?.SortColumn?.ToLowerInvariant();
         var descending = sort?.SortDirection == SortDirection.Descending;
 
-        IOrderedEnumerable<SalesRepListItem> ordered = column switch
-        {
-            "email" => Order(items, i => i.Email, descending),
-            "organizationscount" => Order(items, i => i.OrganizationsCount, descending),
-            "createddate" => Order(items, i => i.CreatedDate, descending),
-            "modifieddate" => Order(items, i => i.ModifiedDate, descending),
-            "islocked" => Order(items, i => i.IsLocked, descending),
-            _ => Order(items, i => i.FullName, descending),
-        };
+        var selector = column != null && _sortSelectors.TryGetValue(column, out var found)
+            ? found
+            : _sortSelectors["fullname"];
 
-        return ordered.ToList();
-    }
-
-    private static IOrderedEnumerable<SalesRepListItem> Order<TKey>(IEnumerable<SalesRepListItem> items, Func<SalesRepListItem, TKey> selector, bool descending)
-    {
-        return descending ? items.OrderByDescending(selector) : items.OrderBy(selector);
+        return (descending ? items.OrderByDescending(selector) : items.OrderBy(selector)).ToList();
     }
 
     private static bool Contains(string source, string value)
@@ -228,7 +255,7 @@ public class SalesRepSearchService : ISalesRepSearchService
         return source != null && source.Contains(value, StringComparison.OrdinalIgnoreCase);
     }
 
-    protected static bool IsLocked(ApplicationUser user)
+    protected static bool IsAccountLocked(ApplicationUser user)
     {
         return user?.LockoutEnd != null && user.LockoutEnd > DateTimeOffset.UtcNow;
     }

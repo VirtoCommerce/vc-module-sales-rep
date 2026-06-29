@@ -96,10 +96,14 @@ public class SalesRepService : ISalesRepService
         return result;
     }
 
-    public virtual async Task<SalesRepDetails> SaveChangesAsync(SalesRepDetails salesRep)
+    public virtual Task<SalesRepDetails> SaveChangesAsync(SalesRepDetails salesRep)
     {
         ArgumentNullException.ThrowIfNull(salesRep);
+        return SaveChangesInternalAsync(salesRep);
+    }
 
+    protected virtual async Task<SalesRepDetails> SaveChangesInternalAsync(SalesRepDetails salesRep)
+    {
         var isNew = string.IsNullOrEmpty(salesRep.Id);
 
         if (isNew)
@@ -322,61 +326,14 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task SyncMembershipsAsync(string userId, SalesRepDetails salesRep, Role assignableRole, ISet<string> grantingRoleIds)
     {
-        var servedOrgIds = salesRep.Organizations?
-            .Select(o => o.OrganizationId)
-            .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct()
-            .ToList() ?? [];
-
+        var servedOrgIds = DistinctNonEmpty(salesRep.Organizations?.Select(o => o.OrganizationId));
         var existing = await GetAllMembershipsAsync(userId);
-        var existingByOrg = existing.ToDictionary(m => m.OrganizationId, m => m);
 
         var toSave = new List<OrganizationMembership>();
         var toDelete = new List<string>();
 
-        // Grant the selected role on served orgs (creating the membership when absent). On an existing
-        // membership, drop any other granting role and set the selected one so a role change re-points it.
-        foreach (var orgId in servedOrgIds)
-        {
-            if (existingByOrg.TryGetValue(orgId, out var membership))
-            {
-                var alreadyCorrect = membership.Roles.Any(r => r.RoleId == assignableRole.Id);
-                var hasOtherGranting = membership.Roles.Any(r => grantingRoleIds.Contains(r.RoleId) && r.RoleId != assignableRole.Id);
-                if (!alreadyCorrect || hasOtherGranting)
-                {
-                    membership.Roles = [
-                        .. membership.Roles.Where(r => !grantingRoleIds.Contains(r.RoleId)),
-                        CreateMembershipRole(assignableRole),
-                    ];
-                    toSave.Add(membership);
-                }
-            }
-            else
-            {
-                var created = AbstractTypeFactory<OrganizationMembership>.TryCreateInstance();
-                created.UserId = userId;
-                created.OrganizationId = orgId;
-                created.Roles = [CreateMembershipRole(assignableRole)];
-                toSave.Add(created);
-            }
-        }
-
-        // Revoke the sales-rep role from orgs no longer served.
-        foreach (var membership in existing.Where(m => !servedOrgIds.Contains(m.OrganizationId)))
-        {
-            if (membership.Roles.Any(r => grantingRoleIds.Contains(r.RoleId)))
-            {
-                membership.Roles = [.. membership.Roles.Where(r => !grantingRoleIds.Contains(r.RoleId))];
-                if (membership.Roles.Count == 0)
-                {
-                    toDelete.Add(membership.Id);
-                }
-                else
-                {
-                    toSave.Add(membership);
-                }
-            }
-        }
+        GrantOnServedOrgs(servedOrgIds, existing, userId, assignableRole, grantingRoleIds, toSave);
+        RevokeFromUnservedOrgs(servedOrgIds, existing, grantingRoleIds, toSave, toDelete);
 
         if (toSave.Count > 0)
         {
@@ -386,6 +343,70 @@ public class SalesRepService : ISalesRepService
         {
             await _membershipService.DeleteAsync(toDelete);
         }
+    }
+
+    /// <summary>Grant the selected role on every served org, creating the membership when absent and
+    /// re-pointing an existing one (dropping any other granting role) so a role change takes effect.</summary>
+    protected virtual void GrantOnServedOrgs(IList<string> servedOrgIds, IList<OrganizationMembership> existing, string userId, Role assignableRole, ISet<string> grantingRoleIds, List<OrganizationMembership> toSave)
+    {
+        var existingByOrg = existing.ToDictionary(m => m.OrganizationId, m => m);
+        foreach (var orgId in servedOrgIds)
+        {
+            if (!existingByOrg.TryGetValue(orgId, out var membership))
+            {
+                toSave.Add(CreateMembership(userId, orgId, assignableRole));
+            }
+            else if (TryRepointMembershipRole(membership, assignableRole, grantingRoleIds))
+            {
+                toSave.Add(membership);
+            }
+        }
+    }
+
+    /// <summary>Revoke the granting role from memberships of orgs no longer served, deleting a membership
+    /// left with no roles.</summary>
+    protected static void RevokeFromUnservedOrgs(IList<string> servedOrgIds, IList<OrganizationMembership> existing, ISet<string> grantingRoleIds, List<OrganizationMembership> toSave, List<string> toDelete)
+    {
+        var unserved = existing.Where(m => !servedOrgIds.Contains(m.OrganizationId)
+            && m.Roles.Any(r => grantingRoleIds.Contains(r.RoleId)));
+        foreach (var membership in unserved)
+        {
+            membership.Roles = [.. membership.Roles.Where(r => !grantingRoleIds.Contains(r.RoleId))];
+            if (membership.Roles.Count == 0)
+            {
+                toDelete.Add(membership.Id);
+            }
+            else
+            {
+                toSave.Add(membership);
+            }
+        }
+    }
+
+    /// <summary>Re-point an existing membership to the selected role; returns true when it changed.</summary>
+    protected virtual bool TryRepointMembershipRole(OrganizationMembership membership, Role assignableRole, ISet<string> grantingRoleIds)
+    {
+        var alreadyCorrect = membership.Roles.Any(r => r.RoleId == assignableRole.Id);
+        var hasOtherGranting = membership.Roles.Any(r => grantingRoleIds.Contains(r.RoleId) && r.RoleId != assignableRole.Id);
+        if (alreadyCorrect && !hasOtherGranting)
+        {
+            return false;
+        }
+
+        membership.Roles = [
+            .. membership.Roles.Where(r => !grantingRoleIds.Contains(r.RoleId)),
+            CreateMembershipRole(assignableRole),
+        ];
+        return true;
+    }
+
+    protected virtual OrganizationMembership CreateMembership(string userId, string orgId, Role assignableRole)
+    {
+        var created = AbstractTypeFactory<OrganizationMembership>.TryCreateInstance();
+        created.UserId = userId;
+        created.OrganizationId = orgId;
+        created.Roles = [CreateMembershipRole(assignableRole)];
+        return created;
     }
 
     protected virtual OrganizationMembershipRole CreateMembershipRole(Role role)
@@ -431,15 +452,8 @@ public class SalesRepService : ISalesRepService
         contact.FirstName = salesRep.FirstName;
         contact.MiddleName = salesRep.MiddleName;
         contact.LastName = salesRep.LastName;
-        // Always (re)derive the full name from the name parts, so editing First/Middle/Last refreshes
-        // Name/FullName (the blade has no FullName field — it is derived). Fall back to a passed FullName
-        // or the login email when no name parts are present.
-        var fullName = string.Join(' ', new[] { salesRep.FirstName, salesRep.MiddleName, salesRep.LastName }
-            .Where(x => !string.IsNullOrWhiteSpace(x)));
-        if (string.IsNullOrWhiteSpace(fullName))
-        {
-            fullName = !string.IsNullOrWhiteSpace(salesRep.FullName) ? salesRep.FullName : salesRep.Emails?.FirstOrDefault();
-        }
+
+        var fullName = DeriveFullName(salesRep);
         contact.FullName = fullName;
         // Persist the Name column so SQL search/sort by name works.
         contact.Name = fullName;
@@ -451,22 +465,34 @@ public class SalesRepService : ISalesRepService
         contact.PhotoUrl = salesRep.PhotoUrl;
         contact.Status = !string.IsNullOrEmpty(salesRep.Status) ? salesRep.Status : contact.Status;
 
-        // Combine login (emails[0]) + additional emails into one de-duplicated list (case-insensitive,
-        // order preserved so the login stays first). The login email cannot be dropped (it's the account).
-        contact.Emails = salesRep.Emails?
-            .Where(e => !string.IsNullOrWhiteSpace(e))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList() ?? [];
-        contact.Phones = salesRep.Phones?
-            .Where(p => !string.IsNullOrWhiteSpace(p))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList() ?? [];
+        // Login (emails[0]) + additional emails as one de-duplicated list (case-insensitive, order preserved
+        // so the login stays first). The login email cannot be dropped here (it's the account).
+        contact.Emails = DistinctNonEmpty(salesRep.Emails);
+        contact.Phones = DistinctNonEmpty(salesRep.Phones);
         contact.Addresses = salesRep.Addresses?.ToList() ?? [];
+        contact.Organizations = DistinctNonEmpty(salesRep.Organizations?.Select(o => o.OrganizationId));
+    }
 
-        contact.Organizations = salesRep.Organizations?
-            .Select(o => o.OrganizationId)
-            .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct()
+    /// <summary>(Re)derive the full name from the name parts so editing First/Middle/Last refreshes Name/FullName
+    /// (the blade has no FullName field). Fall back to a passed FullName or the login email when no parts exist.</summary>
+    protected static string DeriveFullName(SalesRepDetails salesRep)
+    {
+        var fullName = string.Join(' ', new[] { salesRep.FirstName, salesRep.MiddleName, salesRep.LastName }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (!string.IsNullOrWhiteSpace(fullName))
+        {
+            return fullName;
+        }
+
+        return !string.IsNullOrWhiteSpace(salesRep.FullName) ? salesRep.FullName : salesRep.Emails?.FirstOrDefault();
+    }
+
+    /// <summary>Trim out null/blank values and de-duplicate case-insensitively, preserving order.</summary>
+    protected static List<string> DistinctNonEmpty(IEnumerable<string> values)
+    {
+        return values?
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList() ?? [];
     }
 
