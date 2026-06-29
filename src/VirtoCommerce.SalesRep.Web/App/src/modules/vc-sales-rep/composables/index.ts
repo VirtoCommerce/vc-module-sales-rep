@@ -5,3 +5,4 @@ export { default as useSalesRepPermissions } from "./useSalesRepPermissions";
 export { default as useOrganizations } from "./useOrganizations";
 export { default as useStores } from "./useStores";
 export { default as useDictionaries } from "./useDictionaries";
+export { default as useRoles } from "./useRoles";

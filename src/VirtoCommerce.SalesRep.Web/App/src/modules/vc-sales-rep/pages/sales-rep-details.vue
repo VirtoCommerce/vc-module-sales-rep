@@ -7,6 +7,59 @@
   >
     <VcContainer>
       <VcForm class="tw-flex tw-flex-col tw-gap-4 tw-p-3">
+        <!-- Account -->
+        <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.ACCOUNT')">
+          <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
+            <div class="tw-flex tw-flex-row tw-gap-4">
+              <Field
+                v-slot="{ errors, errorMessage, handleChange }"
+                :model-value="primaryEmail"
+                name="email"
+                rules="required"
+              >
+                <VcInput
+                  v-model="primaryEmail"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.EMAIL')"
+                  required
+                  :error="errors.length > 0"
+                  :error-message="errorMessage"
+                  @update:model-value="handleChange"
+                />
+              </Field>
+              <VcInput
+                v-model="salesRep.password"
+                class="tw-flex-1"
+                type="password"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
+                :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
+              />
+            </div>
+            <div class="tw-flex tw-flex-row tw-gap-4">
+              <VcSelect
+                v-if="isNew"
+                v-model="salesRep.storeId"
+                class="tw-flex-1"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.STORE')"
+                :options="storeOptions"
+                option-value="id"
+                option-label="name"
+                required
+              />
+              <VcSelect
+                v-model="salesRep.roleId"
+                class="tw-flex-1"
+                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ROLE')"
+                :hint="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ROLE_HINT')"
+                :options="roleOptions"
+                option-value="id"
+                option-label="title"
+                required
+              />
+            </div>
+          </div>
+        </VcCard>
+
         <!-- Profile -->
         <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.PROFILE')">
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
@@ -93,47 +146,6 @@
               :placeholder="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PHONES_PLACEHOLDER')"
               option-label="id"
             />
-          </div>
-        </VcCard>
-
-        <!-- Account -->
-        <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.ACCOUNT')">
-          <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
-            <Field
-              v-slot="{ errors, errorMessage, handleChange }"
-              :model-value="primaryEmail"
-              name="email"
-              rules="required"
-            >
-              <VcInput
-                v-model="primaryEmail"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.EMAIL')"
-                required
-                :error="errors.length > 0"
-                :error-message="errorMessage"
-                @update:model-value="handleChange"
-              />
-            </Field>
-
-            <div class="tw-flex tw-flex-row tw-gap-4">
-              <VcInput
-                v-model="salesRep.password"
-                class="tw-flex-1"
-                type="password"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD')"
-                :placeholder="isNew ? '' : $t('VC_SALES_REP.PAGES.DETAILS.FORM.PASSWORD_KEEP')"
-              />
-              <VcSelect
-                v-if="isNew"
-                v-model="salesRep.storeId"
-                class="tw-flex-1"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.STORE')"
-                :options="storeOptions"
-                option-value="id"
-                option-label="name"
-                required
-              />
-            </div>
           </div>
         </VcCard>
 
@@ -269,6 +281,7 @@ import {
   useStores,
   useOrganizations,
   useDictionaries,
+  useRoles,
 } from "../composables";
 import { AddressType, CustomerAddress } from "../../../api_client/virtocommerce.salesrep";
 import {
@@ -310,8 +323,10 @@ const { createSalesRepPermission, updateSalesRepPermission } = useSalesRepPermis
 const { stores, loadStores, loadingStores } = useStores();
 const { loadOrganizations } = useOrganizations();
 const { timeZones, languages, currencies } = useDictionaries();
+const { roles, loadRoles, loadingRoles } = useRoles();
 
 const storeOptions = computed(() => stores.value.map((x) => ({ id: x.id, name: x.name })));
+const roleOptions = computed(() => roles.value.map((x) => ({ id: x.id, title: x.name })));
 
 // emails[0] is the account sign-in login (bound to the account — always kept, can't be removed here);
 // emails[1..] are additional emails edited via the multi-value below. The service dedups the combined list.
@@ -366,7 +381,7 @@ const selectedOrganizations = computed({
   },
 });
 
-const loading = useLoading(loadingOrSavingSalesRep, loadingStores);
+const loading = useLoading(loadingOrSavingSalesRep, loadingStores, loadingRoles);
 
 const savePermission = computed(() => (isNew.value ? createSalesRepPermission : updateSalesRepPermission));
 
@@ -438,8 +453,13 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
 
 onMounted(async () => {
   await loadStores();
+  await loadRoles();
   if (param.value) {
     await loadSalesRep({ id: param.value });
+  }
+  // Default the role on a new rep so the required dropdown is pre-filled.
+  if (!param.value && !salesRep.value.roleId && roles.value.length) {
+    salesRep.value.roleId = roles.value[0].id;
   }
   setBaseline();
 });

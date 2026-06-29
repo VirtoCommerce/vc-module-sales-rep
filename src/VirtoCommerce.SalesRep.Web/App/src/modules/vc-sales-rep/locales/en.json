@@ -60,6 +60,8 @@
           "ABOUT": "About",
           "PHONES": "Phone numbers",
           "PHONES_PLACEHOLDER": "Type a phone and press Enter",
+          "ROLE": "Sales Rep role",
+          "ROLE_HINT": "Role granting sales-rep:access — applied both globally and per served organization.",
           "EMAIL": "Email (login)",
           "ADDITIONAL_EMAILS": "Additional emails",
           "ADDITIONAL_EMAILS_PLACEHOLDER": "Type an email and press Enter",
