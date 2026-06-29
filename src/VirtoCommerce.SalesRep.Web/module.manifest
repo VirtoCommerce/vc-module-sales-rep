@@ -6,7 +6,7 @@
 
   <platformVersion>3.1039.0</platformVersion>
   <dependencies>
-    <dependency id="VirtoCommerce.Customer" version="3.1011.0" />
+    <dependency id="VirtoCommerce.Customer" version="3.1014.0-alpha.982-vcst-5293-sales-rep-vc-shell" />
   </dependencies>
 
   <apps>
