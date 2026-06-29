@@ -18,6 +18,7 @@ public class SalesRepService : ISalesRepService
     private readonly IMemberService _memberService;
     private readonly IUserSearchService _userSearchService;
     private readonly IOrganizationMembershipService _membershipService;
+    private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly ISalesRepRoleResolver _roleResolver;
     private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
 
@@ -25,12 +26,14 @@ public class SalesRepService : ISalesRepService
         IMemberService memberService,
         IUserSearchService userSearchService,
         IOrganizationMembershipService membershipService,
+        IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepRoleResolver roleResolver,
         Func<UserManager<ApplicationUser>> userManagerFactory)
     {
         _memberService = memberService;
         _userSearchService = userSearchService;
         _membershipService = membershipService;
+        _membershipSearchService = membershipSearchService;
         _roleResolver = roleResolver;
         _userManagerFactory = userManagerFactory;
     }
@@ -438,7 +441,7 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<IList<OrganizationMembership>> GetAllMembershipsAsync(string userId)
     {
-        var result = await _membershipService.SearchAsync(new OrganizationMembershipSearchCriteria
+        var result = await _membershipSearchService.SearchAsync(new OrganizationMembershipSearchCriteria
         {
             UserId = userId,
             Take = int.MaxValue,

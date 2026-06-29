@@ -23,18 +23,18 @@ public class SalesRepSearchService : ISalesRepSearchService
 {
     private readonly IUserSearchService _userSearchService;
     private readonly IMemberService _memberService;
-    private readonly IOrganizationMembershipService _membershipService;
+    private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly ISalesRepRoleResolver _roleResolver;
 
     public SalesRepSearchService(
         IUserSearchService userSearchService,
         IMemberService memberService,
-        IOrganizationMembershipService membershipService,
+        IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepRoleResolver roleResolver)
     {
         _userSearchService = userSearchService;
         _memberService = memberService;
-        _membershipService = membershipService;
+        _membershipSearchService = membershipSearchService;
         _roleResolver = roleResolver;
     }
 
@@ -64,9 +64,17 @@ public class SalesRepSearchService : ISalesRepSearchService
         // Source B: per-org reps via a DB-side aggregate. An org-scoped view counts only users serving that
         // org, so total org counts are then resolved separately to reflect all of a rep's served organizations.
         var orgIds = orgScoped ? new[] { criteria.OrganizationId } : null;
-        var scopedCounts = await _membershipService.GetOrganizationCountsByUserAsync(grantingRoleIds, orgIds);
+        var scopedCounts = await _membershipSearchService.GetCountsByUserAsync(new OrganizationMembershipSearchCriteria
+        {
+            RoleIds = grantingRoleIds,
+            OrganizationIds = orgIds,
+        });
         var totalCounts = orgScoped
-            ? await _membershipService.GetOrganizationCountsByUserAsync(grantingRoleIds, organizationIds: null, userIds: scopedCounts.Keys.ToArray())
+            ? await _membershipSearchService.GetCountsByUserAsync(new OrganizationMembershipSearchCriteria
+            {
+                RoleIds = grantingRoleIds,
+                UserIds = scopedCounts.Keys.ToArray(),
+            })
             : scopedCounts;
 
         var candidateUserIds = new HashSet<string>(globalRoleUserIds);
