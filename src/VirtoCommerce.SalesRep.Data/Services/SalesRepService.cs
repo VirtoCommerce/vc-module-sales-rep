@@ -47,6 +47,18 @@ public class SalesRepService : ISalesRepService
 
         if (user != null)
         {
+            // The Email table row order isn't guaranteed; the blade treats emails[0] as the login, so put
+            // the account's login email first (the rest are "additional emails").
+            var loginEmail = !string.IsNullOrEmpty(user.Email) ? user.Email : user.UserName;
+            if (!string.IsNullOrEmpty(loginEmail))
+            {
+                result.Emails =
+                [
+                    loginEmail,
+                    .. result.Emails.Where(e => !string.Equals(e, loginEmail, StringComparison.OrdinalIgnoreCase)),
+                ];
+            }
+
             var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
 
             var globalRole = user.Roles?.FirstOrDefault(r => grantingRoleIds.Contains(r.Id));
@@ -119,8 +131,32 @@ public class SalesRepService : ISalesRepService
 
     public virtual async Task DeleteAsync(string[] ids)
     {
-        // Mirrors the customer module delete (DELETE /api/members?ids=...): deleting the contact
-        // cascades to its security account via the customer module's member-delete handlers.
+        if (ids == null || ids.Length == 0)
+        {
+            return;
+        }
+
+        // Member delete does NOT cascade to the login account, so delete the account(s) explicitly first.
+        // Deleting the ApplicationUser removes its role assignments and triggers the customer module's
+        // user-deleted handler that clears its OrganizationMemberships.
+        using (var userManager = _userManagerFactory())
+        {
+            foreach (var memberId in ids)
+            {
+                var users = (await _userSearchService.SearchUsersAsync(
+                    new UserSearchCriteria { MemberId = memberId, Take = int.MaxValue })).Results;
+
+                foreach (var found in users)
+                {
+                    var user = await userManager.FindByIdAsync(found.Id);
+                    if (user != null)
+                    {
+                        ThrowIfFailed(await userManager.DeleteAsync(user));
+                    }
+                }
+            }
+        }
+
         await _memberService.DeleteAsync(ids);
     }
 
@@ -210,14 +246,13 @@ public class SalesRepService : ISalesRepService
             return await CreateAccountAsync(userManager, contact, salesRep, assignableRole);
         }
 
-        var email = contact.Emails.FirstOrDefault();
-        if (!string.IsNullOrEmpty(email))
+        // The login email is emails[0]. Keep both Email and UserName (the sign-in identifier) in sync with it
+        // so they never diverge when the admin changes the login email.
+        var loginEmail = contact.Emails.FirstOrDefault();
+        if (!string.IsNullOrEmpty(loginEmail))
         {
-            user.Email = email;
-        }
-        if (!string.IsNullOrEmpty(salesRep.UserName))
-        {
-            user.UserName = salesRep.UserName;
+            user.Email = loginEmail;
+            user.UserName = loginEmail;
         }
 
         // Set the global role to the selected one: drop any other granting role, ensure the target is present.
@@ -353,11 +388,18 @@ public class SalesRepService : ISalesRepService
         contact.FirstName = salesRep.FirstName;
         contact.MiddleName = salesRep.MiddleName;
         contact.LastName = salesRep.LastName;
-        contact.FullName = !string.IsNullOrEmpty(salesRep.FullName)
-            ? salesRep.FullName
-            : string.Join(' ', new[] { salesRep.FirstName, salesRep.LastName }.Where(x => !string.IsNullOrEmpty(x)));
+        // Always (re)derive the full name from the name parts, so editing First/Middle/Last refreshes
+        // Name/FullName (the blade has no FullName field — it is derived). Fall back to a passed FullName
+        // or the login email when no name parts are present.
+        var fullName = string.Join(' ', new[] { salesRep.FirstName, salesRep.MiddleName, salesRep.LastName }
+            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            fullName = !string.IsNullOrWhiteSpace(salesRep.FullName) ? salesRep.FullName : salesRep.Emails?.FirstOrDefault();
+        }
+        contact.FullName = fullName;
         // Persist the Name column so SQL search/sort by name works.
-        contact.Name = contact.FullName;
+        contact.Name = fullName;
         contact.BirthDate = salesRep.BirthDate;
         contact.TimeZone = salesRep.TimeZone;
         contact.DefaultLanguage = salesRep.DefaultLanguage;
