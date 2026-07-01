@@ -164,7 +164,7 @@ public class SalesRepSearchService : ISalesRepSearchService
     /// over the candidate ids (bounded) before sorting.</summary>
     protected virtual async Task<SalesRepSearchResult> PageByRowSortAsync(SalesRepSearchCriteria criteria, List<CandidateRow> rows)
     {
-        IDictionary<string, Member> keywordMatches = null;
+        Dictionary<string, Member> keywordMatches = null;
         if (!string.IsNullOrWhiteSpace(criteria.Keyword))
         {
             var matched = await _memberSearchService.SearchMembersAsync(new MembersSearchCriteria
@@ -223,7 +223,7 @@ public class SalesRepSearchService : ISalesRepSearchService
         return $"{column}:{direction}";
     }
 
-    protected virtual async Task<List<SalesRepListItem>> BuildItemsForPageAsync(List<CandidateRow> pageRows, IDictionary<string, Member> known)
+    protected virtual async Task<List<SalesRepListItem>> BuildItemsForPageAsync(List<CandidateRow> pageRows, Dictionary<string, Member> known)
     {
         if (pageRows.Count == 0)
         {
