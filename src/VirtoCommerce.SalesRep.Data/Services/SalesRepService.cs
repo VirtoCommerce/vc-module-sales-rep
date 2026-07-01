@@ -194,24 +194,24 @@ public class SalesRepService : ISalesRepService
         // Member delete does NOT cascade to the login account, so delete the account(s) explicitly first.
         // Deleting the ApplicationUser removes its role assignments and triggers the customer module's
         // user-deleted handler that clears its OrganizationMemberships.
-        using (var userManager = _userManagerFactory())
-        {
-            foreach (var memberId in ids)
-            {
-                // TODO (Block 3 / N+1): this searches per member id (one query each) and uses an unbounded
-                // Take. IUserSearchService has no SearchAllAsync (it doesn't implement ISearchService), so
-                // this is left for the delete-path perf rework — batch the lookup into a single search over
-                // all member ids there. One account per member is expected, so the unbounded page is small.
-                var users = (await _userSearchService.SearchUsersAsync(
-                    new UserSearchCriteria { MemberId = memberId, Take = int.MaxValue })).Results;
+        //
+        // One batched search for the accounts of ALL member ids (UserSearchCriteria.MemberIds) — not a query
+        // per id. The result set is bounded by the delete request (≈ one account per member), and the Take
+        // is intentionally unbounded because the MemberIds filter already caps it (IUserSearchService has no
+        // SearchAllAsync — it doesn't implement ISearchService).
+        var accounts = (await _userSearchService.SearchUsersAsync(
+            new UserSearchCriteria { MemberIds = ids, Take = int.MaxValue })).Results;
 
-                foreach (var found in users)
+        if (accounts.Count > 0)
+        {
+            using var userManager = _userManagerFactory();
+            foreach (var found in accounts)
+            {
+                // FindByIdAsync gets the managed entity required for deletion (search results are detached).
+                var user = await userManager.FindByIdAsync(found.Id);
+                if (user != null)
                 {
-                    var user = await userManager.FindByIdAsync(found.Id);
-                    if (user != null)
-                    {
-                        ThrowIfFailed(await userManager.DeleteAsync(user));
-                    }
+                    ThrowIfFailed(await userManager.DeleteAsync(user));
                 }
             }
         }
