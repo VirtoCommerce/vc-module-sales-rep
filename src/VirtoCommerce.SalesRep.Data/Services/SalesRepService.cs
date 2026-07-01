@@ -157,6 +157,12 @@ public class SalesRepService : ISalesRepService
             // transaction, so compensate: roll the just-created contact back (reusing the module's own delete,
             // which also removes any partially-created account) so a failed create never leaves an orphan
             // member. The original exception is rethrown to the caller.
+            //
+            // NOTE: this compensation is intentionally CREATE-ONLY. On update the contact profile is saved
+            // first, so if the later account/role/membership sync throws, the rep is left partially updated
+            // with no rollback. That is a conscious tradeoff (no cross-service transaction is available, and
+            // rolling an update back to its prior state would require snapshotting every touched aggregate);
+            // an update failure surfaces as an error and the admin can re-save.
             await TryRollbackContactAsync(contact.Id);
             throw;
         }
@@ -192,6 +198,10 @@ public class SalesRepService : ISalesRepService
         {
             foreach (var memberId in ids)
             {
+                // TODO (Block 3 / N+1): this searches per member id (one query each) and uses an unbounded
+                // Take. IUserSearchService has no SearchAllAsync (it doesn't implement ISearchService), so
+                // this is left for the delete-path perf rework — batch the lookup into a single search over
+                // all member ids there. One account per member is expected, so the unbounded page is small.
                 var users = (await _userSearchService.SearchUsersAsync(
                     new UserSearchCriteria { MemberId = memberId, Take = int.MaxValue })).Results;
 
@@ -352,7 +362,11 @@ public class SalesRepService : ISalesRepService
     /// re-pointing an existing one (dropping any other granting role) so a role change takes effect.</summary>
     protected virtual void GrantOnServedOrgs(IList<string> servedOrgIds, IList<OrganizationMembership> existing, string userId, Role assignableRole, ISet<string> grantingRoleIds, List<OrganizationMembership> toSave)
     {
-        var existingByOrg = existing.ToDictionary(m => m.OrganizationId, m => m);
+        // One membership per org is expected, but guard against duplicates (bad data) rather than letting
+        // ToDictionary throw — keep the first membership for each org.
+        var existingByOrg = existing
+            .GroupBy(m => m.OrganizationId)
+            .ToDictionary(g => g.Key, g => g.First());
         foreach (var orgId in servedOrgIds)
         {
             if (!existingByOrg.TryGetValue(orgId, out var membership))
@@ -439,14 +453,13 @@ public class SalesRepService : ISalesRepService
         return all.Where(m => m.Roles.Any(r => grantingRoleIds.Contains(r.RoleId))).ToList();
     }
 
-    protected virtual async Task<IList<OrganizationMembership>> GetAllMembershipsAsync(string userId)
+    protected virtual Task<IList<OrganizationMembership>> GetAllMembershipsAsync(string userId)
     {
-        var result = await _membershipSearchService.SearchAsync(new OrganizationMembershipSearchCriteria
+        // SearchAllAsync pages internally (IOrganizationMembershipSearchService : ISearchService) — no unbounded Take.
+        return _membershipSearchService.SearchAllAsync(new OrganizationMembershipSearchCriteria
         {
             UserId = userId,
-            Take = int.MaxValue,
         });
-        return result.Results;
     }
 
     protected virtual void ApplyProfile(Contact contact, SalesRepDetails salesRep)

@@ -18,8 +18,8 @@ public interface ISalesRepRoleResolver
     Task<ISet<string>> GetRoleIdsGrantingAccessAsync();
 
     /// <summary>
-    /// Roles selectable in the UI for a Sales Rep (those granting the permission). Seeds and returns the
-    /// default role when none currently grants it, so the list is never empty (lazy seeding).
+    /// Roles selectable in the UI for a Sales Rep (those granting the permission). Read-only: does NOT seed.
+    /// The default role is seeded once at module startup (see <see cref="EnsureSalesRepRoleAsync"/>).
     /// </summary>
     Task<IList<Role>> GetSelectableRolesAsync();
 

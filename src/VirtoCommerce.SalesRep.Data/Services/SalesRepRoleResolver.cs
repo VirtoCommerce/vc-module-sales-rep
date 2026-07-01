@@ -57,17 +57,12 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
         return roles.Select(x => x.Id).ToHashSet();
     }
 
-    public virtual async Task<IList<Role>> GetSelectableRolesAsync()
+    public virtual Task<IList<Role>> GetSelectableRolesAsync()
     {
-        var roles = await GetRolesGrantingAccessAsync();
-
-        // Lazy seed: if no role grants the permission yet, create the default so the picker is never empty.
-        if (roles.Count == 0)
-        {
-            roles = [await EnsureSalesRepRoleAsync()];
-        }
-
-        return roles;
+        // Read-only: just the roles that currently grant the permission. The default role is seeded once at
+        // module startup (Module.PostInitialize -> EnsureSalesRepRoleAsync), NOT here, so this stays free of
+        // write side effects (it backs a GET endpoint) and there is no per-request seeding race.
+        return GetRolesGrantingAccessAsync();
     }
 
     /// <summary>

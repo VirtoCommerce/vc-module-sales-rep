@@ -35,9 +35,13 @@ public class Module : IModule, IHasConfiguration
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
 
-        // Note: the default "Sales Representative" role is NOT seeded at startup. It is seeded lazily the
-        // first time the selectable roles are queried (GET api/sales-rep/roles) when no role grants the
-        // permission yet — see ISalesRepRoleResolver.GetSelectableRolesAsync.
+        // Seed the default "Sales Representative" role once, right after its permission is registered — but
+        // only if no role already grants sales-rep:access (EnsureSalesRepRoleAsync is create-if-none). Seeding
+        // here rather than lazily on a GET keeps read endpoints side-effect-free and removes the per-request
+        // seeding race. Admins may later rename or delete it and substitute their own granting role.
+        using var scope = serviceProvider.CreateScope();
+        var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
+        roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
     }
 
     public void Uninstall()
