@@ -21,10 +21,6 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
-
-        // Seeds the default "Sales Representative" role at startup (create-if-none, under a distributed lock).
-        // A hosted service so the work is awaited rather than blocked on in PostInitialize.
-        serviceCollection.AddHostedService<SalesRepRoleSeeder>();
     }
 
     public void PostInitialize(IApplicationBuilder appBuilder)
@@ -39,8 +35,16 @@ public class Module : IModule, IHasConfiguration
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
 
-        // Note: the default "Sales Representative" role is seeded at startup by SalesRepRoleSeeder (a hosted
-        // service), not here — so this method stays free of blocking async calls.
+        // Seed the default "Sales Representative" role once, right after its permission is registered — but only
+        // if no role already grants sales-rep:access (EnsureSalesRepRoleAsync is create-if-none). No explicit
+        // distributed lock is needed: PostInitialize runs inside the platform's startup critical section
+        // (Startup.Configure -> app.ExecuteSynchronized(nameof(Startup)) -> PostInitializeModules), which
+        // already serializes this across instances, so the "two instances both create one" race can't occur.
+        using var scope = serviceProvider.CreateScope();
+        var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
+#pragma warning disable S4462 // one-shot startup seeding in a sync PostInitialize — the platform's standard pattern
+        roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
+#pragma warning restore S4462
     }
 
     public void Uninstall()

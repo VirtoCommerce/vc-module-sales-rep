@@ -195,12 +195,9 @@ public class SalesRepService : ISalesRepService
         // Deleting the ApplicationUser removes its role assignments and triggers the customer module's
         // user-deleted handler that clears its OrganizationMemberships.
         //
-        // One batched search for the accounts of ALL member ids (UserSearchCriteria.MemberIds) — not a query
-        // per id. The result set is bounded by the delete request (≈ one account per member), and the Take
-        // is intentionally unbounded because the MemberIds filter already caps it (IUserSearchService has no
-        // SearchAllAsync — it doesn't implement ISearchService).
-        var accounts = (await _userSearchService.SearchUsersAsync(
-            new UserSearchCriteria { MemberIds = ids, Take = int.MaxValue })).Results;
+        // One batched, internally-paged search for the accounts of ALL member ids (UserSearchCriteria.MemberIds)
+        // — not a query per id, and not an unbounded single page (SearchAllAsync pages internally).
+        var accounts = await _userSearchService.SearchAllAsync(new UserSearchCriteria { MemberIds = ids });
 
         if (accounts.Count > 0)
         {

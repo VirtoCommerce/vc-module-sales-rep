@@ -270,15 +270,9 @@ public class SalesRepSearchService : ISalesRepSearchService
             return ids;
         }
 
-        // Fetch ALL users holding a granting role. IUserSearchService exposes only SearchUsersAsync and does
-        // NOT implement ISearchService, so the platform SearchAllAsync paging helper is unavailable here; a
-        // bounded Take would silently truncate the result set. The unbounded Take is therefore intentional and
-        // relies on the bounded admin (Sales Rep) population — acceptable per the search's documented scope.
-        var globalUsers = (await _userSearchService.SearchUsersAsync(new UserSearchCriteria
-        {
-            Roles = roleNames,
-            Take = int.MaxValue,
-        })).Results;
+        // Fetch ALL users holding a granting role, paging internally (SearchAllAsync helper) rather than an
+        // unbounded single-page fetch.
+        var globalUsers = await _userSearchService.SearchAllAsync(new UserSearchCriteria { Roles = roleNames });
 
         foreach (var user in globalUsers)
         {
