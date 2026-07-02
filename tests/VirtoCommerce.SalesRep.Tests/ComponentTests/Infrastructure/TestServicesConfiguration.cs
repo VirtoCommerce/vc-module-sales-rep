@@ -27,6 +27,9 @@ using VirtoCommerce.Platform.Data.Common;
 using VirtoCommerce.Platform.Security;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.Platform.Security.Services;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.SearchModule.Data.SearchPhraseParsing;
@@ -136,6 +139,16 @@ internal static class TestServicesConfiguration
         // Delete-cascade handler (subscribed to the in-process bus by the harness build step)
         services.AddTransient<DeleteOrganizationMembershipUserChangedEventHandler>();
 
+        return services;
+    }
+
+    /// <summary>The module under test: real SalesRep services + the REST controller (ported from Module.Initialize).</summary>
+    public static IServiceCollection AddSalesRepSlice(this IServiceCollection services)
+    {
+        services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        services.AddTransient<ISalesRepService, SalesRepService>();
+        services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
+        services.AddTransient<SalesRepController>();
         return services;
     }
 }
