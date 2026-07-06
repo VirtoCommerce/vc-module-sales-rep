@@ -4,7 +4,7 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="VirtoCommerce.CustomerModule.Core" Version="3.1014.0-alpha.984-vcst-5293-sales-rep-vc-shell" />
+    <PackageReference Include="VirtoCommerce.CustomerModule.Core" Version="3.1014.0-alpha.996-vcst-5239" />
     <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.1039.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Core" Version="3.1010.0" />
   </ItemGroup>
