@@ -1,22 +1,12 @@
-using GraphQL.MicrosoftDI;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Settings;
-using VirtoCommerce.Platform.Data.MySql.Extensions;
-using VirtoCommerce.Platform.Data.PostgreSql.Extensions;
-using VirtoCommerce.Platform.Data.SqlServer.Extensions;
-using VirtoCommerce.Xapi.Core.Extensions;
-using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.SalesRep.Core;
-using VirtoCommerce.SalesRep.Data.MySql;
-using VirtoCommerce.SalesRep.Data.PostgreSql;
-using VirtoCommerce.SalesRep.Data.Repositories;
-using VirtoCommerce.SalesRep.Data.SqlServer;
-using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Services;
 
 namespace VirtoCommerce.SalesRep.Web;
 
@@ -27,39 +17,10 @@ public class Module : IModule, IHasConfiguration
 
     public void Initialize(IServiceCollection serviceCollection)
     {
-        serviceCollection.AddDbContext<SalesRepDbContext>(options =>
-        {
-            var databaseProvider = Configuration.GetValue("DatabaseProvider", "SqlServer");
-            var connectionString = Configuration.GetConnectionString(ModuleInfo.Id) ?? Configuration.GetConnectionString("VirtoCommerce");
-
-            switch (databaseProvider)
-            {
-                case "MySql":
-                    options.UseMySqlDatabase(connectionString, typeof(MySqlDataAssemblyMarker), Configuration);
-                    break;
-                case "PostgreSql":
-                    options.UsePostgreSqlDatabase(connectionString, typeof(PostgreSqlDataAssemblyMarker), Configuration);
-                    break;
-                default:
-                    options.UseSqlServerDatabase(connectionString, typeof(SqlServerDataAssemblyMarker), Configuration);
-                    break;
-            }
-        });
-
-        // Override models
-        //AbstractTypeFactory<OriginalModel>.OverrideType<OriginalModel, ExtendedModel>().MapToType<ExtendedEntity>();
-        //AbstractTypeFactory<OriginalEntity>.OverrideType<OriginalEntity, ExtendedEntity>();
-
-        // Register services
-        //serviceCollection.AddTransient<IMyService, MyService>();
-
-        // Register GraphQL schema
-        _ = new GraphQLBuilder(serviceCollection, builder =>
-        {
-            builder.AddSchema(serviceCollection, typeof(XapiAssemblyMarker));
-        });
-
-        serviceCollection.AddSingleton<ScopedSchemaFactory<XapiAssemblyMarker>>();
+        // This module owns no tables — it composes existing Member / ApplicationUser / OrganizationMembership data.
+        serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
+        serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
     }
 
     public void PostInitialize(IApplicationBuilder appBuilder)
@@ -74,13 +35,16 @@ public class Module : IModule, IHasConfiguration
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
 
-        // Register partial GraphQL schema
-        appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
-
-        // Apply migrations
-        using var serviceScope = serviceProvider.CreateScope();
-        using var dbContext = serviceScope.ServiceProvider.GetRequiredService<SalesRepDbContext>();
-        dbContext.Database.Migrate();
+        // Seed the default "Sales Representative" role once, right after its permission is registered — but only
+        // if no role already grants sales-rep:access (EnsureSalesRepRoleAsync is create-if-none). No explicit
+        // distributed lock is needed: PostInitialize runs inside the platform's startup critical section
+        // (Startup.Configure -> app.ExecuteSynchronized(nameof(Startup)) -> PostInitializeModules), which
+        // already serializes this across instances, so the "two instances both create one" race can't occur.
+        using var scope = serviceProvider.CreateScope();
+        var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
+#pragma warning disable S4462 // one-shot startup seeding in a sync PostInitialize — the platform's standard pattern
+        roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
+#pragma warning restore S4462
     }
 
     public void Uninstall()

@@ -1,0 +1,102 @@
+{
+  "VC_SALES_REP": {
+    "MENU": {
+      "DASHBOARD": "Dashboard",
+      "SALES_REPS": "Sales Reps",
+      "BLOCKED": "Blocked Sales Reps",
+      "UNASSIGNED": "Not assigned Sales Reps",
+      "ORGANIZATIONS": "Organizations",
+      "UNASSIGNED_ORGANIZATIONS": "Not assigned Organizations"
+    },
+    "PAGES": {
+      "DASHBOARD": {
+        "TITLE": "Sales Reps dashboard",
+        "SUBTITLE": "Manage your sales representatives, their organizations and accounts."
+      },
+      "PLACEHOLDER": {
+        "SUBTITLE": "This view is coming soon."
+      },
+      "LIST": {
+        "SEARCH": {
+          "PLACEHOLDER": "Search by name or email"
+        },
+        "TOOLBAR": {
+          "REFRESH": "Refresh",
+          "ADD": "Add",
+          "DELETE": "Delete"
+        },
+        "TABLE": {
+          "HEADER": {
+            "NAME": "Name",
+            "EMAIL": "Email",
+            "ORGANIZATIONS": "Organizations",
+            "BLOCKED": "Blocked",
+            "GLOBAL_ROLE": "Global role",
+            "CREATED_DATE": "Created date"
+          }
+        },
+        "ALERTS": {
+          "DELETE_SELECTED_CONFIRMATION_MESSAGE": "Are you sure you want to delete {count} sales rep(s)? This deletes the contact and its account."
+        }
+      },
+      "DETAILS": {
+        "TITLE": "Sales Rep",
+        "TITLE_NEW": "New Sales Rep",
+        "BLOCKS": {
+          "PROFILE": "Profile",
+          "ACCOUNT": "Account",
+          "ADDRESSES": "Addresses",
+          "ORGANIZATIONS": "Served organizations"
+        },
+        "FORM": {
+          "SALUTATION": "Salutation",
+          "FIRST_NAME": "First name",
+          "MIDDLE_NAME": "Middle name",
+          "LAST_NAME": "Last name",
+          "BIRTH_DATE": "Birth date",
+          "TIME_ZONE": "Time zone",
+          "LANGUAGE": "Language",
+          "CURRENCY": "Currency",
+          "ABOUT": "About",
+          "PHONES": "Phone numbers",
+          "PHONES_PLACEHOLDER": "Type a phone and press Enter",
+          "ROLE": "Sales Rep role",
+          "ROLE_HINT": "Role granting sales-rep:access — applied both globally and per served organization.",
+          "EMAIL": "Email (login)",
+          "ADDITIONAL_EMAILS": "Additional emails",
+          "ADDITIONAL_EMAILS_PLACEHOLDER": "Type an email and press Enter",
+          "STORE": "Store",
+          "PASSWORD": "Password",
+          "PASSWORD_KEEP": "Leave blank to keep current password",
+          "ADDRESS": "Address",
+          "ADD_ADDRESS": "Add address",
+          "ADDRESS_TYPE": "Type",
+          "ADDRESS_LINE1": "Address line 1",
+          "ADDRESS_LINE2": "Address line 2",
+          "ADDRESS_CITY": "City",
+          "ADDRESS_REGION": "Region / State",
+          "ADDRESS_POSTAL_CODE": "Postal code",
+          "ADDRESS_COUNTRY_CODE": "Country code",
+          "ADDRESS_COUNTRY_NAME": "Country",
+          "ADDRESS_PHONE": "Phone",
+          "ADDRESS_EMAIL": "Email",
+          "ORGANIZATIONS": "Organizations served as Sales Rep",
+          "ORGANIZATIONS_PLACEHOLDER": "Search organizations...",
+          "ORGANIZATIONS_HINT": "The rep acts as a Sales Representative for the selected organizations."
+        },
+        "TOOLBAR": {
+          "SAVE": "Save",
+          "RESET": "Reset",
+          "BLOCK": "Block",
+          "UNBLOCK": "Unblock"
+        },
+        "ALERTS": {
+          "CLOSE_CONFIRMATION": "You have unsaved changes. Do you want to discard them?"
+        },
+        "VALIDATION": {
+          "PASSWORD_MIN": "Password must be at least {min} characters."
+        }
+      }
+    }
+  }
+}

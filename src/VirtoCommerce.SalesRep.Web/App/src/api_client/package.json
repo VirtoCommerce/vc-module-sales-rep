@@ -1,0 +1,60 @@
+{
+  "name": "api",
+  "version": "0.0.0",
+  "files": [
+    "dist",
+    "package.json"
+  ],
+  "exports": {
+    "./salesrep": {
+      "import": "./dist/virtocommerce.salesrep.js",
+      "types": "./dist/types/virtocommerce.salesrep.d.ts"
+    },
+    "./virtocommerce.salesrep": {
+      "import": "./dist/virtocommerce.salesrep.js",
+      "types": "./dist/types/virtocommerce.salesrep.d.ts"
+    },
+    "./platform": {
+      "import": "./dist/virtocommerce.platform.js",
+      "types": "./dist/types/virtocommerce.platform.d.ts"
+    },
+    "./virtocommerce.platform": {
+      "import": "./dist/virtocommerce.platform.js",
+      "types": "./dist/types/virtocommerce.platform.d.ts"
+    },
+    "./store": {
+      "import": "./dist/virtocommerce.store.js",
+      "types": "./dist/types/virtocommerce.store.d.ts"
+    },
+    "./virtocommerce.store": {
+      "import": "./dist/virtocommerce.store.js",
+      "types": "./dist/types/virtocommerce.store.d.ts"
+    },
+    "./customer": {
+      "import": "./dist/virtocommerce.customer.js",
+      "types": "./dist/types/virtocommerce.customer.d.ts"
+    },
+    "./virtocommerce.customer": {
+      "import": "./dist/virtocommerce.customer.js",
+      "types": "./dist/types/virtocommerce.customer.d.ts"
+    },
+    "./news": {
+      "import": "./dist/virtocommerce.news.js",
+      "types": "./dist/types/virtocommerce.news.d.ts"
+    },
+    "./virtocommerce.news": {
+      "import": "./dist/virtocommerce.news.js",
+      "types": "./dist/types/virtocommerce.news.d.ts"
+    },
+    ".": {
+      "import": "./dist/virtocommerce.news.js",
+      "types": "./dist/types/virtocommerce.news.d.ts"
+    }
+  },
+  "apiClientGenerator": {
+    "version": "0.0.0",
+    "generatedAt": "2026-06-29T12:13:29.724Z"
+  },
+  "module": "./dist/virtocommerce.news.js",
+  "types": "./dist/types/virtocommerce.news.d.ts"
+}

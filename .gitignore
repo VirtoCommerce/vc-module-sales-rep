@@ -337,3 +337,6 @@ ASALocalRun/
 .nuke
 dist/
 **/Properties/launchSettings.json
+
+# Built VC-Shell embedded app (produced by `yarn build`; not committed, mirrors vc-module-news)
+/src/VirtoCommerce.SalesRep.Web/Content/vc-sales-rep

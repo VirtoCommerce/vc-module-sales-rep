@@ -4,10 +4,20 @@
   <version>3.1000.0</version>
   <version-tag></version-tag>
 
-  <platformVersion>3.1007.10</platformVersion>
+  <platformVersion>3.1039.0</platformVersion>
   <dependencies>
-    <dependency id="VirtoCommerce.Xapi" version="3.1003.0" />
+    <dependency id="VirtoCommerce.Customer" version="3.1014.0-alpha.984-vcst-5293-sales-rep-vc-shell" />
   </dependencies>
+
+  <apps>
+    <app id="vc-sales-rep">
+      <title>Sales Reps</title>
+      <description>Manage Sales Representatives, their organizations and accounts</description>
+      <iconUrl>Modules/$(VirtoCommerce.SalesRep)/Content/logo.png</iconUrl>
+      <permission>customer:read</permission>
+      <supportEmbeddedMode>true</supportEmbeddedMode>
+    </app>
+  </apps>
 
   <title>Virto Commerce Sales Rep</title>
   <description>Virto Commerce Sales Rep</description>
@@ -19,7 +29,7 @@
     <owner>Virto Commerce</owner>
   </owners>
 
-  <projectUrl>https://github.com/Virto Commerce/vc-module-sales-rep</projectUrl>
+  <projectUrl>https://github.com/VirtoCommerce/vc-module-sales-rep</projectUrl>
   <iconUrl>Modules/$(VirtoCommerce.SalesRep)/Content/logo.png</iconUrl>
   <requireLicenseAcceptance>false</requireLicenseAcceptance>
 
