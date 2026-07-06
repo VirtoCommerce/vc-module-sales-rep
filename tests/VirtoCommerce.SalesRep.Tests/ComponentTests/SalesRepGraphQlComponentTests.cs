@@ -191,6 +191,72 @@ public class SalesRepGraphQlComponentTests
         desc.Should().Contain("Carol Clark").And.NotContain("Alice Anderson");
     }
 
+    [Fact]
+    public async Task MySalesReps_ExcludesBlockedAccounts()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("AcmeOrg");
+        SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Active", "Rep", "active@test.com", "AcmeOrg")));
+        var blocked = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Blocked", "Rep", "blocked@test.com", "AcmeOrg")));
+
+        // Block one rep's account (sets LockoutEnd, exactly like the admin "Block" action).
+        await ctx.GetRequiredService<VirtoCommerce.SalesRep.Core.Services.ISalesRepService>().BlockAsync(blocked.Id);
+
+        // VCST-4907 #5: only active accounts (not blocked/disabled/deleted) are returned.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { mySalesReps { totalCount items{ fullName } } }",
+            organizationId: "AcmeOrg");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("Active Rep");
+        json.Should().NotContain("Blocked Rep");
+    }
+
+    [Fact]
+    public async Task MySalesReps_ExcludesPerOrgLockedReps()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("AcmeOrg");
+        SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Active", "Rep", "active@test.com", "AcmeOrg")));
+        var locked = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Locked", "Rep", "locked@test.com", "AcmeOrg")));
+
+        // Lock the second rep's membership in AcmeOrg (a per-org lock, not an account-level block).
+        var membershipId = locked.Organizations.Single(o => o.OrganizationId == "AcmeOrg").MembershipId;
+        await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(membershipId);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { mySalesReps { totalCount items{ fullName } } }",
+            organizationId: "AcmeOrg");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("Active Rep");
+        json.Should().NotContain("Locked Rep");
+    }
+
+    [Fact]
+    public async Task MyCustomers_ExcludesOrganizationsWhereRepIsLocked()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("OrgKeep", "OrgLocked");
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(
+            SimpleRep("Jane", "Rep", "jane@test.com", "OrgKeep", "OrgLocked")));
+
+        // Lock the rep's membership in OrgLocked only.
+        var lockedMembershipId = rep.Organizations.Single(o => o.OrganizationId == "OrgLocked").MembershipId;
+        await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(lockedMembershipId);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { myCustomers { totalCount items{ organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("OrgKeep");
+        json.Should().NotContain("OrgLocked");
+    }
+
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate)
     {
         using var db = ctx.NewOrderDbContext();

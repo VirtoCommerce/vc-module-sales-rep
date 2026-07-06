@@ -7,6 +7,7 @@ using GraphQL;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
@@ -72,7 +73,9 @@ internal sealed class SalesRepTestContext : IDisposable
         var securityConnection = SqliteTestDbContextFactory.CreateConnection();
         var customerConnection = SqliteTestDbContextFactory.CreateConnection();
         var orderConnection = SqliteTestDbContextFactory.CreateConnection();
-        var securityOptions = SqliteTestDbContextFactory.CreateOptions<SecurityDbContext>(securityConnection);
+        var securityOptions = SqliteTestDbContextFactory.CreateOptions<SecurityDbContext>(
+            securityConnection,
+            builder => builder.ReplaceService<IModelCustomizer, LockoutEndSqliteModelCustomizer>());
         var customerOptions = SqliteTestDbContextFactory.CreateOptions<CustomerDbContext>(customerConnection);
         var orderOptions = SqliteTestDbContextFactory.CreateOptions<OrderDbContext>(orderConnection);
 

@@ -44,10 +44,12 @@ public class SearchMyCustomersQueryHandler : IQueryHandler<SearchMyCustomersQuer
 
         // All organizations where the caller holds a sales-rep-granting membership
         // (bounded by the rep's served-organization count).
+        // OnlyUnlocked: a rep locked in an organization does not see it as a customer.
         var memberships = await _membershipSearchService.SearchAllNoCloneAsync(new OrganizationMembershipSearchCriteria
         {
             UserIds = new[] { request.UserId },
             RoleIds = grantingRoleIds.ToArray(),
+            OnlyUnlocked = true,
         });
 
         var organizationIds = memberships

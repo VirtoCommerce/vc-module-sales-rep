@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -47,25 +48,32 @@ public class SearchSalesRepsQueryHandler : IQueryHandler<SearchSalesRepsQuery, S
             return result;
         }
 
-        // Users holding a sales-rep-granting role in the caller's organization. GetCountsByUserAsync groups
-        // memberships by user in the database; its keys are exactly the users serving that organization.
-        var repUserCounts = await _membershipSearchService.GetCountsByUserAsync(new OrganizationMembershipSearchCriteria
+        // Memberships carrying a sales-rep-granting role in the caller's organization. OnlyUnlocked excludes
+        // per-org locked memberships (a rep locked in this organization must not appear for it).
+        var memberships = await _membershipSearchService.SearchAllNoCloneAsync(new OrganizationMembershipSearchCriteria
         {
             OrganizationIds = new[] { request.OrganizationId },
             RoleIds = grantingRoleIds.ToArray(),
+            OnlyUnlocked = true,
         });
 
-        var userIds = repUserCounts.Keys.ToArray();
+        var userIds = memberships
+            .Select(m => m.UserId)
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct()
+            .ToArray();
         if (userIds.Length == 0)
         {
             return result;
         }
 
-        // Map security accounts to their contact member ids.
+        // Map security accounts to contact member ids. OnlyUnlocked returns only active accounts (VCST-4907 #5):
+        // blocked/disabled reps are excluded. Deleted reps have no membership and never reach here.
         var users = await _userSearchService.SearchUsersAsync(new UserSearchCriteria
         {
             ObjectIds = userIds,
             Take = userIds.Length,
+            OnlyUnlocked = true,
         });
 
         var memberIds = users.Results

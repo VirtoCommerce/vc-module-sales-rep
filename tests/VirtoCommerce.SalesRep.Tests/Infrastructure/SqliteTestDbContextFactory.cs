@@ -19,13 +19,17 @@ public static class SqliteTestDbContextFactory
         return connection;
     }
 
-    /// <summary>Create options bound to <paramref name="connection"/> and materialize the schema for TContext.</summary>
-    public static DbContextOptions<TContext> CreateOptions<TContext>(SqliteConnection connection)
+    /// <summary>
+    /// Create options bound to <paramref name="connection"/> and materialize the schema for TContext.
+    /// <paramref name="configure"/> can tweak the options (e.g. replace the model customizer) before the schema
+    /// is created, so model changes are reflected in both the schema and queries.
+    /// </summary>
+    public static DbContextOptions<TContext> CreateOptions<TContext>(SqliteConnection connection, Action<DbContextOptionsBuilder> configure = null)
         where TContext : DbContext
     {
-        var options = new DbContextOptionsBuilder<TContext>()
-            .UseSqlite(connection)
-            .Options;
+        var builder = new DbContextOptionsBuilder<TContext>().UseSqlite(connection);
+        configure?.Invoke(builder);
+        var options = builder.Options;
 
         using var context = (TContext)Activator.CreateInstance(typeof(TContext), options)!;
         context.Database.EnsureCreated();
