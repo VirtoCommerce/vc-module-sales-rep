@@ -28,7 +28,7 @@ public class SalesRepGraphQlComponentTests
     };
 
     [Fact]
-    public async Task MySalesReps_ReturnsRepsServingCallerOrganization()
+    public async Task CustomerSalesReps_ReturnsRepsServingCallerOrganization()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
@@ -38,7 +38,7 @@ public class SalesRepGraphQlComponentTests
 
         // Caller is a member of org-1 (organization_id claim).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { mySalesReps { totalCount items { id fullName emails phones } } }",
+            "query { customerSalesReps { totalCount items { id fullName emails phones } } }",
             userId: "any-member",
             organizationId: "org-1");
 
@@ -50,19 +50,19 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task MySalesReps_Anonymous_ReturnsAuthorizationError()
+    public async Task CustomerSalesReps_Anonymous_ReturnsAuthorizationError()
     {
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { mySalesReps { totalCount items { id } } }");
+            "query { customerSalesReps { totalCount items { id } } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
     }
 
     [Fact]
-    public async Task MyCustomers_ReturnsOrganizationsServedByCaller()
+    public async Task SalesRepCustomers_ReturnsOrganizationsServedByCaller()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
@@ -70,7 +70,7 @@ public class SalesRepGraphQlComponentTests
 
         // Caller is the rep (their security-account id).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { myCustomers { totalCount items { organizationId organizationName } } }",
+            "query { salesRepCustomers { totalCount items { organizationId organizationName } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -80,19 +80,19 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task MyCustomers_Anonymous_ReturnsAuthorizationError()
+    public async Task SalesRepCustomers_Anonymous_ReturnsAuthorizationError()
     {
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { myCustomers { totalCount items { organizationId } } }");
+            "query { salesRepCustomers { totalCount items { organizationId } } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
     }
 
     [Fact]
-    public async Task MyCustomers_WithLastOrder_ReturnsMostRecentOrderPerOrganization()
+    public async Task SalesRepCustomers_WithLastOrder_ReturnsMostRecentOrderPerOrganization()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
@@ -102,7 +102,7 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { myCustomers { items { organizationId lastOrder { number total currency } } } }",
+            "query { salesRepCustomers { items { organizationId lastOrder { number total currency } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -113,7 +113,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task MyCustomers_SupportsPagingKeywordAndSort()
+    public async Task SalesRepCustomers_SupportsPagingKeywordAndSort()
     {
         using var ctx = SalesRepTestContext.Create();
         // Distinct, no-common-substring names so keyword/sort are unambiguous.
@@ -123,7 +123,7 @@ public class SalesRepGraphQlComponentTests
 
         // Page 1 (name asc): Acme, Globex
         var page1 = await ctx.ExecuteGraphQlAsync(
-            "query { myCustomers(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage endCursor } items{ organizationName } } }",
+            "query { salesRepCustomers(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage endCursor } items{ organizationName } } }",
             userId: rep.UserId);
         page1.Should().Contain("\"totalCount\":4").And.Contain("\"hasNextPage\":true");
         page1.Should().Contain("Acme").And.Contain("Globex");
@@ -131,7 +131,7 @@ public class SalesRepGraphQlComponentTests
 
         // Page 2 (after:2): Initech, Umbrella — no overlap with page 1
         var page2 = await ctx.ExecuteGraphQlAsync(
-            "query { myCustomers(first:2, after:\"2\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ organizationName } } }",
+            "query { salesRepCustomers(first:2, after:\"2\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ organizationName } } }",
             userId: rep.UserId);
         page2.Should().Contain("Initech").And.Contain("Umbrella");
         page2.Should().NotContain("Acme").And.NotContain("Globex");
@@ -140,20 +140,20 @@ public class SalesRepGraphQlComponentTests
         // Keyword filtering routes to the member search index — populate it for the org members first.
         await ctx.IndexMembersAsync("Acme", "Globex", "Initech", "Umbrella");
         var keyword = await ctx.ExecuteGraphQlAsync(
-            "query { myCustomers(keyword:\"Globex\") { totalCount items{ organizationName } } }",
+            "query { salesRepCustomers(keyword:\"Globex\") { totalCount items{ organizationName } } }",
             userId: rep.UserId);
         keyword.Should().Contain("\"totalCount\":1").And.Contain("Globex");
         keyword.Should().NotContain("Acme");
 
         // Sort desc: first item must be Umbrella (last alphabetically)
         var desc = await ctx.ExecuteGraphQlAsync(
-            "query { myCustomers(first:1, sort:\"name:desc\") { items{ organizationName } } }",
+            "query { salesRepCustomers(first:1, sort:\"name:desc\") { items{ organizationName } } }",
             userId: rep.UserId);
         desc.Should().Contain("Umbrella").And.NotContain("Acme");
     }
 
     [Fact]
-    public async Task MySalesReps_SupportsPagingKeywordAndSort()
+    public async Task CustomerSalesReps_SupportsPagingKeywordAndSort()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
@@ -163,7 +163,7 @@ public class SalesRepGraphQlComponentTests
 
         // Page 1 (name asc): Alice Anderson, Bob Brown
         var page1 = await ctx.ExecuteGraphQlAsync(
-            "query { mySalesReps(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ fullName } } }",
+            "query { customerSalesReps(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ fullName } } }",
             organizationId: "AcmeOrg");
         page1.Should().Contain("\"totalCount\":3").And.Contain("\"hasNextPage\":true");
         page1.Should().Contain("Alice Anderson").And.Contain("Bob Brown");
@@ -171,7 +171,7 @@ public class SalesRepGraphQlComponentTests
 
         // Page 2 (after:2): Carol Clark — last page
         var page2 = await ctx.ExecuteGraphQlAsync(
-            "query { mySalesReps(first:2, after:\"2\", sort:\"name:asc\") { pageInfo{ hasNextPage } items{ fullName } } }",
+            "query { customerSalesReps(first:2, after:\"2\", sort:\"name:asc\") { pageInfo{ hasNextPage } items{ fullName } } }",
             organizationId: "AcmeOrg");
         page2.Should().Contain("Carol Clark").And.Contain("\"hasNextPage\":false");
         page2.Should().NotContain("Alice Anderson");
@@ -179,20 +179,20 @@ public class SalesRepGraphQlComponentTests
         // Keyword filtering routes to the member search index — populate it for the rep contacts first.
         await ctx.IndexMembersAsync(alice.Id, bob.Id, carol.Id);
         var keyword = await ctx.ExecuteGraphQlAsync(
-            "query { mySalesReps(keyword:\"Brown\") { totalCount items{ fullName } } }",
+            "query { customerSalesReps(keyword:\"Brown\") { totalCount items{ fullName } } }",
             organizationId: "AcmeOrg");
         keyword.Should().Contain("\"totalCount\":1").And.Contain("Bob Brown");
         keyword.Should().NotContain("Alice Anderson");
 
         // Sort desc: first item must be Carol Clark
         var desc = await ctx.ExecuteGraphQlAsync(
-            "query { mySalesReps(first:1, sort:\"name:desc\") { items{ fullName } } }",
+            "query { customerSalesReps(first:1, sort:\"name:desc\") { items{ fullName } } }",
             organizationId: "AcmeOrg");
         desc.Should().Contain("Carol Clark").And.NotContain("Alice Anderson");
     }
 
     [Fact]
-    public async Task MySalesReps_ExcludesBlockedAccounts()
+    public async Task CustomerSalesReps_ExcludesBlockedAccounts()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
@@ -204,7 +204,7 @@ public class SalesRepGraphQlComponentTests
 
         // VCST-4907 #5: only active accounts (not blocked/disabled/deleted) are returned.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { mySalesReps { totalCount items{ fullName } } }",
+            "query { customerSalesReps { totalCount items{ fullName } } }",
             organizationId: "AcmeOrg");
 
         json.Should().NotContain("\"errors\"");
@@ -214,7 +214,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task MySalesReps_ExcludesPerOrgLockedReps()
+    public async Task CustomerSalesReps_ExcludesPerOrgLockedReps()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
@@ -226,7 +226,7 @@ public class SalesRepGraphQlComponentTests
         await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(membershipId);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { mySalesReps { totalCount items{ fullName } } }",
+            "query { customerSalesReps { totalCount items{ fullName } } }",
             organizationId: "AcmeOrg");
 
         json.Should().NotContain("\"errors\"");
@@ -236,7 +236,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task MyCustomers_ExcludesOrganizationsWhereRepIsLocked()
+    public async Task SalesRepCustomers_ExcludesOrganizationsWhereRepIsLocked()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("OrgKeep", "OrgLocked");
@@ -248,7 +248,7 @@ public class SalesRepGraphQlComponentTests
         await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(lockedMembershipId);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { myCustomers { totalCount items{ organizationId } } }",
+            "query { salesRepCustomers { totalCount items{ organizationId } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");

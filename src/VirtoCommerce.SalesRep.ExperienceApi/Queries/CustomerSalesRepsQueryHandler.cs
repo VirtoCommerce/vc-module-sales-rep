@@ -14,14 +14,14 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SearchSalesRepsQueryHandler : IQueryHandler<SearchSalesRepsQuery, SalesRepContactSearchResult>
+public class CustomerSalesRepsQueryHandler : IQueryHandler<CustomerSalesRepsQuery, SalesRepContactSearchResult>
 {
     private readonly ISalesRepRoleResolver _roleResolver;
     private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly IUserSearchService _userSearchService;
     private readonly IMemberSearchService _memberSearchService;
 
-    public SearchSalesRepsQueryHandler(
+    public CustomerSalesRepsQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IUserSearchService userSearchService,
@@ -33,7 +33,7 @@ public class SearchSalesRepsQueryHandler : IQueryHandler<SearchSalesRepsQuery, S
         _memberSearchService = memberSearchService;
     }
 
-    public virtual async Task<SalesRepContactSearchResult> Handle(SearchSalesRepsQuery request, CancellationToken cancellationToken)
+    public virtual async Task<SalesRepContactSearchResult> Handle(CustomerSalesRepsQuery request, CancellationToken cancellationToken)
     {
         var result = new SalesRepContactSearchResult();
 
