@@ -67,7 +67,9 @@ public class SalesRepCustomerOrderSearchService : CustomerOrderSearchService, IS
             return result;
         }
 
-        var entities = await repository.GetCustomerOrdersByIdsAsync(latestOrderIds, CustomerOrderResponseGroup.Default.ToString());
+        // Full so the grand total is populated: the order repository leaves Total at 0 for lighter response
+        // groups (verified — Default/WithOrderTotals return Total=0; Full matches the value the order API returns).
+        var entities = await repository.GetCustomerOrdersByIdsAsync(latestOrderIds, CustomerOrderResponseGroup.Full.ToString());
 
         foreach (var entity in entities)
         {
