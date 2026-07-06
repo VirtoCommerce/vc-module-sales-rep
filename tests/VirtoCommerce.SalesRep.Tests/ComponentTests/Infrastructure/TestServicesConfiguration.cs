@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -12,7 +13,9 @@ using VirtoCommerce.CustomerModule.Core.Services.Indexed;
 using VirtoCommerce.CustomerModule.Data.Handlers;
 using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
+using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.CustomerModule.Data.Services;
+using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.CustomerModule.Data.Validation;
 using VirtoCommerce.LuceneSearchModule.Data;
 using VirtoCommerce.Platform.Caching;
@@ -129,6 +132,12 @@ internal static class TestServicesConfiguration
         services.AddTransient<MemberSearchRequestBuilder>();
         services.AddTransient<IIndexedMemberSearchService, MemberIndexedSearchService>();
 
+        // Member indexation: the real document builder + a no-op dynamic-property search service (dynamic-
+        // property fields aren't needed for name/email keyword search). Lets tests populate the RAM index so
+        // keyword member searches (which route to the index, not the DB) can be exercised.
+        services.AddSingleton<IDynamicPropertySearchService, NoOpDynamicPropertySearchService>();
+        services.AddSingleton<MemberDocumentBuilder>();
+
         // Real member + membership services
         services.AddTransient<IMemberService, MemberService>();
         services.AddTransient<IMemberSearchService, MemberSearchService>();
@@ -150,5 +159,15 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         services.AddTransient<SalesRepController>();
         return services;
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IDynamicPropertySearchService"/> for member indexation — returns no dynamic-property
+    /// definitions, so indexed member documents carry the standard fields (name, emails) used by keyword search.
+    /// </summary>
+    private sealed class NoOpDynamicPropertySearchService : IDynamicPropertySearchService
+    {
+        public Task<DynamicPropertySearchResult> SearchAsync(DynamicPropertySearchCriteria criteria, bool clone = true)
+            => Task.FromResult(new DynamicPropertySearchResult());
     }
 }

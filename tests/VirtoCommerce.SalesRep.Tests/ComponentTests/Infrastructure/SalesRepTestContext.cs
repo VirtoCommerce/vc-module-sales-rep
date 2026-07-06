@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using System.Security.Claims;
+using System.Threading;
 using System.Threading.Tasks;
 using GraphQL;
 using Microsoft.AspNetCore.Mvc;
@@ -11,6 +12,8 @@ using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.CustomerModule.Data.Handlers;
 using VirtoCommerce.CustomerModule.Data.Repositories;
+using VirtoCommerce.CustomerModule.Data.Search;
+using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
@@ -20,6 +23,8 @@ using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
+using VirtoCommerce.SearchModule.Core.Model;
+using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -84,6 +89,11 @@ internal sealed class SalesRepTestContext : IDisposable
         provider.GetRequiredService<IEventHandlerRegistrar>()
             .RegisterEventHandler<UserChangedEvent>(provider.GetRequiredService<DeleteOrganizationMembershipUserChangedEventHandler>());
 
+        // Register the Member search-request builder (done in the customer module's PostInitialize) so keyword
+        // member searches — which route to the index and resolve a builder by document type — work in tests.
+        provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
+            .Register(KnownDocumentTypes.Member, provider.GetRequiredService<MemberSearchRequestBuilder>);
+
         return new SalesRepTestContext(
             securityConnection, customerConnection, orderConnection,
             provider, securityOptions, customerOptions, orderOptions);
@@ -112,6 +122,18 @@ internal sealed class SalesRepTestContext : IDisposable
             })
             .ToArray();
         await memberService.SaveChangesAsync(orgs);
+    }
+
+    /// <summary>
+    /// Populate the (in-memory Lucene) member search index for the given member ids using the real member
+    /// document builder, so keyword member searches — which route to the index, not the DB — return results.
+    /// </summary>
+    public async Task IndexMembersAsync(params string[] memberIds)
+    {
+        var documentBuilder = (IIndexDocumentBuilder)_provider.GetRequiredService<MemberDocumentBuilder>();
+        var documents = await documentBuilder.GetDocumentsAsync(memberIds, CancellationToken.None);
+        var searchProvider = _provider.GetRequiredService<ISearchProvider>();
+        await searchProvider.IndexAsync(KnownDocumentTypes.Member, documents);
     }
 
     /// <summary>

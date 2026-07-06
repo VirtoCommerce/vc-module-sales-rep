@@ -112,6 +112,85 @@ public class SalesRepGraphQlComponentTests
         json.Should().Contain("USD");
     }
 
+    [Fact]
+    public async Task MyCustomers_SupportsPagingKeywordAndSort()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // Distinct, no-common-substring names so keyword/sort are unambiguous.
+        await ctx.SeedOrganizationsAsync("Acme", "Globex", "Initech", "Umbrella");
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(
+            SimpleRep("Jane", "Rep", "jane@test.com", "Acme", "Globex", "Initech", "Umbrella")));
+
+        // Page 1 (name asc): Acme, Globex
+        var page1 = await ctx.ExecuteGraphQlAsync(
+            "query { myCustomers(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage endCursor } items{ organizationName } } }",
+            userId: rep.UserId);
+        page1.Should().Contain("\"totalCount\":4").And.Contain("\"hasNextPage\":true");
+        page1.Should().Contain("Acme").And.Contain("Globex");
+        page1.Should().NotContain("Initech").And.NotContain("Umbrella");
+
+        // Page 2 (after:2): Initech, Umbrella — no overlap with page 1
+        var page2 = await ctx.ExecuteGraphQlAsync(
+            "query { myCustomers(first:2, after:\"2\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ organizationName } } }",
+            userId: rep.UserId);
+        page2.Should().Contain("Initech").And.Contain("Umbrella");
+        page2.Should().NotContain("Acme").And.NotContain("Globex");
+        page2.Should().Contain("\"hasNextPage\":false");
+
+        // Keyword filtering routes to the member search index — populate it for the org members first.
+        await ctx.IndexMembersAsync("Acme", "Globex", "Initech", "Umbrella");
+        var keyword = await ctx.ExecuteGraphQlAsync(
+            "query { myCustomers(keyword:\"Globex\") { totalCount items{ organizationName } } }",
+            userId: rep.UserId);
+        keyword.Should().Contain("\"totalCount\":1").And.Contain("Globex");
+        keyword.Should().NotContain("Acme");
+
+        // Sort desc: first item must be Umbrella (last alphabetically)
+        var desc = await ctx.ExecuteGraphQlAsync(
+            "query { myCustomers(first:1, sort:\"name:desc\") { items{ organizationName } } }",
+            userId: rep.UserId);
+        desc.Should().Contain("Umbrella").And.NotContain("Acme");
+    }
+
+    [Fact]
+    public async Task MySalesReps_SupportsPagingKeywordAndSort()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("AcmeOrg");
+        var alice = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Alice", "Anderson", "alice@test.com", "AcmeOrg")));
+        var bob = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Bob", "Brown", "bob@test.com", "AcmeOrg")));
+        var carol = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Carol", "Clark", "carol@test.com", "AcmeOrg")));
+
+        // Page 1 (name asc): Alice Anderson, Bob Brown
+        var page1 = await ctx.ExecuteGraphQlAsync(
+            "query { mySalesReps(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ fullName } } }",
+            organizationId: "AcmeOrg");
+        page1.Should().Contain("\"totalCount\":3").And.Contain("\"hasNextPage\":true");
+        page1.Should().Contain("Alice Anderson").And.Contain("Bob Brown");
+        page1.Should().NotContain("Carol Clark");
+
+        // Page 2 (after:2): Carol Clark — last page
+        var page2 = await ctx.ExecuteGraphQlAsync(
+            "query { mySalesReps(first:2, after:\"2\", sort:\"name:asc\") { pageInfo{ hasNextPage } items{ fullName } } }",
+            organizationId: "AcmeOrg");
+        page2.Should().Contain("Carol Clark").And.Contain("\"hasNextPage\":false");
+        page2.Should().NotContain("Alice Anderson");
+
+        // Keyword filtering routes to the member search index — populate it for the rep contacts first.
+        await ctx.IndexMembersAsync(alice.Id, bob.Id, carol.Id);
+        var keyword = await ctx.ExecuteGraphQlAsync(
+            "query { mySalesReps(keyword:\"Brown\") { totalCount items{ fullName } } }",
+            organizationId: "AcmeOrg");
+        keyword.Should().Contain("\"totalCount\":1").And.Contain("Bob Brown");
+        keyword.Should().NotContain("Alice Anderson");
+
+        // Sort desc: first item must be Carol Clark
+        var desc = await ctx.ExecuteGraphQlAsync(
+            "query { mySalesReps(first:1, sort:\"name:desc\") { items{ fullName } } }",
+            organizationId: "AcmeOrg");
+        desc.Should().Contain("Carol Clark").And.NotContain("Alice Anderson");
+    }
+
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate)
     {
         using var db = ctx.NewOrderDbContext();
