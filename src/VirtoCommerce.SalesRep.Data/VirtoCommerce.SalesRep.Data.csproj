@@ -5,9 +5,9 @@
   </PropertyGroup>
   <ItemGroup>
 	<PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0-alpha.984-vcst-5293-sales-rep-vc-shell" />
-    <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1039.0" />
     <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1039.0" />
+    <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
