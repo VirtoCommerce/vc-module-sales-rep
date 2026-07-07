@@ -8,7 +8,7 @@
   <dependencies>
     <dependency id="VirtoCommerce.Customer" version="3.1014.0-alpha.1002-vcst-5239" />
     <dependency id="VirtoCommerce.Xapi" version="3.1012.0" />
-    <dependency id="VirtoCommerce.Orders" version="3.1011.0" />
+    <dependency id="VirtoCommerce.Orders" version="3.1010.0" />
   </dependencies>
 
   <apps>
