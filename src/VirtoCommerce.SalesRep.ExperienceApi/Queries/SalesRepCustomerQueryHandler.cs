@@ -4,23 +4,20 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomerQueryHandler : IQueryHandler<SalesRepCustomerQuery, SalesRepCustomerDetails>
+public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerQuery, SalesRepCustomerDetails>
 {
     private static readonly string _contactResponseGroup =
         (MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
 
     private static readonly string _organizationResponseGroup =
-        (MemberResponseGroup.WithAddresses | MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
+        (MemberResponseGroup.WithAddresses | MemberResponseGroup.WithPhones).ToString();
 
-    private readonly ISalesRepRoleResolver _roleResolver;
-    private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly IMemberService _memberService;
     private readonly IMemberSearchService _memberSearchService;
 
@@ -29,9 +26,8 @@ public class SalesRepCustomerQueryHandler : IQueryHandler<SalesRepCustomerQuery,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberService memberService,
         IMemberSearchService memberSearchService)
+        : base(roleResolver, membershipSearchService)
     {
-        _roleResolver = roleResolver;
-        _membershipSearchService = membershipSearchService;
         _memberService = memberService;
         _memberSearchService = memberSearchService;
     }
@@ -43,22 +39,12 @@ public class SalesRepCustomerQueryHandler : IQueryHandler<SalesRepCustomerQuery,
             return null;
         }
 
-        var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
-        if (grantingRoleIds.Count == 0)
-        {
-            return null;
-        }
-
         // Security scoping: the caller must hold an active sales-rep-granting membership in exactly the
         // requested organization. Without this a rep could read any organization by guessing its id.
         // OnlyUnlocked: a rep locked in an organization must not see it as a customer.
-        var memberships = await _membershipSearchService.SearchAllNoCloneAsync(new OrganizationMembershipSearchCriteria
-        {
-            UserIds = new[] { request.UserId },
-            OrganizationIds = new[] { request.OrganizationId },
-            RoleIds = grantingRoleIds.ToArray(),
-            OnlyUnlocked = true,
-        });
+        var memberships = await GetGrantingMembershipsAsync(
+            new[] { request.UserId },
+            new[] { request.OrganizationId });
 
         if (memberships.Count == 0)
         {

@@ -3,7 +3,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Data.Model;
-using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
@@ -17,24 +16,14 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 [Trait("Category", "Component")]
 public class SalesRepGraphQlComponentTests
 {
-    private static SalesRepDetails SimpleRep(string firstName, string lastName, string email, params string[] orgIds) => new()
-    {
-        FirstName = firstName,
-        LastName = lastName,
-        Emails = [email],
-        Phones = ["+1-555-0100"],
-        Password = "P@ssw0rd123!",
-        Organizations = orgIds.Select(id => new SalesRepOrganization { OrganizationId = id }).ToList(),
-    };
-
     [Fact]
     public async Task CustomerSalesReps_ReturnsRepsServingCallerOrganization()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         // A rep serving only org-2 must NOT appear for an org-1 member.
-        SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Other", "Rep", "other@test.com", "org-2")));
+        await ctx.CreateRepAsync("Other", "Rep", "other@test.com", "org-2");
 
         // Caller is a member of org-1 (organization_id claim).
         var json = await ctx.ExecuteGraphQlAsync(
@@ -66,7 +55,7 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1", "org-2")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
 
         // Caller is the rep (their security-account id).
         var json = await ctx.ExecuteGraphQlAsync(
@@ -96,7 +85,7 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         SeedOrder(ctx, id: "o-old", org: "org-1", number: "ORD-OLD", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
@@ -118,8 +107,7 @@ public class SalesRepGraphQlComponentTests
         using var ctx = SalesRepTestContext.Create();
         // Distinct, no-common-substring names so keyword/sort are unambiguous.
         await ctx.SeedOrganizationsAsync("Acme", "Globex", "Initech", "Umbrella");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(
-            SimpleRep("Jane", "Rep", "jane@test.com", "Acme", "Globex", "Initech", "Umbrella")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "Acme", "Globex", "Initech", "Umbrella");
 
         // Page 1 (name asc): Acme, Globex
         var page1 = await ctx.ExecuteGraphQlAsync(
@@ -157,9 +145,9 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
-        var alice = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Alice", "Anderson", "alice@test.com", "AcmeOrg")));
-        var bob = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Bob", "Brown", "bob@test.com", "AcmeOrg")));
-        var carol = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Carol", "Clark", "carol@test.com", "AcmeOrg")));
+        var alice = await ctx.CreateRepAsync("Alice", "Anderson", "alice@test.com", "AcmeOrg");
+        var bob = await ctx.CreateRepAsync("Bob", "Brown", "bob@test.com", "AcmeOrg");
+        var carol = await ctx.CreateRepAsync("Carol", "Clark", "carol@test.com", "AcmeOrg");
 
         // Page 1 (name asc): Alice Anderson, Bob Brown
         var page1 = await ctx.ExecuteGraphQlAsync(
@@ -196,8 +184,8 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
-        SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Active", "Rep", "active@test.com", "AcmeOrg")));
-        var blocked = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Blocked", "Rep", "blocked@test.com", "AcmeOrg")));
+        await ctx.CreateRepAsync("Active", "Rep", "active@test.com", "AcmeOrg");
+        var blocked = await ctx.CreateRepAsync("Blocked", "Rep", "blocked@test.com", "AcmeOrg");
 
         // Block one rep's account (sets LockoutEnd, exactly like the admin "Block" action).
         await ctx.GetRequiredService<VirtoCommerce.SalesRep.Core.Services.ISalesRepService>().BlockAsync(blocked.Id);
@@ -218,8 +206,8 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
-        SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Active", "Rep", "active@test.com", "AcmeOrg")));
-        var locked = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Locked", "Rep", "locked@test.com", "AcmeOrg")));
+        await ctx.CreateRepAsync("Active", "Rep", "active@test.com", "AcmeOrg");
+        var locked = await ctx.CreateRepAsync("Locked", "Rep", "locked@test.com", "AcmeOrg");
 
         // Lock the second rep's membership in AcmeOrg (a per-org lock, not an account-level block).
         var membershipId = locked.Organizations.Single(o => o.OrganizationId == "AcmeOrg").MembershipId;
@@ -240,8 +228,7 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("OrgKeep", "OrgLocked");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(
-            SimpleRep("Jane", "Rep", "jane@test.com", "OrgKeep", "OrgLocked")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "OrgKeep", "OrgLocked");
 
         // Lock the rep's membership in OrgLocked only.
         var lockedMembershipId = rep.Organizations.Single(o => o.OrganizationId == "OrgLocked").MembershipId;
@@ -264,7 +251,7 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomer(id:\"org-1\") { organizationId organizationName } }",
@@ -280,7 +267,7 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         // The rep serves org-1 only; requesting org-2 (which exists) must not leak it — a rep cannot read an
         // arbitrary organization by guessing its id.
@@ -297,7 +284,7 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         // A rep locked in the organization must not see it as a customer (mirrors the list-query lock filter).
         var membershipId = rep.Organizations.Single(o => o.OrganizationId == "org-1").MembershipId;
@@ -338,7 +325,7 @@ public class SalesRepGraphQlComponentTests
         });
         await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "owner-1");
         // The rep also becomes a contact member of org-1, but the explicit owner must win over the fallback.
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomer(id:\"org-1\") { primaryContact { id fullName phones } phone } }",
@@ -355,7 +342,7 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1"); // no owner set
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         // With no owner, the primary contact falls back to the org's first contact member — here the rep itself.
         var json = await ctx.ExecuteGraphQlAsync(
@@ -377,7 +364,7 @@ public class SalesRepGraphQlComponentTests
             // CountriesService in the harness; shipTo formats from City + RegionName.
             o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
         });
-        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomer(id:\"org-1\") { accountType shipTo } }",

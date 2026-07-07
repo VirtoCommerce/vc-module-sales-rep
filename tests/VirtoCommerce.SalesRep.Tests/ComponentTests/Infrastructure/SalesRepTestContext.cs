@@ -21,6 +21,7 @@ using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Events;
 using VirtoCommerce.Platform.Security.Repositories;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
@@ -106,6 +107,24 @@ internal sealed class SalesRepTestContext : IDisposable
     public SalesRepController Controller => _provider.GetRequiredService<SalesRepController>();
 
     public T GetRequiredService<T>() where T : notnull => _provider.GetRequiredService<T>();
+
+    /// <summary>
+    /// Create a Sales Rep (a login account + a contact serving the given organizations) through the real
+    /// <see cref="SalesRepController"/>, and return the created details.
+    /// </summary>
+    public async Task<SalesRepDetails> CreateRepAsync(string firstName, string lastName, string email, params string[] organizationIds)
+    {
+        var rep = new SalesRepDetails
+        {
+            FirstName = firstName,
+            LastName = lastName,
+            Emails = [email],
+            Phones = ["+1-555-0100"],
+            Password = "P@ssw0rd123!",
+            Organizations = organizationIds.Select(id => new SalesRepOrganization { OrganizationId = id }).ToList(),
+        };
+        return Unwrap(await Controller.Create(rep));
+    }
 
     /// <summary>
     /// Seed real Organization members (via the real IMemberService) so reps can be assigned to them —

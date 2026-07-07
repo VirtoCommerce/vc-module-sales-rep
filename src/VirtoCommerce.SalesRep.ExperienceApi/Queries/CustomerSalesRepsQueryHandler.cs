@@ -4,7 +4,6 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -13,10 +12,8 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class CustomerSalesRepsQueryHandler : IQueryHandler<CustomerSalesRepsQuery, SalesRepContactSearchResult>
+public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<CustomerSalesRepsQuery, SalesRepContactSearchResult>
 {
-    private readonly ISalesRepRoleResolver _roleResolver;
-    private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly IUserSearchService _userSearchService;
     private readonly IMemberSearchService _memberSearchService;
 
@@ -25,9 +22,8 @@ public class CustomerSalesRepsQueryHandler : IQueryHandler<CustomerSalesRepsQuer
         IOrganizationMembershipSearchService membershipSearchService,
         IUserSearchService userSearchService,
         IMemberSearchService memberSearchService)
+        : base(roleResolver, membershipSearchService)
     {
-        _roleResolver = roleResolver;
-        _membershipSearchService = membershipSearchService;
         _userSearchService = userSearchService;
         _memberSearchService = memberSearchService;
     }
@@ -41,20 +37,9 @@ public class CustomerSalesRepsQueryHandler : IQueryHandler<CustomerSalesRepsQuer
             return result;
         }
 
-        var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
-        if (grantingRoleIds.Count == 0)
-        {
-            return result;
-        }
-
         // Memberships carrying a sales-rep-granting role in the caller's organization. OnlyUnlocked excludes
         // per-org locked memberships (a rep locked in this organization must not appear for it).
-        var memberships = await _membershipSearchService.SearchAllNoCloneAsync(new OrganizationMembershipSearchCriteria
-        {
-            OrganizationIds = new[] { request.OrganizationId },
-            RoleIds = grantingRoleIds.ToArray(),
-            OnlyUnlocked = true,
-        });
+        var memberships = await GetGrantingMembershipsAsync(organizationIds: new[] { request.OrganizationId });
 
         var userIds = memberships
             .Select(m => m.UserId)
@@ -92,7 +77,8 @@ public class CustomerSalesRepsQueryHandler : IQueryHandler<CustomerSalesRepsQuer
             ObjectIds = memberIds,
             MemberType = nameof(Contact),
             RootMembersOnly = false,
-            ResponseGroup = MemberResponseGroup.Full.ToString(),
+            // Only emails + phones are projected onto SalesRepContact; skip the rest of the Full graph.
+            ResponseGroup = (MemberResponseGroup.WithEmails | MemberResponseGroup.WithPhones).ToString(),
             Keyword = request.Keyword,
             Sort = request.Sort,
             Skip = request.Skip,

@@ -3,33 +3,24 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Options;
 using VirtoCommerce.OrdersModule.Core.Model;
-using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
-using VirtoCommerce.OrdersModule.Data.Services;
-using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
 /// <summary>
-/// Extends the platform <see cref="CustomerOrderSearchService"/> with a batched "latest order per organization"
-/// lookup. Registered under <see cref="ISalesRepCustomerOrderSearchService"/> only, so the platform-wide
-/// <see cref="ICustomerOrderSearchService"/> registration is unaffected.
+/// Resolves the most recent order per organization with a single grouped query, for the Sales Rep
+/// "My customers" list. Talks directly to the order repository; it is standalone and registered under
+/// <see cref="ISalesRepCustomerOrderSearchService"/> only, so the platform-wide
+/// <see cref="VirtoCommerce.OrdersModule.Core.Services.ICustomerOrderSearchService"/> registration is unaffected.
 /// </summary>
-public class SalesRepCustomerOrderSearchService : CustomerOrderSearchService, ISalesRepCustomerOrderSearchService
+public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchService
 {
     private readonly Func<IOrderRepository> _repositoryFactory;
 
-    public SalesRepCustomerOrderSearchService(
-        Func<IOrderRepository> repositoryFactory,
-        IPlatformMemoryCache platformMemoryCache,
-        ICustomerOrderService crudService,
-        IOptions<CrudOptions> crudOptions)
-        : base(repositoryFactory, platformMemoryCache, crudService, crudOptions)
+    public SalesRepCustomerOrderSearchService(Func<IOrderRepository> repositoryFactory)
     {
         _repositoryFactory = repositoryFactory;
     }

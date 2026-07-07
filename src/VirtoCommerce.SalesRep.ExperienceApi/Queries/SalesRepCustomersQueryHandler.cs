@@ -4,26 +4,22 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomersQueryHandler : IQueryHandler<SalesRepCustomersQuery, SalesRepCustomerSearchResult>
+public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomersQuery, SalesRepCustomerSearchResult>
 {
-    private readonly ISalesRepRoleResolver _roleResolver;
-    private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly IMemberSearchService _memberSearchService;
 
     public SalesRepCustomersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberSearchService memberSearchService)
+        : base(roleResolver, membershipSearchService)
     {
-        _roleResolver = roleResolver;
-        _membershipSearchService = membershipSearchService;
         _memberSearchService = memberSearchService;
     }
 
@@ -36,21 +32,10 @@ public class SalesRepCustomersQueryHandler : IQueryHandler<SalesRepCustomersQuer
             return result;
         }
 
-        var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
-        if (grantingRoleIds.Count == 0)
-        {
-            return result;
-        }
-
         // All organizations where the caller holds a sales-rep-granting membership
         // (bounded by the rep's served-organization count).
         // OnlyUnlocked: a rep locked in an organization does not see it as a customer.
-        var memberships = await _membershipSearchService.SearchAllNoCloneAsync(new OrganizationMembershipSearchCriteria
-        {
-            UserIds = new[] { request.UserId },
-            RoleIds = grantingRoleIds.ToArray(),
-            OnlyUnlocked = true,
-        });
+        var memberships = await GetGrantingMembershipsAsync(userIds: new[] { request.UserId });
 
         var organizationIds = memberships
             .Select(x => x.OrganizationId)
@@ -69,6 +54,8 @@ public class SalesRepCustomersQueryHandler : IQueryHandler<SalesRepCustomersQuer
             ObjectIds = organizationIds,
             MemberType = nameof(Organization),
             RootMembersOnly = false,
+            // Only Id + Name are projected onto SalesRepCustomer (both scalar columns); skip collection loads.
+            ResponseGroup = MemberResponseGroup.Default.ToString(),
             Keyword = request.Keyword,
             Sort = request.Sort,
             Skip = request.Skip,
