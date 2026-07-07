@@ -3,6 +3,7 @@ using GraphQL;
 using GraphQL.Types;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
+using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
@@ -26,6 +27,8 @@ public class SalesRepCustomerQuery : Query<SalesRepCustomerDetails>
 
     public override void Map(IResolveFieldContext context)
     {
+        // Identity comes from the caller's claims; only the organization id is a client argument.
         OrganizationId = context.GetArgument<string>("id");
+        UserId = context.GetCurrentUserId();
     }
 }

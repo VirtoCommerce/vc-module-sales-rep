@@ -1,5 +1,7 @@
+using GraphQL;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
+using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
@@ -11,4 +13,10 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>
 {
     /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
+
+    public override void Map(IResolveFieldContext context)
+    {
+        base.Map(context);
+        UserId = context.GetCurrentUserId();
+    }
 }

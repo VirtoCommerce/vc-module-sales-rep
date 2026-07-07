@@ -1,5 +1,7 @@
+using GraphQL;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
+using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
@@ -11,4 +13,10 @@ public class CustomerSalesRepsQuery : SearchQuery<SalesRepContactSearchResult>
 {
     /// <summary>Organization the reps are resolved for (set server-side from the current user's claims).</summary>
     public string OrganizationId { get; set; }
+
+    public override void Map(IResolveFieldContext context)
+    {
+        base.Map(context);
+        OrganizationId = context.GetCurrentOrganizationId();
+    }
 }

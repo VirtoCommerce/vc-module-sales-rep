@@ -27,8 +27,5 @@ public class SalesRepCustomerQueryBuilder : QueryBuilder<SalesRepCustomerQuery, 
         {
             throw AuthorizationError.AnonymousAccessDenied();
         }
-
-        // Scope to the caller (the Sales Rep); the handler returns the organization only when the caller serves it.
-        request.UserId = context.GetCurrentUserId();
     }
 }

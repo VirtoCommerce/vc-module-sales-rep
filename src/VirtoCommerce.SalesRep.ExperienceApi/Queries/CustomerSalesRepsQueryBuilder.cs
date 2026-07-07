@@ -2,7 +2,6 @@ using System.Threading.Tasks;
 using GraphQL;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
-using VirtoCommerce.CustomerModule.Core.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.BaseQueries;
@@ -28,8 +27,5 @@ public class CustomerSalesRepsQueryBuilder : SearchQueryBuilder<CustomerSalesRep
         {
             throw AuthorizationError.AnonymousAccessDenied();
         }
-
-        // Scope to the caller's own organization; the handler returns nothing when there is no org context.
-        request.OrganizationId = context.GetCurrentPrincipal()?.GetCurrentOrganizationId();
     }
 }
