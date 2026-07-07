@@ -128,6 +128,30 @@ internal sealed class SalesRepTestContext : IDisposable
     }
 
     /// <summary>
+    /// Seed a single Organization member, optionally configured (owner, business category, address, phone),
+    /// so the richer <c>salesRepCustomer</c> detail fields can be exercised. Id and Name default to <paramref name="id"/>.
+    /// </summary>
+    public async Task<Organization> SeedOrganizationAsync(string id, Action<Organization> configure = null)
+    {
+        var org = AbstractTypeFactory<Organization>.TryCreateInstance();
+        org.Id = id;
+        org.Name = id;
+        configure?.Invoke(org);
+        await _provider.GetRequiredService<IMemberService>().SaveChangesAsync([org]);
+        return org;
+    }
+
+    /// <summary>Seed a single Contact member, optionally configured (name parts, phones, emails).</summary>
+    public async Task<Contact> SeedContactAsync(string id, Action<Contact> configure = null)
+    {
+        var contact = AbstractTypeFactory<Contact>.TryCreateInstance();
+        contact.Id = id;
+        configure?.Invoke(contact);
+        await _provider.GetRequiredService<IMemberService>().SaveChangesAsync([contact]);
+        return contact;
+    }
+
+    /// <summary>
     /// Populate the (in-memory Lucene) member search index for the given member ids using the real member
     /// document builder, so keyword member searches — which route to the index, not the DB — return results.
     /// </summary>

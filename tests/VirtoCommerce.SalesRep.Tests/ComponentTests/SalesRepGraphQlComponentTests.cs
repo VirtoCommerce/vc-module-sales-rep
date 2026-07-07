@@ -257,6 +257,137 @@ public class SalesRepGraphQlComponentTests
         json.Should().NotContain("OrgLocked");
     }
 
+    // ---- salesRepCustomer(id) — single customer details (VCST-5308) ----
+
+    [Fact]
+    public async Task SalesRepCustomer_ReturnsDetailsForServedOrganization()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(id:\"org-1\") { organizationId organizationName } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"organizationId\":\"org-1\"");
+        json.Should().Contain("\"organizationName\":\"org-1\"");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_ForOrganizationNotServed_ReturnsNull()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+
+        // The rep serves org-1 only; requesting org-2 (which exists) must not leak it — a rep cannot read an
+        // arbitrary organization by guessing its id.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(id:\"org-2\") { organizationId organizationName } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepCustomer\":null");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_WhenMembershipLocked_ReturnsNull()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+
+        // A rep locked in the organization must not see it as a customer (mirrors the list-query lock filter).
+        var membershipId = rep.Organizations.Single(o => o.OrganizationId == "org-1").MembershipId;
+        await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(membershipId);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(id:\"org-1\") { organizationId } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepCustomer\":null");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_Anonymous_ReturnsAuthorizationError()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        var json = await ctx.ExecuteGraphQlAnonymousAsync(
+            "query { salesRepCustomer(id:\"org-1\") { organizationId } }");
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)anonym");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_ResolvesOwnerAsPrimaryContact()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // Owner contact (with its own phone); the organization points at it via OwnerId.
+        await ctx.SeedContactAsync("owner-1", c =>
+        {
+            c.FirstName = "Olivia";
+            c.LastName = "Owner";
+            c.FullName = "Olivia Owner";
+            c.Name = "Olivia Owner";
+            c.Phones = ["+1-999-0000"];
+        });
+        await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "owner-1");
+        // The rep also becomes a contact member of org-1, but the explicit owner must win over the fallback.
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(id:\"org-1\") { primaryContact { id fullName phones } phone } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("owner-1").And.Contain("Olivia Owner");
+        json.Should().Contain("999-0000");       // phone taken from the primary contact (the "+" is JSON-escaped)
+        json.Should().NotContain("Jane Rep");    // the rep is a member but not the primary contact
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_FallsBackToFirstContactWhenNoOwner()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1"); // no owner set
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+
+        // With no owner, the primary contact falls back to the org's first contact member — here the rep itself.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(id:\"org-1\") { primaryContact { id fullName } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain(rep.Id).And.Contain("Jane Rep");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_MapsAccountTypeAndShipTo()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationAsync("org-1", o =>
+        {
+            o.BusinessCategory = "Retailer";
+            // CountryName + RegionName are set so MemberService.FillAddressNames doesn't call the (dataless)
+            // CountriesService in the harness; shipTo formats from City + RegionName.
+            o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
+        });
+        var rep = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("Jane", "Rep", "jane@test.com", "org-1")));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(id:\"org-1\") { accountType shipTo } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"accountType\":\"Retailer\"");
+        json.Should().Contain("\"shipTo\":\"Seattle, WA\"");
+    }
+
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate)
     {
         using var db = ctx.NewOrderDbContext();

@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -103,26 +102,9 @@ public class CustomerSalesRepsQueryHandler : IQueryHandler<CustomerSalesRepsQuer
         result.TotalCount = membersSearchResult.TotalCount;
         result.Results = membersSearchResult.Results
             .OfType<Contact>()
-            .Select(MapContact)
+            .Select(SalesRepContact.FromContact)
             .ToList();
 
         return result;
-    }
-
-    private static SalesRepContact MapContact(Contact contact)
-    {
-        return new SalesRepContact
-        {
-            Id = contact.Id,
-            FirstName = contact.FirstName,
-            LastName = contact.LastName,
-            MiddleName = contact.MiddleName,
-            FullName = contact.FullName,
-            Name = contact.Name,
-            About = contact.About,
-            PhotoUrl = contact.PhotoUrl,
-            Emails = contact.Emails ?? new List<string>(),
-            Phones = contact.Phones ?? new List<string>(),
-        };
     }
 }

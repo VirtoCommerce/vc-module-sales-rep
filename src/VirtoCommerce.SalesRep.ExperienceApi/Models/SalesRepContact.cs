@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using VirtoCommerce.CustomerModule.Core.Model;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -29,4 +30,22 @@ public class SalesRepContact
     public IList<string> Emails { get; set; } = new List<string>();
 
     public IList<string> Phones { get; set; } = new List<string>();
+
+    /// <summary>Projects a customer <see cref="Contact"/> onto the lightweight Sales Rep contact DTO.</summary>
+    public static SalesRepContact FromContact(Contact contact)
+    {
+        return new SalesRepContact
+        {
+            Id = contact.Id,
+            FirstName = contact.FirstName,
+            LastName = contact.LastName,
+            MiddleName = contact.MiddleName,
+            FullName = contact.FullName,
+            Name = contact.Name,
+            About = contact.About,
+            PhotoUrl = contact.PhotoUrl,
+            Emails = contact.Emails ?? new List<string>(),
+            Phones = contact.Phones ?? new List<string>(),
+        };
+    }
 }
