@@ -56,7 +56,7 @@ public class SalesRepSearchService : ISalesRepSearchService
 
     protected virtual async Task<SalesRepSearchResult> SearchInternalAsync(SalesRepSearchCriteria criteria)
     {
-        var result = new SalesRepSearchResult();
+        var result = AbstractTypeFactory<SalesRepSearchResult>.TryCreateInstance();
 
         var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
         if (grantingRoles.Count == 0)
@@ -91,18 +91,23 @@ public class SalesRepSearchService : ISalesRepSearchService
         // Source B: per-org reps via a DB-side aggregate. An org-scoped view counts only users serving that
         // org, so total org counts are then resolved separately to reflect all of a rep's served organizations.
         var orgIds = orgScoped ? new[] { criteria.OrganizationId } : null;
-        var scopedCounts = await _membershipSearchService.GetCountsByUserAsync(new OrganizationMembershipSearchCriteria
+        var scopedCriteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
+        scopedCriteria.RoleIds = grantingRoleIds;
+        scopedCriteria.OrganizationIds = orgIds;
+        var scopedCounts = await _membershipSearchService.GetCountsByUserAsync(scopedCriteria);
+
+        IDictionary<string, int> totalCounts;
+        if (orgScoped)
         {
-            RoleIds = grantingRoleIds,
-            OrganizationIds = orgIds,
-        });
-        var totalCounts = orgScoped
-            ? await _membershipSearchService.GetCountsByUserAsync(new OrganizationMembershipSearchCriteria
-            {
-                RoleIds = grantingRoleIds,
-                UserIds = scopedCounts.Keys.ToArray(),
-            })
-            : scopedCounts;
+            var totalCriteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
+            totalCriteria.RoleIds = grantingRoleIds;
+            totalCriteria.UserIds = scopedCounts.Keys.ToArray();
+            totalCounts = await _membershipSearchService.GetCountsByUserAsync(totalCriteria);
+        }
+        else
+        {
+            totalCounts = scopedCounts;
+        }
 
         var candidateUserIds = new HashSet<string>(globalRoleUserIds);
         candidateUserIds.UnionWith(scopedCounts.Keys);
@@ -134,29 +139,27 @@ public class SalesRepSearchService : ISalesRepSearchService
         var rowsByMemberId = rows.ToDictionary(r => r.MemberId, r => r);
         var take = criteria.Take <= 0 ? rows.Count : criteria.Take;
 
-        var memberSearch = await _memberSearchService.SearchMembersAsync(new MembersSearchCriteria
-        {
-            ObjectIds = rowsByMemberId.Keys.ToArray(),
-            Keyword = criteria.Keyword,
-            // Candidates are contacts that ARE org members; disable the "root members only" default that would
-            // otherwise exclude them.
-            RootMembersOnly = false,
-            ResponseGroup = MemberResponseGroup.WithEmails.ToString(),
-            Sort = BuildMemberSort(criteria.SortInfos),
-            Skip = criteria.Skip,
-            Take = take,
-        });
+        var memberCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        memberCriteria.ObjectIds = rowsByMemberId.Keys.ToArray();
+        memberCriteria.Keyword = criteria.Keyword;
+        // Candidates are contacts that ARE org members; disable the "root members only" default that would
+        // otherwise exclude them.
+        memberCriteria.RootMembersOnly = false;
+        memberCriteria.ResponseGroup = MemberResponseGroup.WithEmails.ToString();
+        memberCriteria.Sort = BuildMemberSort(criteria.SortInfos);
+        memberCriteria.Skip = criteria.Skip;
+        memberCriteria.Take = take;
+        var memberSearch = await _memberSearchService.SearchMembersAsync(memberCriteria);
 
         var items = memberSearch.Results
             .Where(m => rowsByMemberId.ContainsKey(m.Id))
             .Select(m => BuildItem(rowsByMemberId[m.Id], m))
             .ToList();
 
-        return new SalesRepSearchResult
-        {
-            TotalCount = memberSearch.TotalCount,
-            Results = items,
-        };
+        var pageResult = AbstractTypeFactory<SalesRepSearchResult>.TryCreateInstance();
+        pageResult.TotalCount = memberSearch.TotalCount;
+        pageResult.Results = items;
+        return pageResult;
     }
 
     /// <summary>Account-backed sort (email/orgcount/locked): sort the bounded candidate rows in memory and
@@ -167,14 +170,13 @@ public class SalesRepSearchService : ISalesRepSearchService
         Dictionary<string, Member> keywordMatches = null;
         if (!string.IsNullOrWhiteSpace(criteria.Keyword))
         {
-            var matched = await _memberSearchService.SearchMembersAsync(new MembersSearchCriteria
-            {
-                ObjectIds = rows.Select(r => r.MemberId).ToArray(),
-                Keyword = criteria.Keyword,
-                RootMembersOnly = false,
-                ResponseGroup = MemberResponseGroup.WithEmails.ToString(),
-                Take = rows.Count,
-            });
+            var matchedCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+            matchedCriteria.ObjectIds = rows.Select(r => r.MemberId).ToArray();
+            matchedCriteria.Keyword = criteria.Keyword;
+            matchedCriteria.RootMembersOnly = false;
+            matchedCriteria.ResponseGroup = MemberResponseGroup.WithEmails.ToString();
+            matchedCriteria.Take = rows.Count;
+            var matched = await _memberSearchService.SearchMembersAsync(matchedCriteria);
             keywordMatches = matched.Results.ToDictionary(m => m.Id, m => m);
             rows = rows.Where(r => keywordMatches.ContainsKey(r.MemberId)).ToList();
         }
@@ -185,11 +187,10 @@ public class SalesRepSearchService : ISalesRepSearchService
 
         var items = await BuildItemsForPageAsync(pageRows, keywordMatches);
 
-        return new SalesRepSearchResult
-        {
-            TotalCount = ordered.Count,
-            Results = items,
-        };
+        var rowResult = AbstractTypeFactory<SalesRepSearchResult>.TryCreateInstance();
+        rowResult.TotalCount = ordered.Count;
+        rowResult.Results = items;
+        return rowResult;
     }
 
     protected static List<CandidateRow> OrderRows(List<CandidateRow> rows, IList<SortInfo> sortInfos)
@@ -245,19 +246,18 @@ public class SalesRepSearchService : ISalesRepSearchService
     protected static SalesRepListItem BuildItem(CandidateRow row, Member member)
     {
         var contact = member as Contact;
-        return new SalesRepListItem
-        {
-            Id = row.MemberId,
-            UserId = row.UserId,
-            UserName = row.UserName,
-            FullName = contact?.FullName ?? member?.Name,
-            Email = member?.Emails?.FirstOrDefault() ?? row.Email,
-            OrganizationsCount = row.OrganizationsCount,
-            IsLocked = row.IsLocked,
-            HasGlobalSalesRepRole = row.HasGlobalSalesRepRole,
-            CreatedDate = member?.CreatedDate,
-            ModifiedDate = member?.ModifiedDate,
-        };
+        var item = AbstractTypeFactory<SalesRepListItem>.TryCreateInstance();
+        item.Id = row.MemberId;
+        item.UserId = row.UserId;
+        item.UserName = row.UserName;
+        item.FullName = contact?.FullName ?? member?.Name;
+        item.Email = member?.Emails?.FirstOrDefault() ?? row.Email;
+        item.OrganizationsCount = row.OrganizationsCount;
+        item.IsLocked = row.IsLocked;
+        item.HasGlobalSalesRepRole = row.HasGlobalSalesRepRole;
+        item.CreatedDate = member?.CreatedDate;
+        item.ModifiedDate = member?.ModifiedDate;
+        return item;
     }
 
     /// <summary>Load users whose global role grants the permission into <paramref name="usersById"/> and return their ids.</summary>
@@ -272,7 +272,9 @@ public class SalesRepSearchService : ISalesRepSearchService
 
         // Fetch ALL users holding a granting role, paging internally (SearchAllAsync helper) rather than an
         // unbounded single-page fetch.
-        var globalUsers = await _userSearchService.SearchAllAsync(new UserSearchCriteria { Roles = roleNames });
+        var globalUserCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        globalUserCriteria.Roles = roleNames;
+        var globalUsers = await _userSearchService.SearchAllAsync(globalUserCriteria);
 
         foreach (var user in globalUsers)
         {
@@ -342,11 +344,10 @@ public class SalesRepSearchService : ISalesRepSearchService
         }
 
         // Reuse the platform user search (honors ObjectIds, eager-loads roles) rather than hand-chunking UserManager.Users.
-        var loaded = (await _userSearchService.SearchUsersAsync(new UserSearchCriteria
-        {
-            ObjectIds = missing,
-            Take = missing.Count,
-        })).Results;
+        var missingCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        missingCriteria.ObjectIds = missing;
+        missingCriteria.Take = missing.Count;
+        var loaded = (await _userSearchService.SearchUsersAsync(missingCriteria)).Results;
 
         foreach (var user in loaded)
         {

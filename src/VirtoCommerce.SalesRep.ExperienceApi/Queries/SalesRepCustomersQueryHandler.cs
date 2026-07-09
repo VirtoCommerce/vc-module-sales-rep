@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -25,7 +26,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
 
     public virtual async Task<SalesRepCustomerSearchResult> Handle(SalesRepCustomersQuery request, CancellationToken cancellationToken)
     {
-        var result = new SalesRepCustomerSearchResult();
+        var result = AbstractTypeFactory<SalesRepCustomerSearchResult>.TryCreateInstance();
 
         if (string.IsNullOrEmpty(request.UserId))
         {
@@ -49,27 +50,28 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         }
 
         // Filter (keyword by organization name), sort and page the organizations in the database.
-        var membersSearchResult = await _memberSearchService.SearchMembersAsync(new MembersSearchCriteria
-        {
-            ObjectIds = organizationIds,
-            MemberType = nameof(Organization),
-            RootMembersOnly = false,
-            // Only Id + Name are projected onto SalesRepCustomer (both scalar columns); skip collection loads.
-            ResponseGroup = MemberResponseGroup.Default.ToString(),
-            Keyword = request.Keyword,
-            Sort = request.Sort,
-            Skip = request.Skip,
-            Take = request.Take,
-        });
+        var membersCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        membersCriteria.ObjectIds = organizationIds;
+        membersCriteria.MemberType = nameof(Organization);
+        membersCriteria.RootMembersOnly = false;
+        // Only Id + Name are projected onto SalesRepCustomer (both scalar columns); skip collection loads.
+        membersCriteria.ResponseGroup = MemberResponseGroup.Default.ToString();
+        membersCriteria.Keyword = request.Keyword;
+        membersCriteria.Sort = request.Sort;
+        membersCriteria.Skip = request.Skip;
+        membersCriteria.Take = request.Take;
+        var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;
         result.Results = membersSearchResult.Results
-            .Select(x => new SalesRepCustomer
+            .Select(x =>
             {
-                OrganizationId = x.Id,
-                OrganizationName = x.Name,
+                var customer = AbstractTypeFactory<SalesRepCustomer>.TryCreateInstance();
+                customer.OrganizationId = x.Id;
+                customer.OrganizationName = x.Name;
                 // Carry the caller's store so the lastOrder resolver can scope orders to it.
-                StoreId = request.StoreId,
+                customer.StoreId = request.StoreId;
+                return customer;
             })
             .ToList();
 

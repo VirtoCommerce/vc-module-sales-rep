@@ -74,11 +74,13 @@ public class SalesRepService : ISalesRepService
 
             var memberships = await GetSalesRepMembershipsAsync(user.Id, grantingRoleIds);
             result.Organizations = memberships
-                .Select(m => new SalesRepOrganization
+                .Select(m =>
                 {
-                    OrganizationId = m.OrganizationId,
-                    OrganizationName = m.OrganizationName,
-                    MembershipId = m.Id,
+                    var org = AbstractTypeFactory<SalesRepOrganization>.TryCreateInstance();
+                    org.OrganizationId = m.OrganizationId;
+                    org.OrganizationName = m.OrganizationName;
+                    org.MembershipId = m.Id;
+                    return org;
                 })
                 .ToList();
 
@@ -197,7 +199,9 @@ public class SalesRepService : ISalesRepService
         //
         // One batched, internally-paged search for the accounts of ALL member ids (UserSearchCriteria.MemberIds)
         // — not a query per id, and not an unbounded single page (SearchAllAsync pages internally).
-        var accounts = await _userSearchService.SearchAllAsync(new UserSearchCriteria { MemberIds = ids });
+        var searchCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        searchCriteria.MemberIds = ids;
+        var accounts = await _userSearchService.SearchAllAsync(searchCriteria);
 
         if (accounts.Count > 0)
         {
@@ -238,7 +242,13 @@ public class SalesRepService : ISalesRepService
     {
         var roles = await _roleResolver.GetSelectableRolesAsync();
         return roles
-            .Select(r => new SalesRepRole { Id = r.Id, Name = r.Name })
+            .Select(r =>
+            {
+                var role = AbstractTypeFactory<SalesRepRole>.TryCreateInstance();
+                role.Id = r.Id;
+                role.Name = r.Name;
+                return role;
+            })
             .ToList();
     }
 
@@ -433,7 +443,10 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<ApplicationUser> FindUserByMemberIdAsync(string memberId)
     {
-        var result = await _userSearchService.SearchUsersAsync(new UserSearchCriteria { MemberId = memberId, Take = 1 });
+        var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        criteria.MemberId = memberId;
+        criteria.Take = 1;
+        var result = await _userSearchService.SearchUsersAsync(criteria);
         return result.Results.FirstOrDefault();
     }
 
@@ -453,10 +466,9 @@ public class SalesRepService : ISalesRepService
     protected virtual Task<IList<OrganizationMembership>> GetAllMembershipsAsync(string userId)
     {
         // SearchAllAsync pages internally (IOrganizationMembershipSearchService : ISearchService) — no unbounded Take.
-        return _membershipSearchService.SearchAllAsync(new OrganizationMembershipSearchCriteria
-        {
-            UserId = userId,
-        });
+        var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
+        criteria.UserId = userId;
+        return _membershipSearchService.SearchAllAsync(criteria);
     }
 
     protected virtual void ApplyProfile(Contact contact, SalesRepDetails salesRep)
@@ -511,29 +523,28 @@ public class SalesRepService : ISalesRepService
 
     protected virtual SalesRepDetails ToSalesRep(Contact contact, ApplicationUser user)
     {
-        return new SalesRepDetails
-        {
-            Id = contact.Id,
-            UserId = user?.Id,
-            UserName = user?.UserName,
-            Salutation = contact.Salutation,
-            FirstName = contact.FirstName,
-            MiddleName = contact.MiddleName,
-            LastName = contact.LastName,
-            FullName = contact.FullName,
-            BirthDate = contact.BirthDate,
-            TimeZone = contact.TimeZone,
-            DefaultLanguage = contact.DefaultLanguage,
-            CurrencyCode = contact.CurrencyCode,
-            About = contact.About,
-            PhotoUrl = contact.PhotoUrl,
-            Status = contact.Status,
-            Emails = contact.Emails?.ToList() ?? [],
-            Phones = contact.Phones?.ToList() ?? [],
-            Addresses = contact.Addresses?.ToList() ?? [],
-            StoreId = user?.StoreId,
-            IsLocked = IsLocked(user),
-        };
+        var result = AbstractTypeFactory<SalesRepDetails>.TryCreateInstance();
+        result.Id = contact.Id;
+        result.UserId = user?.Id;
+        result.UserName = user?.UserName;
+        result.Salutation = contact.Salutation;
+        result.FirstName = contact.FirstName;
+        result.MiddleName = contact.MiddleName;
+        result.LastName = contact.LastName;
+        result.FullName = contact.FullName;
+        result.BirthDate = contact.BirthDate;
+        result.TimeZone = contact.TimeZone;
+        result.DefaultLanguage = contact.DefaultLanguage;
+        result.CurrencyCode = contact.CurrencyCode;
+        result.About = contact.About;
+        result.PhotoUrl = contact.PhotoUrl;
+        result.Status = contact.Status;
+        result.Emails = contact.Emails?.ToList() ?? [];
+        result.Phones = contact.Phones?.ToList() ?? [];
+        result.Addresses = contact.Addresses?.ToList() ?? [];
+        result.StoreId = user?.StoreId;
+        result.IsLocked = IsLocked(user);
+        return result;
     }
 
     protected static bool IsLocked(ApplicationUser user)

@@ -43,12 +43,12 @@ public abstract class SalesRepQueryHandlerBase
             return Array.Empty<OrganizationMembership>();
         }
 
-        return await _membershipSearchService.SearchAllNoCloneAsync(new OrganizationMembershipSearchCriteria
-        {
-            UserIds = userIds,
-            OrganizationIds = organizationIds,
-            RoleIds = grantingRoleIds.ToArray(),
-            OnlyUnlocked = true,
-        });
+        var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
+        criteria.UserIds = userIds;
+        criteria.OrganizationIds = organizationIds;
+        criteria.RoleIds = grantingRoleIds.ToArray();
+        criteria.OnlyUnlocked = true;
+
+        return await _membershipSearchService.SearchAllNoCloneAsync(criteria);
     }
 }

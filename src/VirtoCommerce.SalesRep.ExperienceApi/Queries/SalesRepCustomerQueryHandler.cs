@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -63,13 +64,11 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        var result = new SalesRepCustomerDetails
-        {
-            OrganizationId = organization.Id,
-            OrganizationName = organization.Name,
-            AccountType = organization.BusinessCategory,
-            ShipTo = FormatShipTo(organization),
-        };
+        var result = AbstractTypeFactory<SalesRepCustomerDetails>.TryCreateInstance();
+        result.OrganizationId = organization.Id;
+        result.OrganizationName = organization.Name;
+        result.AccountType = organization.BusinessCategory;
+        result.ShipTo = FormatShipTo(organization);
 
         var primaryContact = await ResolvePrimaryContactAsync(organization);
         if (primaryContact != null)
@@ -104,15 +103,14 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         }
 
         // Fallback: the first (oldest) contact directly belonging to the organization.
-        var contactsSearchResult = await _memberSearchService.SearchMembersAsync(new MembersSearchCriteria
-        {
-            MemberId = organization.Id,
-            MemberType = nameof(Contact),
-            DeepSearch = false,
-            ResponseGroup = _contactResponseGroup,
-            Sort = "createdDate:asc",
-            Take = 1,
-        });
+        var contactsCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        contactsCriteria.MemberId = organization.Id;
+        contactsCriteria.MemberType = nameof(Contact);
+        contactsCriteria.DeepSearch = false;
+        contactsCriteria.ResponseGroup = _contactResponseGroup;
+        contactsCriteria.Sort = "createdDate:asc";
+        contactsCriteria.Take = 1;
+        var contactsSearchResult = await _memberSearchService.SearchMembersAsync(contactsCriteria);
 
         return contactsSearchResult.Results.OfType<Contact>().FirstOrDefault();
     }

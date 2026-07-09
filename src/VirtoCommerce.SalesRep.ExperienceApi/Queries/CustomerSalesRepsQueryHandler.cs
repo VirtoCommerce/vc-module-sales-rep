@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -30,7 +31,7 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
 
     public virtual async Task<SalesRepContactSearchResult> Handle(CustomerSalesRepsQuery request, CancellationToken cancellationToken)
     {
-        var result = new SalesRepContactSearchResult();
+        var result = AbstractTypeFactory<SalesRepContactSearchResult>.TryCreateInstance();
 
         if (string.IsNullOrEmpty(request.OrganizationId))
         {
@@ -55,13 +56,12 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         // blocked/disabled reps are excluded. Deleted reps have no membership and never reach here.
         // StoreId scopes to the caller's store when provided — a rep's account is store-bound, so a rep from
         // another store is not exposed to this storefront.
-        var users = await _userSearchService.SearchUsersAsync(new UserSearchCriteria
-        {
-            ObjectIds = userIds,
-            Take = userIds.Length,
-            OnlyUnlocked = true,
-            StoreId = request.StoreId,
-        });
+        var userCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        userCriteria.ObjectIds = userIds;
+        userCriteria.Take = userIds.Length;
+        userCriteria.OnlyUnlocked = true;
+        userCriteria.StoreId = request.StoreId;
+        var users = await _userSearchService.SearchUsersAsync(userCriteria);
 
         var memberIds = users.Results
             .Select(x => x.MemberId)
@@ -75,18 +75,17 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         }
 
         // Filter (keyword), sort and page the reps' contacts in the database.
-        var membersSearchResult = await _memberSearchService.SearchMembersAsync(new MembersSearchCriteria
-        {
-            ObjectIds = memberIds,
-            MemberType = nameof(Contact),
-            RootMembersOnly = false,
-            // Only emails + phones are projected onto SalesRepContact; skip the rest of the Full graph.
-            ResponseGroup = (MemberResponseGroup.WithEmails | MemberResponseGroup.WithPhones).ToString(),
-            Keyword = request.Keyword,
-            Sort = request.Sort,
-            Skip = request.Skip,
-            Take = request.Take,
-        });
+        var membersCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        membersCriteria.ObjectIds = memberIds;
+        membersCriteria.MemberType = nameof(Contact);
+        membersCriteria.RootMembersOnly = false;
+        // Only emails + phones are projected onto SalesRepContact; skip the rest of the Full graph.
+        membersCriteria.ResponseGroup = (MemberResponseGroup.WithEmails | MemberResponseGroup.WithPhones).ToString();
+        membersCriteria.Keyword = request.Keyword;
+        membersCriteria.Sort = request.Sort;
+        membersCriteria.Skip = request.Skip;
+        membersCriteria.Take = request.Take;
+        var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;
         result.Results = membersSearchResult.Results

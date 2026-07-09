@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -34,18 +35,17 @@ public class SalesRepContact
     /// <summary>Projects a customer <see cref="Contact"/> onto the lightweight Sales Rep contact DTO.</summary>
     public static SalesRepContact FromContact(Contact contact)
     {
-        return new SalesRepContact
-        {
-            Id = contact.Id,
-            FirstName = contact.FirstName,
-            LastName = contact.LastName,
-            MiddleName = contact.MiddleName,
-            FullName = contact.FullName,
-            Name = contact.Name,
-            About = contact.About,
-            PhotoUrl = contact.PhotoUrl,
-            Emails = contact.Emails ?? new List<string>(),
-            Phones = contact.Phones ?? new List<string>(),
-        };
+        var result = AbstractTypeFactory<SalesRepContact>.TryCreateInstance();
+        result.Id = contact.Id;
+        result.FirstName = contact.FirstName;
+        result.LastName = contact.LastName;
+        result.MiddleName = contact.MiddleName;
+        result.FullName = contact.FullName;
+        result.Name = contact.Name;
+        result.About = contact.About;
+        result.PhotoUrl = contact.PhotoUrl;
+        result.Emails = contact.Emails ?? new List<string>();
+        result.Phones = contact.Phones ?? new List<string>();
+        return result;
     }
 }

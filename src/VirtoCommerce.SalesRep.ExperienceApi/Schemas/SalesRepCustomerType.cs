@@ -3,6 +3,7 @@ using System.Linq;
 using GraphQL;
 using GraphQL.DataLoader;
 using VirtoCommerce.OrdersModule.Core.Model;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Schemas;
@@ -51,14 +52,13 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 
     private static SalesRepLastOrder MapLastOrder(CustomerOrder order)
     {
-        return new SalesRepLastOrder
-        {
-            Id = order.Id,
-            Number = order.Number,
-            CreatedDate = order.CreatedDate,
-            Status = order.Status,
-            Total = order.Total,
-            Currency = order.Currency,
-        };
+        var result = AbstractTypeFactory<SalesRepLastOrder>.TryCreateInstance();
+        result.Id = order.Id;
+        result.Number = order.Number;
+        result.CreatedDate = order.CreatedDate;
+        result.Status = order.Status;
+        result.Total = order.Total;
+        result.Currency = order.Currency;
+        return result;
     }
 }
