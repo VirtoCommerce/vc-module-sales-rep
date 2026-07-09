@@ -30,13 +30,17 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                     return null;
                 }
 
+                // The store is uniform across a page (from the query's storeId argument); fold it into the loader
+                // key so orders stay scoped to the caller's store and different stores never share a batch.
+                var storeId = context.Source.StoreId;
+
                 // Collapse every customer row on the page into a single grouped order query per request
                 // (instead of one query per row).
                 var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, SalesRepLastOrder>(
-                    $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId",
+                    $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{storeId}",
                     async organizationIds =>
                     {
-                        var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList());
+                        var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), storeId);
                         // Keep the loader's key comparer aligned with the service's OrdinalIgnoreCase dictionary.
                         return latestOrders.ToDictionary(kvp => kvp.Key, kvp => MapLastOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
                     });

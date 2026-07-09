@@ -112,7 +112,11 @@ internal sealed class SalesRepTestContext : IDisposable
     /// Create a Sales Rep (a login account + a contact serving the given organizations) through the real
     /// <see cref="SalesRepController"/>, and return the created details.
     /// </summary>
-    public async Task<SalesRepDetails> CreateRepAsync(string firstName, string lastName, string email, params string[] organizationIds)
+    public Task<SalesRepDetails> CreateRepAsync(string firstName, string lastName, string email, params string[] organizationIds)
+        => CreateRepInStoreAsync(firstName, lastName, email, storeId: null, organizationIds);
+
+    /// <summary>As <see cref="CreateRepAsync"/>, but binds the rep's account to a specific store.</summary>
+    public async Task<SalesRepDetails> CreateRepInStoreAsync(string firstName, string lastName, string email, string storeId, params string[] organizationIds)
     {
         var rep = new SalesRepDetails
         {
@@ -121,6 +125,7 @@ internal sealed class SalesRepTestContext : IDisposable
             Emails = [email],
             Phones = ["+1-555-0100"],
             Password = "P@ssw0rd123!",
+            StoreId = storeId,
             Organizations = organizationIds.Select(id => new SalesRepOrganization { OrganizationId = id }).ToList(),
         };
         return Unwrap(await Controller.Create(rep));

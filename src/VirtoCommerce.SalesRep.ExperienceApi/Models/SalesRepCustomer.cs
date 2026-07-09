@@ -10,4 +10,10 @@ public class SalesRepCustomer
 
     /// <summary>Organization (customer) name.</summary>
     public string OrganizationName { get; set; }
+
+    /// <summary>
+    /// Store the caller is browsing (from the query's <c>storeId</c> argument). Not exposed as a GraphQL field —
+    /// it scopes the <c>lastOrder</c> lookup so a rep never sees another store's orders. Null = no store filter.
+    /// </summary>
+    public string StoreId { get; set; }
 }

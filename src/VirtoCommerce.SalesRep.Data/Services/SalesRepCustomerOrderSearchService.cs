@@ -25,7 +25,7 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
         _repositoryFactory = repositoryFactory;
     }
 
-    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds)
+    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId = null)
     {
         var result = new Dictionary<string, CustomerOrder>(StringComparer.OrdinalIgnoreCase);
 
@@ -43,8 +43,11 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
 
         // Resolve the id of the most recent order per organization with a single grouped query (top row per group),
         // avoiding one query per organization. The Id tiebreaker keeps ties (same CreatedDate) deterministic.
+        // When a store is supplied, scope to it so a rep never sees another store's orders.
         var latestOrderIds = await repository.CustomerOrders
-            .Where(x => !x.IsPrototype && organizationIdsToSearch.Contains(x.OrganizationId))
+            .Where(x => !x.IsPrototype
+                && organizationIdsToSearch.Contains(x.OrganizationId)
+                && (storeId == null || x.StoreId == storeId))
             .GroupBy(x => x.OrganizationId)
             .Select(g => g
                 .OrderByDescending(x => x.CreatedDate)

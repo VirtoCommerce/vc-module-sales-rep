@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using GraphQL;
+using GraphQL.Types;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -14,9 +16,23 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>
     /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
 
+    /// <summary>Optional store to scope each customer's <c>lastOrder</c> to (the storefront's current store).</summary>
+    public string StoreId { get; set; }
+
+    public override IEnumerable<QueryArgument> GetArguments()
+    {
+        foreach (var argument in base.GetArguments())
+        {
+            yield return argument;
+        }
+
+        yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope each customer's last order to (defaults to all stores).");
+    }
+
     public override void Map(IResolveFieldContext context)
     {
         base.Map(context);
         UserId = context.GetCurrentUserId();
+        StoreId = context.GetArgument<string>(nameof(StoreId));
     }
 }

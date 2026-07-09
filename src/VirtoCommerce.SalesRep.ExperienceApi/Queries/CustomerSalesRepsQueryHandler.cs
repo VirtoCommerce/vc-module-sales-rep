@@ -53,11 +53,14 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
 
         // Map security accounts to contact member ids. OnlyUnlocked returns only active accounts (VCST-4907 #5):
         // blocked/disabled reps are excluded. Deleted reps have no membership and never reach here.
+        // StoreId scopes to the caller's store when provided — a rep's account is store-bound, so a rep from
+        // another store is not exposed to this storefront.
         var users = await _userSearchService.SearchUsersAsync(new UserSearchCriteria
         {
             ObjectIds = userIds,
             Take = userIds.Length,
             OnlyUnlocked = true,
+            StoreId = request.StoreId,
         });
 
         var memberIds = users.Results

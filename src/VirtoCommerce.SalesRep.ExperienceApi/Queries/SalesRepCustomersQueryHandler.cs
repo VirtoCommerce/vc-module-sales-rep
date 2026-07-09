@@ -68,6 +68,8 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
             {
                 OrganizationId = x.Id,
                 OrganizationName = x.Name,
+                // Carry the caller's store so the lastOrder resolver can scope orders to it.
+                StoreId = request.StoreId,
             })
             .ToList();
 

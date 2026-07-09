@@ -15,6 +15,8 @@ public interface ISalesRepCustomerOrderSearchService
     /// <summary>
     /// Returns the most recent order (by created date) for each of the specified organizations, resolved with a
     /// single grouped database query. Organizations without orders are omitted; prototype orders are excluded.
+    /// When <paramref name="storeId"/> is provided, only orders from that store are considered — so a rep never
+    /// sees order metadata from a store outside the current storefront.
     /// </summary>
-    Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds);
+    Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId = null);
 }

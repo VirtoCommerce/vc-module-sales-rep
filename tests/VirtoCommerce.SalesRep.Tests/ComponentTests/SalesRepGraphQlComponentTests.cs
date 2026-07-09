@@ -375,7 +375,71 @@ public class SalesRepGraphQlComponentTests
         json.Should().Contain("\"shipTo\":\"Seattle, WA\"");
     }
 
-    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate)
+    [Fact]
+    public async Task CustomerSalesReps_AreScopedByStore()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("AcmeOrg");
+        // Two reps serve the SAME org, but their accounts belong to DIFFERENT stores. A rep's account is
+        // store-bound, so scoping must include one store's rep and exclude the other's.
+        await ctx.CreateRepInStoreAsync("Bea", "B2B", "bea@test.com", "B2B-store", "AcmeOrg");
+        await ctx.CreateRepInStoreAsync("Otto", "Other", "otto@test.com", "OtherStore", "AcmeOrg");
+
+        // Scoped to B2B-store: only the B2B rep.
+        var b2b = await ctx.ExecuteGraphQlAsync(
+            "query { customerSalesReps(storeId:\"B2B-store\") { totalCount items { fullName } } }",
+            organizationId: "AcmeOrg");
+        b2b.Should().NotContain("\"errors\"");
+        b2b.Should().Contain("\"totalCount\":1").And.Contain("Bea B2B");
+        b2b.Should().NotContain("Otto Other");
+
+        // Scoped to the other store: only that store's rep — proves the filter keys on the value, not a fixed side.
+        var other = await ctx.ExecuteGraphQlAsync(
+            "query { customerSalesReps(storeId:\"OtherStore\") { totalCount items { fullName } } }",
+            organizationId: "AcmeOrg");
+        other.Should().Contain("\"totalCount\":1").And.Contain("Otto Other");
+        other.Should().NotContain("Bea B2B");
+
+        // No store filter: both reps (confirms the data really spans stores and that null = all stores).
+        var all = await ctx.ExecuteGraphQlAsync(
+            "query { customerSalesReps { totalCount items { fullName } } }",
+            organizationId: "AcmeOrg");
+        all.Should().Contain("\"totalCount\":2").And.Contain("Bea B2B").And.Contain("Otto Other");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_LastOrder_IsScopedByStore()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // A NEWER order in another store must be ignored when the query is scoped to B2B-store — otherwise a rep
+        // could see order metadata from a store outside the current storefront.
+        // org-1 has orders in two stores; the NEWER order is in OtherStore.
+        SeedOrder(ctx, id: "o-other", org: "org-1", number: "ORD-OTHER", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), storeId: "OtherStore");
+        SeedOrder(ctx, id: "o-b2b", org: "org-1", number: "ORD-B2B", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), storeId: "B2B-store");
+
+        // Scoped to B2B-store: the B2B order, even though the OtherStore order is more recent.
+        var b2b = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(storeId:\"B2B-store\") { items { organizationId lastOrder { number } } } }",
+            userId: rep.UserId);
+        b2b.Should().NotContain("\"errors\"");
+        b2b.Should().Contain("ORD-B2B").And.NotContain("ORD-OTHER");
+
+        // Scoped to the other store: that store's order — proves the filter keys on the value, not a fixed side.
+        var other = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(storeId:\"OtherStore\") { items { lastOrder { number } } } }",
+            userId: rep.UserId);
+        other.Should().Contain("ORD-OTHER").And.NotContain("ORD-B2B");
+
+        // No store filter: the globally most-recent order across stores (ORD-OTHER).
+        var all = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { lastOrder { number } } } }",
+            userId: rep.UserId);
+        all.Should().Contain("ORD-OTHER").And.NotContain("ORD-B2B");
+    }
+
+    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store")
     {
         using var db = ctx.NewOrderDbContext();
         db.Add(new CustomerOrderEntity
@@ -385,7 +449,7 @@ public class SalesRepGraphQlComponentTests
             OrganizationId = org,
             CustomerId = "customer-1",
             CustomerName = "Customer 1",
-            StoreId = "B2B-store",
+            StoreId = storeId,
             Status = "New",
             Currency = "USD",
             Total = 123.45m,
