@@ -2,27 +2,27 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.OrdersModule.Core.Model;
-using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.OrdersModule.Core.Model.Search;
+using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
 /// <summary>
-/// Resolves the most recent order per organization with a single grouped query, for the Sales Rep
-/// "My customers" list. Talks directly to the order repository; it is standalone and registered under
-/// <see cref="ISalesRepCustomerOrderSearchService"/> only, so the platform-wide
-/// <see cref="VirtoCommerce.OrdersModule.Core.Services.ICustomerOrderSearchService"/> registration is unaffected.
+/// Resolves the most recent order per organization for the Sales Rep "My customers" list. It goes through the
+/// Orders module's public <see cref="ICustomerOrderSearchService"/> — one bounded, newest-first <c>Take = 1</c>
+/// search per organization — rather than the Orders EF repository, so this module stays decoupled from the Orders
+/// data layer. Registered under <see cref="ISalesRepCustomerOrderSearchService"/> only.
 /// </summary>
 public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchService
 {
-    private readonly Func<IOrderRepository> _repositoryFactory;
+    private readonly ICustomerOrderSearchService _customerOrderSearchService;
 
-    public SalesRepCustomerOrderSearchService(Func<IOrderRepository> repositoryFactory)
+    public SalesRepCustomerOrderSearchService(ICustomerOrderSearchService customerOrderSearchService)
     {
-        _repositoryFactory = repositoryFactory;
+        _customerOrderSearchService = customerOrderSearchService;
     }
 
     public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId = null)
@@ -34,48 +34,34 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
             .Distinct()
             .ToArray() ?? [];
 
-        if (organizationIdsToSearch.Length == 0)
+        // One bounded "newest order" search per organization through the Orders module's public search service.
+        // (There is no public grouped "latest per organization" query, and reaching into the Orders EF repository
+        // would couple this module to Orders' data layer.)
+        foreach (var organizationId in organizationIdsToSearch)
         {
-            return result;
-        }
-
-        using var repository = _repositoryFactory();
-
-        // Resolve the id of the most recent order per organization with a single grouped query (top row per group),
-        // avoiding one query per organization. The Id tiebreaker keeps ties (same CreatedDate) deterministic.
-        // When a store is supplied, scope to it so a rep never sees another store's orders.
-        var latestOrderIds = await repository.CustomerOrders
-            .Where(x => !x.IsPrototype
-                && organizationIdsToSearch.Contains(x.OrganizationId)
-                && (storeId == null || x.StoreId == storeId))
-            .GroupBy(x => x.OrganizationId)
-            .Select(g => g
-                .OrderByDescending(x => x.CreatedDate)
-                .ThenByDescending(x => x.Id)
-                .Select(x => x.Id)
-                .FirstOrDefault())
-            .ToListAsync();
-
-        if (latestOrderIds.Count == 0)
-        {
-            return result;
-        }
-
-        // WithPrices so the grand total is populated: OrderRepository.GetCustomerOrdersByIdsAsync calls
-        // ResetPrices() (zeroing Total) whenever WithPrices is absent. WithPrices only gates that reset and
-        // loads no child collections — unlike Full, which also pulls items/payments/shipments/refunds/etc.
-        // that the 6-scalar SalesRepLastOrder never uses (and this runs per page through the batch loader).
-        var entities = await repository.GetCustomerOrdersByIdsAsync(latestOrderIds, CustomerOrderResponseGroup.WithPrices.ToString());
-
-        foreach (var entity in entities)
-        {
-            var order = entity.ToModel(AbstractTypeFactory<CustomerOrder>.TryCreateInstance());
-            if (!string.IsNullOrEmpty(order.OrganizationId))
+            var order = await GetLatestOrderAsync(organizationId, storeId);
+            if (order != null)
             {
-                result[order.OrganizationId] = order;
+                result[organizationId] = order;
             }
         }
 
         return result;
+    }
+
+    protected virtual async Task<CustomerOrder> GetLatestOrderAsync(string organizationId, string storeId)
+    {
+        var criteria = AbstractTypeFactory<CustomerOrderSearchCriteria>.TryCreateInstance();
+        criteria.OrganizationIds = new[] { organizationId };
+        // Scope to the caller's store when provided so a rep never sees another store's orders.
+        criteria.StoreIds = string.IsNullOrEmpty(storeId) ? null : new[] { storeId };
+        criteria.Sort = "createdDate:desc";
+        criteria.Take = 1;
+        // WithPrices keeps the grand total populated (the order pipeline zeroes it for lighter groups); prototypes
+        // are excluded by default (CustomerOrderSearchCriteria.WithPrototypes = false).
+        criteria.ResponseGroup = CustomerOrderResponseGroup.WithPrices.ToString();
+
+        var searchResult = await _customerOrderSearchService.SearchAsync(criteria);
+        return searchResult.Results.FirstOrDefault();
     }
 }
