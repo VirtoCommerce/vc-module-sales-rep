@@ -3,11 +3,11 @@ using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
-public class SalesRepLastOrderType : ExtendableGraphType<SalesRepLastOrder>
+public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
 {
-    public SalesRepLastOrderType()
+    public SalesRepOrderType()
     {
-        Name = "SalesRepLastOrder";
+        Name = "SalesRepOrder";
 
         Field(x => x.Id, nullable: false).Description("Order id.");
         Field(x => x.Number, nullable: true).Description("Human-readable order number.");

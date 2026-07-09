@@ -19,7 +19,7 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
         Field(x => x.OrganizationId, nullable: false).Description("Organization (customer) id.");
         Field(x => x.OrganizationName, nullable: true).Description("Organization (customer) name.");
 
-        Field<SalesRepLastOrderType>("lastOrder")
+        Field<SalesRepOrderType>("lastOrder")
             .Description("The customer's most recent order.")
             .Resolve(context =>
             {
@@ -35,13 +35,13 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 
                 // Collapse every customer row on the page into a single grouped order query per request
                 // (instead of one query per row).
-                var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, SalesRepLastOrder>(
+                var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, SalesRepOrder>(
                     $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{storeId}",
                     async organizationIds =>
                     {
                         var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), storeId);
                         // Keep the loader's key comparer aligned with the service's OrdinalIgnoreCase dictionary.
-                        return latestOrders.ToDictionary(kvp => kvp.Key, kvp => SalesRepLastOrder.FromOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
+                        return latestOrders.ToDictionary(kvp => kvp.Key, kvp => SalesRepOrder.FromOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
                     });
 
                 return loader.LoadAsync(organizationId);

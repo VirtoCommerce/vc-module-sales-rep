@@ -5,9 +5,11 @@ using VirtoCommerce.Platform.Core.Common;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 /// <summary>
-/// A customer's most recent order, shown in the Sales Rep "My customers" list (VCST-5304).
+/// A customer order projected for Sales Rep storefront views — e.g. a customer's most recent order in the
+/// "My customers" list (VCST-5304). General-purpose so the same type can back any order-valued field
+/// (<c>lastOrder</c>, <c>firstOrder</c>, …).
 /// </summary>
-public class SalesRepLastOrder : Entity
+public class SalesRepOrder : Entity
 {
     /// <summary>Human-readable order number.</summary>
     public string Number { get; set; }
@@ -22,10 +24,10 @@ public class SalesRepLastOrder : Entity
     /// <summary>Order currency code.</summary>
     public string Currency { get; set; }
 
-    /// <summary>Projects a <see cref="CustomerOrder"/> onto the lightweight Sales Rep last-order DTO.</summary>
-    public static SalesRepLastOrder FromOrder(CustomerOrder order)
+    /// <summary>Projects a <see cref="CustomerOrder"/> onto the lightweight Sales Rep order DTO.</summary>
+    public static SalesRepOrder FromOrder(CustomerOrder order)
     {
-        var result = AbstractTypeFactory<SalesRepLastOrder>.TryCreateInstance();
+        var result = AbstractTypeFactory<SalesRepOrder>.TryCreateInstance();
         result.MapFrom(order);
         return result;
     }
