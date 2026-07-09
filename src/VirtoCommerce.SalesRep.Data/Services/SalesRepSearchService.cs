@@ -90,7 +90,7 @@ public class SalesRepSearchService : ISalesRepSearchService
 
         // Source B: per-org reps via a DB-side aggregate. An org-scoped view counts only users serving that
         // org, so total org counts are then resolved separately to reflect all of a rep's served organizations.
-        var orgIds = orgScoped ? new[] { criteria.OrganizationId } : null;
+        string[] orgIds = orgScoped ? [criteria.OrganizationId] : null;
         var scopedCriteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
         scopedCriteria.RoleIds = grantingRoleIds;
         scopedCriteria.OrganizationIds = orgIds;
@@ -109,7 +109,7 @@ public class SalesRepSearchService : ISalesRepSearchService
             totalCounts = scopedCounts;
         }
 
-        var candidateUserIds = new HashSet<string>(globalRoleUserIds);
+        HashSet<string> candidateUserIds = [.. globalRoleUserIds];
         candidateUserIds.UnionWith(scopedCounts.Keys);
 
         await LoadMissingUsersAsync(usersById, candidateUserIds);
@@ -263,7 +263,7 @@ public class SalesRepSearchService : ISalesRepSearchService
     /// <summary>Load users whose global role grants the permission into <paramref name="usersById"/> and return their ids.</summary>
     protected virtual async Task<HashSet<string>> LoadGlobalRoleUsersAsync(IList<Role> grantingRoles, Dictionary<string, ApplicationUser> usersById)
     {
-        var ids = new HashSet<string>();
+        HashSet<string> ids = [];
         var roleNames = grantingRoles.Select(r => r.Name).Where(x => !string.IsNullOrEmpty(x)).ToArray();
         if (roleNames.Length == 0)
         {
@@ -293,7 +293,7 @@ public class SalesRepSearchService : ISalesRepSearchService
         IDictionary<string, int> totalCounts,
         HashSet<string> globalRoleUserIds)
     {
-        var rows = new List<CandidateRow>();
+        List<CandidateRow> rows = [];
         foreach (var userId in candidateUserIds)
         {
             if (!usersById.TryGetValue(userId, out var user) || string.IsNullOrEmpty(user.MemberId))

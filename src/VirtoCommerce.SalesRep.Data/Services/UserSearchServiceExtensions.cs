@@ -15,7 +15,7 @@ internal static class UserSearchServiceExtensions
     /// </summary>
     public static async Task<IList<ApplicationUser>> SearchAllAsync(this IUserSearchService userSearchService, UserSearchCriteria criteria, int pageSize = 50)
     {
-        var result = new List<ApplicationUser>();
+        List<ApplicationUser> result = [];
         criteria.Skip = 0;
         criteria.Take = pageSize;
 

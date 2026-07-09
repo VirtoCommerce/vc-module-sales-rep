@@ -89,7 +89,7 @@ internal static class TestGraphQlConfiguration
         {
             if (ids == null || ids.Count == 0)
             {
-                return new List<CustomerOrder>();
+                return [];
             }
 
             using var repository = _repositoryFactory();

@@ -349,8 +349,8 @@ public class SalesRepService : ISalesRepService
         var servedOrgIds = DistinctNonEmpty(salesRep.Organizations?.Select(o => o.OrganizationId));
         var existing = await GetAllMembershipsAsync(userId);
 
-        var toSave = new List<OrganizationMembership>();
-        var toDelete = new List<string>();
+        List<OrganizationMembership> toSave = [];
+        List<string> toDelete = [];
 
         GrantOnServedOrgs(servedOrgIds, existing, userId, assignableRole, grantingRoleIds, toSave);
         RevokeFromUnservedOrgs(servedOrgIds, existing, grantingRoleIds, toSave, toDelete);
@@ -502,8 +502,8 @@ public class SalesRepService : ISalesRepService
     /// (the blade has no FullName field). Fall back to a passed FullName or the login email when no parts exist.</summary>
     protected static string DeriveFullName(SalesRepDetails salesRep)
     {
-        var fullName = string.Join(' ', new[] { salesRep.FirstName, salesRep.MiddleName, salesRep.LastName }
-            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        string[] nameParts = [salesRep.FirstName, salesRep.MiddleName, salesRep.LastName];
+        var fullName = string.Join(' ', nameParts.Where(x => !string.IsNullOrWhiteSpace(x)));
         if (!string.IsNullOrWhiteSpace(fullName))
         {
             return fullName;

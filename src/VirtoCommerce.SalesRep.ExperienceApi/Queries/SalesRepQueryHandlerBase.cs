@@ -40,7 +40,7 @@ public abstract class SalesRepQueryHandlerBase
         var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
         if (grantingRoleIds.Count == 0)
         {
-            return Array.Empty<OrganizationMembership>();
+            return [];
         }
 
         var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();

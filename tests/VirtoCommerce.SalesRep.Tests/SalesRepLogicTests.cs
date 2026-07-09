@@ -97,9 +97,9 @@ public class SalesRepLogicTests
     [InlineData("islocked", false)]
     public void IsMemberBackedSort_ClassifiesColumn(string column, bool expected)
     {
-        var sortInfos = column == null
+        List<SortInfo> sortInfos = column == null
             ? null
-            : new List<SortInfo> { new() { SortColumn = column } };
+            : [new() { SortColumn = column }];
 
         SearchAccessor.CallIsMemberBackedSort(sortInfos).Should().Be(expected);
     }
@@ -112,9 +112,9 @@ public class SalesRepLogicTests
     [InlineData("unknown", SortDirection.Descending, "Name:desc")]    // unknown → Name
     public void BuildMemberSort_MapsTokenToMemberColumn(string column, SortDirection direction, string expected)
     {
-        var sortInfos = column == null
+        List<SortInfo> sortInfos = column == null
             ? null
-            : new List<SortInfo> { new() { SortColumn = column, SortDirection = direction } };
+            : [new() { SortColumn = column, SortDirection = direction }];
 
         SearchAccessor.CallBuildMemberSort(sortInfos).Should().Be(expected);
     }

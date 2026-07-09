@@ -33,9 +33,9 @@ public class SalesRepDetails
     public string PhotoUrl { get; set; }
     public string Status { get; set; }
 
-    public IList<string> Emails { get; set; } = new List<string>();
-    public IList<string> Phones { get; set; } = new List<string>();
-    public IList<Address> Addresses { get; set; } = new List<Address>();
+    public IList<string> Emails { get; set; } = [];
+    public IList<string> Phones { get; set; } = [];
+    public IList<Address> Addresses { get; set; } = [];
 
     // Account
     public string StoreId { get; set; }
@@ -60,5 +60,5 @@ public class SalesRepDetails
     public string RoleName { get; set; }
 
     /// <summary>Organizations the rep serves (per-org role granting "sales-rep:access").</summary>
-    public IList<SalesRepOrganization> Organizations { get; set; } = new List<SalesRepOrganization>();
+    public IList<SalesRepOrganization> Organizations { get; set; } = [];
 }

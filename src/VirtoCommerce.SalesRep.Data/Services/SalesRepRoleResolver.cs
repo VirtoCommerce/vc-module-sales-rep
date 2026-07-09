@@ -38,7 +38,7 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
         // RoleManager.Roles returns role stubs without permissions; FindByIdAsync loads (cached) permission claims.
         var roleIds = roleManager.Roles.Select(x => x.Id).ToList();
 
-        var granting = new List<Role>();
+        List<Role> granting = [];
         foreach (var roleId in roleIds)
         {
             var role = await roleManager.FindByIdAsync(roleId);
