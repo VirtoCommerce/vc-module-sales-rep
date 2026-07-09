@@ -7,10 +7,8 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 /// <summary>
 /// A customer's most recent order, shown in the Sales Rep "My customers" list (VCST-5304).
 /// </summary>
-public class SalesRepLastOrder
+public class SalesRepLastOrder : Entity
 {
-    public string Id { get; set; }
-
     /// <summary>Human-readable order number.</summary>
     public string Number { get; set; }
 

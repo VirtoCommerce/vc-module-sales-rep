@@ -71,9 +71,19 @@ public class SalesRepCustomerDetails
             return null;
         }
 
-        var parts = new[] { address.City, address.RegionName }.Where(x => !string.IsNullOrWhiteSpace(x));
-        var shipTo = string.Join(", ", parts);
+        var hasCity = !string.IsNullOrWhiteSpace(address.City);
+        var hasRegion = !string.IsNullOrWhiteSpace(address.RegionName);
 
-        return string.IsNullOrEmpty(shipTo) ? null : shipTo;
+        if (hasCity && hasRegion)
+        {
+            return $"{address.City}, {address.RegionName}";
+        }
+
+        if (hasCity)
+        {
+            return address.City;
+        }
+
+        return hasRegion ? address.RegionName : null;
     }
 }

@@ -28,9 +28,9 @@ public class SalesRepContact
 
     public string PhotoUrl { get; set; }
 
-    public IList<string> Emails { get; set; } = new List<string>();
+    public IList<string> Emails { get; set; } = [];
 
-    public IList<string> Phones { get; set; } = new List<string>();
+    public IList<string> Phones { get; set; } = [];
 
     /// <summary>Projects a customer <see cref="Contact"/> onto the lightweight Sales Rep contact DTO.</summary>
     public static SalesRepContact FromContact(Contact contact)
@@ -54,7 +54,7 @@ public class SalesRepContact
         Name = contact.Name;
         About = contact.About;
         PhotoUrl = contact.PhotoUrl;
-        Emails = contact.Emails ?? new List<string>();
-        Phones = contact.Phones ?? new List<string>();
+        Emails = contact.Emails ?? [];
+        Phones = contact.Phones ?? [];
     }
 }

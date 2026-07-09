@@ -52,9 +52,9 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
     protected virtual async Task<CustomerOrder> GetLatestOrderAsync(string organizationId, string storeId)
     {
         var criteria = AbstractTypeFactory<CustomerOrderSearchCriteria>.TryCreateInstance();
-        criteria.OrganizationIds = new[] { organizationId };
+        criteria.OrganizationIds = [organizationId];
         // Scope to the caller's store when provided so a rep never sees another store's orders.
-        criteria.StoreIds = string.IsNullOrEmpty(storeId) ? null : new[] { storeId };
+        criteria.StoreIds = string.IsNullOrEmpty(storeId) ? null : [storeId];
         criteria.Sort = "createdDate:desc";
         criteria.Take = 1;
         // WithPrices keeps the grand total populated (the order pipeline zeroes it for lighter groups); prototypes

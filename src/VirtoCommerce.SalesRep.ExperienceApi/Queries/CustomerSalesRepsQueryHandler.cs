@@ -40,7 +40,7 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
 
         // Memberships carrying a sales-rep-granting role in the caller's organization. OnlyUnlocked excludes
         // per-org locked memberships (a rep locked in this organization must not appear for it).
-        var memberships = await GetGrantingMembershipsAsync(organizationIds: new[] { request.OrganizationId });
+        var memberships = await GetGrantingMembershipsAsync(organizationIds: [request.OrganizationId]);
 
         var userIds = memberships
             .Select(m => m.UserId)

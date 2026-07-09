@@ -36,7 +36,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         // All organizations where the caller holds a sales-rep-granting membership
         // (bounded by the rep's served-organization count).
         // OnlyUnlocked: a rep locked in an organization does not see it as a customer.
-        var memberships = await GetGrantingMembershipsAsync(userIds: new[] { request.UserId });
+        var memberships = await GetGrantingMembershipsAsync(userIds: [request.UserId]);
 
         var organizationIds = memberships
             .Select(x => x.OrganizationId)

@@ -44,8 +44,8 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         // requested organization. Without this a rep could read any organization by guessing its id.
         // OnlyUnlocked: a rep locked in an organization must not see it as a customer.
         var memberships = await GetGrantingMembershipsAsync(
-            new[] { request.UserId },
-            new[] { request.OrganizationId });
+            [request.UserId],
+            [request.OrganizationId]);
 
         if (memberships.Count == 0)
         {
@@ -53,9 +53,9 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         }
 
         var organization = (await _memberService.GetByIdsAsync(
-                new[] { request.OrganizationId },
+                [request.OrganizationId],
                 _organizationResponseGroup,
-                new[] { nameof(Organization) }))
+                [nameof(Organization)]))
             .OfType<Organization>()
             .FirstOrDefault();
 
@@ -77,9 +77,9 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         if (!string.IsNullOrEmpty(organization.OwnerId))
         {
             var owner = (await _memberService.GetByIdsAsync(
-                    new[] { organization.OwnerId },
+                    [organization.OwnerId],
                     _contactResponseGroup,
-                    new[] { nameof(Contact) }))
+                    [nameof(Contact)]))
                 .OfType<Contact>()
                 .FirstOrDefault();
 
