@@ -58,9 +58,11 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
             return result;
         }
 
-        // Full so the grand total is populated: the order repository leaves Total at 0 for lighter response
-        // groups (verified — Default/WithOrderTotals return Total=0; Full matches the value the order API returns).
-        var entities = await repository.GetCustomerOrdersByIdsAsync(latestOrderIds, CustomerOrderResponseGroup.Full.ToString());
+        // WithPrices so the grand total is populated: OrderRepository.GetCustomerOrdersByIdsAsync calls
+        // ResetPrices() (zeroing Total) whenever WithPrices is absent. WithPrices only gates that reset and
+        // loads no child collections — unlike Full, which also pulls items/payments/shipments/refunds/etc.
+        // that the 6-scalar SalesRepLastOrder never uses (and this runs per page through the batch loader).
+        var entities = await repository.GetCustomerOrdersByIdsAsync(latestOrderIds, CustomerOrderResponseGroup.WithPrices.ToString());
 
         foreach (var entity in entities)
         {

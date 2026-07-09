@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using GraphQL;
 using GraphQL.DataLoader;
@@ -36,7 +37,8 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                     async organizationIds =>
                     {
                         var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList());
-                        return latestOrders.ToDictionary(kvp => kvp.Key, kvp => MapLastOrder(kvp.Value));
+                        // Keep the loader's key comparer aligned with the service's OrdinalIgnoreCase dictionary.
+                        return latestOrders.ToDictionary(kvp => kvp.Key, kvp => MapLastOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
                     });
 
                 return loader.LoadAsync(organizationId);
