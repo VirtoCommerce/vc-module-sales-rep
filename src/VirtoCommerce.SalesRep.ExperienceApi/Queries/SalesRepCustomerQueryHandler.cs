@@ -64,22 +64,9 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        var result = AbstractTypeFactory<SalesRepCustomerDetails>.TryCreateInstance();
-        result.OrganizationId = organization.Id;
-        result.OrganizationName = organization.Name;
-        result.AccountType = organization.BusinessCategory;
-        result.ShipTo = FormatShipTo(organization);
-
         var primaryContact = await ResolvePrimaryContactAsync(organization);
-        if (primaryContact != null)
-        {
-            result.PrimaryContact = SalesRepContact.FromContact(primaryContact);
-        }
 
-        // Phone: the primary contact's first, falling back to the organization's.
-        result.Phone = primaryContact?.Phones?.FirstOrDefault() ?? organization.Phones?.FirstOrDefault();
-
-        return result;
+        return SalesRepCustomerDetails.FromOrganization(organization, primaryContact);
     }
 
     /// <summary>
@@ -113,21 +100,5 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         var contactsSearchResult = await _memberSearchService.SearchMembersAsync(contactsCriteria);
 
         return contactsSearchResult.Results.OfType<Contact>().FirstOrDefault();
-    }
-
-    private static string FormatShipTo(Organization organization)
-    {
-        var address = organization.Addresses?.FirstOrDefault(x => x.IsDefault)
-            ?? organization.Addresses?.FirstOrDefault();
-
-        if (address == null)
-        {
-            return null;
-        }
-
-        var parts = new[] { address.City, address.RegionName }.Where(x => !string.IsNullOrWhiteSpace(x));
-        var shipTo = string.Join(", ", parts);
-
-        return string.IsNullOrEmpty(shipTo) ? null : shipTo;
     }
 }

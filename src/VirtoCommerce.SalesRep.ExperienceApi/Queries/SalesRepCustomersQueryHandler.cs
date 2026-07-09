@@ -63,16 +63,9 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;
+        // Carry the caller's store onto each row so the lastOrder resolver can scope orders to it.
         result.Results = membersSearchResult.Results
-            .Select(x =>
-            {
-                var customer = AbstractTypeFactory<SalesRepCustomer>.TryCreateInstance();
-                customer.OrganizationId = x.Id;
-                customer.OrganizationName = x.Name;
-                // Carry the caller's store so the lastOrder resolver can scope orders to it.
-                customer.StoreId = request.StoreId;
-                return customer;
-            })
+            .Select(x => SalesRepCustomer.FromOrganization(x, request.StoreId))
             .ToList();
 
         return result;

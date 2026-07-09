@@ -2,8 +2,6 @@ using System;
 using System.Linq;
 using GraphQL;
 using GraphQL.DataLoader;
-using VirtoCommerce.OrdersModule.Core.Model;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Schemas;
@@ -43,22 +41,10 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                     {
                         var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), storeId);
                         // Keep the loader's key comparer aligned with the service's OrdinalIgnoreCase dictionary.
-                        return latestOrders.ToDictionary(kvp => kvp.Key, kvp => MapLastOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
+                        return latestOrders.ToDictionary(kvp => kvp.Key, kvp => SalesRepLastOrder.FromOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
                     });
 
                 return loader.LoadAsync(organizationId);
             });
-    }
-
-    private static SalesRepLastOrder MapLastOrder(CustomerOrder order)
-    {
-        var result = AbstractTypeFactory<SalesRepLastOrder>.TryCreateInstance();
-        result.Id = order.Id;
-        result.Number = order.Number;
-        result.CreatedDate = order.CreatedDate;
-        result.Status = order.Status;
-        result.Total = order.Total;
-        result.Currency = order.Currency;
-        return result;
     }
 }

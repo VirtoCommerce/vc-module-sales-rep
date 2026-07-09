@@ -1,3 +1,7 @@
+using System.Linq;
+using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.Platform.Core.Common;
+
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 /// <summary>
@@ -25,4 +29,51 @@ public class SalesRepCustomerDetails
 
     /// <summary>Default ship-to location, formatted as "City, Region".</summary>
     public string ShipTo { get; set; }
+
+    /// <summary>
+    /// Projects a customer <see cref="Organization"/> (with its already-resolved <paramref name="primaryContact"/>)
+    /// onto the detailed Sales Rep customer card.
+    /// </summary>
+    public static SalesRepCustomerDetails FromOrganization(Organization organization, Contact primaryContact)
+    {
+        var result = AbstractTypeFactory<SalesRepCustomerDetails>.TryCreateInstance();
+        result.MapFrom(organization, primaryContact);
+        return result;
+    }
+
+    /// <summary>
+    /// Populates this instance from <paramref name="organization"/> and its <paramref name="primaryContact"/>.
+    /// Override in a derived type (registered via <c>AbstractTypeFactory.OverrideType</c>) to map additional fields.
+    /// </summary>
+    protected virtual void MapFrom(Organization organization, Contact primaryContact)
+    {
+        OrganizationId = organization.Id;
+        OrganizationName = organization.Name;
+        AccountType = organization.BusinessCategory;
+        ShipTo = FormatShipTo(organization);
+
+        if (primaryContact != null)
+        {
+            PrimaryContact = SalesRepContact.FromContact(primaryContact);
+        }
+
+        // Phone: the primary contact's first, falling back to the organization's.
+        Phone = primaryContact?.Phones?.FirstOrDefault() ?? organization.Phones?.FirstOrDefault();
+    }
+
+    private static string FormatShipTo(Organization organization)
+    {
+        var address = organization.Addresses?.FirstOrDefault(x => x.IsDefault)
+            ?? organization.Addresses?.FirstOrDefault();
+
+        if (address == null)
+        {
+            return null;
+        }
+
+        var parts = new[] { address.City, address.RegionName }.Where(x => !string.IsNullOrWhiteSpace(x));
+        var shipTo = string.Join(", ", parts);
+
+        return string.IsNullOrEmpty(shipTo) ? null : shipTo;
+    }
 }

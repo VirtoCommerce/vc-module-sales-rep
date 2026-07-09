@@ -36,16 +36,25 @@ public class SalesRepContact
     public static SalesRepContact FromContact(Contact contact)
     {
         var result = AbstractTypeFactory<SalesRepContact>.TryCreateInstance();
-        result.Id = contact.Id;
-        result.FirstName = contact.FirstName;
-        result.LastName = contact.LastName;
-        result.MiddleName = contact.MiddleName;
-        result.FullName = contact.FullName;
-        result.Name = contact.Name;
-        result.About = contact.About;
-        result.PhotoUrl = contact.PhotoUrl;
-        result.Emails = contact.Emails ?? new List<string>();
-        result.Phones = contact.Phones ?? new List<string>();
+        result.MapFrom(contact);
         return result;
+    }
+
+    /// <summary>
+    /// Populates this instance from <paramref name="contact"/>. Override in a derived type
+    /// (registered via <c>AbstractTypeFactory.OverrideType</c>) to map additional fields.
+    /// </summary>
+    protected virtual void MapFrom(Contact contact)
+    {
+        Id = contact.Id;
+        FirstName = contact.FirstName;
+        LastName = contact.LastName;
+        MiddleName = contact.MiddleName;
+        FullName = contact.FullName;
+        Name = contact.Name;
+        About = contact.About;
+        PhotoUrl = contact.PhotoUrl;
+        Emails = contact.Emails ?? new List<string>();
+        Phones = contact.Phones ?? new List<string>();
     }
 }

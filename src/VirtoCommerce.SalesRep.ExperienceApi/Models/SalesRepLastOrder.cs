@@ -1,4 +1,6 @@
 using System;
+using VirtoCommerce.OrdersModule.Core.Model;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -21,4 +23,26 @@ public class SalesRepLastOrder
 
     /// <summary>Order currency code.</summary>
     public string Currency { get; set; }
+
+    /// <summary>Projects a <see cref="CustomerOrder"/> onto the lightweight Sales Rep last-order DTO.</summary>
+    public static SalesRepLastOrder FromOrder(CustomerOrder order)
+    {
+        var result = AbstractTypeFactory<SalesRepLastOrder>.TryCreateInstance();
+        result.MapFrom(order);
+        return result;
+    }
+
+    /// <summary>
+    /// Populates this instance from <paramref name="order"/>. Override in a derived type
+    /// (registered via <c>AbstractTypeFactory.OverrideType</c>) to map additional fields.
+    /// </summary>
+    protected virtual void MapFrom(CustomerOrder order)
+    {
+        Id = order.Id;
+        Number = order.Number;
+        CreatedDate = order.CreatedDate;
+        Status = order.Status;
+        Total = order.Total;
+        Currency = order.Currency;
+    }
 }
