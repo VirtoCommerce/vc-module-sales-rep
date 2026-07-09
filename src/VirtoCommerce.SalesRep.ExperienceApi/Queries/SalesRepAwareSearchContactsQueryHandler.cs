@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using MediatR;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
@@ -18,6 +17,11 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// Overrides the ProfileExperienceApi contacts search so an organization's contact roster
 /// (storefront <c>organization.contacts</c>) omits the Sales Reps serving that organization.
 /// <para>
+/// Extends the stock <see cref="SearchMembersQueryHandler"/> and reuses its
+/// <see cref="SearchMembersQueryHandler.BuildMembersSearchCriteria"/> seam, so the base contacts search can't
+/// drift; only the rep-exclusion is added.
+/// </para>
+/// <para>
 /// Scoped to organization-scoped queries: only <c>organization.contacts</c> sets a
 /// <see cref="SearchMembersQueryBase.MemberId"/>. The global <c>Query.contacts</c> search leaves it empty and
 /// legitimately returns every contact (reps included), so that path is passed straight through.
@@ -28,7 +32,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// dependency) so it wins the "last registration" over the built-in handler.
 /// </para>
 /// </summary>
-public class SalesRepAwareSearchContactsQueryHandler : IRequestHandler<SearchContactsQuery, MemberSearchResult>
+public class SalesRepAwareSearchContactsQueryHandler : SearchMembersQueryHandler
 {
     private readonly IMemberSearchService _memberSearchService;
     private readonly ISalesRepRoleResolver _roleResolver;
@@ -37,19 +41,22 @@ public class SalesRepAwareSearchContactsQueryHandler : IRequestHandler<SearchCon
 
     public SalesRepAwareSearchContactsQueryHandler(
         IMemberSearchService memberSearchService,
-        ISalesRepRoleResolver roleResolver,
+        IOrganizationMembershipService organizationMembershipService,
         IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepRoleResolver roleResolver,
         IUserSearchService userSearchService)
+        : base(memberSearchService, organizationMembershipService)
     {
         _memberSearchService = memberSearchService;
-        _roleResolver = roleResolver;
         _membershipSearchService = membershipSearchService;
+        _roleResolver = roleResolver;
         _userSearchService = userSearchService;
     }
 
-    public virtual async Task<MemberSearchResult> Handle(SearchContactsQuery request, CancellationToken cancellationToken)
+    public override async Task<MemberSearchResult> Handle(SearchContactsQuery request, CancellationToken cancellationToken)
     {
-        var criteria = BuildContactsSearchCriteria(request);
+        // Reuse the base criteria builder (protected virtual) so this stays in lock-step with the stock search.
+        var criteria = BuildMembersSearchCriteria(request, nameof(Contact));
 
         // Org-scoped roster only. Global "all contacts" search (no MemberId) is left untouched.
         if (!string.IsNullOrEmpty(request.MemberId))
@@ -105,21 +112,5 @@ public class SalesRepAwareSearchContactsQueryHandler : IRequestHandler<SearchCon
             .Select(u => u.MemberId)
             .Distinct()
             .ToArray();
-    }
-
-    // Mirrors ProfileExperienceApi's SearchMembersQueryHandler.BuildMembersSearchCriteria(..., nameof(Contact)).
-    private static MembersSearchCriteria BuildContactsSearchCriteria(SearchContactsQuery request)
-    {
-        var criteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
-        criteria.DeepSearch = request.DeepSearch;
-        criteria.MemberType = nameof(Contact);
-        criteria.Keyword = request.Keyword;
-        criteria.Skip = request.Skip;
-        criteria.Take = request.Take;
-        criteria.Sort = request.Sort;
-        criteria.ObjectIds = request.ObjectIds;
-        criteria.MemberId = request.MemberId;
-
-        return criteria;
     }
 }
