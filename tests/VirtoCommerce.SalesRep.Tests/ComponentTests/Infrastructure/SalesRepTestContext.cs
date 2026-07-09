@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Threading;
 using System.Threading.Tasks;
 using GraphQL;
+using GraphQL.Types;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -211,6 +212,25 @@ internal sealed class SalesRepTestContext : IDisposable
     public Task<string> ExecuteGraphQlAnonymousAsync(string query)
     {
         return ExecuteGraphQlInternalAsync(query, new ClaimsPrincipal(new ClaimsIdentity()));
+    }
+
+    /// <summary>
+    /// Execute a query against a caller-provided schema through the real <see cref="IDocumentExecuter"/> — for
+    /// exercising a field that is not on the sales-rep scoped schema (e.g. a stand-in for ProfileExperienceApi's
+    /// <c>organization.contacts</c>, which this module's harness can't fully stand up).
+    /// </summary>
+    public async Task<string> ExecuteGraphQlAsync(ISchema schema, string query)
+    {
+        var executer = _provider.GetRequiredService<IDocumentExecuter>();
+        var serializer = _provider.GetRequiredService<IGraphQLTextSerializer>();
+        var result = await executer.ExecuteAsync(options =>
+        {
+            options.Schema = schema;
+            options.Query = query;
+            options.RequestServices = _provider;
+            options.UserContext = new GraphQLUserContext(new ClaimsPrincipal(new ClaimsIdentity()));
+        });
+        return serializer.Serialize(result);
     }
 
     private async Task<string> ExecuteGraphQlInternalAsync(string query, ClaimsPrincipal principal)

@@ -1,21 +1,25 @@
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
-using MediatR;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.ProfileExperienceApiModule.Data.Commands;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// Verifies the override of ProfileExperienceApi's contacts search: an organization's contact roster
-/// (storefront <c>organization.contacts</c> → <see cref="SearchContactsQuery"/>) returns non-rep contacts only.
+/// Verifies the override of ProfileExperienceApi's contacts search: an organization's contact roster returns
+/// non-rep contacts only, driven end to end through the GraphQL <c>IDocumentExecuter</c>.
+/// <para>
+/// The real storefront query is <c>GetOrganizationContacts</c> (<c>organization.contacts</c>), whose connection
+/// resolves by dispatching a <c>SearchContactsQuery</c> with <c>MemberId</c> = the org id. That query lives in
+/// ProfileExperienceApi's schema (not buildable in this module's harness), so the test executes a minimal
+/// stand-in schema (<see cref="StubSchemas.OrganizationContacts"/>) that makes the identical dispatch — routed
+/// by the real executor to the overridden handler.
+/// </para>
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepContactsExclusionTests
@@ -38,8 +42,8 @@ public class SalesRepContactsExclusionTests
 
         await ctx.IndexMembersAsync("org-1", regular.Id, rep.Id);
 
-        // Baseline: a plain member search of the org roster returns BOTH the regular contact and the rep.
-        // This proves the rep IS a roster member, so its absence below is a real exclusion (not "never there").
+        // Baseline: a plain member search of the org roster returns BOTH the regular contact and the rep,
+        // proving the rep IS a roster member — so its absence from the GraphQL result below is a real exclusion.
         var memberSearch = ctx.GetRequiredService<IMemberSearchService>();
         var rosterCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
         rosterCriteria.MemberType = nameof(Contact);
@@ -48,15 +52,14 @@ public class SalesRepContactsExclusionTests
         var baseline = await memberSearch.SearchMembersAsync(rosterCriteria);
         baseline.Results.Select(m => m.Id).Should().Contain(regular.Id).And.Contain(rep.Id);
 
-        // Act: the overridden SearchContactsQuery handler (what organization.contacts resolves through).
-        var handler = ctx.GetRequiredService<IRequestHandler<SearchContactsQuery, MemberSearchResult>>();
-        var result = await handler.Handle(
-            new SearchContactsQuery { MemberId = "org-1", Take = 100 },
-            CancellationToken.None);
+        // Act: run the query through the real GraphQL executor.
+        var json = await ctx.ExecuteGraphQlAsync(
+            StubSchemas.OrganizationContacts(),
+            "{ organizationContacts(organizationId: \"org-1\") { id name } }");
 
         // Assert: the non-rep contact remains; the rep is excluded.
-        var ids = result.Results.Select(m => m.Id).ToList();
-        ids.Should().Contain(regular.Id);
-        ids.Should().NotContain(rep.Id);
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain(regular.Id);
+        json.Should().NotContain(rep.Id);
     }
 }
