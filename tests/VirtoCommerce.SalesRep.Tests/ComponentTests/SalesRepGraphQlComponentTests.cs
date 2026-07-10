@@ -583,6 +583,26 @@ public class SalesRepGraphQlComponentTests
         all.Should().Contain("\"totalCount\":2").And.Contain("ORD-B2B").And.Contain("ORD-OTHER");
     }
 
+    [Fact]
+    public async Task SalesRepOrders_FiltersByKeyword()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-alpha", org: "org-1", number: "ORD-ALPHA", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-beta", org: "org-1", number: "ORD-BETA", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // Keyword matches the order number (Orders CustomerOrderSearchService: Number/CustomerName Contains).
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\", keyword:\"ALPHA\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("ORD-ALPHA");
+        json.Should().NotContain("ORD-BETA");
+    }
+
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0)
     {
         using var db = ctx.NewOrderDbContext();
