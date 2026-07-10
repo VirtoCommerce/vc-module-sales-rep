@@ -1,5 +1,6 @@
 using GraphQL.MicrosoftDI;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
@@ -17,6 +18,9 @@ public static class ServiceCollectionExtensions
 
         // Isolates these builders into their own scoped schema (exposed at /graphql/sales-rep by the Web module).
         serviceCollection.AddSingleton<ScopedSchemaFactory<XapiAssemblyMarker>>();
+
+        // Field-selection → order response group (load only the order data the caller selected).
+        serviceCollection.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
         return serviceCollection;
     }

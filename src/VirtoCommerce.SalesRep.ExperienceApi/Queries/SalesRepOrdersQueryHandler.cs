@@ -7,6 +7,7 @@ using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -19,14 +20,17 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepOrdersQuery, SalesRepOrderSearchResult>
 {
     private readonly ICustomerOrderSearchService _customerOrderSearchService;
+    private readonly ISalesRepOrderResponseGroupParser _responseGroupParser;
 
     public SalesRepOrdersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
-        ICustomerOrderSearchService customerOrderSearchService)
+        ICustomerOrderSearchService customerOrderSearchService,
+        ISalesRepOrderResponseGroupParser responseGroupParser)
         : base(roleResolver, membershipSearchService)
     {
         _customerOrderSearchService = customerOrderSearchService;
+        _responseGroupParser = responseGroupParser;
     }
 
     public virtual async Task<SalesRepOrderSearchResult> Handle(SalesRepOrdersQuery request, CancellationToken cancellationToken)
@@ -55,7 +59,7 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         // Scope to the caller's store when provided so a rep never sees another store's orders.
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
-        criteria.ResponseGroup = SalesRepOrder.GetResponseGroup(request.IncludeFields);
+        criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
         criteria.Keyword = request.Keyword;
         // Recent orders on top by default (VCST-5308); an explicit sort argument overrides it.
         criteria.Sort = string.IsNullOrEmpty(request.Sort) ? "createdDate:desc" : request.Sort;

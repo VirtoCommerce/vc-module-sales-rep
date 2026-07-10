@@ -1,6 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
 
@@ -28,38 +26,6 @@ public class SalesRepOrder : Entity
 
     /// <summary>Number of line items in the order.</summary>
     public int ItemsCount { get; set; }
-
-    /// <summary>
-    /// Builds the minimal <see cref="CustomerOrderResponseGroup"/> needed to populate only the fields the caller
-    /// actually requested, from the GraphQL selection paths (see <c>AstFieldExtensions.GetAllNodesPaths</c>). The
-    /// scalar columns (<see cref="Number"/>/<see cref="Status"/>/<see cref="Currency"/>/<see cref="CreatedDate"/>)
-    /// come with <see cref="CustomerOrderResponseGroup.Default"/>, so only <see cref="Total"/> (needs
-    /// <see cref="CustomerOrderResponseGroup.WithPrices"/> — the order pipeline zeroes prices for lighter groups)
-    /// and <see cref="ItemsCount"/> (needs the line items loaded) opt into a heavier group. Shared by both order
-    /// surfaces (the <c>salesRepOrders</c> list and the <c>lastOrder</c> field) so they can't drift.
-    /// </summary>
-    public static string GetResponseGroup(IEnumerable<string> includeFields)
-    {
-        var result = CustomerOrderResponseGroup.Default;
-
-        // Match on the leaf field name so the connection's own "totalCount" isn't mistaken for the order "total".
-        var leafFields = (includeFields ?? [])
-            .Where(x => !string.IsNullOrEmpty(x))
-            .Select(x => x.Split('.')[^1])
-            .ToArray();
-
-        if (leafFields.Contains(nameof(Total), StringComparer.OrdinalIgnoreCase))
-        {
-            result |= CustomerOrderResponseGroup.WithPrices;
-        }
-
-        if (leafFields.Contains(nameof(ItemsCount), StringComparer.OrdinalIgnoreCase))
-        {
-            result |= CustomerOrderResponseGroup.WithItems;
-        }
-
-        return result.ToString();
-    }
 
     /// <summary>Projects a <see cref="CustomerOrder"/> onto the lightweight Sales Rep order DTO.</summary>
     public static SalesRepOrder FromOrder(CustomerOrder order)

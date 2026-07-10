@@ -1,21 +1,23 @@
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests;
 
 /// <summary>
-/// Pure-logic tests for <see cref="SalesRepOrder.GetResponseGroup"/> — the field-selection → order response-group
+/// Pure-logic tests for <see cref="SalesRepOrderResponseGroupParser"/> — the field-selection → order response-group
 /// mapping that keeps the order queries from loading data the caller didn't ask for. Guards the leaf-name matching
 /// (so the connection's own <c>totalCount</c> is not mistaken for the order <c>total</c>).
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepOrderResponseGroupTests
 {
+    private static readonly ISalesRepOrderResponseGroupParser _parser = new SalesRepOrderResponseGroupParser();
+
     private static CustomerOrderResponseGroup Group(params string[] includeFields) =>
-        EnumUtility.SafeParseFlags(SalesRepOrder.GetResponseGroup(includeFields), CustomerOrderResponseGroup.Default);
+        EnumUtility.SafeParseFlags(_parser.GetResponseGroup(includeFields), CustomerOrderResponseGroup.Default);
 
     [Fact]
     public void NoFields_LoadsDefaultOnly()

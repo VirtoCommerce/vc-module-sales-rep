@@ -4,6 +4,7 @@ using GraphQL;
 using GraphQL.DataLoader;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Schemas;
 
@@ -13,7 +14,8 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 {
     public SalesRepCustomerType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
-        ISalesRepCustomerOrderSearchService customerOrderSearchService)
+        ISalesRepCustomerOrderSearchService customerOrderSearchService,
+        ISalesRepOrderResponseGroupParser responseGroupParser)
     {
         Name = "SalesRepCustomer";
 
@@ -37,7 +39,8 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                 // Load only the order data the caller selected under lastOrder (e.g. skip line items unless
                 // itemsCount was requested). The selection is uniform across the page, so fold the resulting
                 // response group into the loader key too.
-                var responseGroup = SalesRepOrder.GetResponseGroup(context.SubFields?.Values.GetAllNodesPaths(context));
+                var responseGroup = responseGroupParser.GetResponseGroup(
+                    context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? []);
 
                 // Collapse every customer row on the page into a single grouped order query per request
                 // (instead of one query per row).

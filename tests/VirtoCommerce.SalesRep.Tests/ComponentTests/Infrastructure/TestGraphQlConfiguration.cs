@@ -16,6 +16,7 @@ using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
@@ -57,6 +58,9 @@ internal static class TestGraphQlConfiguration
 
         // ScopedSchemaFactory depends on ISchemaFilter (registered by Xapi.Data in production).
         services.AddSingleton<ISchemaFilter, DefaultSchemaFilter>();
+
+        // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
+        services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
         services.AddGraphQL(builder =>
         {
