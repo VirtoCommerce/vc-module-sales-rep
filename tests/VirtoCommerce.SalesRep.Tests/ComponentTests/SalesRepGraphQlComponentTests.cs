@@ -88,10 +88,10 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         SeedOrder(ctx, id: "o-old", org: "org-1", number: "ORD-OLD", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), itemsCount: 2);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers { items { organizationId lastOrder { number total currency } } } }",
+            "query { salesRepCustomers { items { organizationId lastOrder { number total currency itemsCount } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -99,6 +99,7 @@ public class SalesRepGraphQlComponentTests
         json.Should().NotContain("ORD-OLD"); // older order is not the "last order"
         json.Should().Contain("123.45");    // Total must be hydrated, not 0
         json.Should().Contain("USD");
+        json.Should().Contain("\"itemsCount\":2"); // line items hydrated on the lastOrder path too, not 0
     }
 
     [Fact]

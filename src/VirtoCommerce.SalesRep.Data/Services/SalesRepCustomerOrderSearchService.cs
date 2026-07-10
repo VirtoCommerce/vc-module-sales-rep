@@ -25,7 +25,7 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
         _customerOrderSearchService = customerOrderSearchService;
     }
 
-    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId = null)
+    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId = null, string responseGroup = null)
     {
         var result = new Dictionary<string, CustomerOrder>(StringComparer.OrdinalIgnoreCase);
 
@@ -39,7 +39,7 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
         // would couple this module to Orders' data layer.)
         foreach (var organizationId in organizationIdsToSearch)
         {
-            var order = await GetLatestOrderAsync(organizationId, storeId);
+            var order = await GetLatestOrderAsync(organizationId, storeId, responseGroup);
             if (order != null)
             {
                 result[organizationId] = order;
@@ -49,7 +49,7 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
         return result;
     }
 
-    protected virtual async Task<CustomerOrder> GetLatestOrderAsync(string organizationId, string storeId)
+    protected virtual async Task<CustomerOrder> GetLatestOrderAsync(string organizationId, string storeId, string responseGroup)
     {
         var criteria = AbstractTypeFactory<CustomerOrderSearchCriteria>.TryCreateInstance();
         criteria.OrganizationIds = [organizationId];
@@ -57,9 +57,10 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
         criteria.StoreIds = string.IsNullOrEmpty(storeId) ? null : [storeId];
         criteria.Sort = "createdDate:desc";
         criteria.Take = 1;
-        // WithPrices keeps the grand total populated (the order pipeline zeroes it for lighter groups); prototypes
-        // are excluded by default (CustomerOrderSearchCriteria.WithPrototypes = false).
-        criteria.ResponseGroup = CustomerOrderResponseGroup.WithPrices.ToString();
+        // The caller computes the response group from the requested GraphQL fields — load only what's needed
+        // (e.g. WithPrices for total, WithItems for items count). Prototypes are excluded by default
+        // (CustomerOrderSearchCriteria.WithPrototypes = false).
+        criteria.ResponseGroup = responseGroup;
 
         var searchResult = await _customerOrderSearchService.SearchAsync(criteria);
         return searchResult.Results.FirstOrDefault();

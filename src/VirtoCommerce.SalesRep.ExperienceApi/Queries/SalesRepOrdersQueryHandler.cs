@@ -2,7 +2,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -19,11 +18,6 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// </summary>
 public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepOrdersQuery, SalesRepOrderSearchResult>
 {
-    // WithItems populates the line-item count; WithPrices keeps the grand total (the order pipeline zeroes it for
-    // lighter response groups).
-    private static readonly string _responseGroup =
-        (CustomerOrderResponseGroup.WithItems | CustomerOrderResponseGroup.WithPrices).ToString();
-
     private readonly ICustomerOrderSearchService _customerOrderSearchService;
 
     public SalesRepOrdersQueryHandler(
@@ -60,7 +54,8 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         criteria.OrganizationIds = [request.CustomerId];
         // Scope to the caller's store when provided so a rep never sees another store's orders.
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
-        criteria.ResponseGroup = _responseGroup;
+        // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
+        criteria.ResponseGroup = SalesRepOrder.GetResponseGroup(request.IncludeFields);
         criteria.Keyword = request.Keyword;
         // Recent orders on top by default (VCST-5308); an explicit sort argument overrides it.
         criteria.Sort = string.IsNullOrEmpty(request.Sort) ? "createdDate:desc" : request.Sort;

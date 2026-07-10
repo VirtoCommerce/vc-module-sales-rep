@@ -1,9 +1,12 @@
+using System;
 using System.Collections.Generic;
+using System.Linq;
 using GraphQL;
 using GraphQL.Types;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
+using VirtoCommerce.Xapi.Core.Index;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
@@ -13,7 +16,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// storefront <c>orders</c> query, but is scoped to one customer and secured to the calling rep.
 /// The Sales Rep is the caller; their security account id is set server-side from the caller's claims.
 /// </summary>
-public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>
+public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasIncludeFields
 {
     /// <summary>Customer (organization) id whose orders to load.</summary>
     public string CustomerId { get; set; }
@@ -23,6 +26,9 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>
 
     /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
+
+    /// <summary>GraphQL selection paths of the requested fields — drives the order response group (load only what was asked for).</summary>
+    public IList<string> IncludeFields { get; set; } = [];
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
@@ -43,5 +49,8 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>
         CustomerId = context.GetArgument<string>(nameof(CustomerId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
         UserId = context.GetCurrentUserId();
+
+        // Requested field paths (e.g. "items.total", "items.itemsCount") → used to load only the needed order data.
+        IncludeFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
     }
 }

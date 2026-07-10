@@ -4,6 +4,7 @@ using GraphQL;
 using GraphQL.DataLoader;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
@@ -33,13 +34,18 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                 // key so orders stay scoped to the caller's store and different stores never share a batch.
                 var storeId = context.Source.StoreId;
 
+                // Load only the order data the caller selected under lastOrder (e.g. skip line items unless
+                // itemsCount was requested). The selection is uniform across the page, so fold the resulting
+                // response group into the loader key too.
+                var responseGroup = SalesRepOrder.GetResponseGroup(context.SubFields?.Values.GetAllNodesPaths(context));
+
                 // Collapse every customer row on the page into a single grouped order query per request
                 // (instead of one query per row).
                 var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, SalesRepOrder>(
-                    $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{storeId}",
+                    $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{storeId}:{responseGroup}",
                     async organizationIds =>
                     {
-                        var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), storeId);
+                        var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), storeId, responseGroup);
                         // Keep the loader's key comparer aligned with the service's OrdinalIgnoreCase dictionary.
                         return latestOrders.ToDictionary(kvp => kvp.Key, kvp => SalesRepOrder.FromOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
                     });
