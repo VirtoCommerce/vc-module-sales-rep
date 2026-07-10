@@ -55,9 +55,14 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
                 var previous = context.GetArgument<CustomerOrderStatisticsPeriodInput>("previous");
                 var loader = GetPeriodLoader(context);
 
-                return loader.LoadAsync((current.From, current.To))
-                    .Then(currentPeriod => loader.LoadAsync((previous.From, previous.To))
-                        .Then(previousPeriod => BuildComparison(currentPeriod, previousPeriod)));
+                // Queue both loads before chaining so they land in the same batch (one dispatch); the two ranges
+                // are independent, so deferring 'previous' into 'current's continuation would force a second
+                // round-trip whenever it isn't already requested as a sibling 'period'.
+                var currentResult = loader.LoadAsync((current.From, current.To));
+                var previousResult = loader.LoadAsync((previous.From, previous.To));
+
+                return currentResult.Then(currentPeriod =>
+                    previousResult.Then(previousPeriod => BuildComparison(currentPeriod, previousPeriod)));
             });
     }
 

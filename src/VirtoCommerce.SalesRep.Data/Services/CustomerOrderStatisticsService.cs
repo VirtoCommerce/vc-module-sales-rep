@@ -103,8 +103,6 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
             ?? throw new InvalidOperationException($"Currency '{criteria.CurrencyCode}' is not configured; cannot convert order statistics.");
 
         var period = AbstractTypeFactory<CustomerOrderStatisticsPeriod>.TryCreateInstance();
-        period.FromDate = criteria.FromDate;
-        period.ToDate = criteria.ToDate;
 
         var total = 0m;
         var count = 0;
@@ -121,10 +119,11 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
                 continue;
             }
 
-            // Convert to the target currency with the same rate math as Money.ConvertTo, kept in decimal to avoid
-            // the precision loss of the package's double-based Money constructor. ExchangeRate is the current,
-            // admin-maintained rate relative to the primary currency.
-            total += group.Total * sourceCurrency.ExchangeRate / targetCurrency.ExchangeRate;
+            // Convert via the domain Money type (the single source of truth for FX rate math) rather than
+            // re-deriving amount * source.ExchangeRate / target.ExchangeRate here. InternalAmount keeps the
+            // unrounded decimal; the fold is rounded once at the end. Rates are the current, admin-maintained
+            // ExchangeRate values (relative to the primary currency).
+            total += new Money(group.Total, sourceCurrency).ConvertTo(targetCurrency).InternalAmount;
             count += group.Count;
 
             if (lastOrderDate == null || group.LastOrderDate > lastOrderDate)

@@ -7,12 +7,6 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// </summary>
 public class CustomerOrderStatisticsPeriod
 {
-    /// <summary>Inclusive lower bound of the range (null = unbounded).</summary>
-    public DateTime? FromDate { get; set; }
-
-    /// <summary>Exclusive upper bound of the range (null = unbounded).</summary>
-    public DateTime? ToDate { get; set; }
-
     /// <summary>Sum of order totals in the range, in the requested currency.</summary>
     public decimal Total { get; set; }
 
