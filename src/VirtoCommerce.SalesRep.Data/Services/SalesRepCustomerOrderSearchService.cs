@@ -25,7 +25,7 @@ public class SalesRepCustomerOrderSearchService : ISalesRepCustomerOrderSearchSe
         _customerOrderSearchService = customerOrderSearchService;
     }
 
-    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId = null, string responseGroup = null)
+    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId, string responseGroup)
     {
         var result = new Dictionary<string, CustomerOrder>(StringComparer.OrdinalIgnoreCase);
 

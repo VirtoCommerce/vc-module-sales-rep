@@ -10,24 +10,24 @@ public class SalesRepOrderResponseGroupParser : ISalesRepOrderResponseGroupParse
 {
     public virtual string GetResponseGroup(IList<string> includeFields)
     {
+        var fields = includeFields ?? [];
+
+        // Match on the leaf field name so the connection's own "totalCount" isn't mistaken for the order "total".
+        bool Requested(string fieldName) =>
+            fields.Any(x => !string.IsNullOrEmpty(x) && x.Split('.')[^1].Equals(fieldName, StringComparison.OrdinalIgnoreCase));
+
         // number/status/currency/createdDate are scalar columns loaded with Default — only total and itemsCount
         // opt into a heavier group.
         var result = CustomerOrderResponseGroup.Default;
 
-        // Match on the leaf field name so the connection's own "totalCount" isn't mistaken for the order "total".
-        var leafFields = (includeFields ?? [])
-            .Where(x => !string.IsNullOrEmpty(x))
-            .Select(x => x.Split('.')[^1])
-            .ToArray();
-
         // total needs WithPrices — the order pipeline zeroes prices for lighter groups.
-        if (leafFields.Contains(nameof(SalesRepOrder.Total), StringComparer.OrdinalIgnoreCase))
+        if (Requested(nameof(SalesRepOrder.Total)))
         {
             result |= CustomerOrderResponseGroup.WithPrices;
         }
 
         // itemsCount needs the line items loaded.
-        if (leafFields.Contains(nameof(SalesRepOrder.ItemsCount), StringComparer.OrdinalIgnoreCase))
+        if (Requested(nameof(SalesRepOrder.ItemsCount)))
         {
             result |= CustomerOrderResponseGroup.WithItems;
         }

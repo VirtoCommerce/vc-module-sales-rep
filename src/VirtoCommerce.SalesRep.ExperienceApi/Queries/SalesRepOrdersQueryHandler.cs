@@ -54,17 +54,18 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
             return result;
         }
 
-        var criteria = AbstractTypeFactory<CustomerOrderSearchCriteria>.TryCreateInstance();
+        // Keyword/Sort/Skip/Take come from the SearchQuery base; set only the order-specific bits here.
+        var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
         criteria.OrganizationIds = [request.CustomerId];
         // Scope to the caller's store when provided so a rep never sees another store's orders.
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
         criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
-        criteria.Keyword = request.Keyword;
         // Recent orders on top by default (VCST-5308); an explicit sort argument overrides it.
-        criteria.Sort = string.IsNullOrEmpty(request.Sort) ? "createdDate:desc" : request.Sort;
-        criteria.Skip = request.Skip;
-        criteria.Take = request.Take;
+        if (string.IsNullOrEmpty(criteria.Sort))
+        {
+            criteria.Sort = "createdDate:desc";
+        }
 
         var searchResult = await _customerOrderSearchService.SearchAsync(criteria);
 

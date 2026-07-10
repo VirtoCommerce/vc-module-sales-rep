@@ -14,10 +14,10 @@ public interface ISalesRepCustomerOrderSearchService
 {
     /// <summary>
     /// Returns the most recent order (by created date) for each of the specified organizations. Organizations
-    /// without orders are omitted; prototype orders are excluded. When <paramref name="storeId"/> is provided,
-    /// only orders from that store are considered — so a rep never sees order metadata from a store outside the
-    /// current storefront. <paramref name="responseGroup"/> controls how much of each order is hydrated (a
-    /// <see cref="CustomerOrderResponseGroup"/> string) — the caller computes it from the requested fields.
+    /// without orders are omitted; prototype orders are excluded. <paramref name="storeId"/> scopes to a single
+    /// store (pass <c>null</c> for all stores) — so a rep never sees order metadata from a store outside the
+    /// current storefront. <paramref name="responseGroup"/> is the <see cref="CustomerOrderResponseGroup"/> string
+    /// controlling how much of each order is hydrated; the caller computes it from the requested fields.
     /// </summary>
-    Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId = null, string responseGroup = null);
+    Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId, string responseGroup);
 }
