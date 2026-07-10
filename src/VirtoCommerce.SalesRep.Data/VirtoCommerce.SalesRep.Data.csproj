@@ -6,6 +6,11 @@
   <ItemGroup>
     <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1039.0" />
     <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1039.0" />
+    <!-- Sales statistics read the Orders EF store (IOrderRepository) directly to run DB-side SUM/COUNT/MAX
+         instead of loading orders into memory; the public order search service can't aggregate. Deliberate,
+         scoped exception to the "reference other modules' .Core, not .Data" rule (VCST-5309). Version tracks the
+         manifest's VirtoCommerce.Orders dependency. -->
+    <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />

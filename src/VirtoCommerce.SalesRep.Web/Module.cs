@@ -29,6 +29,10 @@ public class Module : IModule, IHasConfiguration
         // Registered under its own interface only, so the platform-wide ICustomerOrderSearchService is unaffected.
         serviceCollection.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
+        // Customer order statistics (YTD/lifetime purchases, order count, average order value) for the customer
+        // profile widgets (VCST-5309). Aggregates in the DB via the Orders repository and converts to one currency.
+        serviceCollection.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
+
         // Storefront X-API (GraphQL) surface: "my customers" (VCST-5304) and "my sales reps" (VCST-4907).
         serviceCollection.AddSalesRepExperienceApi();
     }
