@@ -41,11 +41,10 @@ public class SalesRepAwareSearchContactsQueryHandler : SearchMembersQueryHandler
 
     public SalesRepAwareSearchContactsQueryHandler(
         IMemberSearchService memberSearchService,
-        IOrganizationMembershipService organizationMembershipService,
         IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepRoleResolver roleResolver,
         IUserSearchService userSearchService)
-        : base(memberSearchService, organizationMembershipService)
+        : base(memberSearchService, membershipSearchService)
     {
         _memberSearchService = memberSearchService;
         _membershipSearchService = membershipSearchService;
