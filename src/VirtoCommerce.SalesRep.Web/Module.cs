@@ -40,6 +40,10 @@ public class Module : IModule, IHasConfiguration
         // Register settings
         var settingsRegistrar = serviceProvider.GetRequiredService<ISettingsRegistrar>();
         settingsRegistrar.RegisterSettings(ModuleConstants.Settings.AllSettings, ModuleInfo.Id);
+        // Also register per store so the storefront can read the public SalesRep.Enabled flag from
+        // store.settings.modules and toggle the Sales Rep UI per store. ("Store" == nameof(StoreModule's Store
+        // entity); used as a literal to avoid a StoreModule dependency just for the type name.)
+        settingsRegistrar.RegisterSettingsForType(ModuleConstants.Settings.AllSettings, "Store");
 
         // Register permissions
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
