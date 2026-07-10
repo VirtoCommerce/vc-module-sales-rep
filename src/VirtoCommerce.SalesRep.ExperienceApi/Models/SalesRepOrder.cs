@@ -21,8 +21,11 @@ public class SalesRepOrder : Entity
 
     public decimal Total { get; set; }
 
-    /// <summary>Order currency code.</summary>
+    /// <summary>Order currency code (the currency in which the order was submitted).</summary>
     public string Currency { get; set; }
+
+    /// <summary>Number of line items in the order.</summary>
+    public int ItemsCount { get; set; }
 
     /// <summary>Projects a <see cref="CustomerOrder"/> onto the lightweight Sales Rep order DTO.</summary>
     public static SalesRepOrder FromOrder(CustomerOrder order)
@@ -44,5 +47,6 @@ public class SalesRepOrder : Entity
         Status = order.Status;
         Total = order.Total;
         Currency = order.Currency;
+        ItemsCount = order.Items?.Count ?? 0;
     }
 }

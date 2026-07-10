@@ -439,10 +439,153 @@ public class SalesRepGraphQlComponentTests
         all.Should().Contain("ORD-OTHER").And.NotContain("ORD-B2B");
     }
 
-    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store")
+    // ---- salesRepOrders(customerId) — a customer's orders (VCST-5308) ----
+
+    [Fact]
+    public async Task SalesRepOrders_ReturnsCustomerOrders_RecentFirst()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        SeedOrder(ctx, id: "o-old", org: "org-1", number: "ORD-OLD", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number createdDate status total currency itemsCount } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":2");
+        json.Should().Contain("ORD-OLD").And.Contain("ORD-NEW");
+        json.Should().Contain("123.45");   // Total hydrated, not 0
+        json.Should().Contain("USD");
+        // Default sort is createdDate:desc — the newest order must appear before the older one.
+        json.IndexOf("ORD-NEW", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("ORD-OLD", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_ReturnsItemsCount()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), itemsCount: 3);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\") { items { number itemsCount } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"itemsCount\":3");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_ForOrganizationNotServed_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // An order exists for org-2, but the rep does not serve org-2 and must not read it by guessing the id.
+        SeedOrder(ctx, id: "o-2", org: "org-2", number: "ORD-LEAK", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-2\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("ORD-LEAK");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_WhenMembershipLocked_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // A rep locked in the organization must not see its orders (mirrors the customer-details lock filter).
+        var membershipId = rep.Organizations.Single(o => o.OrganizationId == "org-1").MembershipId;
+        await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(membershipId);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("ORD-1");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_Anonymous_ReturnsAuthorizationError()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        var json = await ctx.ExecuteGraphQlAnonymousAsync(
+            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }");
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)anonym");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_SupportsPaging()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // Three orders, newest first: ORD-3 (Jun) > ORD-2 (May) > ORD-1 (Apr).
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-2", org: "org-1", number: "ORD-2", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-3", org: "org-1", number: "ORD-3", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // Page 1 (first:2): the two most recent orders.
+        var page1 = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\", first:2, after:\"0\") { totalCount pageInfo{ hasNextPage } items{ number } } }",
+            userId: rep.UserId);
+        page1.Should().Contain("\"totalCount\":3").And.Contain("\"hasNextPage\":true");
+        page1.Should().Contain("ORD-3").And.Contain("ORD-2").And.NotContain("ORD-1");
+
+        // Page 2 (after:2): the remaining order, no overlap with page 1.
+        var page2 = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\", first:2, after:\"2\") { pageInfo{ hasNextPage } items{ number } } }",
+            userId: rep.UserId);
+        page2.Should().Contain("ORD-1").And.NotContain("ORD-3").And.NotContain("ORD-2");
+        page2.Should().Contain("\"hasNextPage\":false");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_AreScopedByStore()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-b2b", org: "org-1", number: "ORD-B2B", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), storeId: "B2B-store");
+        SeedOrder(ctx, id: "o-other", org: "org-1", number: "ORD-OTHER", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), storeId: "OtherStore");
+
+        // Scoped to B2B-store: only the B2B order, even though the OtherStore order is more recent.
+        var b2b = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\", storeId:\"B2B-store\") { totalCount items { number } } }",
+            userId: rep.UserId);
+        b2b.Should().NotContain("\"errors\"");
+        b2b.Should().Contain("\"totalCount\":1").And.Contain("ORD-B2B").And.NotContain("ORD-OTHER");
+
+        // No store filter: both orders across stores.
+        var all = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }",
+            userId: rep.UserId);
+        all.Should().Contain("\"totalCount\":2").And.Contain("ORD-B2B").And.Contain("ORD-OTHER");
+    }
+
+    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0)
     {
         using var db = ctx.NewOrderDbContext();
-        db.Add(new CustomerOrderEntity
+        var order = new CustomerOrderEntity
         {
             Id = id,
             Number = number,
@@ -456,7 +599,25 @@ public class SalesRepGraphQlComponentTests
             IsPrototype = false,
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
-        });
+        };
+
+        for (var i = 0; i < itemsCount; i++)
+        {
+            order.Items.Add(new LineItemEntity
+            {
+                Id = $"{id}-li-{i}",
+                Currency = "USD",
+                ProductId = $"prod-{i}",
+                CatalogId = "catalog-1",
+                Sku = $"SKU-{i}",
+                Name = $"Product {i}",
+                Quantity = 1,
+                CreatedDate = createdDate,
+                ModifiedDate = createdDate,
+            });
+        }
+
+        db.Add(order);
         db.SaveChanges();
     }
 }

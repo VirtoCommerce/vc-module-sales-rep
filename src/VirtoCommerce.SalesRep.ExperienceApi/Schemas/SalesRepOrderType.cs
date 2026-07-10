@@ -14,6 +14,7 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
         Field(x => x.CreatedDate, nullable: false).Description("Date the order was placed.");
         Field(x => x.Status, nullable: true).Description("Order status.");
         Field(x => x.Total, nullable: false).Description("Order grand total.");
-        Field(x => x.Currency, nullable: true).Description("Order currency code.");
+        Field(x => x.Currency, nullable: true).Description("Order currency code (the currency in which the order was submitted).");
+        Field(x => x.ItemsCount, nullable: false).Description("Number of line items in the order.");
     }
 }
