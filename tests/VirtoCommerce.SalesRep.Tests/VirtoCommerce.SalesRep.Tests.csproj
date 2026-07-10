@@ -24,7 +24,7 @@
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
     <!-- Other modules' .Data assemblies are used only to build the test harness (seed the DbContexts, wire the real
          Customer/Order search + event services). The module under test references only their .Core. -->
-    <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0-alpha.1002-vcst-5239" />
+    <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
   </ItemGroup>
   <ItemGroup>
