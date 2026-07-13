@@ -11,12 +11,12 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomerStatisticsQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerStatisticsQuery, CustomerOrderStatisticsContext>
+public class SalesRepCustomerOrderStatisticsQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerOrderStatisticsQuery, CustomerOrderStatisticsContext>
 {
     private readonly IStoreService _storeService;
     private readonly ICurrencyService _currencyService;
 
-    public SalesRepCustomerStatisticsQueryHandler(
+    public SalesRepCustomerOrderStatisticsQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IStoreService storeService,
@@ -27,7 +27,7 @@ public class SalesRepCustomerStatisticsQueryHandler : SalesRepQueryHandlerBase, 
         _currencyService = currencyService;
     }
 
-    public virtual async Task<CustomerOrderStatisticsContext> Handle(SalesRepCustomerStatisticsQuery request, CancellationToken cancellationToken)
+    public virtual async Task<CustomerOrderStatisticsContext> Handle(SalesRepCustomerOrderStatisticsQuery request, CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.OrganizationId))
         {

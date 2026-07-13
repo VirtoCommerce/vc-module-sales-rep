@@ -9,13 +9,13 @@ using Xunit;
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// End-to-end component tests for the <c>salesRepCustomerStatistics</c> X-API query (VCST-5309): seed real
+/// End-to-end component tests for the <c>salesRepCustomerOrderStatistics</c> X-API query (VCST-5309): seed real
 /// orders into in-memory SQLite, execute real GraphQL through the real scoped schema / MediatR handler / the
 /// real <c>CustomerOrderStatisticsService</c>, and assert the aggregated, currency-converted numbers exactly.
 /// The only stand-ins are the peripheral currency/store data sources (fixed rates in <c>TestGraphQlConfiguration</c>).
 /// </summary>
 [Trait("Category", "Component")]
-public class SalesRepCustomerStatisticsGraphQlTests
+public class SalesRepCustomerOrderStatisticsGraphQlTests
 {
     private static readonly DateTime _feb2026 = new(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime _apr2026 = new(2026, 4, 21, 0, 0, 0, DateTimeKind.Utc);
@@ -48,7 +48,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query {
-                salesRepCustomerStatistics(id: "org-1", currencyCode: "USD") {
+                salesRepCustomerOrderStatistics(id: "org-1", currencyCode: "USD") {
                   currencyCode
                   ytd:      period({{Ytd}}) { total count average lastOrderDate }
                   lastYear: period({{LastYear}}) { total count average }
@@ -100,7 +100,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-1", currencyCode: "USD") {
+              query { salesRepCustomerOrderStatistics(id: "org-1", currencyCode: "USD") {
                 currencyCode ytd: period({{Ytd}}) { total count average } } }
               """,
             userId: rep.UserId);
@@ -126,7 +126,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-1", currencyCode: "EUR") {
+              query { salesRepCustomerOrderStatistics(id: "org-1", currencyCode: "EUR") {
                 currencyCode ytd: period({{Ytd}}) { total count average } } }
               """,
             userId: rep.UserId);
@@ -151,7 +151,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
         // No CurrencyCode, but a store is given → the store's default currency (EUR in the test store double) wins.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-1", storeId: "B2B-store") {
+              query { salesRepCustomerOrderStatistics(id: "org-1", storeId: "B2B-store") {
                 currencyCode ytd: period({{Ytd}}) { total } } }
               """,
             userId: rep.UserId);
@@ -172,7 +172,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
         // Neither CurrencyCode nor StoreId → falls back to the platform primary currency (USD).
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-1") { currencyCode ytd: period({{Ytd}}) { total } } }
+              query { salesRepCustomerOrderStatistics(id: "org-1") { currencyCode ytd: period({{Ytd}}) { total } } }
               """,
             userId: rep.UserId);
 
@@ -192,7 +192,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-1", storeId: "B2B-store", currencyCode: "USD") {
+              query { salesRepCustomerOrderStatistics(id: "org-1", storeId: "B2B-store", currencyCode: "USD") {
                 ytd: period({{Ytd}}) { total count } } }
               """,
             userId: rep.UserId);
@@ -212,7 +212,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-1", currencyCode: "USD") {
+              query { salesRepCustomerOrderStatistics(id: "org-1", currencyCode: "USD") {
                 lastYear: period({{LastYear}}) { total count average lastOrderDate }
                 ytdVsLastYear: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }) {
                   totalChange totalChangePercent countChange countChangePercent averageChange averageChangePercent
@@ -246,12 +246,12 @@ public class SalesRepCustomerStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-2", currencyCode: "USD") { ytd: period({{Ytd}}) { total } } }
+              query { salesRepCustomerOrderStatistics(id: "org-2", currencyCode: "USD") { ytd: period({{Ytd}}) { total } } }
               """,
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"salesRepCustomerStatistics\":null");
+        json.Should().Contain("\"salesRepCustomerOrderStatistics\":null");
     }
 
     [Fact]
@@ -261,7 +261,7 @@ public class SalesRepCustomerStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
             $$"""
-              query { salesRepCustomerStatistics(id: "org-1", currencyCode: "USD") { ytd: period({{Ytd}}) { total } } }
+              query { salesRepCustomerOrderStatistics(id: "org-1", currencyCode: "USD") { ytd: period({{Ytd}}) { total } } }
               """);
 
         json.Should().Contain("\"errors\"");
@@ -270,13 +270,13 @@ public class SalesRepCustomerStatisticsGraphQlTests
 
     // ---- helpers ----
 
-    /// <summary>The <c>data.salesRepCustomerStatistics</c> node, after asserting the response carries no errors.</summary>
+    /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>
     private static JsonElement Stats(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty("salesRepCustomerStatistics").Clone();
+        return root.GetProperty("data").GetProperty("salesRepCustomerOrderStatistics").Clone();
     }
 
     private static void SeedOrder(

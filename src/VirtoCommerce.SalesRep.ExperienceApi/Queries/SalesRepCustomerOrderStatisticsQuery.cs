@@ -13,7 +13,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// their security account id is set server-side from the claims, and the handler verifies the caller actually
 /// serves the requested organization.
 /// </summary>
-public class SalesRepCustomerStatisticsQuery : Query<CustomerOrderStatisticsContext>
+public class SalesRepCustomerOrderStatisticsQuery : Query<CustomerOrderStatisticsContext>
 {
     /// <summary>Organization (customer) id whose orders are aggregated.</summary>
     public string OrganizationId { get; set; }

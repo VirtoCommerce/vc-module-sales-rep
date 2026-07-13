@@ -10,16 +10,16 @@ using VirtoCommerce.Xapi.Core.Security.Authorization;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomerStatisticsQueryBuilder : QueryBuilder<SalesRepCustomerStatisticsQuery, CustomerOrderStatisticsContext, CustomerOrderStatisticsType>
+public class SalesRepCustomerOrderStatisticsQueryBuilder : QueryBuilder<SalesRepCustomerOrderStatisticsQuery, CustomerOrderStatisticsContext, CustomerOrderStatisticsType>
 {
-    protected override string Name => "salesRepCustomerStatistics";
+    protected override string Name => "salesRepCustomerOrderStatistics";
 
-    public SalesRepCustomerStatisticsQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
+    public SalesRepCustomerOrderStatisticsQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
         : base(mediator, authorizationService)
     {
     }
 
-    protected override async Task BeforeMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerStatisticsQuery request)
+    protected override async Task BeforeMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerOrderStatisticsQuery request)
     {
         await base.BeforeMediatorSend(context, request);
 
