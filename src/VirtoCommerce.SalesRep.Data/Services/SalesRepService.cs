@@ -519,11 +519,7 @@ public class SalesRepService : ISalesRepService
         // configured default contact status so the rep shows the right member status in the storefront (e.g.
         // "Active") rather than "Inactive". When neither is available the current status is left untouched.
         // Blocked reps are represented by account lockout (not this status), so overwriting it here is safe.
-        var resolvedStatus = !string.IsNullOrEmpty(salesRep.Status) ? salesRep.Status : defaultStatus;
-        if (!string.IsNullOrEmpty(resolvedStatus))
-        {
-            contact.Status = resolvedStatus;
-        }
+        contact.Status = salesRep.Status.EmptyToNull() ?? defaultStatus.EmptyToNull() ?? contact.Status;
 
         // Login (emails[0]) + additional emails as one de-duplicated list (case-insensitive, order preserved
         // so the login stays first). The login email cannot be dropped here (it's the account).
