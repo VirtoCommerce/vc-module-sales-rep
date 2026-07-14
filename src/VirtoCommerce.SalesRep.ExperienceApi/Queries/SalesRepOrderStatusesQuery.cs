@@ -11,7 +11,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// the <c>salesRepOrders</c> "status" argument. Caller-agnostic — statuses are store configuration, not rep-scoped
 /// data.
 /// </summary>
-public class SalesRepOrderStatusesQuery : Query<SalesRepOrderStatusesResult>
+public class SalesRepOrderStatusesQuery : Query<IList<SalesRepOrderStatus>>
 {
     /// <summary>Store to read the configured order statuses from.</summary>
     public string StoreId { get; set; }

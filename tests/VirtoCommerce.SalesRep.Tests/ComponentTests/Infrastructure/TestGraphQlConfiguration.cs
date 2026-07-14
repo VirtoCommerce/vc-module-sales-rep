@@ -13,6 +13,7 @@ using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.OrdersModule.Data.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
+using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.ExperienceApi;
@@ -64,9 +65,13 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
         // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
-        // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many resolution and
-        // raw-status localization end to end. The real default SalesRepOrderStatusService is unit-tested separately.
+        // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many filter resolution
+        // end to end. The real default SalesRepOrderStatusService is unit-tested separately.
         services.AddSingleton<ISalesRepOrderStatusService, StubOrderStatusService>();
+
+        // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
+        // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
+        services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
 
         services.AddGraphQL(builder =>
         {
@@ -117,8 +122,8 @@ internal static class TestGraphQlConfiguration
 
     /// <summary>
     /// Stand-in status service acting as a "project override": a 1:1 status ("New") plus a composite ("Inactive" →
-    /// Cancelled + Failed) so tests can prove the status list, 1:many filter resolution, and raw-status
-    /// localization. It localizes a raw status as "&lt;raw&gt; (localized)" so the mapping is observable.
+    /// Cancelled + Failed) so tests can prove the status list and the 1:many filter resolution (incl. multi-select
+    /// union).
     /// </summary>
     private sealed class StubOrderStatusService : ISalesRepOrderStatusService
     {
@@ -131,20 +136,30 @@ internal static class TestGraphQlConfiguration
         public Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
             => Task.FromResult(_statuses);
 
-        public Task<string[]> ResolveOrderStatusesAsync(string storeId, string selectedStatusName)
+        public Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
         {
-            var selected = _statuses.FirstOrDefault(x => x.Name.EqualsIgnoreCase(selectedStatusName));
-            return Task.FromResult(selected?.OrderStatuses ?? []);
-        }
-
-        public Task<IDictionary<string, string>> GetLocalizedStatusesAsync(string storeId, string cultureName)
-        {
+            var selected = new HashSet<string>(selectedStatusNames ?? [], StringComparer.OrdinalIgnoreCase);
             var result = _statuses
+                .Where(x => selected.Contains(x.Name))
                 .SelectMany(x => x.OrderStatuses)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToDictionary(x => x, x => $"{x} (localized)", StringComparer.OrdinalIgnoreCase);
+                .ToArray();
 
-            return Task.FromResult<IDictionary<string, string>>(result);
+            return Task.FromResult(result);
         }
+    }
+
+    /// <summary>Stand-in localizable settings: renders a status as "&lt;raw&gt; (localized)" so LocalizedField's output is observable.</summary>
+    private sealed class StubLocalizableSettingService : ILocalizableSettingService
+    {
+        public Task<string> TranslateAsync(string key, string settingName, string languageCode)
+            => Task.FromResult(string.IsNullOrEmpty(key) ? key : $"{key} (localized)");
+
+        public Task<IList<KeyValue>> GetValuesAsync(string settingName, string languageCode)
+            => Task.FromResult<IList<KeyValue>>([]);
+
+        public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new NotSupportedException();
+        public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();
+        public Task DeleteAsync(string settingName, IList<string> values) => throw new NotSupportedException();
     }
 }

@@ -1,5 +1,3 @@
-using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -66,17 +64,11 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
         criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
-        // Selected statuses → the union of their underlying order statuses (1:many for composite/overridden
-        // statuses). Filter only when something is selected and resolves to a non-empty set; otherwise all statuses.
+        // Selected statuses → the deduped union of their underlying order statuses (1:many for composite/overridden
+        // statuses; resolved by the status service). Filter only when it resolves to a non-empty set.
         if (request.Statuses?.Count > 0)
         {
-            var statuses = new List<string>();
-            foreach (var selected in request.Statuses)
-            {
-                statuses.AddRange(await _statusService.ResolveOrderStatusesAsync(request.StoreId, selected));
-            }
-
-            var resolved = statuses.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            var resolved = await _statusService.ResolveOrderStatusesAsync(request.StoreId, request.Statuses);
             if (resolved.Length > 0)
             {
                 criteria.Statuses = resolved;
@@ -95,34 +87,6 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
             .Select(SalesRepOrder.FromOrder)
             .ToList();
 
-        await ApplyLocalizedStatusesAsync(request, result.Results);
-
         return result;
-    }
-
-    /// <summary>
-    /// Fills each order's <see cref="SalesRepOrder.StatusLocalized"/> from the status service's raw → localized map,
-    /// but only when the caller selected that field (so the extra lookup is skipped otherwise — consistent with the
-    /// field-driven response group). Post-search "apply to each record" step, mirroring the news module's handlers.
-    /// </summary>
-    protected virtual async Task ApplyLocalizedStatusesAsync(SalesRepOrdersQuery request, IList<SalesRepOrder> orders)
-    {
-        var requested = request.IncludeFields.Any(x =>
-            x.Split('.')[^1].Equals(nameof(SalesRepOrder.StatusLocalized), StringComparison.OrdinalIgnoreCase));
-
-        if (!requested || orders.Count == 0)
-        {
-            return;
-        }
-
-        var localizedByStatus = await _statusService.GetLocalizedStatusesAsync(request.StoreId, request.CultureName);
-
-        foreach (var order in orders)
-        {
-            if (!string.IsNullOrEmpty(order.Status) && localizedByStatus.TryGetValue(order.Status, out var label))
-            {
-                order.StatusLocalized = label;
-            }
-        }
     }
 }

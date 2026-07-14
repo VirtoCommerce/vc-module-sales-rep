@@ -2,17 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
-using OrdersModuleConstants = VirtoCommerce.OrdersModule.Core.ModuleConstants;
+using OrderSettings = VirtoCommerce.OrdersModule.Core.ModuleConstants.Settings.General;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 /// <summary>
-/// Default status source: each configured <c>Order.Status</c> dictionary value is a status option (1:1), and an
-/// order's raw status is localized straight from that dictionary. Projects override this service to group / hide /
-/// add statuses or to change how statuses are localized.
+/// Default status source: each configured <c>Order.Status</c> dictionary value is a status option (1:1). Projects
+/// override this service to group / hide / add statuses.
 /// </summary>
 public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 {
@@ -25,7 +23,8 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 
     public virtual async Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
     {
-        var values = await GetOrderStatusValuesAsync(cultureName);
+        // The platform's configured, localizable order-status dictionary (KeyValue.Key = raw status, Value = label).
+        var values = await _localizableSettingService.GetValuesAsync(OrderSettings.OrderStatus.Name, cultureName);
 
         // Default: each configured order status is its own option (Name == the raw status; label localized).
         return values
@@ -33,30 +32,22 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
             .ToList();
     }
 
-    public virtual async Task<string[]> ResolveOrderStatusesAsync(string storeId, string selectedStatusName)
+    public virtual async Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
     {
-        if (string.IsNullOrEmpty(selectedStatusName))
+        if (selectedStatusNames == null || selectedStatusNames.Count == 0)
         {
             return [];
         }
 
+        var selected = new HashSet<string>(selectedStatusNames, StringComparer.OrdinalIgnoreCase);
+
+        // One status-list read; union the underlying statuses of every selected option.
         var statuses = await GetStatusesAsync(storeId, cultureName: null);
-        var selected = statuses.FirstOrDefault(x => x.Name.EqualsIgnoreCase(selectedStatusName));
 
-        return selected?.OrderStatuses ?? [];
+        return statuses
+            .Where(x => selected.Contains(x.Name))
+            .SelectMany(x => x.OrderStatuses)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
-
-    public virtual async Task<IDictionary<string, string>> GetLocalizedStatusesAsync(string storeId, string cultureName)
-    {
-        // Raw order status → localized label, straight from the order-status dictionary.
-        var values = await GetOrderStatusValuesAsync(cultureName);
-
-        return values
-            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x.Key, x => x.First().Value, StringComparer.OrdinalIgnoreCase);
-    }
-
-    /// <summary>The order-status dictionary values (KeyValue.Key = raw status, Value = localized label).</summary>
-    protected virtual Task<IList<KeyValue>> GetOrderStatusValuesAsync(string cultureName)
-        => _localizableSettingService.GetValuesAsync(OrdersModuleConstants.Settings.General.OrderStatus.Name, cultureName);
 }

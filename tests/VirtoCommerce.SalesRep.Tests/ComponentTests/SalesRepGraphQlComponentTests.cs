@@ -612,7 +612,7 @@ public class SalesRepGraphQlComponentTests
 
         // Caller-agnostic (statuses are store config), but the scoped schema requires authentication.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { items { name localizedName } } }",
+            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { name localizedName } }",
             userId: "any-authenticated-user");
 
         json.Should().NotContain("\"errors\"");
@@ -626,7 +626,7 @@ public class SalesRepGraphQlComponentTests
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { items { name } } }");
+            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { name } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
@@ -700,14 +700,15 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
 
-        // statusLocalized is the order's RAW status localized (StubOrderStatusService renders it "<raw> (localized)").
+        // statusDisplayValue is the order's RAW status localized (X-API LocalizedField → StubLocalizableSettingService
+        // renders it "<raw> (localized)"); culture comes from the request context, not a query argument.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", cultureName:\"en-US\") { items { number status statusLocalized } } }",
+            "query { salesRepOrders(customerId:\"org-1\") { items { number status statusDisplayValue } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"status\":\"Cancelled\"");                    // raw status preserved
-        json.Should().Contain("\"statusLocalized\":\"Cancelled (localized)\""); // raw status localized, not the composite
+        json.Should().Contain("\"status\":\"Cancelled\"");                       // raw status preserved
+        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (localized)\""); // raw status localized, not the composite
     }
 
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New")

@@ -11,9 +11,8 @@ namespace VirtoCommerce.SalesRep.Tests;
 
 /// <summary>
 /// Pure-logic tests for the default <see cref="SalesRepOrderStatusService"/> — each configured Order.Status value
-/// becomes its own status option (1:1), resolution maps a selected status back to its underlying order statuses,
-/// and an order's raw status is localized from the dictionary. (Composite/override behavior is exercised end-to-end
-/// by the component tests via a stub status service.)
+/// becomes its own status option (1:1), and resolution maps selected statuses to the union of their underlying
+/// order statuses. (Composite/override behavior is exercised end-to-end by the component tests via a stub service.)
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepOrderStatusServiceTests
@@ -37,7 +36,16 @@ public class SalesRepOrderStatusServiceTests
     {
         var service = CreateService("New", "Cancelled");
 
-        (await service.ResolveOrderStatusesAsync("B2B-store", "Cancelled")).Should().Equal("Cancelled");
+        (await service.ResolveOrderStatusesAsync("B2B-store", ["Cancelled"])).Should().Equal("Cancelled");
+    }
+
+    [Fact]
+    public async Task Resolve_MultipleStatuses_ReturnsDedupedUnion()
+    {
+        var service = CreateService("New", "Processing", "Cancelled");
+
+        (await service.ResolveOrderStatusesAsync("B2B-store", ["New", "Cancelled"]))
+            .Should().BeEquivalentTo("New", "Cancelled");
     }
 
     [Fact]
@@ -45,20 +53,8 @@ public class SalesRepOrderStatusServiceTests
     {
         var service = CreateService("New");
 
-        (await service.ResolveOrderStatusesAsync("B2B-store", "Bogus")).Should().BeEmpty();
+        (await service.ResolveOrderStatusesAsync("B2B-store", ["Bogus"])).Should().BeEmpty();
         (await service.ResolveOrderStatusesAsync("B2B-store", null)).Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task GetLocalizedStatuses_LocalizesEachConfiguredStatus()
-    {
-        var service = CreateService("New", "Cancelled");
-
-        var map = await service.GetLocalizedStatusesAsync("B2B-store", "en-US");
-
-        // Raw status → localized label, straight from the dictionary (fake renders the label "loc:<raw>").
-        map["Cancelled"].Should().Be("loc:Cancelled");
-        map["New"].Should().Be("loc:New");
     }
 
     /// <summary>Returns the given statuses as the Order.Status dictionary (Key = raw status, Value = label).</summary>
@@ -69,7 +65,7 @@ public class SalesRepOrderStatusServiceTests
         public FakeLocalizableSettingService(string[] statuses) => _statuses = statuses;
 
         public Task<IList<KeyValue>> GetValuesAsync(string settingName, string languageCode)
-            => Task.FromResult<IList<KeyValue>>(_statuses.Select(s => new KeyValue { Key = s, Value = "loc:" + s }).ToList());
+            => Task.FromResult<IList<KeyValue>>(_statuses.Select(s => new KeyValue { Key = s, Value = s }).ToList());
 
         public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new System.NotSupportedException();
         public Task<string> TranslateAsync(string key, string settingName, string languageCode) => throw new System.NotSupportedException();

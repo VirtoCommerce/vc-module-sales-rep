@@ -1,5 +1,7 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using GraphQL;
+using GraphQL.Types;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -10,7 +12,7 @@ using VirtoCommerce.Xapi.Core.Security.Authorization;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepOrderStatusesQueryBuilder : QueryBuilder<SalesRepOrderStatusesQuery, SalesRepOrderStatusesResult, SalesRepOrderStatusesResultType>
+public class SalesRepOrderStatusesQueryBuilder : QueryBuilder<SalesRepOrderStatusesQuery, IList<SalesRepOrderStatus>, ListGraphType<SalesRepOrderStatusType>>
 {
     protected override string Name => "salesRepOrderStatuses";
 

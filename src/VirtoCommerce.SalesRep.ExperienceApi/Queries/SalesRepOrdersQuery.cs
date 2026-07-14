@@ -32,9 +32,6 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
     /// </summary>
     public IList<string> Statuses { get; set; }
 
-    /// <summary>Culture for the localized status label (<c>statusLocalized</c>), e.g. "en-US".</summary>
-    public string CultureName { get; set; }
-
     /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
 
@@ -51,7 +48,6 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
         yield return Argument<NonNullGraphType<StringGraphType>>(nameof(CustomerId), "Customer (organization) id whose orders to load.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
         yield return Argument<ListGraphType<StringGraphType>>(nameof(Statuses), "Selected statuses (salesRepOrderStatuses 'name's); filters to the union of their underlying order statuses.");
-        yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized status label (\"en-US\").");
     }
 
     public override void Map(IResolveFieldContext context)
@@ -62,7 +58,6 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
         CustomerId = context.GetArgument<string>(nameof(CustomerId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
         Statuses = context.GetArgument<string[]>(nameof(Statuses));
-        CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
 
         // Requested field paths (e.g. "items.total", "items.itemsCount") → used to load only the needed order data.

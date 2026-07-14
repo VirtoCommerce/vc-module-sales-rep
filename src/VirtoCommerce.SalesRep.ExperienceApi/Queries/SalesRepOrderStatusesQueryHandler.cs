@@ -1,13 +1,13 @@
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepOrderStatusesQueryHandler : IQueryHandler<SalesRepOrderStatusesQuery, SalesRepOrderStatusesResult>
+public class SalesRepOrderStatusesQueryHandler : IQueryHandler<SalesRepOrderStatusesQuery, IList<SalesRepOrderStatus>>
 {
     private readonly ISalesRepOrderStatusService _statusService;
 
@@ -16,10 +16,6 @@ public class SalesRepOrderStatusesQueryHandler : IQueryHandler<SalesRepOrderStat
         _statusService = statusService;
     }
 
-    public virtual async Task<SalesRepOrderStatusesResult> Handle(SalesRepOrderStatusesQuery request, CancellationToken cancellationToken)
-    {
-        var result = AbstractTypeFactory<SalesRepOrderStatusesResult>.TryCreateInstance();
-        result.Items = await _statusService.GetStatusesAsync(request.StoreId, request.CultureName);
-        return result;
-    }
+    public virtual Task<IList<SalesRepOrderStatus>> Handle(SalesRepOrderStatusesQuery request, CancellationToken cancellationToken)
+        => _statusService.GetStatusesAsync(request.StoreId, request.CultureName);
 }
