@@ -63,9 +63,9 @@ internal static class TestGraphQlConfiguration
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
-        // Order-status tabs. A stub (not the real settings-backed default) stands in as a "project override" so the
-        // tests exercise a composite tab ("Inactive" → Cancelled + Failed) — proving the 1:many status resolution
-        // end to end. The real default SalesRepOrderStatusService is unit-tested separately.
+        // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
+        // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many resolution and
+        // raw-status localization end to end. The real default SalesRepOrderStatusService is unit-tested separately.
         services.AddSingleton<ISalesRepOrderStatusService, StubOrderStatusService>();
 
         services.AddGraphQL(builder =>
@@ -116,9 +116,9 @@ internal static class TestGraphQlConfiguration
     }
 
     /// <summary>
-    /// Stand-in status service acting as a "project override": a 1:1 tab ("New") plus a composite ("Inactive" →
-    /// Cancelled + Failed) so tests can prove the tab list, 1:many filter resolution, and that an unmapped status
-    /// is unreachable.
+    /// Stand-in status service acting as a "project override": a 1:1 status ("New") plus a composite ("Inactive" →
+    /// Cancelled + Failed) so tests can prove the status list, 1:many filter resolution, and raw-status
+    /// localization. It localizes a raw status as "&lt;raw&gt; (localized)" so the mapping is observable.
     /// </summary>
     private sealed class StubOrderStatusService : ISalesRepOrderStatusService
     {
@@ -135,6 +135,16 @@ internal static class TestGraphQlConfiguration
         {
             var selected = _statuses.FirstOrDefault(x => x.Name.EqualsIgnoreCase(selectedStatusName));
             return Task.FromResult(selected?.OrderStatuses ?? []);
+        }
+
+        public Task<IDictionary<string, string>> GetLocalizedStatusesAsync(string storeId, string cultureName)
+        {
+            var result = _statuses
+                .SelectMany(x => x.OrderStatuses)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(x => x, x => $"{x} (localized)", StringComparer.OrdinalIgnoreCase);
+
+            return Task.FromResult<IDictionary<string, string>>(result);
         }
     }
 }

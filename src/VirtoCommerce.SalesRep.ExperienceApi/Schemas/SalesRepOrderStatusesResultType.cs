@@ -11,7 +11,7 @@ public class SalesRepOrderStatusesResultType : ExtendableGraphType<SalesRepOrder
         Name = "SalesRepOrderStatusesResult";
 
         Field<NonNullGraphType<ListGraphType<SalesRepOrderStatusType>>>("items")
-            .Description("The order-status tabs for the orders panel, in display order.")
+            .Description("The selectable order statuses, in display order.")
             .Resolve(context => context.Source.Items);
     }
 }

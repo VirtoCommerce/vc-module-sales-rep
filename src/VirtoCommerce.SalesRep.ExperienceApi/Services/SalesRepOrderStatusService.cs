@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,8 +10,9 @@ using OrdersModuleConstants = VirtoCommerce.OrdersModule.Core.ModuleConstants;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 /// <summary>
-/// Default status source: each configured <c>Order.Status</c> dictionary value becomes its own tab (1:1), with the
-/// localized label from the settings dictionary. Projects override this service to group / hide / add statuses.
+/// Default status source: each configured <c>Order.Status</c> dictionary value is a status option (1:1), and an
+/// order's raw status is localized straight from that dictionary. Projects override this service to group / hide /
+/// add statuses or to change how statuses are localized.
 /// </summary>
 public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 {
@@ -23,10 +25,9 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 
     public virtual async Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
     {
-        // The platform's configured, localizable order-status dictionary (KeyValue.Key = raw status, Value = label).
-        var values = await _localizableSettingService.GetValuesAsync(OrdersModuleConstants.Settings.General.OrderStatus.Name, cultureName);
+        var values = await GetOrderStatusValuesAsync(cultureName);
 
-        // Default: each configured order status is its own tab (Name == the raw status; label localized).
+        // Default: each configured order status is its own option (Name == the raw status; label localized).
         return values
             .Select(x => SalesRepOrderStatus.Create(x.Key, x.Value, x.Key))
             .ToList();
@@ -44,4 +45,18 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 
         return selected?.OrderStatuses ?? [];
     }
+
+    public virtual async Task<IDictionary<string, string>> GetLocalizedStatusesAsync(string storeId, string cultureName)
+    {
+        // Raw order status → localized label, straight from the order-status dictionary.
+        var values = await GetOrderStatusValuesAsync(cultureName);
+
+        return values
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First().Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The order-status dictionary values (KeyValue.Key = raw status, Value = localized label).</summary>
+    protected virtual Task<IList<KeyValue>> GetOrderStatusValuesAsync(string cultureName)
+        => _localizableSettingService.GetValuesAsync(OrdersModuleConstants.Settings.General.OrderStatus.Name, cultureName);
 }

@@ -603,10 +603,10 @@ public class SalesRepGraphQlComponentTests
         json.Should().NotContain("ORD-BETA");
     }
 
-    // ---- order status tabs + status filter (VCST-5308) ----
+    // ---- order statuses + status filter (VCST-5308) ----
 
     [Fact]
-    public async Task SalesRepOrderStatuses_ReturnsStatusTabs()
+    public async Task SalesRepOrderStatuses_ReturnsStatuses()
     {
         using var ctx = SalesRepTestContext.Create();
 
@@ -617,7 +617,7 @@ public class SalesRepGraphQlComponentTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"name\":\"New\"");
-        json.Should().Contain("\"name\":\"Inactive\"").And.Contain("Not active"); // composite tab, localized label
+        json.Should().Contain("\"name\":\"Inactive\"").And.Contain("Not active"); // composite status, localized label
     }
 
     [Fact]
@@ -633,7 +633,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_FiltersBySelectedStatus_ResolvesCompositeTab()
+    public async Task SalesRepOrders_FiltersBySelectedStatus_ResolvesComposite()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
@@ -642,7 +642,7 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
         SeedOrder(ctx, id: "o-failed", org: "org-1", number: "ORD-FAILED", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Failed");
 
-        // "Inactive" is a composite tab -> [Cancelled, Failed] (StubOrderStatusService); "New" must be excluded.
+        // "Inactive" is a composite status -> [Cancelled, Failed] (StubOrderStatusService); "New" must be excluded.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrders(customerId:\"org-1\", statuses:[\"Inactive\"]) { totalCount items { number } } }",
             userId: rep.UserId);
@@ -654,7 +654,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_FiltersByMultipleStatusTabs_Union()
+    public async Task SalesRepOrders_FiltersByMultipleStatuses_Union()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
@@ -690,6 +690,24 @@ public class SalesRepGraphQlComponentTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":2").And.Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_ReturnsLocalizedRawStatus()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+
+        // statusLocalized is the order's RAW status localized (StubOrderStatusService renders it "<raw> (localized)").
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\", cultureName:\"en-US\") { items { number status statusLocalized } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"status\":\"Cancelled\"");                    // raw status preserved
+        json.Should().Contain("\"statusLocalized\":\"Cancelled (localized)\""); // raw status localized, not the composite
     }
 
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New")

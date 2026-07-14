@@ -17,7 +17,14 @@ public class SalesRepOrder : Entity
     /// <summary>Date the order was placed.</summary>
     public DateTime CreatedDate { get; set; }
 
+    /// <summary>Raw order status (e.g. "Cancelled").</summary>
     public string Status { get; set; }
+
+    /// <summary>
+    /// Localized label of the order's raw <see cref="Status"/>, resolved via <c>ISalesRepOrderStatusService</c>.
+    /// Populated by the <c>salesRepOrders</c> handler only when requested; null otherwise (e.g. on <c>lastOrder</c>).
+    /// </summary>
+    public string StatusLocalized { get; set; }
 
     public decimal Total { get; set; }
 
