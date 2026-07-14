@@ -132,6 +132,32 @@ public class SalesRepComponentTests
     }
 
     [Fact]
+    public async Task Create_WithoutExplicitStatus_InheritsStoreDefaultContactStatus()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // The store's ContactDefaultStatus is what a self-registered contact would get (Approved => Active in the storefront).
+        ctx.SetStoreContactDefaultStatus("B2B-store", "Approved");
+        await ctx.SeedOrganizationsAsync("org-1");
+
+        // CreateRepInStoreAsync does NOT set a Status, so the store default must be applied.
+        var created = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+
+        created.Status.Should().Be("Approved", "a rep with no explicit status inherits the store's ContactDefaultStatus");
+    }
+
+    [Fact]
+    public async Task Create_WithoutStoreOrStatus_LeavesStatusUnset()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+
+        // No store bound (storeId null) and no explicit status => nothing to seed the status from.
+        var created = await ctx.CreateRepAsync("Nostore", "Rep", "nostore@test.com", "org-1");
+
+        created.Status.Should().BeNull("with no store bound there is no default contact status to apply");
+    }
+
+    [Fact]
     public async Task Update_ComplexListAndScalarChanges_AppliedPrecisely()
     {
         using var ctx = SalesRepTestContext.Create();

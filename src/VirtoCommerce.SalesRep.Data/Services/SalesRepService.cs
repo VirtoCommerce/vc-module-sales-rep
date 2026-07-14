@@ -8,8 +8,11 @@ using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
+using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.StoreModule.Core.Services;
+using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
@@ -20,6 +23,7 @@ public class SalesRepService : ISalesRepService
     private readonly IOrganizationMembershipService _membershipService;
     private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly ISalesRepRoleResolver _roleResolver;
+    private readonly IStoreService _storeService;
     private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
 
     public SalesRepService(
@@ -28,6 +32,7 @@ public class SalesRepService : ISalesRepService
         IOrganizationMembershipService membershipService,
         IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepRoleResolver roleResolver,
+        IStoreService storeService,
         Func<UserManager<ApplicationUser>> userManagerFactory)
     {
         _memberService = memberService;
@@ -35,6 +40,7 @@ public class SalesRepService : ISalesRepService
         _membershipService = membershipService;
         _membershipSearchService = membershipSearchService;
         _roleResolver = roleResolver;
+        _storeService = storeService;
         _userManagerFactory = userManagerFactory;
     }
 
@@ -129,7 +135,8 @@ public class SalesRepService : ISalesRepService
             : await _memberService.GetByIdAsync(salesRep.Id, MemberResponseGroup.Full.ToString()) as Contact
               ?? throw new InvalidOperationException($"Sales Rep '{salesRep.Id}' not found");
 
-        ApplyProfile(contact, salesRep);
+        var defaultContactStatus = await ResolveDefaultContactStatusAsync(salesRep.StoreId);
+        ApplyProfile(contact, salesRep, defaultContactStatus);
         await _memberService.SaveChangesAsync([contact]);
         salesRep.Id = contact.Id;
 
@@ -471,7 +478,22 @@ public class SalesRepService : ISalesRepService
         return _membershipSearchService.SearchAllAsync(criteria);
     }
 
-    protected virtual void ApplyProfile(Contact contact, SalesRepDetails salesRep)
+    /// <summary>Resolves the store's configured default contact status (<c>Customer.ContactDefaultStatus</c>) so a
+    /// Sales Rep is seeded with the same member status the store would give a self-registered contact (e.g. "Approved"
+    /// = Active in the storefront member list) instead of an empty status that renders as "Inactive". Returns null
+    /// when there is no store bound to the rep or the setting is unset — mirrors <c>ExternalSignInUserBuilder</c>.</summary>
+    protected virtual async Task<string> ResolveDefaultContactStatusAsync(string storeId)
+    {
+        if (string.IsNullOrEmpty(storeId))
+        {
+            return null;
+        }
+
+        var store = await _storeService.GetNoCloneAsync(storeId);
+        return store?.Settings.GetValue<string>(CustomerSettings.ContactDefaultStatus);
+    }
+
+    protected virtual void ApplyProfile(Contact contact, SalesRepDetails salesRep, string defaultStatus)
     {
         contact.Salutation = salesRep.Salutation;
         contact.FirstName = salesRep.FirstName;
@@ -488,7 +510,15 @@ public class SalesRepService : ISalesRepService
         contact.CurrencyCode = salesRep.CurrencyCode;
         contact.About = salesRep.About;
         contact.PhotoUrl = salesRep.PhotoUrl;
-        contact.Status = !string.IsNullOrEmpty(salesRep.Status) ? salesRep.Status : contact.Status;
+        // Status precedence: an explicit status on the incoming model wins; otherwise fall back to the store's
+        // configured default contact status so the rep shows the right member status in the storefront (e.g.
+        // "Active") rather than "Inactive". When neither is available the current status is left untouched.
+        // Blocked reps are represented by account lockout (not this status), so overwriting it here is safe.
+        var resolvedStatus = !string.IsNullOrEmpty(salesRep.Status) ? salesRep.Status : defaultStatus;
+        if (!string.IsNullOrEmpty(resolvedStatus))
+        {
+            contact.Status = resolvedStatus;
+        }
 
         // Login (emails[0]) + additional emails as one de-duplicated list (case-insensitive, order preserved
         // so the login stays first). The login email cannot be dropped here (it's the account).

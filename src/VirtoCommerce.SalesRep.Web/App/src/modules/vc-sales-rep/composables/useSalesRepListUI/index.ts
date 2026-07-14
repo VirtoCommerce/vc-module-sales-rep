@@ -18,9 +18,10 @@ interface ISalesRepColumn {
 
 export default (options: {
   selectedItemId: Ref<string | undefined>;
-  selectedIds: Ref<string[]>;
+  selectedIds: ComputedRef<string[]>;
   searchSalesReps: () => Promise<void>;
   deleteSalesReps: (args: { ids: string[] }) => Promise<void>;
+  resetSelection: () => void;
 }) => {
   const { t } = useI18n({ useScope: "global" });
   const { showConfirmation } = usePopup();
@@ -61,7 +62,9 @@ export default (options: {
         if (confirmed) {
           await closeChildren();
           await options.deleteSalesReps({ ids: options.selectedIds.value });
-          options.selectedIds.value = [];
+          // Clear the selection SOURCE (not the derived ids): this also resets the data table's
+          // internal selection, so the just-deleted rows can't linger and get re-submitted.
+          options.resetSelection();
           await options.searchSalesReps();
         }
       },
