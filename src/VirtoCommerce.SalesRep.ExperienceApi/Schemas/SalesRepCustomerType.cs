@@ -42,8 +42,8 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                 var responseGroup = responseGroupParser.GetResponseGroup(
                     context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? []);
 
-                // Collapse every customer row on the page into a single grouped order query per request
-                // (instead of one query per row).
+                // Batch every customer row on the page into one service call (which runs one bounded search
+                // per organization) instead of a resolver-level order query per row.
                 var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, SalesRepOrder>(
                     $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{storeId}:{responseGroup}",
                     async organizationIds =>

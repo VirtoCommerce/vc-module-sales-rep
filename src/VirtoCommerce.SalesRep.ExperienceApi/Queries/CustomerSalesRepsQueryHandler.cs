@@ -75,16 +75,13 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         }
 
         // Filter (keyword), sort and page the reps' contacts in the database.
-        var membersCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        // GetSearchCriteria carries the request's Keyword/Sort/Skip/Take onto the criteria.
+        var membersCriteria = request.GetSearchCriteria<MembersSearchCriteria>();
         membersCriteria.ObjectIds = memberIds;
         membersCriteria.MemberType = nameof(Contact);
         membersCriteria.RootMembersOnly = false;
         // Only emails + phones are projected onto SalesRepContact; skip the rest of the Full graph.
         membersCriteria.ResponseGroup = (MemberResponseGroup.WithEmails | MemberResponseGroup.WithPhones).ToString();
-        membersCriteria.Keyword = request.Keyword;
-        membersCriteria.Sort = request.Sort;
-        membersCriteria.Skip = request.Skip;
-        membersCriteria.Take = request.Take;
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;

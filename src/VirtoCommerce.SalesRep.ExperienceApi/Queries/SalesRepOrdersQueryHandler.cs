@@ -103,11 +103,6 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         }
 
         // Dashboard: every organization the rep is assigned to (passed as a single array filter to the search).
-        var assignedMemberships = await GetGrantingMembershipsAsync([request.UserId]);
-        return assignedMemberships
-            .Select(x => x.OrganizationId)
-            .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct()
-            .ToArray();
+        return await GetServedOrganizationIdsAsync(request.UserId);
     }
 }

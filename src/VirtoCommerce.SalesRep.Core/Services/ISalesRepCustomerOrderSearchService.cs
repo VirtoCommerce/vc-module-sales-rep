@@ -5,9 +5,10 @@ using VirtoCommerce.OrdersModule.Core.Model;
 namespace VirtoCommerce.SalesRep.Core.Services;
 
 /// <summary>
-/// Batched "latest order per organization" lookup used by the Sales Rep "My customers" list (VCST-5304), so the
-/// last order for a whole page of customers is resolved in one query instead of one query per row. Standalone —
-/// it does not extend or replace the platform-wide
+/// "Latest order per organization" lookup used by the Sales Rep "My customers" list (VCST-5304). A whole page of
+/// customers is resolved through a single call (the <c>lastOrder</c> field batches them with a DataLoader), which
+/// then runs one bounded, newest-first search per organization — instead of a resolver-level order query per row.
+/// Standalone — it does not extend or replace the platform-wide
 /// <see cref="VirtoCommerce.OrdersModule.Core.Services.ICustomerOrderSearchService"/>.
 /// </summary>
 public interface ISalesRepCustomerOrderSearchService

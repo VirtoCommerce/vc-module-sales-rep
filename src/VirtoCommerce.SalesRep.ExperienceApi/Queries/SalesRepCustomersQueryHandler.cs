@@ -33,16 +33,9 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
             return result;
         }
 
-        // All organizations where the caller holds a sales-rep-granting membership
-        // (bounded by the rep's served-organization count).
+        // The organizations this rep serves (bounded by the rep's served-organization count).
         // OnlyUnlocked: a rep locked in an organization does not see it as a customer.
-        var memberships = await GetGrantingMembershipsAsync(userIds: [request.UserId]);
-
-        var organizationIds = memberships
-            .Select(x => x.OrganizationId)
-            .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct()
-            .ToArray();
+        var organizationIds = await GetServedOrganizationIdsAsync(request.UserId);
 
         if (organizationIds.Length == 0)
         {
@@ -50,16 +43,13 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         }
 
         // Filter (keyword by organization name), sort and page the organizations in the database.
-        var membersCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        // GetSearchCriteria carries the request's Keyword/Sort/Skip/Take onto the criteria.
+        var membersCriteria = request.GetSearchCriteria<MembersSearchCriteria>();
         membersCriteria.ObjectIds = organizationIds;
         membersCriteria.MemberType = nameof(Organization);
         membersCriteria.RootMembersOnly = false;
         // Only Id + Name are projected onto SalesRepCustomer (both scalar columns); skip collection loads.
         membersCriteria.ResponseGroup = MemberResponseGroup.Default.ToString();
-        membersCriteria.Keyword = request.Keyword;
-        membersCriteria.Sort = request.Sort;
-        membersCriteria.Skip = request.Skip;
-        membersCriteria.Take = request.Take;
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;
