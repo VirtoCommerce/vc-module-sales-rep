@@ -110,6 +110,15 @@ internal sealed class SalesRepTestContext : IDisposable
     public T GetRequiredService<T>() where T : notnull => _provider.GetRequiredService<T>();
 
     /// <summary>
+    /// Configure the <c>Customer.ContactDefaultStatus</c> setting the harness's <see cref="IStoreService"/> double
+    /// reports for a store, so a rep created in that store inherits it as its member status (mirrors the real
+    /// store setting, e.g. "Approved" for B2B-store).
+    /// </summary>
+    public void SetStoreContactDefaultStatus(string storeId, string status)
+        => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
+            .ContactDefaultStatusByStore[storeId] = status;
+
+    /// <summary>
     /// Create a Sales Rep (a login account + a contact serving the given organizations) through the real
     /// <see cref="SalesRepController"/>, and return the created details.
     /// </summary>

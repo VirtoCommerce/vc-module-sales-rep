@@ -25,8 +25,9 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
 
-        // Order search extended with a batched "latest order per organization" lookup (used by "my customers").
-        // Registered under its own interface only, so the platform-wide ICustomerOrderSearchService is unaffected.
+        // The module's order search: subclasses the Orders CustomerOrderSearchService (reusing its query/hydration
+        // pipeline) and adds a grouped "latest order per organization" lookup for "my customers". Registered under
+        // its own interface only, so the platform-wide ICustomerOrderSearchService registration is unaffected.
         serviceCollection.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
         // Customer order statistics (YTD/lifetime purchases, order count, average order value) for the customer

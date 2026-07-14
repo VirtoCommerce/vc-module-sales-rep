@@ -22,6 +22,10 @@ public static class ServiceCollectionExtensions
         // Field-selection → order response group (load only the order data the caller selected).
         serviceCollection.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
+        // Order statuses (filter options) + status→underlying mapping + raw-status localization. Default = each
+        // Order.Status value 1:1; a project registers its own after this to hide/add/compose (last registration wins).
+        serviceCollection.AddTransient<ISalesRepOrderStatusService, SalesRepOrderStatusService>();
+
         return serviceCollection;
     }
 }

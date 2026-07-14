@@ -19,7 +19,7 @@ public class SalesRepLogicTests
     // Exposes the protected static helpers (accessible from a derived type) for testing.
     private sealed class ServiceAccessor : SalesRepService
     {
-        public ServiceAccessor() : base(null, null, null, null, null, null) { }
+        public ServiceAccessor() : base(null, null, null, null, null, null, null) { }
 
         public static string CallDeriveFullName(SalesRepDetails salesRep) => DeriveFullName(salesRep);
     }

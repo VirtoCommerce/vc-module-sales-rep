@@ -51,4 +51,20 @@ public abstract class SalesRepQueryHandlerBase
 
         return await _membershipSearchService.SearchAllNoCloneAsync(criteria);
     }
+
+    /// <summary>
+    /// The distinct organizations the given rep is assigned to serve — the organizations of their active,
+    /// unlocked sales-rep-granting memberships. Empty when the rep serves none. This is the "customers this rep
+    /// serves" set; keeping it here (not re-derived per handler) is what stops the handlers from drifting on it.
+    /// </summary>
+    protected async Task<string[]> GetServedOrganizationIdsAsync(string userId)
+    {
+        var memberships = await GetGrantingMembershipsAsync(userIds: [userId]);
+
+        return memberships
+            .Select(x => x.OrganizationId)
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct()
+            .ToArray();
+    }
 }

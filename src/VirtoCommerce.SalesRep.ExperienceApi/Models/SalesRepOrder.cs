@@ -14,9 +14,19 @@ public class SalesRepOrder : Entity
     /// <summary>Human-readable order number.</summary>
     public string Number { get; set; }
 
+    /// <summary>Customer (organization) id the order belongs to; the graph type exposes its name as <c>customerName</c>.</summary>
+    public string CustomerId { get; set; }
+
+    /// <summary>
+    /// Customer (organization) name as denormalized on the order. May be null (older/partial orders) — the graph
+    /// type's <c>customerName</c> field then resolves it from <see cref="CustomerId"/>.
+    /// </summary>
+    public string CustomerName { get; set; }
+
     /// <summary>Date the order was placed.</summary>
     public DateTime CreatedDate { get; set; }
 
+    /// <summary>Raw order status (e.g. "Cancelled"); the graph type also exposes a localized <c>statusDisplayValue</c>.</summary>
     public string Status { get; set; }
 
     public decimal Total { get; set; }
@@ -43,6 +53,8 @@ public class SalesRepOrder : Entity
     {
         Id = order.Id;
         Number = order.Number;
+        CustomerId = order.OrganizationId;
+        CustomerName = order.OrganizationName;
         CreatedDate = order.CreatedDate;
         Status = order.Status;
         Total = order.Total;

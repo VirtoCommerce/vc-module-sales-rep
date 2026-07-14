@@ -18,11 +18,29 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// </summary>
 public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasIncludeFields
 {
-    /// <summary>Customer (organization) id whose orders to load.</summary>
+    /// <summary>
+    /// Customer (organization) id whose orders to load. Omit for a cross-customer dashboard — the orders of every
+    /// organization the rep is assigned to.
+    /// </summary>
     public string CustomerId { get; set; }
 
     /// <summary>Optional store to scope the orders to (the storefront's current store).</summary>
     public string StoreId { get; set; }
+
+    /// <summary>
+    /// Optional selected statuses (each a <c>SalesRepOrderStatus.name</c>). The handler resolves each to its
+    /// underlying order statuses (1:many for composite/overridden statuses) and filters by their union; omit (or
+    /// empty) for no status filter. A list so multi-select works without a future breaking change — single-select
+    /// is a one-element list.
+    /// </summary>
+    public IList<string> Statuses { get; set; }
+
+    /// <summary>
+    /// Culture for the localized <c>statusDisplayValue</c> field (e.g. "en-US"). Consumed by the
+    /// <c>SalesRepOrderType</c> LocalizedField resolver via the request context (the builder copies it to the
+    /// UserContext), not by this handler.
+    /// </summary>
+    public string CultureName { get; set; }
 
     /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
@@ -37,8 +55,10 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
             yield return argument;
         }
 
-        yield return Argument<NonNullGraphType<StringGraphType>>(nameof(CustomerId), "Customer (organization) id whose orders to load.");
+        yield return Argument<StringGraphType>(nameof(CustomerId), "Customer (organization) id whose orders to load; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
+        yield return Argument<ListGraphType<StringGraphType>>(nameof(Statuses), "Selected statuses (salesRepOrderStatuses 'name's); filters to the union of their underlying order statuses.");
+        yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized statusDisplayValue field (\"en-US\").");
     }
 
     public override void Map(IResolveFieldContext context)
@@ -48,6 +68,8 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
         // Identity comes from the caller's claims; only the customer id (and optional store) are client arguments.
         CustomerId = context.GetArgument<string>(nameof(CustomerId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
+        Statuses = context.GetArgument<string[]>(nameof(Statuses));
+        CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
 
         // Requested field paths (e.g. "items.total", "items.itemsCount") → used to load only the needed order data.

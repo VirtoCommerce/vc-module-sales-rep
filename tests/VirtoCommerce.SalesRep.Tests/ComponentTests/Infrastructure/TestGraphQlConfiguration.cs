@@ -14,16 +14,14 @@ using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
-using VirtoCommerce.OrdersModule.Data.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
-using VirtoCommerce.Platform.Core.Security;
+using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
-using VirtoCommerce.StoreModule.Core.Model;
-using VirtoCommerce.StoreModule.Core.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
@@ -46,22 +44,20 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<Func<IOrderRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<IOrderRepository>());
         services.Configure<CrudOptions>(_ => { });
 
-        // The REAL Orders search service — its BuildQuery applies the actual organization/store/prototype filters
-        // and newest-first sort that the sales-rep code relies on. It hydrates via ICustomerOrderService.GetAsync,
-        // supplied here by a repo-backed double (see below).
+        // The sales-rep order search under test IS the real Orders CustomerOrderSearchService (subclassed): its
+        // inherited BuildQuery applies the real organization/store/prototype filters + newest-first sort, so both
+        // the orders-list SearchAsync and the grouped "latest order per organization" query run against real
+        // SQLite. Hydration goes through ICustomerOrderService.GetAsync, supplied by a repo-backed double (the real
+        // CustomerOrderService needs ~10 cross-module deps and is not the code under test).
         services.AddTransient<ICustomerOrderService, RepositoryBackedCustomerOrderService>();
-        services.AddTransient<ICustomerOrderSearchService, CustomerOrderSearchService>();
-
-        // The sales-rep service under test — now goes through the public ICustomerOrderSearchService.
         services.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
         // Sales statistics service under test (VCST-5309): the REAL CustomerOrderStatisticsService aggregating
-        // over the same order repository. Its peripheral dependencies — the currency data source and the store
-        // lookup — are stood in by fixed test doubles (USD primary; EUR at 1.25; every store's default = EUR), so
-        // the conversion/fold math is deterministic and asserted directly.
+        // over the same order repository. Its currency data source is a fixed double (USD primary; EUR at 1.25);
+        // the store lookup is the shared TestServicesConfiguration.TestStoreService (every store's default = EUR),
+        // so the conversion/fold math is deterministic and asserted directly.
         services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
-        services.AddSingleton<IStoreService, TestStoreService>();
         services.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
 
         return services;
@@ -77,6 +73,15 @@ internal static class TestGraphQlConfiguration
 
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
+
+        // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
+        // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many filter resolution
+        // end to end. The real default SalesRepOrderStatusService is unit-tested separately.
+        services.AddSingleton<ISalesRepOrderStatusService, StubOrderStatusService>();
+
+        // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
+        // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
+        services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
 
         services.AddGraphQL(builder =>
         {
@@ -148,24 +153,49 @@ internal static class TestGraphQlConfiguration
     }
 
     /// <summary>
-    /// Store lookup double: every store reports EUR as its default currency, so the "default currency" path
-    /// (omit currencyCode, pass a store) resolves to EUR — distinct from the USD primary, which proves the resolver
-    /// used the store default and not the primary fallback.
+    /// Stand-in status service acting as a "project override": a 1:1 status ("New") plus a composite ("Inactive" →
+    /// Cancelled + Failed) so tests can prove the status list and the 1:many filter resolution (incl. multi-select
+    /// union).
     /// </summary>
-    private sealed class TestStoreService : IStoreService
+    private sealed class StubOrderStatusService : ISalesRepOrderStatusService
     {
-        public Task<IList<Store>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        private static readonly IList<SalesRepOrderStatus> _statuses =
+        [
+            SalesRepOrderStatus.Create("New", "New", "New"),
+            SalesRepOrderStatus.Create("Inactive", "Not active", "Cancelled", "Failed"),
+        ];
+
+        public Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
+            => Task.FromResult(_statuses);
+
+        public Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
         {
-            IList<Store> stores = ids.Select(id => new Store { Id = id, DefaultCurrency = "EUR" }).ToList();
-            return Task.FromResult(stores);
+            var selected = new HashSet<string>(selectedStatusNames ?? [], StringComparer.OrdinalIgnoreCase);
+            var result = _statuses
+                .Where(x => selected.Contains(x.Name))
+                .SelectMany(x => x.OrderStatuses)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            return Task.FromResult(result);
         }
+    }
 
-        public Task<IList<Store>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => throw new NotSupportedException();
+    /// <summary>
+    /// Stand-in localizable settings: renders a status as "&lt;raw&gt; (&lt;culture&gt;)" so LocalizedField's output is
+    /// observable AND proves the culture reached the resolver. Mirrors the real service by returning the raw key
+    /// unchanged when no culture is supplied.
+    /// </summary>
+    private sealed class StubLocalizableSettingService : ILocalizableSettingService
+    {
+        public Task<string> TranslateAsync(string key, string settingName, string languageCode)
+            => Task.FromResult(string.IsNullOrEmpty(key) || string.IsNullOrEmpty(languageCode) ? key : $"{key} ({languageCode})");
 
-        public Task SaveChangesAsync(IList<Store> models) => throw new NotSupportedException();
+        public Task<IList<KeyValue>> GetValuesAsync(string settingName, string languageCode)
+            => Task.FromResult<IList<KeyValue>>([]);
 
-        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
-
-        public Task<IList<string>> GetUserAllowedStoreIdsAsync(ApplicationUser user) => throw new NotSupportedException();
+        public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new NotSupportedException();
+        public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();
+        public Task DeleteAsync(string settingName, IList<string> values) => throw new NotSupportedException();
     }
 }
