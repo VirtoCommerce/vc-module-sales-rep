@@ -15,7 +15,7 @@
     <app id="vc-sales-rep">
       <title>Sales Reps</title>
       <description>Manage Sales Representatives, their organizations and accounts</description>
-      <iconUrl>Modules/$(VirtoCommerce.SalesRep)/Content/logo.png</iconUrl>
+      <iconUrl>Modules/$(VirtoCommerce.SalesRep)/Content/logo.svg</iconUrl>
       <permission>customer:read</permission>
       <supportEmbeddedMode>true</supportEmbeddedMode>
     </app>
@@ -32,7 +32,7 @@
   </owners>
 
   <projectUrl>https://github.com/VirtoCommerce/vc-module-sales-rep</projectUrl>
-  <iconUrl>Modules/$(VirtoCommerce.SalesRep)/Content/logo.png</iconUrl>
+  <iconUrl>Modules/$(VirtoCommerce.SalesRep)/Content/logo.svg</iconUrl>
   <requireLicenseAcceptance>false</requireLicenseAcceptance>
 
   <assemblyFile>VirtoCommerce.SalesRep.Web.dll</assemblyFile>
