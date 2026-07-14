@@ -153,12 +153,15 @@ public class SalesRepService : ISalesRepService
             var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
                 ?? await _roleResolver.EnsureSalesRepRoleAsync();
             var grantingRoleIds = grantingRoles.Select(r => r.Id).Append(assignableRole.Id).ToHashSet();
+            var grantingRoleNames = grantingRoles.Select(r => r.Name).Append(assignableRole.Name)
+                .Where(name => !string.IsNullOrEmpty(name))
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             using var userManager = _userManagerFactory();
 
             var user = isNew
                 ? await CreateAccountAsync(userManager, contact, salesRep, assignableRole)
-                : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleIds);
+                : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleNames);
 
             if (user != null)
             {
@@ -316,7 +319,7 @@ public class SalesRepService : ISalesRepService
         return user;
     }
 
-    protected virtual async Task<ApplicationUser> UpdateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole, ISet<string> grantingRoleIds)
+    protected virtual async Task<ApplicationUser> UpdateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole, ISet<string> grantingRoleNames)
     {
         var user = await GetTrackedUserAsync(userManager, contact.Id);
         if (user == null)
@@ -334,16 +337,32 @@ public class SalesRepService : ISalesRepService
             user.UserName = loginEmail;
         }
 
-        // Set the global role to the selected one: drop any other granting role, ensure the target is present.
-        // (Switching the role re-points the global assignment.)
-        var roles = (user.Roles ?? []).Where(r => !grantingRoleIds.Contains(r.Id)).ToList();
-        if (assignableRole != null)
-        {
-            roles.Add(assignableRole);
-        }
-        user.Roles = roles;
-
+        // Persist the profile/login change, but suppress the platform's role diff: with a null Roles,
+        // UpdateUserRolesAsync is a no-op (it early-returns). Leaving the (possibly memory-cached, stale)
+        // Roles navigation in place would let that diff run against stale state and corrupt the assignment.
+        user.Roles = null;
         ThrowIfFailed(await userManager.UpdateAsync(user));
+
+        // Re-point the global role via explicit role operations against the account's persisted roles: drop
+        // every other granting role, ensure the selected one is present. This does not depend on the cached
+        // user.Roles navigation, so it re-points deterministically even when the account is served from the
+        // CustomUserManager memory cache — the condition under which the diff-based path regressed. (Per-org
+        // memberships are written directly, so only the global assignment regressed, leaving access via two roles.)
+        var currentRoleNames = await userManager.GetRolesAsync(user);
+
+        var rolesToDrop = currentRoleNames
+            .Where(name => grantingRoleNames.Contains(name)
+                        && !string.Equals(name, assignableRole?.Name, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (rolesToDrop.Length > 0)
+        {
+            ThrowIfFailed(await userManager.RemoveFromRolesAsync(user, rolesToDrop));
+        }
+
+        if (assignableRole != null && !currentRoleNames.Contains(assignableRole.Name, StringComparer.OrdinalIgnoreCase))
+        {
+            ThrowIfFailed(await userManager.AddToRoleAsync(user, assignableRole.Name));
+        }
 
         // Apply lockout + password on the user already tracked by this UserManager (no extra fetch/manager).
         await ApplyLockoutAsync(userManager, user, salesRep.IsLocked ? DateTimeOffset.MaxValue : null);

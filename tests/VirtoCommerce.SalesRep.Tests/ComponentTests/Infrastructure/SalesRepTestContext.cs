@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -117,6 +118,38 @@ internal sealed class SalesRepTestContext : IDisposable
     public void SetStoreContactDefaultStatus(string storeId, string status)
         => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
             .ContactDefaultStatusByStore[storeId] = status;
+
+    /// <summary>
+    /// Prime the platform's <see cref="UserManager{T}"/> memory cache for a user (as any read that goes
+    /// through <c>FindByIdAsync</c> does in the running app). A subsequent edit then loads the account from
+    /// cache rather than fresh from the DB — the condition under which the global-role re-point regressed.
+    /// </summary>
+    public async Task WarmUserCacheAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+        await userManager.FindByIdAsync(userId);
+    }
+
+    /// <summary>
+    /// Create an additional role that grants <c>sales-rep:access</c> (as an admin would when adding a custom
+    /// Sales Rep role in the Security admin), so switching a rep between two granting roles can be exercised.
+    /// </summary>
+    public async Task<Role> CreateGrantingRoleAsync(string name)
+    {
+        using var roleManager = _provider.GetRequiredService<Func<RoleManager<Role>>>()();
+        var role = AbstractTypeFactory<Role>.TryCreateInstance();
+        role.Id = Guid.NewGuid().ToString("N");
+        role.Name = name;
+        role.Permissions = [new Permission { Name = SalesRep.Core.ModuleConstants.Security.Permissions.Access }];
+
+        var result = await roleManager.CreateAsync(role);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        return role;
+    }
 
     /// <summary>
     /// Create a Sales Rep (a login account + a contact serving the given organizations) through the real

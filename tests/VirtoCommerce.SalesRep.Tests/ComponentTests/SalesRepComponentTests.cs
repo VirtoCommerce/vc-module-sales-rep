@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Data.Model;
@@ -143,6 +144,39 @@ public class SalesRepComponentTests
         var created = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
 
         created.Status.Should().Be("Approved", "a rep with no explicit status inherits the store's ContactDefaultStatus");
+    }
+
+    [Fact]
+    public async Task ChangeRole_RePointsGlobalAccountRole_NotOnlyMemberships()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var role2 = await ctx.CreateGrantingRoleAsync("Sales Representative 2");
+        var role3 = await ctx.CreateGrantingRoleAsync("Sales Representative 3");
+
+        // Create with the built-in (default) granting role, serving one org.
+        var created = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+
+        // Switch the role twice (default -> role2 -> role3). The follow-up edit is the one that regressed in
+        // the field: the account is served from the CustomUserManager memory cache, and the old diff-based
+        // re-point (mutate user.Roles + UpdateAsync) dropped the change against that cached state. Per-org
+        // memberships (written directly) always re-pointed, so the two silently diverged — access via two roles.
+        created.RoleId = role2.Id;
+        var afterFirst = SalesRepTestContext.Unwrap(await ctx.Controller.Update(created));
+        afterFirst.RoleId = role3.Id;
+        SalesRepTestContext.Unwrap(await ctx.Controller.Update(afterFirst));
+
+        // The GLOBAL account role must re-point to role3 and drop the previous granting role (bug: it kept an
+        // older granting role, leaving the rep with access through two roles).
+        await using var sdb = ctx.NewSecurityDbContext();
+        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id);
+        var globalRoleIds = await sdb.Set<IdentityUserRole<string>>()
+            .Where(ur => ur.UserId == user.Id)
+            .Select(ur => ur.RoleId)
+            .ToListAsync();
+
+        globalRoleIds.Should().BeEquivalentTo([role3.Id],
+            "switching a rep's role must re-point the global account role, not only the per-org memberships");
     }
 
     [Fact]
