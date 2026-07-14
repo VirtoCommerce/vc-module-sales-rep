@@ -4,6 +4,10 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <!-- OrdersModule.Data: the Sales Rep order search subclasses the Orders module's CustomerOrderSearchService
+         (which lives in .Data) to reuse its query/hydration pipeline. Version matches the OrdersModule.Core
+         reference in SalesRep.Core and the module.manifest VirtoCommerce.Orders dependency. -->
+    <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1039.0" />
     <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1039.0" />
   </ItemGroup>

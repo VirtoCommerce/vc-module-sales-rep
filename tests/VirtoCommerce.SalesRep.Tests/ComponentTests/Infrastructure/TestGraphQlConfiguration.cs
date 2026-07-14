@@ -10,7 +10,6 @@ using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
-using VirtoCommerce.OrdersModule.Data.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Settings;
@@ -41,13 +40,12 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<Func<IOrderRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<IOrderRepository>());
         services.Configure<CrudOptions>(_ => { });
 
-        // The REAL Orders search service — its BuildQuery applies the actual organization/store/prototype filters
-        // and newest-first sort that the sales-rep code relies on. It hydrates via ICustomerOrderService.GetAsync,
-        // supplied here by a repo-backed double (see below).
+        // The sales-rep order search under test IS the real Orders CustomerOrderSearchService (subclassed): its
+        // inherited BuildQuery applies the real organization/store/prototype filters + newest-first sort, so both
+        // the orders-list SearchAsync and the grouped "latest order per organization" query run against real
+        // SQLite. Hydration goes through ICustomerOrderService.GetAsync, supplied by a repo-backed double (the real
+        // CustomerOrderService needs ~10 cross-module deps and is not the code under test).
         services.AddTransient<ICustomerOrderService, RepositoryBackedCustomerOrderService>();
-        services.AddTransient<ICustomerOrderSearchService, CustomerOrderSearchService>();
-
-        // The sales-rep service under test — now goes through the public ICustomerOrderSearchService.
         services.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
         return services;

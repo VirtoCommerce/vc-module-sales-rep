@@ -3,7 +3,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
-using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -15,19 +14,20 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// <summary>
 /// Loads a page of orders for the Sales Rep — a single customer organization (VCST-5308), or, when no customer is
 /// specified, every organization the rep is assigned to (the cross-customer dashboard). Mirrors the storefront
-/// orders search (keyword/sort/paging) but goes straight through the Orders module's public
-/// <see cref="ICustomerOrderSearchService"/> — this module stays independent of X-Order and its GraphQL types.
+/// orders search (keyword/sort/paging) but goes through the module's own
+/// <see cref="ISalesRepCustomerOrderSearchService"/> (the Orders search service, subclassed) — so this module
+/// stays independent of X-Order and its GraphQL types.
 /// </summary>
 public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepOrdersQuery, SalesRepOrderSearchResult>
 {
-    private readonly ICustomerOrderSearchService _customerOrderSearchService;
+    private readonly ISalesRepCustomerOrderSearchService _customerOrderSearchService;
     private readonly ISalesRepOrderResponseGroupParser _responseGroupParser;
     private readonly ISalesRepOrderStatusService _statusService;
 
     public SalesRepOrdersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
-        ICustomerOrderSearchService customerOrderSearchService,
+        ISalesRepCustomerOrderSearchService customerOrderSearchService,
         ISalesRepOrderResponseGroupParser responseGroupParser,
         ISalesRepOrderStatusService statusService)
         : base(roleResolver, membershipSearchService)
