@@ -135,7 +135,12 @@ public class SalesRepService : ISalesRepService
             : await _memberService.GetByIdAsync(salesRep.Id, MemberResponseGroup.Full.ToString()) as Contact
               ?? throw new InvalidOperationException($"Sales Rep '{salesRep.Id}' not found");
 
-        var defaultContactStatus = await ResolveDefaultContactStatusAsync(salesRep.StoreId);
+        // Only read the store default when the incoming model has no status. New reps carry none (the blade has
+        // no status field), so they get seeded here; an edit round-trips the rep's existing status, so the store
+        // read is skipped when it wouldn't be used (ApplyProfile prefers the incoming status over the default).
+        var defaultContactStatus = string.IsNullOrEmpty(salesRep.Status)
+            ? await ResolveDefaultContactStatusAsync(salesRep.StoreId)
+            : null;
         ApplyProfile(contact, salesRep, defaultContactStatus);
         await _memberService.SaveChangesAsync([contact]);
         salesRep.Id = contact.Id;
