@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -21,16 +23,19 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
 {
     private readonly ICustomerOrderSearchService _customerOrderSearchService;
     private readonly ISalesRepOrderResponseGroupParser _responseGroupParser;
+    private readonly ISalesRepOrderStatusService _statusService;
 
     public SalesRepOrdersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         ICustomerOrderSearchService customerOrderSearchService,
-        ISalesRepOrderResponseGroupParser responseGroupParser)
+        ISalesRepOrderResponseGroupParser responseGroupParser,
+        ISalesRepOrderStatusService statusService)
         : base(roleResolver, membershipSearchService)
     {
         _customerOrderSearchService = customerOrderSearchService;
         _responseGroupParser = responseGroupParser;
+        _statusService = statusService;
     }
 
     public virtual async Task<SalesRepOrderSearchResult> Handle(SalesRepOrdersQuery request, CancellationToken cancellationToken)
@@ -61,6 +66,22 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
         criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
+        // Selected status tabs → the union of their underlying order statuses (1:many for composite/overridden
+        // tabs). Filter only when something is selected and resolves to a non-empty set; otherwise all statuses.
+        if (request.Statuses?.Count > 0)
+        {
+            var statuses = new List<string>();
+            foreach (var selected in request.Statuses)
+            {
+                statuses.AddRange(await _statusService.ResolveOrderStatusesAsync(request.StoreId, selected));
+            }
+
+            var resolved = statuses.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+            if (resolved.Length > 0)
+            {
+                criteria.Statuses = resolved;
+            }
+        }
         // Recent orders on top by default (VCST-5308); an explicit sort argument overrides it.
         if (string.IsNullOrEmpty(criteria.Sort))
         {

@@ -16,6 +16,7 @@ using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -62,6 +63,11 @@ internal static class TestGraphQlConfiguration
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
+        // Order-status tabs. A stub (not the real settings-backed default) stands in as a "project override" so the
+        // tests exercise a composite tab ("Inactive" → Cancelled + Failed) — proving the 1:many status resolution
+        // end to end. The real default SalesRepOrderStatusService is unit-tested separately.
+        services.AddSingleton<ISalesRepOrderStatusService, StubOrderStatusService>();
+
         services.AddGraphQL(builder =>
         {
             builder.AddSchema(services, typeof(XapiAssemblyMarker)); // graph types + MediatR handlers + ISchemaBuilders
@@ -107,5 +113,28 @@ internal static class TestGraphQlConfiguration
         public Task SaveChangesAsync(IList<CustomerOrder> models) => throw new NotSupportedException();
 
         public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Stand-in status service acting as a "project override": a 1:1 tab ("New") plus a composite ("Inactive" →
+    /// Cancelled + Failed) so tests can prove the tab list, 1:many filter resolution, and that an unmapped status
+    /// is unreachable.
+    /// </summary>
+    private sealed class StubOrderStatusService : ISalesRepOrderStatusService
+    {
+        private static readonly IList<SalesRepOrderStatus> _statuses =
+        [
+            SalesRepOrderStatus.Create("New", "New", "New"),
+            SalesRepOrderStatus.Create("Inactive", "Not active", "Cancelled", "Failed"),
+        ];
+
+        public Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
+            => Task.FromResult(_statuses);
+
+        public Task<string[]> ResolveOrderStatusesAsync(string storeId, string selectedStatusName)
+        {
+            var selected = _statuses.FirstOrDefault(x => x.Name.EqualsIgnoreCase(selectedStatusName));
+            return Task.FromResult(selected?.OrderStatuses ?? []);
+        }
     }
 }

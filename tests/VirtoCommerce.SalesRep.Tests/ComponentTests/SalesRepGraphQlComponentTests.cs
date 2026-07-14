@@ -603,7 +603,96 @@ public class SalesRepGraphQlComponentTests
         json.Should().NotContain("ORD-BETA");
     }
 
-    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0)
+    // ---- order status tabs + status filter (VCST-5308) ----
+
+    [Fact]
+    public async Task SalesRepOrderStatuses_ReturnsStatusTabs()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        // Caller-agnostic (statuses are store config), but the scoped schema requires authentication.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { items { name localizedName } } }",
+            userId: "any-authenticated-user");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"name\":\"New\"");
+        json.Should().Contain("\"name\":\"Inactive\"").And.Contain("Not active"); // composite tab, localized label
+    }
+
+    [Fact]
+    public async Task SalesRepOrderStatuses_Anonymous_ReturnsAuthorizationError()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        var json = await ctx.ExecuteGraphQlAnonymousAsync(
+            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { items { name } } }");
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)anonym");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_FiltersBySelectedStatus_ResolvesCompositeTab()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        SeedOrder(ctx, id: "o-failed", org: "org-1", number: "ORD-FAILED", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Failed");
+
+        // "Inactive" is a composite tab -> [Cancelled, Failed] (StubOrderStatusService); "New" must be excluded.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\", statuses:[\"Inactive\"]) { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":2");
+        json.Should().Contain("ORD-CANCELLED").And.Contain("ORD-FAILED");
+        json.Should().NotContain("ORD-NEW");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_FiltersByMultipleStatusTabs_Union()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        SeedOrder(ctx, id: "o-processing", org: "org-1", number: "ORD-PROCESSING", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing");
+
+        // Multi-select: "New" (-> [New]) + "Inactive" (-> [Cancelled, Failed]); union excludes Processing.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\", statuses:[\"New\",\"Inactive\"]) { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":2");
+        json.Should().Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
+        json.Should().NotContain("ORD-PROCESSING");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_WithoutStatus_ReturnsAllStatuses()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+
+        // No status argument → no status filter → all statuses returned.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":2").And.Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
+    }
+
+    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New")
     {
         using var db = ctx.NewOrderDbContext();
         var order = new CustomerOrderEntity
@@ -614,7 +703,7 @@ public class SalesRepGraphQlComponentTests
             CustomerId = "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,
-            Status = "New",
+            Status = status,
             Currency = "USD",
             Total = 123.45m,
             IsPrototype = false,
