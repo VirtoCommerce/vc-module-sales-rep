@@ -149,11 +149,15 @@ internal static class TestGraphQlConfiguration
         }
     }
 
-    /// <summary>Stand-in localizable settings: renders a status as "&lt;raw&gt; (localized)" so LocalizedField's output is observable.</summary>
+    /// <summary>
+    /// Stand-in localizable settings: renders a status as "&lt;raw&gt; (&lt;culture&gt;)" so LocalizedField's output is
+    /// observable AND proves the culture reached the resolver. Mirrors the real service by returning the raw key
+    /// unchanged when no culture is supplied.
+    /// </summary>
     private sealed class StubLocalizableSettingService : ILocalizableSettingService
     {
         public Task<string> TranslateAsync(string key, string settingName, string languageCode)
-            => Task.FromResult(string.IsNullOrEmpty(key) ? key : $"{key} (localized)");
+            => Task.FromResult(string.IsNullOrEmpty(key) || string.IsNullOrEmpty(languageCode) ? key : $"{key} ({languageCode})");
 
         public Task<IList<KeyValue>> GetValuesAsync(string settingName, string languageCode)
             => Task.FromResult<IList<KeyValue>>([]);

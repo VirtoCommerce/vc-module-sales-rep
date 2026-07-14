@@ -700,15 +700,16 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
 
-        // statusDisplayValue is the order's RAW status localized (X-API LocalizedField → StubLocalizableSettingService
-        // renders it "<raw> (localized)"); culture comes from the request context, not a query argument.
+        // statusDisplayValue is the order's RAW status localized via X-API's LocalizedField. The cultureName argument
+        // is copied to the UserContext by the builder, so it reaches the per-item resolver (StubLocalizableSettingService
+        // renders "<raw> (<culture>)"), which also proves the culture actually propagated.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { items { number status statusDisplayValue } } }",
+            "query { salesRepOrders(customerId:\"org-1\", cultureName:\"en-US\") { items { number status statusDisplayValue } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"status\":\"Cancelled\"");                       // raw status preserved
-        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (localized)\""); // raw status localized, not the composite
+        json.Should().Contain("\"status\":\"Cancelled\"");                        // raw status preserved
+        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\""); // raw status localized in the requested culture
     }
 
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New")

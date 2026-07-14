@@ -27,5 +27,9 @@ public class SalesRepOrdersQueryBuilder : SearchQueryBuilder<SalesRepOrdersQuery
         {
             throw AuthorizationError.AnonymousAccessDenied();
         }
+
+        // Propagate this field's arguments (notably cultureName) to the UserContext so the per-item
+        // SalesRepOrderType.statusDisplayValue LocalizedField resolver can read the culture (the X-Order pattern).
+        context.CopyArgumentsToUserContext();
     }
 }
