@@ -53,9 +53,9 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
 
         var query = repository.CustomerOrders.Where(x => !x.IsPrototype && !x.IsCancelled);
 
-        if (!string.IsNullOrEmpty(criteria.OrganizationId))
+        if (!criteria.OrganizationIds.IsNullOrEmpty())
         {
-            query = query.Where(x => x.OrganizationId == criteria.OrganizationId);
+            query = query.Where(x => criteria.OrganizationIds.Contains(x.OrganizationId));
         }
 
         if (!string.IsNullOrEmpty(criteria.StoreId))

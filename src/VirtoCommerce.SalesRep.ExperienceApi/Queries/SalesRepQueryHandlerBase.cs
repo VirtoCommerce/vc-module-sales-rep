@@ -67,4 +67,21 @@ public abstract class SalesRepQueryHandlerBase
             .Distinct()
             .ToArray();
     }
+
+    /// <summary>
+    /// The organizations a query may read for an optional single-customer filter: when <paramref name="customerId"/>
+    /// is given, just that organization if the rep actively serves it (else none — so a rep can't read a customer
+    /// they don't serve by guessing its id); when omitted, every organization the rep is assigned to (the
+    /// cross-customer view). Shared by the orders and statistics queries so they scope identically.
+    /// </summary>
+    protected async Task<string[]> GetVisibleOrganizationIdsAsync(string userId, string customerId)
+    {
+        if (!string.IsNullOrEmpty(customerId))
+        {
+            var memberships = await GetGrantingMembershipsAsync([userId], [customerId]);
+            return memberships.Count > 0 ? [customerId] : [];
+        }
+
+        return await GetServedOrganizationIdsAsync(userId);
+    }
 }

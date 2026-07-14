@@ -29,16 +29,16 @@ public class SalesRepCustomerOrderStatisticsQueryHandler : SalesRepQueryHandlerB
 
     public virtual async Task<CustomerOrderStatisticsContext> Handle(SalesRepCustomerOrderStatisticsQuery request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.OrganizationId))
+        if (string.IsNullOrEmpty(request.UserId))
         {
             return null;
         }
 
-        // Security scoping: the caller must hold an active sales-rep-granting membership in exactly the requested
-        // organization. Without this a rep could read any organization's sales figures by guessing its id.
-        // OnlyUnlocked: a rep locked in an organization must not see it as a customer.
-        var memberships = await GetGrantingMembershipsAsync([request.UserId], [request.OrganizationId]);
-        if (memberships.Count == 0)
+        // Which organizations to aggregate: the one requested customer (only if the rep serves it), or — when no
+        // customer is specified — every organization the rep is assigned to (the combined cross-customer view).
+        // Empty means the rep serves none (or doesn't serve the requested one) → no statistics.
+        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.CustomerId);
+        if (organizationIds.Length == 0)
         {
             return null;
         }
@@ -50,7 +50,7 @@ public class SalesRepCustomerOrderStatisticsQueryHandler : SalesRepQueryHandlerB
         }
 
         var result = AbstractTypeFactory<CustomerOrderStatisticsContext>.TryCreateInstance();
-        result.OrganizationId = request.OrganizationId;
+        result.OrganizationIds = organizationIds;
         result.StoreId = request.StoreId;
         result.CurrencyCode = currencyCode;
         return result;

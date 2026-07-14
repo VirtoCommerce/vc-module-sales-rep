@@ -92,17 +92,6 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
     /// no customer is specified — every organization the rep is assigned to (the cross-customer dashboard). Returns
     /// an empty array when the rep serves none (or doesn't serve the requested one), so the caller returns no orders.
     /// </summary>
-    protected virtual async Task<string[]> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
-    {
-        if (!string.IsNullOrEmpty(request.CustomerId))
-        {
-            // Single customer: the caller must hold an active granting membership in exactly this organization,
-            // else a rep could read any organization's orders by guessing its id.
-            var memberships = await GetGrantingMembershipsAsync([request.UserId], [request.CustomerId]);
-            return memberships.Count > 0 ? [request.CustomerId] : [];
-        }
-
-        // Dashboard: every organization the rep is assigned to (passed as a single array filter to the search).
-        return await GetServedOrganizationIdsAsync(request.UserId);
-    }
+    protected virtual Task<string[]> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
+        => GetVisibleOrganizationIdsAsync(request.UserId, request.CustomerId);
 }

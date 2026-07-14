@@ -10,10 +10,10 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 public class CustomerOrderStatisticsCriteria
 {
     /// <summary>
-    /// Organization (customer) whose orders are aggregated. Scoping to a single organization is the caller's
-    /// responsibility — that the caller may see this organization is enforced upstream (in the query handler).
+    /// Organizations (customers) whose orders are aggregated. Which organizations the caller may see is enforced
+    /// upstream (in the query handler); an empty/null set aggregates nothing.
     /// </summary>
-    public string OrganizationId { get; set; }
+    public string[] OrganizationIds { get; set; }
 
     /// <summary>Optional store to scope the orders to. Null aggregates across all stores.</summary>
     public string StoreId { get; set; }
