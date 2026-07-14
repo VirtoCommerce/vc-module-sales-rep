@@ -18,7 +18,10 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// </summary>
 public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasIncludeFields
 {
-    /// <summary>Customer (organization) id whose orders to load.</summary>
+    /// <summary>
+    /// Customer (organization) id whose orders to load. Omit for a cross-customer dashboard — the orders of every
+    /// organization the rep is assigned to.
+    /// </summary>
     public string CustomerId { get; set; }
 
     /// <summary>Optional store to scope the orders to (the storefront's current store).</summary>
@@ -52,7 +55,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
             yield return argument;
         }
 
-        yield return Argument<NonNullGraphType<StringGraphType>>(nameof(CustomerId), "Customer (organization) id whose orders to load.");
+        yield return Argument<StringGraphType>(nameof(CustomerId), "Customer (organization) id whose orders to load; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
         yield return Argument<ListGraphType<StringGraphType>>(nameof(Statuses), "Selected statuses (salesRepOrderStatuses 'name's); filters to the union of their underlying order statuses.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized statusDisplayValue field (\"en-US\").");

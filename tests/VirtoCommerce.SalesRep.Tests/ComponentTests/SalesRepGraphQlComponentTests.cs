@@ -712,7 +712,35 @@ public class SalesRepGraphQlComponentTests
         json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\""); // raw status localized in the requested culture
     }
 
-    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New")
+    [Fact]
+    public async Task SalesRepOrders_WithoutCustomerId_ReturnsOrdersAcrossAssignedCustomers()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2"); // assigned to org-1 + org-2, NOT org-3
+        // o-1 has no denormalized OrganizationName → customerName falls back to a member lookup (→ "org-1").
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        // o-2 carries a denormalized OrganizationName → customerName uses it directly (no lookup), distinct from the member name.
+        SeedOrder(ctx, id: "o-2", org: "org-2", number: "ORD-2", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), organizationName: "Drift Inn Resort");
+        SeedOrder(ctx, id: "o-3", org: "org-3", number: "ORD-3", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // No customerId → cross-customer dashboard: orders of every assigned customer; the unassigned org is excluded.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders { totalCount items { number customerId customerName } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":2");
+        json.Should().Contain("ORD-1").And.Contain("ORD-2");
+        json.Should().NotContain("ORD-3");
+        // customerId = the order's organization id.
+        json.Should().Contain("\"customerId\":\"org-1\"").And.Contain("\"customerId\":\"org-2\"");
+        // customerName: fallback lookup for o-1 (member name "org-1"); the order's stored name for o-2.
+        json.Should().Contain("\"customerName\":\"org-1\"");          // resolved from the organization id
+        json.Should().Contain("\"customerName\":\"Drift Inn Resort\""); // used the value stored on the order
+    }
+
+    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New", string organizationName = null)
     {
         using var db = ctx.NewOrderDbContext();
         var order = new CustomerOrderEntity
@@ -720,6 +748,7 @@ public class SalesRepGraphQlComponentTests
             Id = id,
             Number = number,
             OrganizationId = org,
+            OrganizationName = organizationName,
             CustomerId = "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,

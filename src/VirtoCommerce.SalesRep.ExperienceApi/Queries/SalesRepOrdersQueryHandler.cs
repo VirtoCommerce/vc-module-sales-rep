@@ -13,8 +13,9 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 /// <summary>
-/// Loads a page of one customer organization's orders for the Sales Rep customer profile (VCST-5308). Mirrors the
-/// storefront orders search (keyword/sort/paging) but goes straight through the Orders module's public
+/// Loads a page of orders for the Sales Rep — a single customer organization (VCST-5308), or, when no customer is
+/// specified, every organization the rep is assigned to (the cross-customer dashboard). Mirrors the storefront
+/// orders search (keyword/sort/paging) but goes straight through the Orders module's public
 /// <see cref="ICustomerOrderSearchService"/> — this module stays independent of X-Order and its GraphQL types.
 /// </summary>
 public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepOrdersQuery, SalesRepOrderSearchResult>
@@ -40,26 +41,22 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
     {
         var result = AbstractTypeFactory<SalesRepOrderSearchResult>.TryCreateInstance();
 
-        if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.CustomerId))
+        if (string.IsNullOrEmpty(request.UserId))
         {
             return result;
         }
 
-        // Security scoping: the caller must hold an active sales-rep-granting membership in exactly the requested
-        // organization. Without this a rep could read any organization's orders by guessing its id.
-        // OnlyUnlocked: a rep locked in an organization must not see it as a customer.
-        var memberships = await GetGrantingMembershipsAsync(
-            [request.UserId],
-            [request.CustomerId]);
-
-        if (memberships.Count == 0)
+        // Which organizations' orders the caller may see: the one requested customer (only if the rep serves it),
+        // or — when no customer is specified — every organization the rep is assigned to (the dashboard).
+        var organizationIds = await GetVisibleOrganizationIdsAsync(request);
+        if (organizationIds.Length == 0)
         {
             return result;
         }
 
         // Keyword/Sort/Skip/Take come from the SearchQuery base; set only the order-specific bits here.
         var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
-        criteria.OrganizationIds = [request.CustomerId];
+        criteria.OrganizationIds = organizationIds;
         // Scope to the caller's store when provided so a rep never sees another store's orders.
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
@@ -88,5 +85,29 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
             .ToList();
 
         return result;
+    }
+
+    /// <summary>
+    /// The organization ids whose orders the caller may see: a single requested customer the rep serves, or — when
+    /// no customer is specified — every organization the rep is assigned to (the cross-customer dashboard). Returns
+    /// an empty array when the rep serves none (or doesn't serve the requested one), so the caller returns no orders.
+    /// </summary>
+    protected virtual async Task<string[]> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
+    {
+        if (!string.IsNullOrEmpty(request.CustomerId))
+        {
+            // Single customer: the caller must hold an active granting membership in exactly this organization,
+            // else a rep could read any organization's orders by guessing its id.
+            var memberships = await GetGrantingMembershipsAsync([request.UserId], [request.CustomerId]);
+            return memberships.Count > 0 ? [request.CustomerId] : [];
+        }
+
+        // Dashboard: every organization the rep is assigned to (passed as a single array filter to the search).
+        var assignedMemberships = await GetGrantingMembershipsAsync([request.UserId]);
+        return assignedMemberships
+            .Select(x => x.OrganizationId)
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct()
+            .ToArray();
     }
 }
