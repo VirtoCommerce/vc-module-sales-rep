@@ -91,15 +91,36 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), itemsCount: 2);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers { items { organizationId lastOrder { number total currency itemsCount } } } }",
+            "query { salesRepCustomers { items { organizationId lastOrder { number total { amount formattedAmount currency { code } } itemsCount } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("ORD-NEW");   // most recent
         json.Should().NotContain("ORD-OLD"); // older order is not the "last order"
-        json.Should().Contain("123.45");    // Total must be hydrated, not 0
-        json.Should().Contain("USD");
+        json.Should().Contain("123.45");            // total.amount hydrated, not 0
+        json.Should().Contain("$123.45");           // total.formattedAmount (invariant culture on the lastOrder path)
+        json.Should().Contain("\"code\":\"USD\"");  // total.currency resolved from the order's currency code
         json.Should().Contain("\"itemsCount\":2"); // line items hydrated on the lastOrder path too, not 0
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_LastOrder_LocalizesWithCultureName()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+
+        // The cultureName argument on salesRepCustomers must reach the nested lastOrder SalesRepOrderType resolvers
+        // (the builder copies it to the UserContext). Proven via statusDisplayValue (StubLocalizableSettingService
+        // renders "<raw> (<culture>)"); total.formattedAmount reads the same GetCultureName() source, so it localizes too.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(cultureName:\"en-US\") { items { lastOrder { status statusDisplayValue total { formattedAmount } } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"status\":\"Cancelled\"");
+        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\"");
     }
 
     [Fact]
@@ -453,14 +474,15 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number createdDate status total currency itemsCount } } }",
+            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number createdDate status total { amount formattedAmount currency { code } } itemsCount } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":2");
         json.Should().Contain("ORD-OLD").And.Contain("ORD-NEW");
-        json.Should().Contain("123.45");   // Total hydrated, not 0
-        json.Should().Contain("USD");
+        json.Should().Contain("123.45");            // total.amount hydrated, not 0
+        json.Should().Contain("$123.45");           // total.formattedAmount
+        json.Should().Contain("\"code\":\"USD\"");  // total.currency resolved from the order's currency code
         // Default sort is createdDate:desc — the newest order must appear before the older one.
         json.IndexOf("ORD-NEW", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("ORD-OLD", StringComparison.Ordinal));
     }
