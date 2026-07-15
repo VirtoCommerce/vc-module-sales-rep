@@ -24,8 +24,18 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
+    <!-- WithTemplatesFromPath (default email templates for SalesRepMessageEmailNotification). -->
+    <PackageReference Include="VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem" Version="3.1009.0" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
     <ProjectReference Include="..\VirtoCommerce.SalesRep.ExperienceApi\VirtoCommerce.SalesRep.ExperienceApi.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <NotificationTemplates Include="NotificationTemplates\**" />
+  </ItemGroup>
+  <Target Name="CopyCustomContentOnPublish" AfterTargets="Publish">
+    <Copy SourceFiles="@(NotificationTemplates)" DestinationFiles="$(PublishDir)\..\%(Identity)" />
+  </Target>
 </Project>

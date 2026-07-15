@@ -7,12 +7,17 @@ using GraphQL.Introspection;
 using GraphQL.MicrosoftDI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.NotificationsModule.Core.Model;
+using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.PushMessages.Core.Models;
+using VirtoCommerce.PushMessages.Core.Services;
+using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.ExperienceApi;
@@ -70,6 +75,16 @@ internal static class TestGraphQlConfiguration
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
         services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
+
+        // Customer-communication mutation (VCST-5310): the REAL default recipient resolver (over the real member
+        // search) plus capturing doubles for the two external delivery services (PushMessages / Notifications are
+        // not wired in this harness). The doubles record what was dispatched so tests can assert recipients.
+        services.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
+        services.AddSingleton<CapturingPushMessageService>();
+        services.AddSingleton<IPushMessageService>(sp => sp.GetRequiredService<CapturingPushMessageService>());
+        services.AddSingleton<CapturingNotificationSender>();
+        services.AddSingleton<INotificationSender>(sp => sp.GetRequiredService<CapturingNotificationSender>());
+        services.AddSingleton<INotificationSearchService, StubNotificationSearchService>();
 
         services.AddGraphQL(builder =>
         {
@@ -163,5 +178,73 @@ internal static class TestGraphQlConfiguration
         public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new NotSupportedException();
         public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();
         public Task DeleteAsync(string settingName, IList<string> values) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Capturing <see cref="IPushMessageService"/>: records every saved <see cref="PushMessage"/> so tests can
+    /// assert the push channel's audience (MemberIds) and content. Stands in for the PushMessages module, which is
+    /// not wired in this harness; only the write path the mutation uses is meaningful.
+    /// </summary>
+    internal sealed class CapturingPushMessageService : IPushMessageService
+    {
+        public List<PushMessage> Saved { get; } = [];
+
+        public Task SaveChangesAsync(IList<PushMessage> models)
+        {
+            Saved.AddRange(models);
+            return Task.CompletedTask;
+        }
+
+        public Task<IList<PushMessage>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+            => Task.FromResult<IList<PushMessage>>([]);
+
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => Task.CompletedTask;
+
+        public Task<PushMessage> ChangeTracking(string messageId, bool value) => Task.FromResult<PushMessage>(null);
+    }
+
+    /// <summary>
+    /// Capturing <see cref="INotificationSender"/>: records every scheduled notification so tests can assert the
+    /// email channel's recipients (To) and content. Stands in for the real sender/queue.
+    /// </summary>
+    internal sealed class CapturingNotificationSender : INotificationSender
+    {
+        public List<Notification> Scheduled { get; } = [];
+
+        public Task ScheduleSendNotificationAsync(Notification notification)
+        {
+            Scheduled.Add(notification);
+            return Task.CompletedTask;
+        }
+
+        public Task<NotificationSendResult> SendNotificationAsync(Notification notification)
+        {
+            Scheduled.Add(notification);
+            return Task.FromResult(new NotificationSendResult { IsSuccess = true });
+        }
+
+        public void EnqueueNotificationSending(string messageId) { }
+    }
+
+    /// <summary>
+    /// Stub <see cref="INotificationSearchService"/>: returns a fresh <see cref="SalesRepMessageEmailNotification"/>
+    /// with an empty tenant identity, so the <c>GetNotificationAsync</c> extension's tenant-less fallback resolves
+    /// it (a registered store-scoped template is not needed to exercise the handler's dispatch logic).
+    /// </summary>
+    private sealed class StubNotificationSearchService : INotificationSearchService
+    {
+        public Task<NotificationSearchResult> SearchNotificationsAsync(NotificationSearchCriteria criteria)
+        {
+            var result = new NotificationSearchResult { Results = [], TotalCount = 0 };
+
+            if (criteria.NotificationType == nameof(SalesRepMessageEmailNotification) && string.IsNullOrEmpty(criteria.TenantId))
+            {
+                var notification = new SalesRepMessageEmailNotification();
+                result.Results = [notification];
+                result.TotalCount = 1;
+            }
+
+            return Task.FromResult(result);
+        }
     }
 }
