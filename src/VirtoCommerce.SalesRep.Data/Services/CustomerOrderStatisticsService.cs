@@ -138,6 +138,7 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
             ? 0m
             : Math.Round(total / count, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
         period.LastOrderDate = lastOrderDate;
+        period.CurrencyCode = targetCurrency.Code;
 
         return period;
     }

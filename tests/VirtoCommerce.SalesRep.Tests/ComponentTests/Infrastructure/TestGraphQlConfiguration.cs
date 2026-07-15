@@ -24,6 +24,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -83,9 +84,14 @@ internal static class TestGraphQlConfiguration
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
         services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
 
+        // ICurrencyService (for MoneyType and the statistics conversion) is registered once in AddOrderSlice
+        // (TestCurrencyService: USD primary + EUR, with a rounding policy). No second registration here — a second
+        // AddSingleton would win by last-registration and shadow it, which previously broke the statistics tests.
+
         services.AddGraphQL(builder =>
         {
             builder.AddSchema(services, typeof(XapiAssemblyMarker)); // graph types + MediatR handlers + ISchemaBuilders
+            builder.AddGraphTypes(typeof(MoneyType).Assembly);      // Xapi.Core graph types (MoneyType/CurrencyType) — SalesRepOrder.total is MoneyType
             builder.AddSystemTextJson();                            // IGraphQLTextSerializer for result assertions
             builder.AddDataLoader();                                // lastOrder batching
         });
@@ -131,9 +137,11 @@ internal static class TestGraphQlConfiguration
     }
 
     /// <summary>
-    /// Fixed currency source for the statistics tests: USD primary (rate 1) and EUR at 1.25 — i.e. 1 EUR = 1.25 USD,
-    /// using the same "rate relative to primary" convention as the real Currency table. Stands in for the (peripheral)
-    /// currency data source so conversions are deterministic.
+    /// The single fixed currency source for the whole harness: USD primary (rate 1) and EUR at 1.25 — i.e.
+    /// 1 EUR = 1.25 USD, using the same "rate relative to primary" convention as the real Currency table. Serves
+    /// both the statistics conversion/fold and the MoneyType resolvers (<c>SalesRepOrder.total</c> and the
+    /// statistics money fields), so <c>RoundingPolicy</c> is set — <c>Money.Amount</c> calls it and would otherwise
+    /// throw a NullReferenceException.
     /// </summary>
     private sealed class TestCurrencyService : ICurrencyService
     {
@@ -141,8 +149,8 @@ internal static class TestGraphQlConfiguration
         {
             IEnumerable<Currency> currencies =
             [
-                new Currency(Language.InvariantLanguage, "USD", "US Dollar", "$", 1m) { IsPrimary = true },
-                new Currency(Language.InvariantLanguage, "EUR", "Euro", "€", 1.25m),
+                new Currency(Language.InvariantLanguage, "USD", "US Dollar", "$", 1m) { IsPrimary = true, RoundingPolicy = new DefaultMoneyRoundingPolicy() },
+                new Currency(Language.InvariantLanguage, "EUR", "Euro", "€", 1.25m) { RoundingPolicy = new DefaultMoneyRoundingPolicy() },
             ];
             return Task.FromResult(currencies);
         }
@@ -198,4 +206,5 @@ internal static class TestGraphQlConfiguration
         public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();
         public Task DeleteAsync(string settingName, IList<string> values) => throw new NotSupportedException();
     }
+
 }

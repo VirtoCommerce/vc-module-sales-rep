@@ -12,6 +12,7 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// End-to-end component tests for the <c>salesRepCustomerOrderStatistics</c> X-API query (VCST-5309): seed real
 /// orders into in-memory SQLite, execute real GraphQL through the real scoped schema / MediatR handler / the
 /// real <c>CustomerOrderStatisticsService</c>, and assert the aggregated, currency-converted numbers exactly.
+/// Money fields are MoneyType (like SalesRepOrder.total), so the numeric value is asserted via <c>{ amount }</c>.
 /// The only stand-ins are the peripheral currency/store data sources (fixed rates in <c>TestGraphQlConfiguration</c>).
 /// </summary>
 [Trait("Category", "Component")]
@@ -50,11 +51,11 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
               query {
                 salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") {
                   currencyCode
-                  ytd:      period({{Ytd}}) { total count average lastOrderDate }
-                  lastYear: period({{LastYear}}) { total count average }
-                  lifetime: period { total count lastOrderDate }
+                  ytd:      period({{Ytd}}) { total { amount } count average { amount } lastOrderDate }
+                  lastYear: period({{LastYear}}) { total { amount } count average { amount } }
+                  lifetime: period { total { amount } count lastOrderDate }
                   ytdVsLastYear: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }) {
-                    totalChange totalChangePercent countChange countChangePercent averageChange averageChangePercent
+                    totalChange { amount } totalChangePercent countChange countChangePercent averageChange { amount } averageChangePercent
                   }
                 }
               }
@@ -65,27 +66,27 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         stats.GetProperty("currencyCode").GetString().Should().Be("USD");
 
         var ytd = stats.GetProperty("ytd");
-        ytd.GetProperty("total").GetDecimal().Should().Be(600m);       // 100 + 200 + 300 (cancelled/prototype excluded)
+        MoneyAmount(ytd, "total").Should().Be(600m);       // 100 + 200 + 300 (cancelled/prototype excluded)
         ytd.GetProperty("count").GetInt32().Should().Be(3);
-        ytd.GetProperty("average").GetDecimal().Should().Be(200m);     // 600 / 3
+        MoneyAmount(ytd, "average").Should().Be(200m);     // 600 / 3
         ytd.GetProperty("lastOrderDate").GetDateTime().Should().Be(_jun2026);
 
         var lastYear = stats.GetProperty("lastYear");
-        lastYear.GetProperty("total").GetDecimal().Should().Be(200m);  // 50 + 150
+        MoneyAmount(lastYear, "total").Should().Be(200m);  // 50 + 150
         lastYear.GetProperty("count").GetInt32().Should().Be(2);
-        lastYear.GetProperty("average").GetDecimal().Should().Be(100m);
+        MoneyAmount(lastYear, "average").Should().Be(100m);
 
         var lifetime = stats.GetProperty("lifetime");
-        lifetime.GetProperty("total").GetDecimal().Should().Be(1800m); // everything except the two excluded
+        MoneyAmount(lifetime, "total").Should().Be(1800m); // everything except the two excluded
         lifetime.GetProperty("count").GetInt32().Should().Be(6);
         lifetime.GetProperty("lastOrderDate").GetDateTime().Should().Be(_jun2026);
 
         var cmp = stats.GetProperty("ytdVsLastYear");
-        cmp.GetProperty("totalChange").GetDecimal().Should().Be(400m);          // 600 - 200
+        MoneyAmount(cmp, "totalChange").Should().Be(400m);                      // 600 - 200
         cmp.GetProperty("totalChangePercent").GetDecimal().Should().Be(200m);   // 400 / 200
         cmp.GetProperty("countChange").GetInt32().Should().Be(1);
         cmp.GetProperty("countChangePercent").GetDecimal().Should().Be(50m);
-        cmp.GetProperty("averageChange").GetDecimal().Should().Be(100m);        // 200 - 100
+        MoneyAmount(cmp, "averageChange").Should().Be(100m);                    // 200 - 100
         cmp.GetProperty("averageChangePercent").GetDecimal().Should().Be(100m);
     }
 
@@ -101,7 +102,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") {
-                currencyCode ytd: period({{Ytd}}) { total count average } } }
+                currencyCode ytd: period({{Ytd}}) { total { amount } count average { amount } } } }
               """,
             userId: rep.UserId);
 
@@ -110,9 +111,9 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         // possible because each group's count is kept until after conversion.
         stats.GetProperty("currencyCode").GetString().Should().Be("USD");
         var ytd = stats.GetProperty("ytd");
-        ytd.GetProperty("total").GetDecimal().Should().Be(225m);
+        MoneyAmount(ytd, "total").Should().Be(225m);
         ytd.GetProperty("count").GetInt32().Should().Be(2);
-        ytd.GetProperty("average").GetDecimal().Should().Be(112.5m);
+        MoneyAmount(ytd, "average").Should().Be(112.5m);
     }
 
     [Fact]
@@ -127,7 +128,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "EUR") {
-                currencyCode ytd: period({{Ytd}}) { total count average } } }
+                currencyCode ytd: period({{Ytd}}) { total { amount } count average { amount } } } }
               """,
             userId: rep.UserId);
 
@@ -135,9 +136,9 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         // (100 USD / 1.25) + 100 EUR = 80 + 100 = 180 EUR across 2 orders → AOV 90.
         stats.GetProperty("currencyCode").GetString().Should().Be("EUR");
         var ytd = stats.GetProperty("ytd");
-        ytd.GetProperty("total").GetDecimal().Should().Be(180m);
+        MoneyAmount(ytd, "total").Should().Be(180m);
         ytd.GetProperty("count").GetInt32().Should().Be(2);
-        ytd.GetProperty("average").GetDecimal().Should().Be(90m);
+        MoneyAmount(ytd, "average").Should().Be(90m);
     }
 
     [Fact]
@@ -148,17 +149,17 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, "usd", "org-1", 100m, _feb2026, currency: "USD");
 
-        // No CurrencyCode, but a store is given → the store's default currency (EUR in the test store double) wins.
+        // No currencyCode, but a store is given → the store's default currency (EUR in the test store double) wins.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(customerId:"org-1", storeId: "B2B-store") {
-                currencyCode ytd: period({{Ytd}}) { total } } }
+                currencyCode ytd: period({{Ytd}}) { total { amount } } } }
               """,
             userId: rep.UserId);
 
         var stats = Stats(json);
         stats.GetProperty("currencyCode").GetString().Should().Be("EUR"); // store default, not the USD primary
-        stats.GetProperty("ytd").GetProperty("total").GetDecimal().Should().Be(80m); // 100 USD / 1.25
+        MoneyAmount(stats.GetProperty("ytd"), "total").Should().Be(80m);  // 100 USD / 1.25
     }
 
     [Fact]
@@ -169,16 +170,16 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, "usd", "org-1", 100m, _feb2026, currency: "USD");
 
-        // Neither CurrencyCode nor StoreId → falls back to the platform primary currency (USD).
+        // Neither currencyCode nor storeId → falls back to the platform primary currency (USD).
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1") { currencyCode ytd: period({{Ytd}}) { total } } }
+              query { salesRepCustomerOrderStatistics(customerId:"org-1") { currencyCode ytd: period({{Ytd}}) { total { amount } } } }
               """,
             userId: rep.UserId);
 
         var stats = Stats(json);
         stats.GetProperty("currencyCode").GetString().Should().Be("USD");
-        stats.GetProperty("ytd").GetProperty("total").GetDecimal().Should().Be(100m);
+        MoneyAmount(stats.GetProperty("ytd"), "total").Should().Be(100m);
     }
 
     [Fact]
@@ -193,12 +194,12 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(customerId:"org-1", storeId: "B2B-store", currencyCode: "USD") {
-                ytd: period({{Ytd}}) { total count } } }
+                ytd: period({{Ytd}}) { total { amount } count } } }
               """,
             userId: rep.UserId);
 
         var ytd = Stats(json).GetProperty("ytd");
-        ytd.GetProperty("total").GetDecimal().Should().Be(100m); // only the B2B-store order
+        MoneyAmount(ytd, "total").Should().Be(100m); // only the B2B-store order
         ytd.GetProperty("count").GetInt32().Should().Be(1);
     }
 
@@ -213,9 +214,9 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") {
-                lastYear: period({{LastYear}}) { total count average lastOrderDate }
+                lastYear: period({{LastYear}}) { total { amount } count average { amount } lastOrderDate }
                 ytdVsLastYear: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }) {
-                  totalChange totalChangePercent countChange countChangePercent averageChange averageChangePercent
+                  totalChange { amount } totalChangePercent countChange countChangePercent averageChange { amount } averageChangePercent
                 }
               } }
               """,
@@ -223,13 +224,13 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var stats = Stats(json);
         var prev = stats.GetProperty("lastYear");
-        prev.GetProperty("total").GetDecimal().Should().Be(0m);
+        MoneyAmount(prev, "total").Should().Be(0m);
         prev.GetProperty("count").GetInt32().Should().Be(0);
-        prev.GetProperty("average").GetDecimal().Should().Be(0m);
+        MoneyAmount(prev, "average").Should().Be(0m);
         prev.GetProperty("lastOrderDate").ValueKind.Should().Be(JsonValueKind.Null);
 
         var cmp = stats.GetProperty("ytdVsLastYear");
-        cmp.GetProperty("totalChange").GetDecimal().Should().Be(100m);                    // 100 - 0 (absolute still valid)
+        MoneyAmount(cmp, "totalChange").Should().Be(100m);                                // 100 - 0 (absolute still valid)
         cmp.GetProperty("totalChangePercent").ValueKind.Should().Be(JsonValueKind.Null);  // no ratio against zero
         cmp.GetProperty("countChange").GetInt32().Should().Be(1);
         cmp.GetProperty("countChangePercent").ValueKind.Should().Be(JsonValueKind.Null);
@@ -246,7 +247,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-2", currencyCode: "USD") { ytd: period({{Ytd}}) { total } } }
+              query { salesRepCustomerOrderStatistics(customerId:"org-2", currencyCode: "USD") { ytd: period({{Ytd}}) { total { amount } } } }
               """,
             userId: rep.UserId);
 
@@ -261,7 +262,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") { ytd: period({{Ytd}}) { total } } }
+              query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") { ytd: period({{Ytd}}) { total { amount } } } }
               """);
 
         json.Should().Contain("\"errors\"");
@@ -283,12 +284,12 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(currencyCode: "USD") {
-                ytd: period({{Ytd}}) { total count } } }
+                ytd: period({{Ytd}}) { total { amount } count } } }
               """,
             userId: rep.UserId);
 
         var ytd = Stats(json).GetProperty("ytd");
-        ytd.GetProperty("total").GetDecimal().Should().Be(300m); // 100 (org-1) + 200 (org-2); org-3 excluded
+        MoneyAmount(ytd, "total").Should().Be(300m); // 100 (org-1) + 200 (org-2); org-3 excluded
         ytd.GetProperty("count").GetInt32().Should().Be(2);
     }
 
@@ -302,6 +303,10 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
         return root.GetProperty("data").GetProperty("salesRepCustomerOrderStatistics").Clone();
     }
+
+    /// <summary>Reads the numeric <c>amount</c> of a MoneyType money field (e.g. total / average / totalChange).</summary>
+    private static decimal MoneyAmount(JsonElement parent, string field)
+        => parent.GetProperty(field).GetProperty("amount").GetDecimal();
 
     private static void SeedOrder(
         SalesRepTestContext ctx, string id, string org, decimal total, DateTime createdDate,

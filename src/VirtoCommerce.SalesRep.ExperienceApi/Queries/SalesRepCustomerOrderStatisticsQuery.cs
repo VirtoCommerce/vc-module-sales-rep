@@ -28,6 +28,12 @@ public class SalesRepCustomerOrderStatisticsQuery : Query<CustomerOrderStatistic
     /// <summary>Currency to convert all figures to (defaults to the store's default currency, then the primary currency).</summary>
     public string CurrencyCode { get; set; }
 
+    /// <summary>
+    /// Culture for the money fields' formatted amounts (e.g. "en-US"). Consumed by the MoneyType resolvers via the
+    /// request context (the builder copies it to the UserContext), not by this handler.
+    /// </summary>
+    public string CultureName { get; set; }
+
     /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
 
@@ -36,14 +42,16 @@ public class SalesRepCustomerOrderStatisticsQuery : Query<CustomerOrderStatistic
         yield return Argument<StringGraphType>(nameof(CustomerId), "Customer (organization) id whose orders to aggregate; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
         yield return Argument<StringGraphType>(nameof(CurrencyCode), "Currency to convert all figures to (defaults to the store's default currency).");
+        yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the money fields' formatted amounts (\"en-US\").");
     }
 
     public override void Map(IResolveFieldContext context)
     {
-        // Identity comes from the caller's claims; only the customer/store/currency are client arguments.
+        // Identity comes from the caller's claims; the rest are client arguments.
         CustomerId = context.GetArgument<string>(nameof(CustomerId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
         CurrencyCode = context.GetArgument<string>(nameof(CurrencyCode));
+        CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
     }
 }

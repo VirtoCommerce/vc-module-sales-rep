@@ -3,10 +3,12 @@ using System.Linq;
 using GraphQL;
 using GraphQL.DataLoader;
 using GraphQL.Types;
+using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Schemas;
 using OrderSettings = VirtoCommerce.OrdersModule.Core.ModuleConstants.Settings.General;
 
@@ -17,7 +19,8 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
     public SalesRepOrderType(
         ILocalizableSettingService localizableSettingService,
         IDataLoaderContextAccessor dataLoaderContextAccessor,
-        IMemberService memberService)
+        IMemberService memberService,
+        ICurrencyService currencyService)
     {
         Name = "SalesRepOrder";
 
@@ -27,8 +30,18 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
         Field(x => x.CreatedDate, nullable: false).Description("Date the order was placed.");
         // Adds `status` (raw) + `statusDisplayValue` (localized from the Order.Status dictionary; culture from context).
         LocalizedField(x => x.Status, OrderSettings.OrderStatus, localizableSettingService, nullable: true);
-        Field(x => x.Total, nullable: false).Description("Order grand total.");
-        Field(x => x.Currency, nullable: true).Description("Order currency code (the currency in which the order was submitted).");
+        // Grand total as Money so clients get amount + formattedAmount (+ the currency object). The order stores a
+        // currency code; resolve it to the full Currency for the requested culture — GetAllCurrenciesAsync is cached,
+        // so this is safe per row without a DataLoader. Culture comes from the query's cultureName argument (copied to
+        // the user context by the SalesRepSearchQueryBuilder base); when absent, formatting falls back to the invariant culture.
+        Field<NonNullGraphType<MoneyType>>("total")
+            .Description("Order grand total (amount, formatted amount and currency).")
+            .ResolveAsync(async context =>
+            {
+                var currencies = await currencyService.GetAllCurrenciesAsync();
+                var currency = currencies.GetCurrencyForLanguage(context.Source.Currency, context.GetCultureName());
+                return new Money(context.Source.Total, currency);
+            });
         Field(x => x.ItemsCount, nullable: false).Description("Number of line items in the order.");
 
         // Customer (organization) name — the value denormalized on the order when present; otherwise resolved from

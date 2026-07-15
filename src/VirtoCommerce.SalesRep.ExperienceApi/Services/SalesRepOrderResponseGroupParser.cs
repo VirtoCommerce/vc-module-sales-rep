@@ -12,9 +12,12 @@ public class SalesRepOrderResponseGroupParser : ISalesRepOrderResponseGroupParse
     {
         var fields = includeFields ?? [];
 
-        // Match on the leaf field name so the connection's own "totalCount" isn't mistaken for the order "total".
+        // Match on any path segment (not just the leaf) so an object-valued field like `total { amount }` — whose
+        // leaf is "amount" — is still recognized by its "total" segment, while the connection's own "totalCount"
+        // (a different segment) is never mistaken for the order "total".
         bool Requested(string fieldName) =>
-            fields.Any(x => !string.IsNullOrEmpty(x) && x.Split('.')[^1].Equals(fieldName, StringComparison.OrdinalIgnoreCase));
+            fields.Any(path => !string.IsNullOrEmpty(path)
+                && path.Split('.').Any(segment => segment.Equals(fieldName, StringComparison.OrdinalIgnoreCase)));
 
         // number/status/currency/createdDate are scalar columns loaded with Default — only total and itemsCount
         // opt into a heavier group.

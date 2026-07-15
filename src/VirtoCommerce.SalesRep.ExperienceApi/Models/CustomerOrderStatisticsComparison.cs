@@ -25,4 +25,7 @@ public class CustomerOrderStatisticsComparison
 
     /// <summary>Percentage change of average; null when the previous average is zero.</summary>
     public decimal? AverageChangePercent { get; set; }
+
+    /// <summary>Currency the monetary change values (<see cref="TotalChange"/>, <see cref="AverageChange"/>) are in.</summary>
+    public string CurrencyCode { get; set; }
 }

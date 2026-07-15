@@ -102,6 +102,8 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
     {
         var result = AbstractTypeFactory<CustomerOrderStatisticsComparison>.TryCreateInstance();
 
+        // Both periods are converted to the same target currency, so the change values carry that currency too.
+        result.CurrencyCode = current.CurrencyCode;
         result.TotalChange = current.Total - previous.Total;
         result.TotalChangePercent = Percent(previous.Total, current.Total);
         result.CountChange = current.Count - previous.Count;
