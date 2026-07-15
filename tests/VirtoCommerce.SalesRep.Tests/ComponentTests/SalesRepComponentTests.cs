@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -154,29 +155,53 @@ public class SalesRepComponentTests
         var role2 = await ctx.CreateGrantingRoleAsync("Sales Representative 2");
         var role3 = await ctx.CreateGrantingRoleAsync("Sales Representative 3");
 
-        // Create with the built-in (default) granting role, serving one org.
         var created = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+        var userId = await GetAccountIdAsync(ctx, created.Id);
 
-        // Switch the role twice (default -> role2 -> role3). The follow-up edit is the one that regressed in
-        // the field: the account is served from the CustomUserManager memory cache, and the old diff-based
-        // re-point (mutate user.Roles + UpdateAsync) dropped the change against that cached state. Per-org
-        // memberships (written directly) always re-pointed, so the two silently diverged — access via two roles.
-        created.RoleId = role2.Id;
+        // No RoleId was sent, so the rep was created with whichever granting role the resolver enumerates
+        // first — an unordered query over random GUID ids, i.e. a per-run coin flip between role2 and role3.
+        // Pick the switch targets relative to it so BOTH edits below are guaranteed real role changes
+        // (a same-role "switch" is a no-op that would mask the regression and made earlier repros flaky).
+        var firstTarget = created.RoleId == role2.Id ? role3 : role2;
+        var secondTarget = firstTarget == role2 ? role3 : role2;
+
+        // COLD cache: the account read inside the edit is a guaranteed cache miss, so FindByIdAsync hands the
+        // service an instance that is also EF-tracked by the updating manager's own DbContext. This is the
+        // state in which the field bug reproduced: mutating that instance and passing it back to UpdateAsync
+        // made the platform's role diff run against itself (LoadExistingUser resolves the SAME tracked object
+        // and reloads its Roles from the DB), so the role change was silently lost — the global assignment
+        // diverged from the per-org memberships, which are written directly and always re-pointed.
+        SalesRepTestContext.ExpireSecurityCache();
+        created.RoleId = firstTarget.Id;
         var afterFirst = SalesRepTestContext.Unwrap(await ctx.Controller.Update(created));
-        afterFirst.RoleId = role3.Id;
+
+        (await GetGlobalRoleIdsAsync(ctx, userId)).Should().BeEquivalentTo([firstTarget.Id],
+            "a cold-cache edit must re-point the global account role, not only the per-org memberships");
+
+        // WARM cache: the account is served from the platform memory cache (an instance owned by a foreign,
+        // already-disposed scope) — the other read path an edit can hit; must re-point all the same.
+        await ctx.WarmUserCacheAsync(userId);
+        afterFirst.RoleId = secondTarget.Id;
         SalesRepTestContext.Unwrap(await ctx.Controller.Update(afterFirst));
 
-        // The GLOBAL account role must re-point to role3 and drop the previous granting role (bug: it kept an
-        // older granting role, leaving the rep with access through two roles).
+        (await GetGlobalRoleIdsAsync(ctx, userId)).Should().BeEquivalentTo([secondTarget.Id],
+            "a warm-cache edit must re-point the global account role and drop the previous granting role");
+    }
+
+    private static async Task<string> GetAccountIdAsync(SalesRepTestContext ctx, string memberId)
+    {
         await using var sdb = ctx.NewSecurityDbContext();
-        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id);
-        var globalRoleIds = await sdb.Set<IdentityUserRole<string>>()
-            .Where(ur => ur.UserId == user.Id)
+        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == memberId);
+        return user.Id;
+    }
+
+    private static async Task<List<string>> GetGlobalRoleIdsAsync(SalesRepTestContext ctx, string userId)
+    {
+        await using var sdb = ctx.NewSecurityDbContext();
+        return await sdb.Set<IdentityUserRole<string>>()
+            .Where(ur => ur.UserId == userId)
             .Select(ur => ur.RoleId)
             .ToListAsync();
-
-        globalRoleIds.Should().BeEquivalentTo([role3.Id],
-            "switching a rep's role must re-point the global account role, not only the per-org memberships");
     }
 
     [Fact]

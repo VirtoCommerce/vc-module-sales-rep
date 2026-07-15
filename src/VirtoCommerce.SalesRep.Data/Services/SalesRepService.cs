@@ -153,15 +153,12 @@ public class SalesRepService : ISalesRepService
             var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
                 ?? await _roleResolver.EnsureSalesRepRoleAsync();
             var grantingRoleIds = grantingRoles.Select(r => r.Id).Append(assignableRole.Id).ToHashSet();
-            var grantingRoleNames = grantingRoles.Select(r => r.Name).Append(assignableRole.Name)
-                .Where(name => !string.IsNullOrEmpty(name))
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             using var userManager = _userManagerFactory();
 
             var user = isNew
                 ? await CreateAccountAsync(userManager, contact, salesRep, assignableRole)
-                : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleNames);
+                : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleIds);
 
             if (user != null)
             {
@@ -319,14 +316,24 @@ public class SalesRepService : ISalesRepService
         return user;
     }
 
-    protected virtual async Task<ApplicationUser> UpdateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole, ISet<string> grantingRoleNames)
+    protected virtual async Task<ApplicationUser> UpdateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole, ISet<string> grantingRoleIds)
     {
-        var user = await GetTrackedUserAsync(userManager, contact.Id);
-        if (user == null)
+        var account = await GetTrackedUserAsync(userManager, contact.Id);
+        if (account == null)
         {
             // The contact had no account yet (edge case) — create one.
             return await CreateAccountAsync(userManager, contact, salesRep, assignableRole);
         }
+
+        // UpdateAsync must receive a DETACHED user carrying the desired state — the same contract the platform's
+        // own PUT /api/platform/security/users relies on (its payload is JSON-bound, never the manager's instance).
+        // The instance FindByIdAsync returns is the shared memory-cached one and, right after a cache miss, is ALSO
+        // tracked by this manager's DbContext. Passing it to UpdateAsync corrupts the role update: the platform's
+        // UpdateUserAsync re-loads "the existing user" through that same context, EF identity resolution hands back
+        // the very same instance, and LoadUserDetailsAsync resets its Roles from the DB — so the platform then diffs
+        // the desired roles against themselves and silently drops the change. Editing a clone also keeps mutations
+        // from leaking into the shared cache when a save fails midway.
+        var user = account.CloneTyped();
 
         // The login email is emails[0]. Keep both Email and UserName (the sign-in identifier) in sync with it
         // so they never diverge when the admin changes the login email.
@@ -337,34 +344,19 @@ public class SalesRepService : ISalesRepService
             user.UserName = loginEmail;
         }
 
-        // Persist the profile/login change, but suppress the platform's role diff: with a null Roles,
-        // UpdateUserRolesAsync is a no-op (it early-returns). Leaving the (possibly memory-cached, stale)
-        // Roles navigation in place would let that diff run against stale state and corrupt the assignment.
-        user.Roles = null;
+        // Set the global role to the selected one: drop any other granting role, keep unrelated roles, ensure the
+        // target is present. UpdateAsync diffs this desired set against the persisted assignments and applies the
+        // difference. (Switching the role re-points the global assignment.)
+        var roles = (user.Roles ?? []).Where(r => !grantingRoleIds.Contains(r.Id)).ToList();
+        if (assignableRole != null)
+        {
+            roles.Add(assignableRole);
+        }
+        user.Roles = roles;
+
         ThrowIfFailed(await userManager.UpdateAsync(user));
 
-        // Re-point the global role via explicit role operations against the account's persisted roles: drop
-        // every other granting role, ensure the selected one is present. This does not depend on the cached
-        // user.Roles navigation, so it re-points deterministically even when the account is served from the
-        // CustomUserManager memory cache — the condition under which the diff-based path regressed. (Per-org
-        // memberships are written directly, so only the global assignment regressed, leaving access via two roles.)
-        var currentRoleNames = await userManager.GetRolesAsync(user);
-
-        var rolesToDrop = currentRoleNames
-            .Where(name => grantingRoleNames.Contains(name)
-                        && !string.Equals(name, assignableRole?.Name, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        if (rolesToDrop.Length > 0)
-        {
-            ThrowIfFailed(await userManager.RemoveFromRolesAsync(user, rolesToDrop));
-        }
-
-        if (assignableRole != null && !currentRoleNames.Contains(assignableRole.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            ThrowIfFailed(await userManager.AddToRoleAsync(user, assignableRole.Name));
-        }
-
-        // Apply lockout + password on the user already tracked by this UserManager (no extra fetch/manager).
+        // Lockout + password reuse the same detached user; the manager persists them by patching the stored entity.
         await ApplyLockoutAsync(userManager, user, salesRep.IsLocked ? DateTimeOffset.MaxValue : null);
 
         if (!string.IsNullOrEmpty(salesRep.Password))

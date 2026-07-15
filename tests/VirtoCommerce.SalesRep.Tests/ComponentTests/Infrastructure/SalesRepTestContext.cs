@@ -22,6 +22,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Events;
+using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi;
@@ -121,13 +122,24 @@ internal sealed class SalesRepTestContext : IDisposable
 
     /// <summary>
     /// Prime the platform's <see cref="UserManager{T}"/> memory cache for a user (as any read that goes
-    /// through <c>FindByIdAsync</c> does in the running app). A subsequent edit then loads the account from
-    /// cache rather than fresh from the DB — the condition under which the global-role re-point regressed.
+    /// through <c>FindByIdAsync</c> does in the running app). A subsequent edit then gets the cached instance,
+    /// which comes from a foreign (already disposed) scope — the "warm cache" path of an account update.
     /// </summary>
     public async Task WarmUserCacheAsync(string userId)
     {
         using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
         await userManager.FindByIdAsync(userId);
+    }
+
+    /// <summary>
+    /// Evict all security entries from the platform memory cache. The next account read is then a guaranteed
+    /// cache miss, so <c>FindByIdAsync</c> loads the user through the calling manager's own DbContext — the
+    /// "cold cache" path, where the returned instance is also EF-tracked by that context. That is the condition
+    /// under which passing the instance back into <c>UpdateAsync</c> used to silently drop role changes.
+    /// </summary>
+    public static void ExpireSecurityCache()
+    {
+        SecurityCacheRegion.ExpireRegion();
     }
 
     /// <summary>
