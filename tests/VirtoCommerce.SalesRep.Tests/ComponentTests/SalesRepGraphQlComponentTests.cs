@@ -277,7 +277,7 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(id:\"org-1\") { organizationId organizationName } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { organizationId organizationName } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -295,7 +295,7 @@ public class SalesRepGraphQlComponentTests
         // The rep serves org-1 only; requesting org-2 (which exists) must not leak it — a rep cannot read an
         // arbitrary organization by guessing its id.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(id:\"org-2\") { organizationId organizationName } }",
+            "query { salesRepCustomer(organizationId:\"org-2\") { organizationId organizationName } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -314,7 +314,7 @@ public class SalesRepGraphQlComponentTests
         await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(membershipId);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(id:\"org-1\") { organizationId } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { organizationId } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -327,7 +327,7 @@ public class SalesRepGraphQlComponentTests
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { salesRepCustomer(id:\"org-1\") { organizationId } }");
+            "query { salesRepCustomer(organizationId:\"org-1\") { organizationId } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
@@ -351,7 +351,7 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(id:\"org-1\") { primaryContact { id fullName phones } phone } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName phones } phone } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -369,7 +369,7 @@ public class SalesRepGraphQlComponentTests
 
         // With no owner, the primary contact falls back to the org's first contact member — here the rep itself.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(id:\"org-1\") { primaryContact { id fullName } } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -390,7 +390,7 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(id:\"org-1\") { accountType shipTo } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { accountType shipTo } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -462,7 +462,7 @@ public class SalesRepGraphQlComponentTests
         all.Should().Contain("ORD-OTHER").And.NotContain("ORD-B2B");
     }
 
-    // ---- salesRepOrders(customerId) — a customer's orders (VCST-5308) ----
+    // ---- salesRepOrders(organizationId) — a customer's orders (VCST-5308) ----
 
     [Fact]
     public async Task SalesRepOrders_ReturnsCustomerOrders_RecentFirst()
@@ -475,7 +475,7 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number createdDate status total { amount formattedAmount currency { code } } itemsCount } } }",
+            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number createdDate status total { amount formattedAmount currency { code } } itemsCount } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -498,7 +498,7 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), itemsCount: 3);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { items { number itemsCount } } }",
+            "query { salesRepOrders(organizationId:\"org-1\") { items { number itemsCount } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -515,7 +515,7 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-2", org: "org-2", number: "ORD-LEAK", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-2\") { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-2\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -536,7 +536,7 @@ public class SalesRepGraphQlComponentTests
         await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IOrganizationMembershipService>().LockAsync(membershipId);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -550,7 +550,7 @@ public class SalesRepGraphQlComponentTests
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }");
+            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
@@ -570,14 +570,14 @@ public class SalesRepGraphQlComponentTests
 
         // Page 1 (first:2): the two most recent orders.
         var page1 = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", first:2, after:\"0\") { totalCount pageInfo{ hasNextPage } items{ number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", first:2, after:\"0\") { totalCount pageInfo{ hasNextPage } items{ number } } }",
             userId: rep.UserId);
         page1.Should().Contain("\"totalCount\":3").And.Contain("\"hasNextPage\":true");
         page1.Should().Contain("ORD-3").And.Contain("ORD-2").And.NotContain("ORD-1");
 
         // Page 2 (after:2): the remaining order, no overlap with page 1.
         var page2 = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", first:2, after:\"2\") { pageInfo{ hasNextPage } items{ number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", first:2, after:\"2\") { pageInfo{ hasNextPage } items{ number } } }",
             userId: rep.UserId);
         page2.Should().Contain("ORD-1").And.NotContain("ORD-3").And.NotContain("ORD-2");
         page2.Should().Contain("\"hasNextPage\":false");
@@ -594,14 +594,14 @@ public class SalesRepGraphQlComponentTests
 
         // Scoped to B2B-store: only the B2B order, even though the OtherStore order is more recent.
         var b2b = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", storeId:\"B2B-store\") { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", storeId:\"B2B-store\") { totalCount items { number } } }",
             userId: rep.UserId);
         b2b.Should().NotContain("\"errors\"");
         b2b.Should().Contain("\"totalCount\":1").And.Contain("ORD-B2B").And.NotContain("ORD-OTHER");
 
         // No store filter: both orders across stores.
         var all = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }",
             userId: rep.UserId);
         all.Should().Contain("\"totalCount\":2").And.Contain("ORD-B2B").And.Contain("ORD-OTHER");
     }
@@ -617,7 +617,7 @@ public class SalesRepGraphQlComponentTests
 
         // Keyword matches the order number (Orders CustomerOrderSearchService: Number/CustomerName Contains).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", keyword:\"ALPHA\") { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", keyword:\"ALPHA\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -667,7 +667,7 @@ public class SalesRepGraphQlComponentTests
 
         // "Inactive" is a composite status -> [Cancelled, Failed] (StubOrderStatusService); "New" must be excluded.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", statuses:[\"Inactive\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"Inactive\"]) { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -688,7 +688,7 @@ public class SalesRepGraphQlComponentTests
 
         // Multi-select: "New" (-> [New]) + "Inactive" (-> [Cancelled, Failed]); union excludes Processing.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", statuses:[\"New\",\"Inactive\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"New\",\"Inactive\"]) { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -708,7 +708,7 @@ public class SalesRepGraphQlComponentTests
 
         // No status argument → no status filter → all statuses returned.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\") { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -727,7 +727,7 @@ public class SalesRepGraphQlComponentTests
         // is copied to the UserContext by the builder, so it reaches the per-item resolver (StubLocalizableSettingService
         // renders "<raw> (<culture>)"), which also proves the culture actually propagated.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(customerId:\"org-1\", cultureName:\"en-US\") { items { number status statusDisplayValue } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", cultureName:\"en-US\") { items { number status statusDisplayValue } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -736,31 +736,31 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_WithoutCustomerId_ReturnsOrdersAcrossAssignedCustomers()
+    public async Task SalesRepOrders_WithoutOrganizationId_ReturnsOrdersAcrossAssignedCustomers()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2"); // assigned to org-1 + org-2, NOT org-3
-        // o-1 has no denormalized OrganizationName → customerName falls back to a member lookup (→ "org-1").
+        // o-1 has no denormalized OrganizationName → organizationName falls back to a member lookup (→ "org-1").
         SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
-        // o-2 carries a denormalized OrganizationName → customerName uses it directly (no lookup), distinct from the member name.
+        // o-2 carries a denormalized OrganizationName → organizationName uses it directly (no lookup), distinct from the member name.
         SeedOrder(ctx, id: "o-2", org: "org-2", number: "ORD-2", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), organizationName: "Drift Inn Resort");
         SeedOrder(ctx, id: "o-3", org: "org-3", number: "ORD-3", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc));
 
-        // No customerId → cross-customer dashboard: orders of every assigned customer; the unassigned org is excluded.
+        // No organizationId → cross-customer dashboard: orders of every assigned customer; the unassigned org is excluded.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders { totalCount items { number customerId customerName } } }",
+            "query { salesRepOrders { totalCount items { number organizationId organizationName } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":2");
         json.Should().Contain("ORD-1").And.Contain("ORD-2");
         json.Should().NotContain("ORD-3");
-        // customerId = the order's organization id.
-        json.Should().Contain("\"customerId\":\"org-1\"").And.Contain("\"customerId\":\"org-2\"");
-        // customerName: fallback lookup for o-1 (member name "org-1"); the order's stored name for o-2.
-        json.Should().Contain("\"customerName\":\"org-1\"");          // resolved from the organization id
-        json.Should().Contain("\"customerName\":\"Drift Inn Resort\""); // used the value stored on the order
+        // organizationId = the order's organization id.
+        json.Should().Contain("\"organizationId\":\"org-1\"").And.Contain("\"organizationId\":\"org-2\"");
+        // organizationName: fallback lookup for o-1 (member name "org-1"); the order's stored name for o-2.
+        json.Should().Contain("\"organizationName\":\"org-1\"");          // resolved from the organization id
+        json.Should().Contain("\"organizationName\":\"Drift Inn Resort\""); // used the value stored on the order
     }
 
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New", string organizationName = null)

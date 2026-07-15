@@ -22,13 +22,13 @@ public class SalesRepCustomerQuery : Query<SalesRepCustomerDetails>
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        yield return Argument<NonNullGraphType<StringGraphType>>("id", "Organization (customer) id.");
+        yield return Argument<NonNullGraphType<StringGraphType>>("organizationId", "Organization (customer) id.");
     }
 
     public override void Map(IResolveFieldContext context)
     {
         // Identity comes from the caller's claims; only the organization id is a client argument.
-        OrganizationId = context.GetArgument<string>("id");
+        OrganizationId = context.GetArgument<string>("organizationId");
         UserId = context.GetCurrentUserId();
     }
 }

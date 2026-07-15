@@ -94,12 +94,12 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
     /// </summary>
     protected virtual async Task<string[]> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
     {
-        if (!string.IsNullOrEmpty(request.CustomerId))
+        if (!string.IsNullOrEmpty(request.OrganizationId))
         {
             // Single customer: the caller must hold an active granting membership in exactly this organization,
             // else a rep could read any organization's orders by guessing its id.
-            var memberships = await GetGrantingMembershipsAsync([request.UserId], [request.CustomerId]);
-            return memberships.Count > 0 ? [request.CustomerId] : [];
+            var memberships = await GetGrantingMembershipsAsync([request.UserId], [request.OrganizationId]);
+            return memberships.Count > 0 ? [request.OrganizationId] : [];
         }
 
         // Dashboard: every organization the rep is assigned to (passed as a single array filter to the search).
