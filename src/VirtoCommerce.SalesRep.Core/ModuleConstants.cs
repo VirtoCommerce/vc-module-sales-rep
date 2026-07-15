@@ -37,12 +37,19 @@ public static class ModuleConstants
     {
         public static class General
         {
+            /// <summary>
+            /// Per-store, public flag that toggles the Sales Rep UI's visibility on that store's storefront.
+            /// It is a presentation switch only — it does NOT gate the backend X-API or the data it returns
+            /// (those stay secured by rep membership scoping). Public + registered for the Store type so the
+            /// storefront reads it from <c>store.settings.modules</c>; defaults to enabled.
+            /// </summary>
             public static SettingDescriptor SalesRepEnabled { get; } = new()
             {
                 Name = "SalesRep.Enabled",
                 GroupName = "Sales Rep|General",
                 ValueType = SettingValueType.Boolean,
-                DefaultValue = false,
+                DefaultValue = true,
+                IsPublic = true,
             };
 
             public static IEnumerable<SettingDescriptor> AllGeneralSettings

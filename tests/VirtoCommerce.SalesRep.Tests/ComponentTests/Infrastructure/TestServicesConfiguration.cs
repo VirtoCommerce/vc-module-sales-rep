@@ -1,4 +1,8 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using FluentValidation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -12,7 +16,9 @@ using VirtoCommerce.CustomerModule.Core.Services.Indexed;
 using VirtoCommerce.CustomerModule.Data.Handlers;
 using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
+using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.CustomerModule.Data.Services;
+using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.CustomerModule.Data.Validation;
 using VirtoCommerce.LuceneSearchModule.Data;
 using VirtoCommerce.Platform.Caching;
@@ -34,6 +40,10 @@ using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.SearchModule.Data.SearchPhraseParsing;
 using VirtoCommerce.SearchModule.Data.Services;
+using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.StoreModule.Core.Model;
+using VirtoCommerce.StoreModule.Core.Services;
+using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -129,6 +139,12 @@ internal static class TestServicesConfiguration
         services.AddTransient<MemberSearchRequestBuilder>();
         services.AddTransient<IIndexedMemberSearchService, MemberIndexedSearchService>();
 
+        // Member indexation: the real document builder + a no-op dynamic-property search service (dynamic-
+        // property fields aren't needed for name/email keyword search). Lets tests populate the RAM index so
+        // keyword member searches (which route to the index, not the DB) can be exercised.
+        services.AddSingleton<IDynamicPropertySearchService, NoOpDynamicPropertySearchService>();
+        services.AddSingleton<MemberDocumentBuilder>();
+
         // Real member + membership services
         services.AddTransient<IMemberService, MemberService>();
         services.AddTransient<IMemberSearchService, MemberSearchService>();
@@ -149,6 +165,64 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         services.AddTransient<SalesRepController>();
+
+        // Lightweight IStoreService double: SalesRepService reads the store's ContactDefaultStatus setting to
+        // seed a rep's member status. Registered as a singleton so tests can configure per-store defaults
+        // (see SalesRepTestContext.SetStoreContactDefaultStatus) without standing up a Store DbContext.
+        services.AddSingleton<TestStoreService>();
+        services.AddSingleton<IStoreService>(sp => sp.GetRequiredService<TestStoreService>());
         return services;
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IDynamicPropertySearchService"/> for member indexation — returns no dynamic-property
+    /// definitions, so indexed member documents carry the standard fields (name, emails) used by keyword search.
+    /// </summary>
+    private sealed class NoOpDynamicPropertySearchService : IDynamicPropertySearchService
+    {
+        public Task<DynamicPropertySearchResult> SearchAsync(DynamicPropertySearchCriteria criteria, bool clone = true)
+            => Task.FromResult(new DynamicPropertySearchResult());
+    }
+
+    /// <summary>
+    /// In-memory <see cref="IStoreService"/> double: returns a <see cref="Store"/> whose
+    /// <c>Customer.ContactDefaultStatus</c> setting is whatever a test configured for that store id via
+    /// <see cref="ContactDefaultStatusByStore"/>. Only <c>GetAsync</c> (which backs the <c>GetNoCloneAsync</c>
+    /// extension the service calls) is meaningful; the remaining members are inert.
+    /// </summary>
+    internal sealed class TestStoreService : IStoreService
+    {
+        public ConcurrentDictionary<string, string> ContactDefaultStatusByStore { get; } = new();
+
+        public Task<IList<Store>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            var stores = (ids ?? [])
+                .Where(ContactDefaultStatusByStore.ContainsKey)
+                .Select(id => new Store
+                {
+                    Id = id,
+                    Settings =
+                    [
+                        new ObjectSettingEntry
+                        {
+                            Name = CustomerSettings.ContactDefaultStatus.Name,
+                            ValueType = SettingValueType.ShortText,
+                            Value = ContactDefaultStatusByStore[id],
+                        },
+                    ],
+                })
+                .ToList();
+            return Task.FromResult<IList<Store>>(stores);
+        }
+
+        public Task<IList<Store>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true)
+            => Task.FromResult<IList<Store>>([]);
+
+        public Task SaveChangesAsync(IList<Store> models) => Task.CompletedTask;
+
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => Task.CompletedTask;
+
+        public Task<IList<string>> GetUserAllowedStoreIdsAsync(ApplicationUser user)
+            => Task.FromResult<IList<string>>([]);
     }
 }

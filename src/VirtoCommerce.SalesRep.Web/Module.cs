@@ -7,6 +7,9 @@ using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
+using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.Web;
 
@@ -21,6 +24,14 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
+
+        // The module's order search: subclasses the Orders CustomerOrderSearchService (reusing its query/hydration
+        // pipeline) and adds a grouped "latest order per organization" lookup for "my customers". Registered under
+        // its own interface only, so the platform-wide ICustomerOrderSearchService registration is unaffected.
+        serviceCollection.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
+
+        // Storefront X-API (GraphQL) surface: "my customers" (VCST-5304) and "my sales reps" (VCST-4907).
+        serviceCollection.AddSalesRepExperienceApi();
     }
 
     public void PostInitialize(IApplicationBuilder appBuilder)
@@ -30,10 +41,17 @@ public class Module : IModule, IHasConfiguration
         // Register settings
         var settingsRegistrar = serviceProvider.GetRequiredService<ISettingsRegistrar>();
         settingsRegistrar.RegisterSettings(ModuleConstants.Settings.AllSettings, ModuleInfo.Id);
+        // Also register per store so the storefront can read the public SalesRep.Enabled flag from
+        // store.settings.modules and toggle the Sales Rep UI per store. ("Store" == nameof(StoreModule's Store
+        // entity); used as a literal to avoid a StoreModule dependency just for the type name.)
+        settingsRegistrar.RegisterSettingsForType(ModuleConstants.Settings.AllSettings, "Store");
 
         // Register permissions
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
+
+        // Expose the storefront X-API queries on their own GraphQL endpoint: /graphql/sales-rep (+ /ui/graphiql/sales-rep).
+        appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
 
         // Seed the default "Sales Representative" role once, right after its permission is registered — but only
         // if no role already grants sales-rep:access (EnsureSalesRepRoleAsync is create-if-none). No explicit

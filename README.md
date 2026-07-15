@@ -1,58 +1,241 @@
-# Sales Rep
+# Virto Commerce Sales Rep Module
 
-## Overview
+The Sales Rep module turns selected users into sales representatives who serve a defined set of customer organizations. It provides a back-office application for administrators to create, assign and manage reps, and a storefront GraphQL (X-API) surface that lets a B2B storefront show the reps supporting an organization, the customers a rep serves, their orders and purchase statistics.
 
-Short overview of what the new module is.
+<!-- TODO: add a hero screenshot of the Sales Reps app once available, e.g.
+<img width="1902" alt="Sales Reps admin app" src="https://github.com/user-attachments/assets/..." /> -->
 
-- What is the new or updated experience?
+## Key features
 
-- Does this module replace an existing module/experience? If yes, what is the transition plan?
+* Manage sales representatives from a dedicated back-office app — create, edit, block/unblock and delete
+* Assign each rep the customer organizations they serve — globally or per organization
+* Manage the rep's login account: store, password and lockout
+* Model a rep from existing platform data (a contact, a login account and a role) with no new database tables
+* Let buyers see the sales reps supporting their organization
+* Let reps see the customers they serve, each with its latest order
+* Show a customer information card — organization, primary contact and account type
+* List and filter a rep's customer orders
+* Report customer order statistics (spend, order count, average order value) with period-over-period comparison
+* Toggle the storefront Sales Rep UI per store
 
-- Does this module has dependency on other ? If yes, list/explain the dependencies.
+## Screenshots
 
-- List the key deployment scenarios - why would people use this module?
+<!-- TODO: add back-office screenshots (Sales Reps list, details blade) as GitHub asset images, e.g.
+<img width="822" alt="Sales Reps list" src="https://github.com/user-attachments/assets/..." />
 
-## Functional Requirements
+---
 
-Short description of the new module functional requirements.
+<img width="847" alt="Sales Rep details" src="https://github.com/user-attachments/assets/..." /> -->
 
-## Scenarios
+## XAPI Specification
 
-List of scenarios that the new module implements
+The storefront queries are exposed on a dedicated scoped schema at `POST /graphql/sales-rep` (with a GraphiQL UI at `/ui/graphiql/sales-rep`). Every query requires an authenticated caller and is store- and membership-scoped, so a rep only sees the customers they serve and a buyer only sees their own reps.
 
-1. [Scenario 1](/doc/scenario-name1.md)
-1. [Scenario 2](/doc/scenario-name2.md)
-1. [Scenario 3](/doc/scenario-name3.md)
-    1. [Scenario 3.1](/doc/scenario-name31.md)
-    1. [Scenario 3.2](/doc/scenario-name32.md)
-1. [Scenario 4](/doc/scenario-name4.md)
+### Query
 
-## Web API
+The sales reps supporting the caller's organization:
 
-Web API documentation for each module is built out automatically and can be accessed by following the link bellow:
-<https://link-to-swager-api>
+```graphql
+{
+  customerSalesReps(storeId: "B2B-store", first: 10) {
+    totalCount
+    items {
+      id
+      fullName
+      about
+      photoUrl
+      emails
+      phones
+    }
+  }
+}
+```
 
-## Database Model
+---
 
-![DB model](./docs/media/diagram-db-model.png)
+The customer organizations the current rep serves, each with its most recent order:
 
-## Related topics
+```graphql
+{
+  salesRepCustomers(storeId: "B2B-store", first: 20, sort: "organizationName:asc") {
+    totalCount
+    items {
+      organizationId
+      organizationName
+      lastOrder {
+        number
+        createdDate
+        status
+        total
+        currency
+        itemsCount
+      }
+    }
+  }
+}
+```
 
-[Some Article1](some-article1.md)
+---
 
-[Some Article2](some-article2.md)
+A single customer information card:
+
+```graphql
+{
+  salesRepCustomer(organizationId: "7b8c...") {
+    organizationId
+    organizationName
+    accountType
+    phone
+    shipTo
+    primaryContact {
+      fullName
+      emails
+      phones
+    }
+  }
+}
+```
+
+---
+
+A rep's customer orders, filterable and paged:
+
+```graphql
+{
+  salesRepOrders(storeId: "B2B-store", first: 20, sort: "createdDate:desc") {
+    totalCount
+    items {
+      id
+      number
+      createdDate
+      status
+      total
+      currency
+      itemsCount
+    }
+  }
+}
+```
+
+---
+
+Customer order statistics in one currency, with aliased date ranges and a period-over-period comparison (each distinct range is aggregated only once per request):
+
+```graphql
+{
+  salesRepCustomerOrderStatistics(organizationId: "7b8c...", currencyCode: "USD") {
+    currencyCode
+    ytd: period(from: "2026-01-01T00:00:00Z") {
+      total
+      count
+      average
+      lastOrderDate
+    }
+    yoy: comparison(
+      current: { from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z" }
+      previous: { from: "2025-01-01T00:00:00Z", to: "2026-01-01T00:00:00Z" }
+    ) {
+      totalChange
+      totalChangePercent
+      countChange
+      countChangePercent
+    }
+  }
+}
+```
+
+## How it works
+
+A sales rep is not a new entity — the module composes three pieces of existing platform data, so it owns **no database tables** and adds **no EF migrations**:
+
+* a **Contact** (`Member`, from the Customer module) — the rep's profile; its id is the canonical id of a sales rep;
+* an **ApplicationUser** (platform security) — the login account;
+* a **role granting `sales-rep:access`** — assigned globally (serves everyone) and/or per organization via `OrganizationMembership` (serves specific customers).
+
+A user *is* a sales rep whenever they hold the `sales-rep:access` permission — never by matching a role id or name. Searching for reps returns the union of users holding the global role and users holding the role through a per-organization membership.
+
+```mermaid
+graph LR
+    C["Contact / Member<br/>(profile)"]
+    U["ApplicationUser<br/>(login account)"]
+    R["Role → sales-rep:access"]
+    O1["Organization A"]
+    O2["Organization B"]
+
+    C -- MemberId --- U
+    U -- global role --> R
+    U -- OrganizationMembership --> O1
+    U -- OrganizationMembership --> O2
+    O1 -. per-org role .-> R
+    O2 -. per-org role .-> R
+```
+
+## Administration
+
+The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name, salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
+
+It is backed by a REST API under `/api/sales-rep`. Managing a rep is a customer-management action, so endpoints reuse existing permissions — the Customer module's member permissions for the profile and platform security permissions for the account (exactly as the customer member-detail *Accounts* widget does):
+
+| Method & route | Purpose | Permissions |
+|----------------|---------|-------------|
+| `POST /api/sales-rep/search` | Search sales reps (global ∪ per-org). | `customer:read` |
+| `GET /api/sales-rep/roles` | Roles granting `sales-rep:access` (seeds a default if none). | `customer:read` |
+| `GET /api/sales-rep/{id}` | Get a rep aggregate by contact id. | `customer:read` |
+| `POST /api/sales-rep` | Create a rep (contact + account + memberships). | `customer:create` + `platform:security:create` |
+| `PUT /api/sales-rep` | Update a rep (profile + account + inline password). | `customer:update` + `platform:security:update` |
+| `DELETE /api/sales-rep?ids=` | Delete reps; cascades to the account. | `customer:delete` + `platform:security:delete` |
+| `POST /api/sales-rep/{id}/block` | Lock the rep's account. | `platform:security:update` |
+| `POST /api/sales-rep/{id}/unblock` | Unlock the rep's account. | `platform:security:update` |
+| `POST /api/sales-rep/{id}/password` | Set a new account password. | `platform:security:update` |
+
+Full REST documentation is browsable through Swagger on any running platform instance at `https://{platform-host}/docs/index.html?urls.primaryName=VirtoCommerce.SalesRep`.
+
+## Permissions
+
+| Permission | Meaning |
+|------------|---------|
+| `sales-rep:access` | **Defines** a sales rep. Held by the rep via a role — globally and/or per organization. It is *not* an admin permission and does not gate the management API. |
+
+The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. Admins may freely rename or delete it — reps are identified by the permission, never by this role's id.
+
+## Settings
+
+| Setting | Scope | Type | Default | Purpose |
+|---------|-------|------|---------|---------|
+| `SalesRep.Enabled` | Per store (public) | Boolean | `true` | Toggles visibility of the Sales Rep UI on a store's storefront. |
+
+`SalesRep.Enabled` is a presentation switch only — it does *not* gate the backend X-API or the data it returns (those stay secured by rep-membership scoping). It is registered for the `Store` type and marked public, so the storefront reads it from `store.settings.modules`.
+
+## Dependencies
+
+| Module | Why |
+|--------|-----|
+| `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
+| `VirtoCommerce.Orders` | Customer orders and order statistics (consumed via public service APIs, not the data layer). |
+| `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
+| `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
+
+## Documentation
+
+* Epic: [VCST-5142 — Sales Rep Hub](https://virtocommerce.atlassian.net/browse/VCST-5142)
+* Pull requests:
+  * [#1 — VCST-5293: Sales rep VC-Shell administration UI](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/1)
+  * [#2 — VCST-4907 / VCST-5304 / VCST-5308: X-API endpoints for customers and sales reps](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/2)
+
+> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface. The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
+
+## References
+
+* [Virto Commerce Documentation](https://docs.virtocommerce.org)
+* [Customer module](https://github.com/VirtoCommerce/vc-module-customer)
+* [Experience API (X-API)](https://github.com/VirtoCommerce/vc-module-x-api)
 
 ## License
 
-Copyright (c) Virto Solutions LTD.  All rights reserved.
+Copyright (c) Virto Solutions LTD. All rights reserved.
 
-Licensed under the Virto Commerce Open Software License (the "License"); you
-may not use this file except in compliance with the License. You may
-obtain a copy of the License at
+Licensed under the Virto Commerce Open Software License (the "License"); you may not use this file except in compliance with the License. You may obtain a copy of the License at
 
 <https://virtocommerce.com/open-source-license>
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
-implied.
+Unless required by applicable law or agreed to in writing, software distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.

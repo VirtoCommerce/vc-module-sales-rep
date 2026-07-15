@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Data.Model;
@@ -129,6 +131,89 @@ public class SalesRepComponentTests
             (await cdb.Set<AddressEntity>().CountAsync(x => x.MemberId == created.Id)).Should().Be(2);
             (await cdb.Set<OrganizationMembershipEntity>().CountAsync(x => x.UserId == created.UserId)).Should().Be(2);
         }
+    }
+
+    [Fact]
+    public async Task Create_WithoutExplicitStatus_InheritsStoreDefaultContactStatus()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // The store's ContactDefaultStatus is what a self-registered contact would get (Approved => Active in the storefront).
+        ctx.SetStoreContactDefaultStatus("B2B-store", "Approved");
+        await ctx.SeedOrganizationsAsync("org-1");
+
+        // CreateRepInStoreAsync does NOT set a Status, so the store default must be applied.
+        var created = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+
+        created.Status.Should().Be("Approved", "a rep with no explicit status inherits the store's ContactDefaultStatus");
+    }
+
+    [Fact]
+    public async Task ChangeRole_RePointsGlobalAccountRole_NotOnlyMemberships()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var role2 = await ctx.CreateGrantingRoleAsync("Sales Representative 2");
+        var role3 = await ctx.CreateGrantingRoleAsync("Sales Representative 3");
+
+        var created = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+        var userId = await GetAccountIdAsync(ctx, created.Id);
+
+        // No RoleId was sent, so the rep was created with whichever granting role the resolver enumerates
+        // first — an unordered query over random GUID ids, i.e. a per-run coin flip between role2 and role3.
+        // Pick the switch targets relative to it so BOTH edits below are guaranteed real role changes
+        // (a same-role "switch" is a no-op that would mask the regression and made earlier repros flaky).
+        var firstTarget = created.RoleId == role2.Id ? role3 : role2;
+        var secondTarget = firstTarget == role2 ? role3 : role2;
+
+        // COLD cache: the account read inside the edit is a guaranteed cache miss, so FindByIdAsync hands the
+        // service an instance that is also EF-tracked by the updating manager's own DbContext. This is the
+        // state in which the field bug reproduced: mutating that instance and passing it back to UpdateAsync
+        // made the platform's role diff run against itself (LoadExistingUser resolves the SAME tracked object
+        // and reloads its Roles from the DB), so the role change was silently lost — the global assignment
+        // diverged from the per-org memberships, which are written directly and always re-pointed.
+        SalesRepTestContext.ExpireSecurityCache();
+        created.RoleId = firstTarget.Id;
+        var afterFirst = SalesRepTestContext.Unwrap(await ctx.Controller.Update(created));
+
+        (await GetGlobalRoleIdsAsync(ctx, userId)).Should().BeEquivalentTo([firstTarget.Id],
+            "a cold-cache edit must re-point the global account role, not only the per-org memberships");
+
+        // WARM cache: the account is served from the platform memory cache (an instance owned by a foreign,
+        // already-disposed scope) — the other read path an edit can hit; must re-point all the same.
+        await ctx.WarmUserCacheAsync(userId);
+        afterFirst.RoleId = secondTarget.Id;
+        SalesRepTestContext.Unwrap(await ctx.Controller.Update(afterFirst));
+
+        (await GetGlobalRoleIdsAsync(ctx, userId)).Should().BeEquivalentTo([secondTarget.Id],
+            "a warm-cache edit must re-point the global account role and drop the previous granting role");
+    }
+
+    private static async Task<string> GetAccountIdAsync(SalesRepTestContext ctx, string memberId)
+    {
+        await using var sdb = ctx.NewSecurityDbContext();
+        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == memberId);
+        return user.Id;
+    }
+
+    private static async Task<List<string>> GetGlobalRoleIdsAsync(SalesRepTestContext ctx, string userId)
+    {
+        await using var sdb = ctx.NewSecurityDbContext();
+        return await sdb.Set<IdentityUserRole<string>>()
+            .Where(ur => ur.UserId == userId)
+            .Select(ur => ur.RoleId)
+            .ToListAsync();
+    }
+
+    [Fact]
+    public async Task Create_WithoutStoreOrStatus_LeavesStatusUnset()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+
+        // No store bound (storeId null) and no explicit status => nothing to seed the status from.
+        var created = await ctx.CreateRepAsync("Nostore", "Rep", "nostore@test.com", "org-1");
+
+        created.Status.Should().BeNull("with no store bound there is no default contact status to apply");
     }
 
     [Fact]

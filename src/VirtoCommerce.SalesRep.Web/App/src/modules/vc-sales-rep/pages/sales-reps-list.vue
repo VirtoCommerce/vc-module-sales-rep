@@ -79,15 +79,14 @@ const pagination = useDataTablePagination({
 
 const selectedItemId = ref<string>();
 const localSelection = ref<SalesRepListItem[]>([]);
-const selectedIds = ref<string[]>([]);
+// Derive the id list straight from the selection source so the two can never drift apart
+// (e.g. retain ids of rows that were already deleted). The table's internal selection is
+// only reset when this source is cleared, so clearing must always target localSelection.
+const selectedIds = computed(() => localSelection.value.map((item) => item.id ?? "").filter(Boolean));
 
-watch(
-  localSelection,
-  (newSelection) => {
-    selectedIds.value = newSelection.map((item) => item.id || "").filter(Boolean);
-  },
-  { deep: true },
-);
+const resetSelection = () => {
+  localSelection.value = [];
+};
 
 watch(
   () => param.value,
@@ -102,6 +101,7 @@ const { bladeToolbar, columns, openDetailsBlade, reOpenDetailsBlade } = useSales
   selectedIds,
   searchSalesReps,
   deleteSalesReps,
+  resetSelection,
 });
 
 const onItemClick = (event: { data: SalesRepListItem }) => {
