@@ -93,5 +93,5 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
     /// an empty array when the rep serves none (or doesn't serve the requested one), so the caller returns no orders.
     /// </summary>
     protected virtual Task<string[]> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
-        => GetVisibleOrganizationIdsAsync(request.UserId, request.CustomerId);
+        => GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
 }

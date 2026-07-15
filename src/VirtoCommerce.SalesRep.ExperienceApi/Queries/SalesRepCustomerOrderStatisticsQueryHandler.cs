@@ -37,7 +37,7 @@ public class SalesRepCustomerOrderStatisticsQueryHandler : SalesRepQueryHandlerB
         // Which organizations to aggregate: the one requested customer (only if the rep serves it), or — when no
         // customer is specified — every organization the rep is assigned to (the combined cross-customer view).
         // Empty means the rep serves none (or doesn't serve the requested one) → no statistics.
-        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.CustomerId);
+        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
         if (organizationIds.Length == 0)
         {
             return null;

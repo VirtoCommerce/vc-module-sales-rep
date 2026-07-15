@@ -49,7 +49,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query {
-                salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") {
+                salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
                   currencyCode
                   ytd:      period({{Ytd}}) { total { amount } count average { amount } lastOrderDate }
                   lastYear: period({{LastYear}}) { total { amount } count average { amount } }
@@ -101,7 +101,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") {
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
                 currencyCode ytd: period({{Ytd}}) { total { amount } count average { amount } } } }
               """,
             userId: rep.UserId);
@@ -127,7 +127,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "EUR") {
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "EUR") {
                 currencyCode ytd: period({{Ytd}}) { total { amount } count average { amount } } } }
               """,
             userId: rep.UserId);
@@ -152,7 +152,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         // No currencyCode, but a store is given → the store's default currency (EUR in the test store double) wins.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1", storeId: "B2B-store") {
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", storeId: "B2B-store") {
                 currencyCode ytd: period({{Ytd}}) { total { amount } } } }
               """,
             userId: rep.UserId);
@@ -173,7 +173,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         // Neither currencyCode nor storeId → falls back to the platform primary currency (USD).
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1") { currencyCode ytd: period({{Ytd}}) { total { amount } } } }
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1") { currencyCode ytd: period({{Ytd}}) { total { amount } } } }
               """,
             userId: rep.UserId);
 
@@ -193,7 +193,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1", storeId: "B2B-store", currencyCode: "USD") {
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", storeId: "B2B-store", currencyCode: "USD") {
                 ytd: period({{Ytd}}) { total { amount } count } } }
               """,
             userId: rep.UserId);
@@ -213,7 +213,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") {
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
                 lastYear: period({{LastYear}}) { total { amount } count average { amount } lastOrderDate }
                 ytdVsLastYear: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }) {
                   totalChange { amount } totalChangePercent countChange countChangePercent averageChange { amount } averageChangePercent
@@ -247,7 +247,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-2", currencyCode: "USD") { ytd: period({{Ytd}}) { total { amount } } } }
+              query { salesRepCustomerOrderStatistics(organizationId:"org-2", currencyCode: "USD") { ytd: period({{Ytd}}) { total { amount } } } }
               """,
             userId: rep.UserId);
 
@@ -262,7 +262,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
             $$"""
-              query { salesRepCustomerOrderStatistics(customerId:"org-1", currencyCode: "USD") { ytd: period({{Ytd}}) { total { amount } } } }
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") { ytd: period({{Ytd}}) { total { amount } } } }
               """);
 
         json.Should().Contain("\"errors\"");
@@ -270,7 +270,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
     }
 
     [Fact]
-    public async Task Statistics_AggregatesAllServedOrgs_WhenCustomerIdOmitted()
+    public async Task Statistics_AggregatesAllServedOrgs_WhenOrganizationIdOmitted()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
@@ -280,7 +280,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         SeedOrder(ctx, "o2", "org-2", 200m, _feb2026);
         SeedOrder(ctx, "o3", "org-3", 999m, _feb2026); // org-3 is not served → must be excluded
 
-        // No customerId → aggregate across every organization the rep serves (org-1 + org-2), never org-3.
+        // No organizationId → aggregate across every organization the rep serves (org-1 + org-2), never org-3.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(currencyCode: "USD") {
