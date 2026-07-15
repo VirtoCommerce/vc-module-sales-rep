@@ -112,8 +112,8 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
 
         // The cultureName argument on salesRepCustomers must reach the nested lastOrder SalesRepOrderType resolvers
-        // (the builder copies it to the UserContext). Proven via statusDisplayValue (StubLocalizableSettingService
-        // renders "<raw> (<culture>)"); total.formattedAmount reads the same GetCultureName() source, so it localizes too.
+        // (the builder copies it to the UserContext). Asserted on both culture-dependent fields: statusDisplayValue
+        // (StubLocalizableSettingService renders "<raw> (<culture>)") and total.formattedAmount.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomers(cultureName:\"en-US\") { items { lastOrder { status statusDisplayValue total { formattedAmount } } } } }",
             userId: rep.UserId);
@@ -121,6 +121,7 @@ public class SalesRepGraphQlComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"status\":\"Cancelled\"");
         json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\"");
+        json.Should().Contain("\"formattedAmount\":\"$123.45\""); // money localized on the lastOrder path too
     }
 
     [Fact]

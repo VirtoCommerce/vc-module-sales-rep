@@ -32,8 +32,9 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
         LocalizedField(x => x.Status, OrderSettings.OrderStatus, localizableSettingService, nullable: true);
         // Grand total as Money so clients get amount + formattedAmount (+ the currency object). The order stores a
         // currency code; resolve it to the full Currency for the requested culture — GetAllCurrenciesAsync is cached,
-        // so this is safe per row without a DataLoader. Culture comes from the query's cultureName argument (copied
-        // to the user context by SalesRepOrdersQueryBuilder); when absent, formatting falls back to the invariant culture.
+        // so this is safe per row without a DataLoader. Culture comes from the query's cultureName argument (copied to
+        // the user context by the query builder — SalesRepOrdersQueryBuilder, or SalesRepCustomersQueryBuilder for the
+        // lastOrder path); when absent, formatting falls back to the invariant culture.
         Field<NonNullGraphType<MoneyType>>("total")
             .Description("Order grand total (amount, formatted amount and currency).")
             .ResolveAsync(async context =>
