@@ -13,11 +13,6 @@ public class SalesRepMessageEmailNotification : EmailNotification
     {
     }
 
-    public SalesRepMessageEmailNotification(string type)
-        : base(type)
-    {
-    }
-
     /// <summary>Optional message title (shown as the heading; the subject template may also use it).</summary>
     [NotificationParameter("Title")]
     public string Title { get; set; }
