@@ -736,7 +736,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_WithoutCustomerId_ReturnsOrdersAcrossAssignedCustomers()
+    public async Task SalesRepOrders_WithoutOrganizationId_ReturnsOrdersAcrossAssignedCustomers()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
