@@ -57,7 +57,7 @@ The customer organizations the current rep serves, each with its most recent ord
 
 ```graphql
 {
-  salesRepCustomers(storeId: "B2B-store", first: 20, sort: "organizationName:asc") {
+  salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "organizationName:asc") {
     totalCount
     items {
       organizationId
@@ -66,8 +66,14 @@ The customer organizations the current rep serves, each with its most recent ord
         number
         createdDate
         status
-        total
-        currency
+        statusDisplayValue
+        total {
+          amount
+          formattedAmount
+          currency {
+            code
+          }
+        }
         itemsCount
       }
     }
@@ -109,8 +115,13 @@ A rep's customer orders, filterable and paged:
       number
       createdDate
       status
-      total
-      currency
+      total {
+        amount
+        formattedAmount
+        currency {
+          code
+        }
+      }
       itemsCount
     }
   }

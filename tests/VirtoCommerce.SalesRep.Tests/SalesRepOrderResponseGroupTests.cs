@@ -28,17 +28,26 @@ public class SalesRepOrderResponseGroupTests
     [Fact]
     public void ScalarFieldsOnly_LoadDefaultOnly()
     {
-        // number/status/currency/createdDate are scalar columns — no heavier group needed.
-        Group("items.number", "items.status", "items.currency", "items.createdDate")
+        // number/status/createdDate are scalar columns — no heavier group needed.
+        Group("items.number", "items.status", "items.createdDate")
             .Should().Be(CustomerOrderResponseGroup.Default);
     }
 
     [Fact]
     public void Total_RequestsWithPrices()
     {
-        var group = Group("items.number", "items.total");
+        // total is an object (total { amount … }); the parser must key off the "total" segment, not the leaf.
+        var group = Group("items.number", "items.total.amount");
         group.Should().HaveFlag(CustomerOrderResponseGroup.WithPrices);
         group.Should().NotHaveFlag(CustomerOrderResponseGroup.WithItems);
+    }
+
+    [Fact]
+    public void NestedTotalFieldOnly_StillRequestsWithPrices()
+    {
+        // Selecting only a field several levels under total (e.g. total { currency { code } }) still keys off the
+        // "total" segment — the leaf here is "code".
+        Group("items.total.currency.code").Should().HaveFlag(CustomerOrderResponseGroup.WithPrices);
     }
 
     [Fact]
@@ -52,7 +61,7 @@ public class SalesRepOrderResponseGroupTests
     [Fact]
     public void TotalAndItemsCount_RequestBoth()
     {
-        var group = Group("items.total", "items.itemsCount");
+        var group = Group("items.total.amount", "items.itemsCount");
         group.Should().HaveFlag(CustomerOrderResponseGroup.WithPrices);
         group.Should().HaveFlag(CustomerOrderResponseGroup.WithItems);
     }
@@ -67,8 +76,8 @@ public class SalesRepOrderResponseGroupTests
     [Fact]
     public void LastOrderStyleLeaves_MapSameAsListPaths()
     {
-        // The lastOrder resolver passes bare leaf names (no "items." prefix); the mapping must behave identically.
-        Group("total").Should().HaveFlag(CustomerOrderResponseGroup.WithPrices);
+        // The lastOrder resolver passes paths without the "items." prefix; the mapping must behave identically.
+        Group("total.amount").Should().HaveFlag(CustomerOrderResponseGroup.WithPrices);
         Group("itemsCount").Should().HaveFlag(CustomerOrderResponseGroup.WithItems);
     }
 }

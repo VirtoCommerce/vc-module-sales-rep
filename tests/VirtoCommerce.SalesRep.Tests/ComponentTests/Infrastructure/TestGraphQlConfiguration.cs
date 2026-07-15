@@ -7,6 +7,8 @@ using GraphQL.Introspection;
 using GraphQL.MicrosoftDI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.CoreModule.Core.Common;
+using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.NotificationsModule.Core.Model;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.OrdersModule.Core.Model;
@@ -25,6 +27,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -76,6 +79,10 @@ internal static class TestGraphQlConfiguration
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
         services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
 
+        // MoneyType (SalesRepOrder.total) resolves the order's currency code to a Currency via ICurrencyService;
+        // the seeded orders use USD. GetCurrencyForLanguage throws for an unregistered code, so this must be present.
+        services.AddSingleton<ICurrencyService, StubCurrencyService>();
+
         // Customer-communication mutation (VCST-5310): the REAL default recipient resolver (over the real member
         // search) plus capturing doubles for the two external delivery services (PushMessages / Notifications are
         // not wired in this harness). The doubles record what was dispatched so tests can assert recipients.
@@ -89,6 +96,7 @@ internal static class TestGraphQlConfiguration
         services.AddGraphQL(builder =>
         {
             builder.AddSchema(services, typeof(XapiAssemblyMarker)); // graph types + MediatR handlers + ISchemaBuilders
+            builder.AddGraphTypes(typeof(MoneyType).Assembly);      // Xapi.Core graph types (MoneyType/CurrencyType) — SalesRepOrder.total is MoneyType
             builder.AddSystemTextJson();                            // IGraphQLTextSerializer for result assertions
             builder.AddDataLoader();                                // lastOrder batching
         });
@@ -246,5 +254,26 @@ internal static class TestGraphQlConfiguration
 
             return Task.FromResult(result);
         }
+    }
+
+    /// <summary>
+    /// Stand-in currency service for the schema's MoneyType resolver (<c>SalesRepOrder.total</c>): it resolves the
+    /// order's currency code to a <see cref="Currency"/> via <c>GetAllCurrenciesAsync</c>. The seeded orders use USD,
+    /// so one USD currency is enough — <c>GetCurrencyForLanguage</c> throws for a code it can't find.
+    /// </summary>
+    private sealed class StubCurrencyService : ICurrencyService
+    {
+        // RoundingPolicy is what the real CurrencyService assigns to every currency it returns; Money.Amount calls it,
+        // so it must be set or resolving total.amount throws a NullReferenceException.
+        private static readonly Currency _usd = new(Language.InvariantLanguage, "USD", "US Dollar", "$", 1m)
+        {
+            RoundingPolicy = new DefaultMoneyRoundingPolicy(),
+        };
+
+        public Task<IEnumerable<Currency>> GetAllCurrenciesAsync() => Task.FromResult<IEnumerable<Currency>>([_usd]);
+
+        public Task SaveChangesAsync(Currency[] currencies) => throw new NotSupportedException();
+
+        public Task DeleteCurrenciesAsync(string[] codes) => throw new NotSupportedException();
     }
 }
