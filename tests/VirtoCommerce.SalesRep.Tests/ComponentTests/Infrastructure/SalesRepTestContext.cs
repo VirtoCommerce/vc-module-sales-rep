@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -21,6 +22,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Events;
+using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi;
@@ -117,6 +119,49 @@ internal sealed class SalesRepTestContext : IDisposable
     public void SetStoreContactDefaultStatus(string storeId, string status)
         => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
             .ContactDefaultStatusByStore[storeId] = status;
+
+    /// <summary>
+    /// Prime the platform's <see cref="UserManager{T}"/> memory cache for a user (as any read that goes
+    /// through <c>FindByIdAsync</c> does in the running app). A subsequent edit then gets the cached instance,
+    /// which comes from a foreign (already disposed) scope — the "warm cache" path of an account update.
+    /// </summary>
+    public async Task WarmUserCacheAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+        await userManager.FindByIdAsync(userId);
+    }
+
+    /// <summary>
+    /// Evict all security entries from the platform memory cache. The next account read is then a guaranteed
+    /// cache miss, so <c>FindByIdAsync</c> loads the user through the calling manager's own DbContext — the
+    /// "cold cache" path, where the returned instance is also EF-tracked by that context. That is the condition
+    /// under which passing the instance back into <c>UpdateAsync</c> used to silently drop role changes.
+    /// </summary>
+    public static void ExpireSecurityCache()
+    {
+        SecurityCacheRegion.ExpireRegion();
+    }
+
+    /// <summary>
+    /// Create an additional role that grants <c>sales-rep:access</c> (as an admin would when adding a custom
+    /// Sales Rep role in the Security admin), so switching a rep between two granting roles can be exercised.
+    /// </summary>
+    public async Task<Role> CreateGrantingRoleAsync(string name)
+    {
+        using var roleManager = _provider.GetRequiredService<Func<RoleManager<Role>>>()();
+        var role = AbstractTypeFactory<Role>.TryCreateInstance();
+        role.Id = Guid.NewGuid().ToString("N");
+        role.Name = name;
+        role.Permissions = [new Permission { Name = SalesRep.Core.ModuleConstants.Security.Permissions.Access }];
+
+        var result = await roleManager.CreateAsync(role);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        return role;
+    }
 
     /// <summary>
     /// Create a Sales Rep (a login account + a contact serving the given organizations) through the real

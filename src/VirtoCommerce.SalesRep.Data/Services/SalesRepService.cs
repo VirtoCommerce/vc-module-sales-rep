@@ -318,12 +318,22 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<ApplicationUser> UpdateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole, ISet<string> grantingRoleIds)
     {
-        var user = await GetTrackedUserAsync(userManager, contact.Id);
-        if (user == null)
+        var account = await GetTrackedUserAsync(userManager, contact.Id);
+        if (account == null)
         {
             // The contact had no account yet (edge case) — create one.
             return await CreateAccountAsync(userManager, contact, salesRep, assignableRole);
         }
+
+        // UpdateAsync must receive a DETACHED user carrying the desired state — the same contract the platform's
+        // own PUT /api/platform/security/users relies on (its payload is JSON-bound, never the manager's instance).
+        // The instance FindByIdAsync returns is the shared memory-cached one and, right after a cache miss, is ALSO
+        // tracked by this manager's DbContext. Passing it to UpdateAsync corrupts the role update: the platform's
+        // UpdateUserAsync re-loads "the existing user" through that same context, EF identity resolution hands back
+        // the very same instance, and LoadUserDetailsAsync resets its Roles from the DB — so the platform then diffs
+        // the desired roles against themselves and silently drops the change. Editing a clone also keeps mutations
+        // from leaking into the shared cache when a save fails midway.
+        var user = account.CloneTyped();
 
         // The login email is emails[0]. Keep both Email and UserName (the sign-in identifier) in sync with it
         // so they never diverge when the admin changes the login email.
@@ -334,8 +344,9 @@ public class SalesRepService : ISalesRepService
             user.UserName = loginEmail;
         }
 
-        // Set the global role to the selected one: drop any other granting role, ensure the target is present.
-        // (Switching the role re-points the global assignment.)
+        // Set the global role to the selected one: drop any other granting role, keep unrelated roles, ensure the
+        // target is present. UpdateAsync diffs this desired set against the persisted assignments and applies the
+        // difference. (Switching the role re-points the global assignment.)
         var roles = (user.Roles ?? []).Where(r => !grantingRoleIds.Contains(r.Id)).ToList();
         if (assignableRole != null)
         {
@@ -345,7 +356,7 @@ public class SalesRepService : ISalesRepService
 
         ThrowIfFailed(await userManager.UpdateAsync(user));
 
-        // Apply lockout + password on the user already tracked by this UserManager (no extra fetch/manager).
+        // Lockout + password reuse the same detached user; the manager persists them by patching the stored entity.
         await ApplyLockoutAsync(userManager, user, salesRep.IsLocked ? DateTimeOffset.MaxValue : null);
 
         if (!string.IsNullOrEmpty(salesRep.Password))
