@@ -26,7 +26,7 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
 
         Field(x => x.Id, nullable: false).Description("Order id.");
         Field(x => x.Number, nullable: true).Description("Human-readable order number.");
-        Field(x => x.CustomerId, nullable: true).Description("Customer (organization) id the order belongs to.");
+        Field(x => x.OrganizationId, nullable: true).Description("Organization (customer) id the order belongs to.");
         Field(x => x.CreatedDate, nullable: false).Description("Date the order was placed.");
         // Adds `status` (raw) + `statusDisplayValue` (localized from the Order.Status dictionary; culture from context).
         LocalizedField(x => x.Status, OrderSettings.OrderStatus, localizableSettingService, nullable: true);
@@ -44,26 +44,26 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
             });
         Field(x => x.ItemsCount, nullable: false).Description("Number of line items in the order.");
 
-        // Customer (organization) name — the value denormalized on the order when present; otherwise resolved from
+        // Organization (customer) name — the value denormalized on the order when present; otherwise resolved from
         // the organization id, batched per request (one member query for the whole page, only for the orders that
         // are missing it) so the cross-customer dashboard doesn't do N lookups.
-        Field<StringGraphType>("customerName")
-            .Description("Customer (organization) name.")
+        Field<StringGraphType>("organizationName")
+            .Description("Organization (customer) name.")
             .Resolve(context =>
             {
-                if (!string.IsNullOrEmpty(context.Source.CustomerName))
+                if (!string.IsNullOrEmpty(context.Source.OrganizationName))
                 {
-                    return context.Source.CustomerName;
+                    return context.Source.OrganizationName;
                 }
 
-                var organizationId = context.Source.CustomerId;
+                var organizationId = context.Source.OrganizationId;
                 if (string.IsNullOrEmpty(organizationId))
                 {
                     return null;
                 }
 
                 var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, string>(
-                    $"{nameof(SalesRepOrderType)}.CustomerNameByOrganizationId",
+                    $"{nameof(SalesRepOrderType)}.OrganizationNameById",
                     async organizationIds =>
                     {
                         var organizations = await memberService.GetByIdsAsync(
