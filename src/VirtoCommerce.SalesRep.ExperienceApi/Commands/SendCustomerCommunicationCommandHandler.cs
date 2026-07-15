@@ -131,7 +131,22 @@ public class SendCustomerCommunicationCommandHandler
     /// </summary>
     protected virtual async Task SendEmailAsync(SendCustomerCommunicationCommand request, IList<Member> recipients)
     {
+        // The template is identical for every recipient (only the To address differs), so resolve it once and
+        // clone per recipient — rather than hitting the notification search service inside the loop.
+        var template = await _notificationSearchService.GetNotificationAsync<SalesRepMessageEmailNotification>(
+            new TenantIdentity(request.StoreId, nameof(Store)));
+
+        if (template == null)
+        {
+            return;
+        }
+
         var store = await _storeService.GetByIdAsync(request.StoreId);
+
+        template.From = store?.Email;
+        template.Title = request.Title;
+        template.Message = request.Message;
+        template.LanguageCode = request.CultureName;
 
         foreach (var recipient in recipients)
         {
@@ -141,19 +156,8 @@ public class SendCustomerCommunicationCommandHandler
                 continue;
             }
 
-            var notification = await _notificationSearchService.GetNotificationAsync<SalesRepMessageEmailNotification>(
-                new TenantIdentity(request.StoreId, nameof(Store)));
-
-            if (notification == null)
-            {
-                continue;
-            }
-
+            var notification = (SalesRepMessageEmailNotification)template.Clone();
             notification.To = email;
-            notification.From = store?.Email;
-            notification.Title = request.Title;
-            notification.Message = request.Message;
-            notification.LanguageCode = request.CultureName;
 
             await _notificationSender.ScheduleSendNotificationAsync(notification);
         }

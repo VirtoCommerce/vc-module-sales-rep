@@ -164,6 +164,7 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
+        services.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
         services.AddTransient<SalesRepController>();
 
         // Lightweight IStoreService double: SalesRepService reads the store's ContactDefaultStatus setting to

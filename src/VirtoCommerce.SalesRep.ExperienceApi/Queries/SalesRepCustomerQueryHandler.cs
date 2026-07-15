@@ -2,9 +2,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
-using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -20,17 +18,17 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         (MemberResponseGroup.WithAddresses | MemberResponseGroup.WithPhones).ToString();
 
     private readonly IMemberService _memberService;
-    private readonly IMemberSearchService _memberSearchService;
+    private readonly ISalesRepPrimaryContactResolver _primaryContactResolver;
 
     public SalesRepCustomerQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberService memberService,
-        IMemberSearchService memberSearchService)
+        ISalesRepPrimaryContactResolver primaryContactResolver)
         : base(roleResolver, membershipSearchService)
     {
         _memberService = memberService;
-        _memberSearchService = memberSearchService;
+        _primaryContactResolver = primaryContactResolver;
     }
 
     public virtual async Task<SalesRepCustomerDetails> Handle(SalesRepCustomerQuery request, CancellationToken cancellationToken)
@@ -64,41 +62,8 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        var primaryContact = await ResolvePrimaryContactAsync(organization);
+        var primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(organization, _contactResponseGroup);
 
         return SalesRepCustomerDetails.FromOrganization(organization, primaryContact);
-    }
-
-    /// <summary>
-    /// Resolves the organization's primary contact: its owner, then the first contact member as a fallback.
-    /// </summary>
-    private async Task<Contact> ResolvePrimaryContactAsync(Organization organization)
-    {
-        if (!string.IsNullOrEmpty(organization.OwnerId))
-        {
-            var owner = (await _memberService.GetByIdsAsync(
-                    [organization.OwnerId],
-                    _contactResponseGroup,
-                    [nameof(Contact)]))
-                .OfType<Contact>()
-                .FirstOrDefault();
-
-            if (owner != null)
-            {
-                return owner;
-            }
-        }
-
-        // Fallback: the first (oldest) contact directly belonging to the organization.
-        var contactsCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
-        contactsCriteria.MemberId = organization.Id;
-        contactsCriteria.MemberType = nameof(Contact);
-        contactsCriteria.DeepSearch = false;
-        contactsCriteria.ResponseGroup = _contactResponseGroup;
-        contactsCriteria.Sort = "createdDate:asc";
-        contactsCriteria.Take = 1;
-        var contactsSearchResult = await _memberSearchService.SearchMembersAsync(contactsCriteria);
-
-        return contactsSearchResult.Results.OfType<Contact>().FirstOrDefault();
     }
 }

@@ -34,6 +34,10 @@ public class Module : IModule, IHasConfiguration
         // its own interface only, so the platform-wide ICustomerOrderSearchService registration is unaffected.
         serviceCollection.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
+        // Single-sourced "primary contact of an organization" rule (owner → oldest contact), shared by the
+        // customer detail card (VCST-5308) and the primary-contact recipient policy.
+        serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
+
         // Recipients of a Rep's customer communication (VCST-5310). Default: every member of the organization.
         // A project can change the policy (e.g. PrimaryContactRecipientResolver) with a later registration.
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
