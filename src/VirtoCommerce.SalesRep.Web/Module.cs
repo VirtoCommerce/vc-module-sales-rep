@@ -24,6 +24,7 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
+        serviceCollection.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();
 
         // The module's order search: subclasses the Orders CustomerOrderSearchService (reusing its query/hydration
         // pipeline) and adds a grouped "latest order per organization" lookup for "my customers". Registered under

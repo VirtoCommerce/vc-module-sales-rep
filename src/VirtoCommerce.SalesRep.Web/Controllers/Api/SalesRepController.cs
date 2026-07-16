@@ -20,13 +20,16 @@ public class SalesRepController : Controller
 {
     private readonly ISalesRepService _salesRepService;
     private readonly ISalesRepSearchService _salesRepSearchService;
+    private readonly ISalesRepDictionaryService _salesRepDictionaryService;
 
     public SalesRepController(
         ISalesRepService salesRepService,
-        ISalesRepSearchService salesRepSearchService)
+        ISalesRepSearchService salesRepSearchService,
+        ISalesRepDictionaryService salesRepDictionaryService)
     {
         _salesRepService = salesRepService;
         _salesRepSearchService = salesRepSearchService;
+        _salesRepDictionaryService = salesRepDictionaryService;
     }
 
     /// <summary>Search Sales Reps (union of global-role and per-organization reps).</summary>
@@ -44,6 +47,15 @@ public class SalesRepController : Controller
     public async Task<ActionResult<IList<SalesRepRole>>> GetRoles()
     {
         var result = await _salesRepService.GetRolesAsync();
+        return Ok(result);
+    }
+
+    /// <summary>Reference data (countries, currencies, languages) for the Sales Rep admin dropdowns.</summary>
+    [HttpGet("dictionaries")]
+    [Authorize(Permissions.Read)]
+    public async Task<ActionResult<SalesRepDictionaries>> GetDictionaries()
+    {
+        var result = await _salesRepDictionaryService.GetDictionariesAsync();
         return Ok(result);
     }
 
