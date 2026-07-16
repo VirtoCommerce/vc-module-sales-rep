@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading;
@@ -168,6 +169,75 @@ internal sealed class SalesRepTestContext : IDisposable
         }
 
         return role;
+    }
+
+    /// <summary>
+    /// Create a role that does NOT grant <c>sales-rep:access</c> (e.g. a buyer/manager role an org member could
+    /// hold), so behaviors that must preserve unrelated roles/memberships can be exercised.
+    /// </summary>
+    public async Task<Role> CreateNonGrantingRoleAsync(string name)
+    {
+        using var roleManager = _provider.GetRequiredService<Func<RoleManager<Role>>>()();
+        var role = AbstractTypeFactory<Role>.TryCreateInstance();
+        role.Id = Guid.NewGuid().ToString("N");
+        role.Name = name;
+        role.Permissions = [new Permission { Name = "customer:read" }];
+
+        var result = await roleManager.CreateAsync(role);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        return role;
+    }
+
+    /// <summary>
+    /// Create a bare login account linked to an existing contact member, with NO global roles — the state of a
+    /// per-organization-only rep (whose sales-rep role is granted via memberships, not the account).
+    /// </summary>
+    public async Task<string> CreateAccountWithoutRolesAsync(string memberId, string email)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+        var user = AbstractTypeFactory<ApplicationUser>.TryCreateInstance();
+        user.UserName = email;
+        user.Email = email;
+        user.MemberId = memberId;
+        user.UserType = "Customer";
+
+        var result = await userManager.CreateAsync(user, "P@ssw0rd123!");
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        return user.Id;
+    }
+
+    /// <summary>
+    /// Add an organization membership carrying the given role for a user directly through the customer module's
+    /// membership service (as an org-membership admin action outside the Sales Rep module would).
+    /// </summary>
+    public async Task<OrganizationMembership> AddMembershipAsync(string userId, string organizationId, Role role)
+    {
+        var membership = AbstractTypeFactory<OrganizationMembership>.TryCreateInstance();
+        membership.UserId = userId;
+        membership.OrganizationId = organizationId;
+        var membershipRole = AbstractTypeFactory<OrganizationMembershipRole>.TryCreateInstance();
+        membershipRole.RoleId = role.Id;
+        membershipRole.RoleName = role.Name;
+        membership.Roles = [membershipRole];
+
+        await _provider.GetRequiredService<IOrganizationMembershipService>().SaveChangesAsync([membership]);
+        return membership;
+    }
+
+    /// <summary>All organization memberships of a user, freshly loaded (for assertions and role edits).</summary>
+    public async Task<IList<OrganizationMembership>> GetMembershipsAsync(string userId)
+    {
+        var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
+        criteria.UserId = userId;
+        return await _provider.GetRequiredService<IOrganizationMembershipSearchService>().SearchAllAsync(criteria);
     }
 
     /// <summary>
