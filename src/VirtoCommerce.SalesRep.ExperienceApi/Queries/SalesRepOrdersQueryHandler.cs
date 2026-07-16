@@ -89,6 +89,11 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         // Keyword/Sort/Skip/Take come from the SearchQuery base; set only the order-specific bits here.
         var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
         criteria.OrganizationIds = organizationIds;
+        // Only orders created by this sales rep — their user id is the order's CustomerId (exactly as X-Order scopes
+        // its "my orders" list: CanAccessOrderAuthorizationHandler sets SearchCustomerOrderQuery.CustomerId = current
+        // user id). Combined with the org scoping, the list is the rep's own orders for the customer(s), not every
+        // order of the organization.
+        criteria.CustomerId = request.UserId;
         // Scope to the caller's store when provided so a rep never sees another store's orders.
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).

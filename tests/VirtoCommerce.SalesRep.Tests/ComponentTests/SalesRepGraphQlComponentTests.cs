@@ -787,7 +787,46 @@ public class SalesRepGraphQlComponentTests
         json.Should().Contain("\"organizationName\":\"Drift Inn Resort\""); // used the value stored on the order
     }
 
-    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New", string organizationName = null)
+    [Fact]
+    public async Task SalesRepOrders_ExcludesOrdersNotCreatedByRep()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Same customer org: one order created by this rep, one created by someone else (the customer directly, or
+        // another rep). Only the rep's own order must be returned.
+        SeedOrder(ctx, id: "o-mine", org: "org-1", number: "ORD-MINE", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-other", org: "org-1", number: "ORD-OTHER", createdDate: new DateTime(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc), createdByUserId: "another-user");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("ORD-MINE").And.NotContain("ORD-OTHER");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_LastOrder_ReturnsRepsOwnLatestNotCustomers()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // A NEWER order created by someone else must NOT become the customer's "last order" — only the rep's own
+        // latest order counts, even if the customer has a more recent order from another source.
+        SeedOrder(ctx, id: "o-rep", org: "org-1", number: "ORD-REP", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-other", org: "org-1", number: "ORD-OTHER", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), createdByUserId: "another-user");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { organizationId lastOrder { number } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("ORD-REP").And.NotContain("ORD-OTHER");
+    }
+
+    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New", string organizationName = null, string createdByUserId = null)
     {
         using var db = ctx.NewOrderDbContext();
         var order = new CustomerOrderEntity
@@ -796,7 +835,10 @@ public class SalesRepGraphQlComponentTests
             Number = number,
             OrganizationId = org,
             OrganizationName = organizationName,
-            CustomerId = "customer-1",
+            // A rep-created order records the rep's user id as CustomerId (the value the queries filter on). Default
+            // to the test's rep so seeded orders count as "created by the rep"; pass createdByUserId to simulate an
+            // order created by someone else.
+            CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,
             Status = status,

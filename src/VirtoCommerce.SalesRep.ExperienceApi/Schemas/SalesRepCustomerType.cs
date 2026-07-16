@@ -36,6 +36,11 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                 // key so orders stay scoped to the caller's store and different stores never share a batch.
                 var storeId = context.Source.StoreId;
 
+                // Only the current sales rep's own orders count as a customer's "last order" — the rep's user id is
+                // the order's CustomerId (as X-Order scopes its "my orders" list). Fold it into the loader key so
+                // different callers never share a batch.
+                var salesRepUserId = context.GetCurrentUserId();
+
                 // Load only the order data the caller selected under lastOrder (e.g. skip line items unless
                 // itemsCount was requested). The selection is uniform across the page, so fold the resulting
                 // response group into the loader key too.
@@ -45,10 +50,10 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                 // Batch every customer row on the page into one service call (which runs one bounded search
                 // per organization) instead of a resolver-level order query per row.
                 var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, SalesRepOrder>(
-                    $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{storeId}:{responseGroup}",
+                    $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{salesRepUserId}:{storeId}:{responseGroup}",
                     async organizationIds =>
                     {
-                        var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), storeId, responseGroup);
+                        var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), salesRepUserId, storeId, responseGroup);
                         // Keep the loader's key comparer aligned with the service's OrdinalIgnoreCase dictionary.
                         return latestOrders.ToDictionary(kvp => kvp.Key, kvp => SalesRepOrder.FromOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
                     });

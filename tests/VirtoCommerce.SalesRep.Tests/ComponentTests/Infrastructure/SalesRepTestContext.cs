@@ -112,6 +112,13 @@ internal sealed class SalesRepTestContext : IDisposable
     public T GetRequiredService<T>() where T : notnull => _provider.GetRequiredService<T>();
 
     /// <summary>
+    /// User id of the most recently created Sales Rep. <c>SeedOrder</c> defaults a seeded order's CustomerId to this,
+    /// so orders count as "created by the rep" (rep-created orders record the rep's user id as CustomerId) without
+    /// every test threading it through.
+    /// </summary>
+    public string LastCreatedRepUserId { get; private set; }
+
+    /// <summary>
     /// Configure the <c>Customer.ContactDefaultStatus</c> setting the harness's <see cref="IStoreService"/> double
     /// reports for a store, so a rep created in that store inherits it as its member status (mirrors the real
     /// store setting, e.g. "Approved" for B2B-store).
@@ -183,7 +190,9 @@ internal sealed class SalesRepTestContext : IDisposable
             StoreId = storeId,
             Organizations = organizationIds.Select(id => new SalesRepOrganization { OrganizationId = id }).ToList(),
         };
-        return Unwrap(await Controller.Create(rep));
+        var created = Unwrap(await Controller.Create(rep));
+        LastCreatedRepUserId = created.UserId;
+        return created;
     }
 
     /// <summary>
