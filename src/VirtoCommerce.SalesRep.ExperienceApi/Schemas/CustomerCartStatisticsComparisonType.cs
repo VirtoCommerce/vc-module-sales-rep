@@ -6,13 +6,12 @@ using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
-public class CustomerOrderStatisticsComparisonType : ExtendableGraphType<CustomerOrderStatisticsComparison>
+public class CustomerCartStatisticsComparisonType : ExtendableGraphType<CustomerCartStatisticsComparison>
 {
-    public CustomerOrderStatisticsComparisonType(ICurrencyService currencyService)
+    public CustomerCartStatisticsComparisonType(ICurrencyService currencyService)
     {
-        Name = "CustomerOrderStatisticsComparison";
+        Name = "CustomerCartStatisticsComparison";
 
-        // Monetary changes as Money (amount + formattedAmount + currency); the percentages and count change stay scalars.
         Field<NonNullGraphType<MoneyType>>("totalChange")
             .Description("Current total minus previous total (amount, formatted amount and currency).")
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.TotalChange));

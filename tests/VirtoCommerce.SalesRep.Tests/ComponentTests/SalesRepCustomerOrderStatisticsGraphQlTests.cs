@@ -316,6 +316,78 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         ytd.GetProperty("count").GetInt32().Should().Be(1);
     }
 
+    [Fact]
+    public async Task Statistics_StatusFilter_NarrowsToSelectedStatuses()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "n1", "org-1", 100m, _feb2026, status: "New");
+        SeedOrder(ctx, "n2", "org-1", 200m, _feb2026, status: "New");
+        SeedOrder(ctx, "f1", "org-1", 500m, _feb2026, status: "Failed"); // not cancelled → counted by default, excluded by "New"
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                all:      period({{Ytd}}) { total { amount } count }
+                onlyNew:  period({{Ytd}}, statuses: ["New"]) { total { amount } count }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var stats = Stats(json);
+        MoneyAmount(stats.GetProperty("all"), "total").Should().Be(800m);     // 100 + 200 + 500
+        stats.GetProperty("all").GetProperty("count").GetInt32().Should().Be(3);
+        MoneyAmount(stats.GetProperty("onlyNew"), "total").Should().Be(300m); // 100 + 200 (Failed excluded)
+        stats.GetProperty("onlyNew").GetProperty("count").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Statistics_StatusFilter_ResolvesCompositeStatus()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "n1", "org-1", 100m, _feb2026, status: "New");
+        SeedOrder(ctx, "f1", "org-1", 500m, _feb2026, status: "Failed"); // part of the "Inactive" composite
+
+        // The stub status service maps the business name "Inactive" → { Cancelled, Failed } (1:many).
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                inactive: period({{Ytd}}, statuses: ["Inactive"]) { total { amount } count }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var inactive = Stats(json).GetProperty("inactive");
+        MoneyAmount(inactive, "total").Should().Be(500m); // the Failed order only
+        inactive.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Statistics_StatusFilter_UnrecognizedName_FailsClosed()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "n1", "org-1", 100m, _feb2026, status: "New");
+
+        // An unrecognized status name resolves to nothing → the widget must yield zeros, NOT silently count every
+        // order (mirrors the orders-list fail-closed fix).
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                bogus: period({{Ytd}}, statuses: ["DoesNotExist"]) { total { amount } count }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var bogus = Stats(json).GetProperty("bogus");
+        MoneyAmount(bogus, "total").Should().Be(0m);
+        bogus.GetProperty("count").GetInt32().Should().Be(0);
+    }
+
     // ---- helpers ----
 
     /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>
@@ -334,7 +406,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
     private static void SeedOrder(
         SalesRepTestContext ctx, string id, string org, decimal total, DateTime createdDate,
         string currency = "USD", string storeId = "B2B-store", bool isCancelled = false, bool isPrototype = false,
-        string createdByUserId = null)
+        string createdByUserId = null, string status = "New")
     {
         using var db = ctx.NewOrderDbContext();
         db.Add(new CustomerOrderEntity
@@ -347,7 +419,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
             CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,
-            Status = "New",
+            Status = status,
             Currency = currency,
             Total = total,
             IsCancelled = isCancelled,

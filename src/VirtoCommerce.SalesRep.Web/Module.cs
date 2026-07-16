@@ -35,6 +35,14 @@ public class Module : IModule, IHasConfiguration
         // profile widgets (VCST-5309). Aggregates in the DB via the Orders repository and converts to one currency.
         serviceCollection.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
 
+        // Cart/project statistics (dashboard "Active Projects" and related cart widgets). Aggregates in the DB via
+        // the Cart repository and converts to one currency, mirroring the order statistics service.
+        serviceCollection.AddTransient<ICustomerCartStatisticsService, CustomerCartStatisticsService>();
+
+        // "My customers" counters (dashboard "My Customers" widget): customers who ordered in a period and customers
+        // new in a period, derived from the rep's own orders via the Orders repository.
+        serviceCollection.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
+
         // Storefront X-API (GraphQL) surface: "my customers" (VCST-5304) and "my sales reps" (VCST-4907).
         serviceCollection.AddSalesRepExperienceApi();
     }

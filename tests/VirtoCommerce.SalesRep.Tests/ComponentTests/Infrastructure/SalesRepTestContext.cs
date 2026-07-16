@@ -12,6 +12,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.CustomerModule.Data.Handlers;
@@ -46,27 +47,33 @@ internal sealed class SalesRepTestContext : IDisposable
     private readonly SqliteConnection _securityConnection;
     private readonly SqliteConnection _customerConnection;
     private readonly SqliteConnection _orderConnection;
+    private readonly SqliteConnection _cartConnection;
     private readonly ServiceProvider _provider;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
     private readonly DbContextOptions<CustomerDbContext> _customerOptions;
     private readonly DbContextOptions<OrderDbContext> _orderOptions;
+    private readonly DbContextOptions<CartDbContext> _cartOptions;
 
     private SalesRepTestContext(
         SqliteConnection securityConnection,
         SqliteConnection customerConnection,
         SqliteConnection orderConnection,
+        SqliteConnection cartConnection,
         ServiceProvider provider,
         DbContextOptions<SecurityDbContext> securityOptions,
         DbContextOptions<CustomerDbContext> customerOptions,
-        DbContextOptions<OrderDbContext> orderOptions)
+        DbContextOptions<OrderDbContext> orderOptions,
+        DbContextOptions<CartDbContext> cartOptions)
     {
         _securityConnection = securityConnection;
         _customerConnection = customerConnection;
         _orderConnection = orderConnection;
+        _cartConnection = cartConnection;
         _provider = provider;
         _securityOptions = securityOptions;
         _customerOptions = customerOptions;
         _orderOptions = orderOptions;
+        _cartOptions = cartOptions;
     }
 
     public static SalesRepTestContext Create()
@@ -78,17 +85,20 @@ internal sealed class SalesRepTestContext : IDisposable
         var securityConnection = SqliteTestDbContextFactory.CreateConnection();
         var customerConnection = SqliteTestDbContextFactory.CreateConnection();
         var orderConnection = SqliteTestDbContextFactory.CreateConnection();
+        var cartConnection = SqliteTestDbContextFactory.CreateConnection();
         var securityOptions = SqliteTestDbContextFactory.CreateOptions<SecurityDbContext>(
             securityConnection,
             builder => builder.ReplaceService<IModelCustomizer, LockoutEndSqliteModelCustomizer>());
         var customerOptions = SqliteTestDbContextFactory.CreateOptions<CustomerDbContext>(customerConnection);
         var orderOptions = SqliteTestDbContextFactory.CreateOptions<OrderDbContext>(orderConnection);
+        var cartOptions = SqliteTestDbContextFactory.CreateOptions<CartDbContext>(cartConnection);
 
         var provider = new ServiceCollection()
             .AddSecuritySlice(securityOptions)
             .AddCustomerSlice(customerOptions)
             .AddSalesRepSlice()
             .AddOrderSlice(orderOptions)
+            .AddCartSlice(cartOptions)
             .AddSalesRepGraphQl()
             .BuildServiceProvider();
 
@@ -103,8 +113,8 @@ internal sealed class SalesRepTestContext : IDisposable
             .Register(KnownDocumentTypes.Member, provider.GetRequiredService<MemberSearchRequestBuilder>);
 
         return new SalesRepTestContext(
-            securityConnection, customerConnection, orderConnection,
-            provider, securityOptions, customerOptions, orderOptions);
+            securityConnection, customerConnection, orderConnection, cartConnection,
+            provider, securityOptions, customerOptions, orderOptions, cartOptions);
     }
 
     /// <summary>The real REST controller resolved from DI (the REST tests' entry point).</summary>
@@ -373,6 +383,9 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <summary>Fresh DbContext on the order DB for seeding/assertions.</summary>
     public OrderDbContext NewOrderDbContext() => new(_orderOptions);
 
+    /// <summary>Fresh DbContext on the cart DB for seeding/assertions.</summary>
+    public CartDbContext NewCartDbContext() => new(_cartOptions);
+
     /// <summary>Unwraps the value from a controller action result (actions return <c>Ok(value)</c>).</summary>
     public static T Unwrap<T>(ActionResult<T> result)
     {
@@ -385,5 +398,6 @@ internal sealed class SalesRepTestContext : IDisposable
         _securityConnection.Dispose();
         _customerConnection.Dispose();
         _orderConnection.Dispose();
+        _cartConnection.Dispose();
     }
 }

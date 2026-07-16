@@ -9,6 +9,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using VirtoCommerce.CartModule.Data.Model;
+using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CoreModule.Core.Common;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.OrdersModule.Core.Model;
@@ -60,6 +62,33 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
         services.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
+
+        // "My customers" counts service (VCST dashboard): also aggregates over the same order repository.
+        services.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the cart data slice (real CartDbContext/repository on SQLite) and the cart/project statistics stack, so
+    /// component tests can execute the real <c>salesRepCustomerCartStatistics</c> query through the real schema and
+    /// the real <see cref="CustomerCartStatisticsService"/>. The raw-database command (bulk soft-delete / wishlist
+    /// lookup) is stubbed — the statistics path only reads the <c>ShoppingCarts</c> IQueryable.
+    /// </summary>
+    public static IServiceCollection AddCartSlice(this IServiceCollection services, DbContextOptions<CartDbContext> cartDbOptions)
+    {
+        services.AddSingleton(cartDbOptions);
+        services.AddScoped<CartDbContext>();
+        services.AddSingleton<ICartRawDatabaseCommand, StubCartRawDatabaseCommand>();
+        services.AddTransient<ICartRepository, CartRepository>();
+        services.AddSingleton<Func<ICartRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ICartRepository>());
+
+        // The real cart statistics service under test; currency source is the shared TestCurrencyService (USD+EUR).
+        services.AddSingleton<ILogger<CustomerCartStatisticsService>>(NullLogger<CustomerCartStatisticsService>.Instance);
+        services.AddTransient<ICustomerCartStatisticsService, CustomerCartStatisticsService>();
+
+        // The real default cart-kind service (single built-in "project" kind → cart type "Wishlist").
+        services.AddTransient<ISalesRepCartKindService, SalesRepCartKindService>();
 
         return services;
     }
@@ -161,6 +190,18 @@ internal static class TestGraphQlConfiguration
         public Task SaveChangesAsync(Currency[] currencies) => throw new NotSupportedException();
 
         public Task DeleteCurrenciesAsync(string[] codes) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Stub cart raw-database command: the statistics path never touches it (it only reads the ShoppingCarts
+    /// IQueryable), so the bulk soft-delete / wishlist-lookup methods throw if ever called.
+    /// </summary>
+    private sealed class StubCartRawDatabaseCommand : ICartRawDatabaseCommand
+    {
+        public Task SoftRemove(CartDbContext dbContext, IList<string> ids) => throw new NotSupportedException();
+
+        public Task<IList<ProductWishlistEntity>> FindWishlistsByProductsAsync(CartDbContext dbContext, string customerId, string organizationId, string storeId, IList<string> productIds)
+            => throw new NotSupportedException();
     }
 
     /// <summary>
