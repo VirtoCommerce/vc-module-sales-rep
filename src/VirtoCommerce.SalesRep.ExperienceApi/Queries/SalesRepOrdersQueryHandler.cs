@@ -54,22 +54,19 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
             return result;
         }
 
-        // Resolve the selected statuses to their underlying order statuses (1:many for composite/overridden statuses).
-        // If they were provided but resolve to nothing (all unrecognized for this store), no order can match — return
-        // an empty result rather than silently dropping the filter and returning every order.
-        string[] statuses = null;
-        if (request.Statuses?.Count > 0)
+        var criteria = BuildSearchCriteria(request, organizationIds);
+
+        // Apply the selected statuses through the SAME resolver the order statistics use (so the list and the stats
+        // filter identically). Null means statuses were provided but none resolved (all unrecognized) — return an
+        // empty result rather than silently dropping the filter and returning every order. No concrete filter field
+        // is inspected here.
+        var filteredCriteria = await _statusService.ApplyListFilterAsync(request.StoreId, request.Filters, criteria);
+        if (filteredCriteria == null)
         {
-            statuses = await _statusService.ResolveOrderStatusesAsync(request.StoreId, request.Statuses);
-            if (statuses.Length == 0)
-            {
-                return result;
-            }
+            return result;
         }
 
-        var criteria = BuildSearchCriteria(request, organizationIds, statuses);
-
-        var searchResult = await _customerOrderSearchService.SearchAsync(criteria);
+        var searchResult = await _customerOrderSearchService.SearchAsync(filteredCriteria);
 
         result.TotalCount = searchResult.TotalCount;
         result.Results = searchResult.Results
@@ -80,11 +77,11 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
     }
 
     /// <summary>
-    /// Assembles the order search criteria for the given organizations and already-resolved statuses. Override to
-    /// customize the criteria — e.g. extra filters, response group or sort. Security scoping (which organizations)
-    /// and status resolution happen in <see cref="Handle"/>; this method only shapes the criteria.
+    /// Assembles the security-scoped, paged order search criteria for the given organizations (no status filter —
+    /// that is applied afterwards in <see cref="Handle"/> via the shared <see cref="ISalesRepOrderStatusService"/>).
+    /// Override to customize the criteria — e.g. extra filters, response group or sort.
     /// </summary>
-    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, string[] organizationIds, string[] statuses)
+    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, string[] organizationIds)
     {
         // Keyword/Sort/Skip/Take come from the SearchQuery base; set only the order-specific bits here.
         var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
@@ -98,12 +95,6 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
         criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
-
-        // Apply the resolved status filter when present (null/empty = the caller didn't filter by status).
-        if (statuses?.Length > 0)
-        {
-            criteria.Statuses = statuses;
-        }
 
         // Recent orders on top by default (VCST-5308); an explicit sort argument overrides it.
         if (string.IsNullOrEmpty(criteria.Sort))

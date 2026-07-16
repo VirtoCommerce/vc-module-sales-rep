@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using GraphQL;
 using GraphQL.Types;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -29,12 +30,12 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
     public string StoreId { get; set; }
 
     /// <summary>
-    /// Optional selected statuses (each a <c>SalesRepOrderStatus.name</c>). The handler resolves each to its
+    /// Optional selected filter-rule names (each a <c>SalesRepOrderStatus.name</c>). The handler resolves each to its
     /// underlying order statuses (1:many for composite/overridden statuses) and filters by their union; omit (or
-    /// empty) for no status filter. A list so multi-select works without a future breaking change — single-select
-    /// is a one-element list.
+    /// empty) for no filter. A list so multi-select works; single-select is a one-element list. Uses the module-wide
+    /// <see cref="SalesRepFilters.ArgumentName"/> so every Sales Rep query selects named rules the same way.
     /// </summary>
-    public IList<string> Statuses { get; set; }
+    public IList<string> Filters { get; set; }
 
     /// <summary>
     /// Culture for the localized <c>statusDisplayValue</c> field (e.g. "en-US"). Consumed by the
@@ -58,7 +59,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
 
         yield return Argument<StringGraphType>(nameof(OrganizationId), "Organization (customer) id whose orders to load; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
-        yield return Argument<ListGraphType<StringGraphType>>(nameof(Statuses), "Selected statuses (salesRepOrderStatuses 'name's); filters to the union of their underlying order statuses.");
+        yield return Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Selected filter-rule names (salesRepOrderStatuses 'name's); filters to the union of their underlying order statuses.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized statusDisplayValue field (\"en-US\").");
     }
 
@@ -69,7 +70,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
         // Identity comes from the caller's claims; only the customer id (and optional store) are client arguments.
         OrganizationId = context.GetArgument<string>(nameof(OrganizationId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
-        Statuses = context.GetArgument<string[]>(nameof(Statuses));
+        Filters = context.GetArgument<string[]>(SalesRepFilters.ArgumentName);
         CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
 

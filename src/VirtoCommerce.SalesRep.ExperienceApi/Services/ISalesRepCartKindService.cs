@@ -1,25 +1,24 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 /// <summary>
-/// Source of the Sales Rep cart "kinds" shown as filter options, and the mapping that resolves selected kinds to the
-/// underlying cart type/status filter to aggregate by. The cart analogue of <c>ISalesRepOrderStatusService</c>. The
-/// default implementation exposes a single built-in "project" kind (cart type "Wishlist"); a platform-based project
-/// replaces this service (DI last-registration wins) to hide, add or recompose kinds (e.g. an "active carts" kind).
+/// Source of the Sales Rep cart "kinds" (filter options) and the mapping that applies a selection to the cart
+/// statistics criteria (type + status). The cart analogue of <see cref="ISalesRepOrderStatusService"/>. Only a
+/// statistics apply method exists today (there is no cart list yet); a cart list would add its own apply method
+/// here, keeping both mappings in one class. The default implementation exposes a single built-in "project" kind
+/// (cart type "Wishlist"); a project replaces this service to hide, add or recompose kinds.
 /// </summary>
-public interface ISalesRepCartKindService
+public interface ISalesRepCartKindService : IFilterRuleResolver<SalesRepCartKind>
 {
-    /// <summary>The selectable cart kinds (in display order) for <paramref name="storeId"/>, labels localized to <paramref name="cultureName"/>.</summary>
-    Task<IList<SalesRepCartKind>> GetKindsAsync(string storeId, string cultureName);
-
     /// <summary>
-    /// Resolves the selected kinds (<see cref="SalesRepCartKind.Name"/>) to the deduped union of their underlying
-    /// cart types and statuses. Returns an empty filter (<see cref="SalesRepCartFilter.IsEmpty"/>) when nothing is
-    /// selected or the names are unknown, so the caller can apply no filter (nothing selected) or fail closed
-    /// (names given but all unrecognized).
+    /// Applies the selected kinds' type/status filter to the cart-statistics criteria and returns it. Returns the
+    /// criteria unchanged when no kinds were selected, and <c>null</c> when kinds were selected but none resolved
+    /// (fail-closed).
     /// </summary>
-    Task<SalesRepCartFilter> ResolveCartFilterAsync(string storeId, IList<string> selectedKindNames);
+    Task<CustomerCartStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerCartStatisticsCriteria criteria);
 }

@@ -17,5 +17,5 @@ public class SalesRepCartKindsQueryHandler : IQueryHandler<SalesRepCartKindsQuer
     }
 
     public virtual Task<IList<SalesRepCartKind>> Handle(SalesRepCartKindsQuery request, CancellationToken cancellationToken)
-        => _kindService.GetKindsAsync(request.StoreId, request.CultureName);
+        => _kindService.GetRulesAsync(request.StoreId, request.CultureName);
 }

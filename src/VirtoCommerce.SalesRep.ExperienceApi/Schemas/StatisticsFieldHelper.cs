@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using GraphQL;
 using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
@@ -28,6 +30,13 @@ internal static class StatisticsFieldHelper
     /// <summary>Reverses <see cref="EncodeSet"/> ("" → null = no filter).</summary>
     public static string[] DecodeSet(string encoded)
         => string.IsNullOrEmpty(encoded) ? null : encoded.Split(SetSeparator);
+
+    /// <summary>
+    /// Reads the unified <see cref="SalesRepFilters.ArgumentName"/> selection from a statistics field and encodes it
+    /// into a stable batch-key segment — the one place the graph types read the filter argument.
+    /// </summary>
+    public static string GetFilterKey(IResolveFieldContext context)
+        => EncodeSet(context.GetArgument<string[]>(SalesRepFilters.ArgumentName));
 
     /// <summary>
     /// Resolves a raw decimal (already converted to <paramref name="currencyCode"/> by the service) into a domain

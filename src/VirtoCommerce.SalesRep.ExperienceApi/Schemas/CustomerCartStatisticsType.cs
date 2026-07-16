@@ -7,6 +7,7 @@ using GraphQL.Types;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Schemas;
@@ -16,9 +17,10 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 /// <summary>
 /// A Sales Rep's cart/project statistics in one currency (dashboard "Active Projects" and related cart widgets).
 /// Request any number of ranges via aliased <c>period(from, to, kinds)</c> selections and <c>comparison(current,
-/// previous, kinds)</c> selections; a per-(range, kind-filter) DataLoader coalesces them so each distinct bucket is
-/// aggregated only once. <c>kinds</c> are business names (e.g. "project") the server maps to underlying cart
-/// type/status filters via <see cref="ISalesRepCartKindService"/> — the client never sees internal cart types.
+/// previous, kinds)</c> selections; a per-(range, kind-selection) DataLoader coalesces them so each distinct bucket
+/// is aggregated only once. <c>kinds</c> are business names (e.g. "project") the server maps to underlying cart
+/// type/status filters via <see cref="ISalesRepCartKindService"/> — the client never sees internal cart types, and
+/// the mapping (plus fail-closed handling) happens inside the loader, so this graph type sees no concrete filter.
 /// </summary>
 public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatisticsContext>
 {
@@ -43,115 +45,80 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             .Description("Cart statistics for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the cart created date (null = no lower bound).")
             .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the cart created date (null = no upper bound).")
-            .Argument<ListGraphType<StringGraphType>>("kinds", "Optional cart-kind names (salesRepCartKinds 'name's, e.g. \"project\"); counts only carts matching the type/status filter those kinds resolve to. Omit for every cart.")
-            .ResolveAsync(async context =>
+            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional cart-kind names (salesRepCartKinds 'name's, e.g. \"project\"); counts only carts matching the type/status filter those kinds resolve to. Omit for every cart.")
+            .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>("from");
                 var to = context.GetArgument<DateTime?>("to");
-
-                var (filter, blocked) = await ResolveKindFilterAsync(context);
-                if (blocked)
-                {
-                    return EmptyPeriod(context);
-                }
-
-                return GetPeriodLoader(context).LoadAsync(BuildKey(from, to, filter));
+                return GetPeriodLoader(context).LoadAsync((from, to, StatisticsFieldHelper.GetFilterKey(context)));
             });
 
         Field<CustomerCartStatisticsComparisonType>("comparison")
-            .Description("Compares two periods (current vs previous). Reuses the period results, so a range shared with a 'period' selection is not queried again.")
+            .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket shared with a 'period' selection is not queried again.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("current", "The later period.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("previous", "The baseline period to compare against.")
-            .Argument<ListGraphType<StringGraphType>>("kinds", "Optional cart-kind names applied to both periods (see 'period.kinds').")
-            .ResolveAsync(async context =>
+            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional cart-kind names applied to both periods (see 'period.filters').")
+            .Resolve(context =>
             {
                 var current = context.GetArgument<SalesRepStatisticsPeriodInput>("current");
                 var previous = context.GetArgument<SalesRepStatisticsPeriodInput>("previous");
-
-                var (filter, blocked) = await ResolveKindFilterAsync(context);
-                if (blocked)
-                {
-                    return EmptyComparison(context);
-                }
+                var filterKey = StatisticsFieldHelper.GetFilterKey(context);
 
                 var loader = GetPeriodLoader(context);
 
                 // Queue both loads before chaining so they land in the same batch (one dispatch).
-                var currentResult = loader.LoadAsync(BuildKey(current.From, current.To, filter));
-                var previousResult = loader.LoadAsync(BuildKey(previous.From, previous.To, filter));
+                var currentResult = loader.LoadAsync((current.From, current.To, filterKey));
+                var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey));
 
                 return currentResult.Then(currentPeriod =>
                     previousResult.Then(previousPeriod => BuildComparison(currentPeriod, previousPeriod)));
             });
     }
 
-    /// <summary>
-    /// Resolves the field's <c>kinds</c> argument (business kind names) to the underlying cart type/status filter,
-    /// via the shared <see cref="ISalesRepCartKindService"/>. Returns <c>(null, false)</c> when no kind filter was
-    /// requested. Fail-closed: when kinds were given but resolve to an empty filter (all unrecognized), returns
-    /// <c>(null, true)</c> so the caller yields zeros rather than counting every cart.
-    /// </summary>
-    private async Task<(SalesRepCartFilter Filter, bool Blocked)> ResolveKindFilterAsync(IResolveFieldContext context)
-    {
-        var kindNames = context.GetArgument<string[]>("kinds");
-        if (kindNames == null || kindNames.Length == 0)
-        {
-            return (null, false);
-        }
-
-        var statisticsContext = (CustomerCartStatisticsContext)context.Source;
-        var filter = await _kindService.ResolveCartFilterAsync(statisticsContext.StoreId, kindNames);
-        return filter.IsEmpty ? (null, true) : (filter, false);
-    }
-
-    private static (DateTime? From, DateTime? To, string Types, string Statuses) BuildKey(DateTime? from, DateTime? to, SalesRepCartFilter filter)
-        => (from, to, StatisticsFieldHelper.EncodeSet(filter?.Types), StatisticsFieldHelper.EncodeSet(filter?.Statuses));
-
     // A per-request batch loader shared by 'period' and 'comparison'. Keyed on the shared context (rep, organizations,
-    // store, currency) so every distinct (range, kind-filter) under one node is aggregated exactly once.
-    private IDataLoader<(DateTime? From, DateTime? To, string Types, string Statuses), CustomerCartStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
+    // store, currency); the batch key adds the range and the raw kind selection. Kind resolution + fail-closed
+    // handling happen here, once per distinct bucket.
+    private IDataLoader<(DateTime? From, DateTime? To, string Filters), CustomerCartStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
     {
         var statisticsContext = (CustomerCartStatisticsContext)context.Source;
 
         var loaderKey = $"{nameof(CustomerCartStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
 
-        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Types, string Statuses), CustomerCartStatisticsPeriod>(
+        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filters), CustomerCartStatisticsPeriod>(
             loaderKey,
-            async keys =>
+            async buckets =>
             {
-                var tasks = keys.Select(async key =>
+                var tasks = buckets.Select(async bucket =>
                 {
                     var criteria = AbstractTypeFactory<CustomerCartStatisticsCriteria>.TryCreateInstance();
                     criteria.OrganizationIds = statisticsContext.OrganizationIds;
                     criteria.CustomerId = statisticsContext.SalesRepUserId;
                     criteria.StoreId = statisticsContext.StoreId;
                     criteria.CurrencyCode = statisticsContext.CurrencyCode;
-                    criteria.Types = StatisticsFieldHelper.DecodeSet(key.Types);
-                    criteria.Statuses = StatisticsFieldHelper.DecodeSet(key.Statuses);
-                    criteria.FromDate = key.From;
-                    criteria.ToDate = key.To;
+                    criteria.FromDate = bucket.From;
+                    criteria.ToDate = bucket.To;
 
-                    var period = await _statisticsService.GetStatisticsAsync(criteria);
-                    return (key, period);
+                    // Apply the selected kinds' type/status filter through the shared resolver. Null = kinds were
+                    // selected but none resolved → fail-closed: a zeroed period, not "count every cart".
+                    var names = StatisticsFieldHelper.DecodeSet(bucket.Filters);
+                    var filtered = await _kindService.ApplyStatisticsFilterAsync(statisticsContext.StoreId, names, criteria);
+
+                    var period = filtered == null
+                        ? EmptyPeriod(statisticsContext.CurrencyCode)
+                        : await _statisticsService.GetStatisticsAsync(filtered);
+                    return (bucket, period);
                 });
 
                 var results = await Task.WhenAll(tasks);
-                return results.ToDictionary(x => x.key, x => x.period);
+                return results.ToDictionary(x => x.bucket, x => x.period);
             });
     }
 
-    private static CustomerCartStatisticsPeriod EmptyPeriod(IResolveFieldContext context)
+    private static CustomerCartStatisticsPeriod EmptyPeriod(string currencyCode)
     {
         var period = AbstractTypeFactory<CustomerCartStatisticsPeriod>.TryCreateInstance();
-        period.CurrencyCode = ((CustomerCartStatisticsContext)context.Source).CurrencyCode;
+        period.CurrencyCode = currencyCode;
         return period;
-    }
-
-    // Fail-closed comparison: both sides zero (BuildComparison(empty, empty) → zero changes, null percents).
-    private static CustomerCartStatisticsComparison EmptyComparison(IResolveFieldContext context)
-    {
-        var empty = EmptyPeriod(context);
-        return BuildComparison(empty, empty);
     }
 
     private static CustomerCartStatisticsComparison BuildComparison(CustomerCartStatisticsPeriod current, CustomerCartStatisticsPeriod previous)

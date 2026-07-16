@@ -739,7 +739,7 @@ public class SalesRepGraphQlComponentTests
 
         // "Inactive" is a composite status -> [Cancelled, Failed] (StubOrderStatusService); "New" must be excluded.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"Inactive\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filters:[\"Inactive\"]) { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -760,7 +760,7 @@ public class SalesRepGraphQlComponentTests
 
         // Multi-select: "New" (-> [New]) + "Inactive" (-> [Cancelled, Failed]); union excludes Processing.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"New\",\"Inactive\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filters:[\"New\",\"Inactive\"]) { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -803,7 +803,7 @@ public class SalesRepGraphQlComponentTests
         // underlying order status. The filter must then return nothing — mirroring the reported case where filtering
         // by a status the store doesn't define (e.g. "Failed"/"Inactive") wrongly returned every order.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"foo\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filters:[\"foo\"]) { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -1140,7 +1140,7 @@ public class SalesRepGraphQlComponentTests
 
         // An explicit empty statuses array means "no status filter" (like omitting the argument) — not "match nothing".
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filters:[]) { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");

@@ -1,4 +1,5 @@
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -9,9 +10,9 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 /// "active" status set). Extensible: a project registers its own <c>ISalesRepCartKindService</c> and/or overrides
 /// this type via <c>AbstractTypeFactory.OverrideType</c> to add, hide or recompose kinds.
 /// </summary>
-public class SalesRepCartKind
+public class SalesRepCartKind : INamedFilterRule
 {
-    /// <summary>Stable kind id — the value the client sends back as the cart-statistics "kinds" argument.</summary>
+    /// <summary>Stable kind id — the value the client sends back in the cart-statistics <c>filters</c> argument.</summary>
     public string Name { get; set; }
 
     /// <summary>Localized label shown for the kind.</summary>

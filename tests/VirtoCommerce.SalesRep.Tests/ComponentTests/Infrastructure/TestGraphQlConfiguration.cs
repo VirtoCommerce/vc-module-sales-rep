@@ -14,11 +14,13 @@ using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CoreModule.Core.Common;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.OrdersModule.Core.Model;
+using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.ExperienceApi;
@@ -217,19 +219,57 @@ internal static class TestGraphQlConfiguration
             SalesRepOrderStatus.Create("Inactive", "Not active", "Cancelled", "Failed"),
         ];
 
-        public Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
+        public Task<IList<SalesRepOrderStatus>> GetRulesAsync(string storeId, string cultureName)
             => Task.FromResult(_statuses);
 
-        public Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
+        public Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderSearchCriteria criteria)
         {
-            var selected = new HashSet<string>(selectedStatusNames ?? [], StringComparer.OrdinalIgnoreCase);
-            var result = _statuses
+            var resolved = Resolve(selectedNames);
+            if (resolved == null)
+            {
+                return Task.FromResult<CustomerOrderSearchCriteria>(null); // fail-closed
+            }
+
+            if (resolved.Length > 0)
+            {
+                criteria.Statuses = resolved;
+            }
+
+            return Task.FromResult(criteria);
+        }
+
+        public Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderStatisticsCriteria criteria)
+        {
+            var resolved = Resolve(selectedNames);
+            if (resolved == null)
+            {
+                return Task.FromResult<CustomerOrderStatisticsCriteria>(null); // fail-closed
+            }
+
+            if (resolved.Length > 0)
+            {
+                criteria.Statuses = resolved;
+            }
+
+            return Task.FromResult(criteria);
+        }
+
+        // Shared resolution: empty = no filter; non-empty = the union; null = names given but none matched.
+        private static string[] Resolve(IList<string> selectedNames)
+        {
+            if (selectedNames == null || selectedNames.Count == 0)
+            {
+                return [];
+            }
+
+            var selected = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
+            var resolved = _statuses
                 .Where(x => selected.Contains(x.Name))
                 .SelectMany(x => x.OrderStatuses)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToArray();
 
-            return Task.FromResult(result);
+            return resolved.Length == 0 ? null : resolved;
         }
     }
 

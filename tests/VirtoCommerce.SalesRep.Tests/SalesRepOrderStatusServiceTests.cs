@@ -2,8 +2,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using Xunit;
 
@@ -21,11 +23,11 @@ public class SalesRepOrderStatusServiceTests
         new(new FakeLocalizableSettingService(configuredStatuses));
 
     [Fact]
-    public async Task GetStatuses_MapsEachConfiguredStatus_OneToOne()
+    public async Task GetRules_MapsEachConfiguredStatus_OneToOne()
     {
         var service = CreateService("New", "Processing", "Cancelled");
 
-        var result = await service.GetStatusesAsync("B2B-store", "en-US");
+        var result = await service.GetRulesAsync("B2B-store", "en-US");
 
         result.Select(x => x.Name).Should().Equal("New", "Processing", "Cancelled");
         result.Should().OnlyContain(x => x.OrderStatuses.Length == 1 && x.OrderStatuses[0] == x.Name);
@@ -36,7 +38,10 @@ public class SalesRepOrderStatusServiceTests
     {
         var service = CreateService("New", "Cancelled");
 
-        (await service.ResolveOrderStatusesAsync("B2B-store", ["Cancelled"])).Should().Equal("Cancelled");
+        var criteria = await service.ApplyStatisticsFilterAsync("B2B-store", ["Cancelled"], new CustomerOrderStatisticsCriteria());
+
+        criteria.Should().NotBeNull();
+        criteria.Statuses.Should().Equal("Cancelled");
     }
 
     [Fact]
@@ -44,17 +49,35 @@ public class SalesRepOrderStatusServiceTests
     {
         var service = CreateService("New", "Processing", "Cancelled");
 
-        (await service.ResolveOrderStatusesAsync("B2B-store", ["New", "Cancelled"]))
-            .Should().BeEquivalentTo("New", "Cancelled");
+        var criteria = await service.ApplyStatisticsFilterAsync("B2B-store", ["New", "Cancelled"], new CustomerOrderStatisticsCriteria());
+
+        criteria.Statuses.Should().BeEquivalentTo("New", "Cancelled");
     }
 
     [Fact]
-    public async Task Resolve_UnknownOrEmpty_ReturnsEmpty()
+    public async Task Resolve_ListAndStatistics_ApplySameStatuses()
+    {
+        var service = CreateService("New", "Processing", "Cancelled");
+
+        var listCriteria = await service.ApplyListFilterAsync("B2B-store", ["New", "Cancelled"], new CustomerOrderSearchCriteria());
+        var statsCriteria = await service.ApplyStatisticsFilterAsync("B2B-store", ["New", "Cancelled"], new CustomerOrderStatisticsCriteria());
+
+        // The whole point of the shared resolver: both readers filter by exactly the same set.
+        listCriteria.Statuses.Should().BeEquivalentTo(statsCriteria.Statuses);
+    }
+
+    [Fact]
+    public async Task Resolve_Unknown_FailsClosed_And_Empty_NoFilter()
     {
         var service = CreateService("New");
 
-        (await service.ResolveOrderStatusesAsync("B2B-store", ["Bogus"])).Should().BeEmpty();
-        (await service.ResolveOrderStatusesAsync("B2B-store", null)).Should().BeEmpty();
+        // Names given but none recognized → null (fail-closed).
+        (await service.ApplyStatisticsFilterAsync("B2B-store", ["Bogus"], new CustomerOrderStatisticsCriteria())).Should().BeNull();
+
+        // No names → criteria returned unchanged, no status filter applied.
+        var noFilter = await service.ApplyStatisticsFilterAsync("B2B-store", null, new CustomerOrderStatisticsCriteria());
+        noFilter.Should().NotBeNull();
+        noFilter.Statuses.Should().BeNull();
     }
 
     /// <summary>Returns the given statuses as the Order.Status dictionary (Key = raw status, Value = label).</summary>

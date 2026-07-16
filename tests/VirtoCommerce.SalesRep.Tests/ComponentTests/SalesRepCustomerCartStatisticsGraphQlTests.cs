@@ -43,9 +43,9 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
                 currencyCode
-                projects:  period({{Ytd}}, kinds: ["project"]) { total { amount } count average { amount } lastCartDate }
+                projects:  period({{Ytd}}, filters: ["project"]) { total { amount } count average { amount } lastCartDate }
                 allCarts:  period({{Ytd}}) { count }
-                yoy: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }, kinds: ["project"]) {
+                yoy: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }, filters: ["project"]) {
                   countChange countChangePercent totalChange { amount }
                 }
               } }
@@ -81,7 +81,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                projects: period({{Ytd}}, kinds: ["project"]) { total { amount } count average { amount } } } }
+                projects: period({{Ytd}}, filters: ["project"]) { total { amount } count average { amount } } } }
               """,
             userId: rep.UserId);
 
@@ -103,7 +103,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                projects: period({{Ytd}}, kinds: ["project"]) { total { amount } count } } }
+                projects: period({{Ytd}}, filters: ["project"]) { total { amount } count } } }
               """,
             userId: rep.UserId);
 
@@ -124,7 +124,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                bogus: period({{Ytd}}, kinds: ["DoesNotExist"]) { total { amount } count } } }
+                bogus: period({{Ytd}}, filters: ["DoesNotExist"]) { total { amount } count } } }
               """,
             userId: rep.UserId);
 
@@ -145,7 +145,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", storeId: "B2B-store", currencyCode: "USD") {
-                projects: period({{Ytd}}, kinds: ["project"]) { total { amount } count } } }
+                projects: period({{Ytd}}, filters: ["project"]) { total { amount } count } } }
               """,
             userId: rep.UserId);
 
@@ -167,7 +167,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(currencyCode: "USD") {
-                projects: period({{Ytd}}, kinds: ["project"]) { total { amount } count } } }
+                projects: period({{Ytd}}, filters: ["project"]) { total { amount } count } } }
               """,
             userId: rep.UserId);
 
@@ -186,7 +186,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerCartStatistics(organizationId:"org-2", currencyCode: "USD") { projects: period({{Ytd}}, kinds: ["project"]) { count } } }
+              query { salesRepCustomerCartStatistics(organizationId:"org-2", currencyCode: "USD") { projects: period({{Ytd}}, filters: ["project"]) { count } } }
               """,
             userId: rep.UserId);
 
@@ -208,7 +208,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                projects: period({{Ytd}}, kinds: ["project"]) { total { amount } count } } }
+                projects: period({{Ytd}}, filters: ["project"]) { total { amount } count } } }
               """,
             userId: rep.UserId);
 
@@ -224,7 +224,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
             $$"""
-              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") { projects: period({{Ytd}}, kinds: ["project"]) { count } } }
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") { projects: period({{Ytd}}, filters: ["project"]) { count } } }
               """);
 
         json.Should().Contain("\"errors\"");

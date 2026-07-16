@@ -1,14 +1,16 @@
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 /// <summary>
 /// A selectable order status for the Sales Rep orders filter (VCST-5308). May be a single order status or a
 /// composite grouping several underlying <see cref="OrderStatuses"/> (e.g. "Not active" → Cancelled + Failed).
-/// Extensible: a project registers its own <c>ISalesRepOrderStatusService</c> and/or overrides this type via
-/// <c>AbstractTypeFactory.OverrideType</c> to add, hide or compose statuses.
+/// A <see cref="INamedFilterRule"/>: the client sends the <see cref="Name"/>, the server resolves it and applies it
+/// to the order criteria (via <c>ISalesRepOrderStatusService</c>). Extensible: a project registers its own service
+/// and/or overrides this type via <c>AbstractTypeFactory.OverrideType</c> to add, hide or compose statuses.
 /// </summary>
-public class SalesRepOrderStatus
+public class SalesRepOrderStatus : INamedFilterRule
 {
     /// <summary>Stable status id — the value the client sends back as the <c>salesRepOrders</c> "status" argument.</summary>
     public string Name { get; set; }

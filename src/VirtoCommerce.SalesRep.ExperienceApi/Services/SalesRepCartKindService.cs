@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.CartModule.Core;
-using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -19,7 +19,7 @@ public class SalesRepCartKindService : ISalesRepCartKindService
     /// <summary>The stable name of the built-in "project" (wishlist) kind.</summary>
     public const string ProjectKind = "project";
 
-    public virtual Task<IList<SalesRepCartKind>> GetKindsAsync(string storeId, string cultureName)
+    public virtual Task<IList<SalesRepCartKind>> GetRulesAsync(string storeId, string cultureName)
     {
         IList<SalesRepCartKind> kinds =
         [
@@ -29,29 +29,36 @@ public class SalesRepCartKindService : ISalesRepCartKindService
         return Task.FromResult(kinds);
     }
 
-    public virtual async Task<SalesRepCartFilter> ResolveCartFilterAsync(string storeId, IList<string> selectedKindNames)
+    public virtual async Task<CustomerCartStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerCartStatisticsCriteria criteria)
     {
-        var filter = AbstractTypeFactory<SalesRepCartFilter>.TryCreateInstance();
-
-        if (selectedKindNames == null || selectedKindNames.Count == 0)
+        if (selectedNames == null || selectedNames.Count == 0)
         {
-            return filter;
+            return criteria; // no filter
         }
 
-        var selected = new HashSet<string>(selectedKindNames, StringComparer.OrdinalIgnoreCase);
+        var selected = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
 
-        var kinds = await GetKindsAsync(storeId, cultureName: null);
+        var kinds = await GetRulesAsync(storeId, cultureName: null);
         var matched = kinds.Where(x => selected.Contains(x.Name)).ToList();
 
-        filter.Types = matched
-            .SelectMany(x => x.Types ?? [])
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        filter.Statuses = matched
-            .SelectMany(x => x.Statuses ?? [])
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        var types = matched.SelectMany(x => x.Types ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+        var statuses = matched.SelectMany(x => x.Statuses ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
 
-        return filter;
+        if (types.Length == 0 && statuses.Length == 0)
+        {
+            return null; // fail-closed: kinds selected but none recognized
+        }
+
+        if (types.Length > 0)
+        {
+            criteria.Types = types;
+        }
+
+        if (statuses.Length > 0)
+        {
+            criteria.Statuses = statuses;
+        }
+
+        return criteria;
     }
 }

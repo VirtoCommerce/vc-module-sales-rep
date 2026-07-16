@@ -17,5 +17,5 @@ public class SalesRepOrderStatusesQueryHandler : IQueryHandler<SalesRepOrderStat
     }
 
     public virtual Task<IList<SalesRepOrderStatus>> Handle(SalesRepOrderStatusesQuery request, CancellationToken cancellationToken)
-        => _statusService.GetStatusesAsync(request.StoreId, request.CultureName);
+        => _statusService.GetRulesAsync(request.StoreId, request.CultureName);
 }

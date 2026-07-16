@@ -7,9 +7,9 @@ using VirtoCommerce.Xapi.Core.BaseQueries;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 /// <summary>
-/// Returns the selectable Sales Rep cart kinds. The selected kind's <c>name</c> is sent back as the
-/// <c>salesRepCustomerCartStatistics</c> "kinds" argument. Caller-agnostic — kinds are store configuration, not
-/// rep-scoped data. Mirrors <see cref="SalesRepOrderStatusesQuery"/>.
+/// Returns the selectable Sales Rep cart kinds. The selected kind's <c>name</c> is sent back in the
+/// <c>salesRepCustomerCartStatistics</c> <c>filters</c> argument. Caller-agnostic — kinds are store configuration,
+/// not rep-scoped data. Mirrors <see cref="SalesRepOrderStatusesQuery"/>.
 /// </summary>
 public class SalesRepCartKindsQuery : Query<IList<SalesRepCartKind>>
 {
