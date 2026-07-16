@@ -4,10 +4,10 @@ using GraphQL.Types;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
-using VirtoCommerce.Xapi.Core.Security.Authorization;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
@@ -32,10 +32,7 @@ public abstract class SalesRepSearchQueryBuilder<TQuery, TResult, TItem, TItemGr
     {
         await base.BeforeMediatorSend(context, request);
 
-        if (!context.IsAuthenticated())
-        {
-            throw AuthorizationError.AnonymousAccessDenied();
-        }
+        context.EnsureAuthenticated();
 
         // Propagate this field's arguments (notably cultureName) to the UserContext so nested item resolvers can read
         // them — e.g. SalesRepOrderType.statusDisplayValue / total.formattedAmount on a customer's lastOrder. A guarded
