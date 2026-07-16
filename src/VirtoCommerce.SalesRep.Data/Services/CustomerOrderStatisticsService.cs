@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -45,12 +46,36 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
 
     /// <summary>
     /// One grouped-by-currency aggregate query. Returns a raw per-currency sum/count/max — no order rows are
-    /// materialized. Cancelled and prototype orders are always excluded.
+    /// materialized. The set of orders is shaped by <see cref="BuildQuery"/>.
     /// </summary>
     private async Task<IList<PerCurrencyAggregate>> AggregateByCurrencyAsync(CustomerOrderStatisticsCriteria criteria)
     {
         using var repository = _orderRepositoryFactory();
 
+        var query = BuildQuery(repository, criteria);
+
+        return await query
+            .GroupBy(x => x.Currency)
+            .Select(g => new PerCurrencyAggregate
+            {
+                Currency = g.Key,
+                Total = g.Sum(x => x.Total),
+                Count = g.Count(),
+                LastOrderDate = g.Max(x => x.CreatedDate),
+            })
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Builds the filtered order query the aggregate runs over: always excludes cancelled/prototype orders, then
+    /// applies the criteria's organization/creator/store scope, status filter and date range. The extension seam
+    /// for the "restrict to shared-expressible" escape — a project that needs a rule the standard criteria can't
+    /// express (e.g. a "trashed" rule = new-and-stale OR item-less) subclasses this service, calls <c>base</c>, and
+    /// adds its own predicate when it recognizes a flag on its own <see cref="CustomerOrderStatisticsCriteria"/>
+    /// subclass. Keep it consistent with the orders-list reader (see the reconciliation test).
+    /// </summary>
+    protected virtual IQueryable<CustomerOrderEntity> BuildQuery(IOrderRepository repository, CustomerOrderStatisticsCriteria criteria)
+    {
         var query = repository.CustomerOrders.Where(x => !x.IsPrototype && !x.IsCancelled);
 
         if (!criteria.OrganizationIds.IsNullOrEmpty())
@@ -85,16 +110,7 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
             query = query.Where(x => x.CreatedDate < criteria.ToDate.Value);
         }
 
-        return await query
-            .GroupBy(x => x.Currency)
-            .Select(g => new PerCurrencyAggregate
-            {
-                Currency = g.Key,
-                Total = g.Sum(x => x.Total),
-                Count = g.Count(),
-                LastOrderDate = g.Max(x => x.CreatedDate),
-            })
-            .ToListAsync();
+        return query;
     }
 
     /// <summary>
