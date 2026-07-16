@@ -63,6 +63,14 @@ The customer organizations the current rep serves, each with the rep's most rece
     items {
       organizationId
       organizationName
+      iconUrl
+      address {
+        line1
+        city
+        regionName
+        postalCode
+        countryCode
+      }
       lastOrder {
         number
         createdDate
@@ -82,6 +90,8 @@ The customer organizations the current rep serves, each with the rep's most rece
 }
 ```
 
+The `address` is structured (the default organization address, or its first) — the storefront formats it for display, e.g. `City, Region`. It's loaded only when selected: requesting `address` loads the organization's addresses; omit it and only scalar columns (`organizationName`, `iconUrl`, …) are read.
+
 ---
 
 A single customer information card:
@@ -92,8 +102,15 @@ A single customer information card:
     organizationId
     organizationName
     accountType
+    iconUrl
     phone
-    shipTo
+    address {
+      line1
+      city
+      regionName
+      postalCode
+      countryCode
+    }
     primaryContact {
       fullName
       emails

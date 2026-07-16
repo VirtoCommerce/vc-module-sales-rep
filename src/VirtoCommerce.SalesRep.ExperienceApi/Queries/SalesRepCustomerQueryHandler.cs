@@ -7,6 +7,7 @@ using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -16,21 +17,21 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
     private static readonly string _contactResponseGroup =
         (MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
 
-    private static readonly string _organizationResponseGroup =
-        (MemberResponseGroup.WithAddresses | MemberResponseGroup.WithPhones).ToString();
-
     private readonly IMemberService _memberService;
     private readonly IMemberSearchService _memberSearchService;
+    private readonly ISalesRepCustomerResponseGroupParser _responseGroupParser;
 
     public SalesRepCustomerQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberService memberService,
-        IMemberSearchService memberSearchService)
+        IMemberSearchService memberSearchService,
+        ISalesRepCustomerResponseGroupParser responseGroupParser)
         : base(roleResolver, membershipSearchService)
     {
         _memberService = memberService;
         _memberSearchService = memberSearchService;
+        _responseGroupParser = responseGroupParser;
     }
 
     public virtual async Task<SalesRepCustomerDetails> Handle(SalesRepCustomerQuery request, CancellationToken cancellationToken)
@@ -52,9 +53,13 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
+        // Load only the member data the caller selected — the organization's addresses only when `address` was
+        // requested, its phones only when `phone` was (id/name/iconUrl/accountType are scalar, loaded with Default).
+        var organizationResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
+
         var organization = (await _memberService.GetByIdsAsync(
                 [request.OrganizationId],
-                _organizationResponseGroup,
+                organizationResponseGroup,
                 [nameof(Organization)]))
             .OfType<Organization>()
             .FirstOrDefault();

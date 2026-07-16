@@ -7,6 +7,7 @@ using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -14,14 +15,17 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomersQuery, SalesRepCustomerSearchResult>
 {
     private readonly IMemberSearchService _memberSearchService;
+    private readonly ISalesRepCustomerResponseGroupParser _responseGroupParser;
 
     public SalesRepCustomersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
-        IMemberSearchService memberSearchService)
+        IMemberSearchService memberSearchService,
+        ISalesRepCustomerResponseGroupParser responseGroupParser)
         : base(roleResolver, membershipSearchService)
     {
         _memberSearchService = memberSearchService;
+        _responseGroupParser = responseGroupParser;
     }
 
     public virtual async Task<SalesRepCustomerSearchResult> Handle(SalesRepCustomersQuery request, CancellationToken cancellationToken)
@@ -48,8 +52,10 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         membersCriteria.ObjectIds = organizationIds;
         membersCriteria.MemberType = nameof(Organization);
         membersCriteria.RootMembersOnly = false;
-        // Only Id + Name are projected onto SalesRepCustomer (both scalar columns); skip collection loads.
-        membersCriteria.ResponseGroup = MemberResponseGroup.Default.ToString();
+        // Load only the member data the caller selected — the organization's addresses only when `address` was
+        // requested (id/name/iconUrl are scalar columns loaded with Default). Mirrors the order query's field-driven
+        // response group so the list never over-fetches.
+        membersCriteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;

@@ -21,6 +21,10 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 
         Field(x => x.OrganizationId, nullable: false).Description("Organization (customer) id.");
         Field(x => x.OrganizationName, nullable: true).Description("Organization (customer) name.");
+        Field(x => x.IconUrl, nullable: true).Description("URL of the organization's icon.");
+        Field<SalesRepAddressType>("address")
+            .Description("The organization's default address (structured; the storefront formats it, e.g. \"City, Region\").")
+            .Resolve(context => context.Source.Address);
 
         Field<SalesRepOrderType>("lastOrder")
             .Description("The rep's most recent order for this customer (only orders the rep created).")

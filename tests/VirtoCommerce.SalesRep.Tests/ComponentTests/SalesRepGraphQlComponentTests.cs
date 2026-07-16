@@ -377,25 +377,52 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepCustomer_MapsAccountTypeAndShipTo()
+    public async Task SalesRepCustomer_MapsAccountTypeIconUrlAndAddress()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationAsync("org-1", o =>
         {
             o.BusinessCategory = "Retailer";
+            o.IconUrl = "https://cdn.test/org-1.png";
             // CountryName + RegionName are set so MemberService.FillAddressNames doesn't call the (dataless)
-            // CountriesService in the harness; shipTo formats from City + RegionName.
+            // CountriesService in the harness. The storefront formats the display string from these structured parts.
             o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
         });
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(organizationId:\"org-1\") { accountType shipTo } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { accountType iconUrl address { line1 city regionName postalCode isDefault } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"accountType\":\"Retailer\"");
-        json.Should().Contain("\"shipTo\":\"Seattle, WA\"");
+        json.Should().Contain("\"iconUrl\":\"https://cdn.test/org-1.png\"");
+        json.Should().Contain("\"line1\":\"1 Main St\"");
+        json.Should().Contain("\"city\":\"Seattle\"");
+        json.Should().Contain("\"regionName\":\"WA\"");
+        json.Should().Contain("\"isDefault\":true");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_MapIconUrlAndAddress()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationAsync("org-1", o =>
+        {
+            o.IconUrl = "https://cdn.test/org-1.png";
+            o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
+        });
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // Selecting `address` on the list must hydrate the org's Addresses (field-driven WithAddresses response
+        // group), while iconUrl is a scalar that loads with Default.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { organizationId iconUrl address { city regionName } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"iconUrl\":\"https://cdn.test/org-1.png\"");
+        json.Should().Contain("\"city\":\"Seattle\"").And.Contain("\"regionName\":\"WA\"");
     }
 
     [Fact]
