@@ -3,10 +3,9 @@ using GraphQL;
 using GraphQL.Types;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.Xapi.Core.BaseQueries;
-using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
-using VirtoCommerce.Xapi.Core.Security.Authorization;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
@@ -30,9 +29,6 @@ public abstract class SalesRepQueryBuilder<TQuery, TResult, TResultGraphType>
     {
         await base.BeforeMediatorSend(context, request);
 
-        if (!context.IsAuthenticated())
-        {
-            throw AuthorizationError.AnonymousAccessDenied();
-        }
+        context.EnsureAuthenticated();
     }
 }

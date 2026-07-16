@@ -115,6 +115,8 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<SalesRepDetails> SaveChangesInternalAsync(SalesRepDetails salesRep)
     {
+        ValidateAddresses(salesRep);
+
         var isNew = string.IsNullOrEmpty(salesRep.Id);
 
         if (isNew)
@@ -182,6 +184,49 @@ public class SalesRepService : ISalesRepService
         }
 
         return await GetByIdAsync(salesRep.Id);
+    }
+
+    /// <summary>
+    /// Reject addresses missing the fields required to persist them. Country is mandatory because the customer
+    /// module resolves the country name/regions from <c>CountryCode</c> on save (an empty or unknown code throws
+    /// deep in the platform countries service — a NullReferenceException surfacing as an opaque 500). City, Line 1
+    /// and Postal code are the required fields of the classic contact-address form; City is additionally enforced
+    /// by a NOT NULL constraint on the Address table. This is the API-side counterpart to the blade's required-field
+    /// validation, so a malformed payload from any client fails fast with a clear message instead of a 500.
+    /// </summary>
+    protected virtual void ValidateAddresses(SalesRepDetails salesRep)
+    {
+        if (salesRep.Addresses.IsNullOrEmpty())
+        {
+            return;
+        }
+
+        for (var i = 0; i < salesRep.Addresses.Count; i++)
+        {
+            var address = salesRep.Addresses[i];
+            List<string> missing = [];
+            if (string.IsNullOrWhiteSpace(address.CountryCode))
+            {
+                missing.Add("country");
+            }
+            if (string.IsNullOrWhiteSpace(address.City))
+            {
+                missing.Add("city");
+            }
+            if (string.IsNullOrWhiteSpace(address.Line1))
+            {
+                missing.Add("address line 1");
+            }
+            if (string.IsNullOrWhiteSpace(address.PostalCode))
+            {
+                missing.Add("postal code");
+            }
+
+            if (missing.Count > 0)
+            {
+                throw new InvalidOperationException($"Address {i + 1} is missing required field(s): {string.Join(", ", missing)}.");
+            }
+        }
     }
 
     /// <summary>Best-effort rollback of a contact (and its account) after a failed create. Cleanup errors are

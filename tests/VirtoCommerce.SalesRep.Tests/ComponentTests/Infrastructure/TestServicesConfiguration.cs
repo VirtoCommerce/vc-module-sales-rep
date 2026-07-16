@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentValidation;
+using VirtoCommerce.CoreModule.Core.Currency;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -164,8 +165,15 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
+        services.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();
         services.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
         services.AddTransient<SalesRepController>();
+
+        // Dependencies of the dictionaries endpoint that the harness doesn't otherwise stand up. Countries is
+        // already registered above; currencies and settings get lightweight doubles (the component tests don't
+        // exercise dictionary contents — the controller just needs the graph to resolve).
+        services.AddSingleton<ICurrencyService, TestCurrencyService>();
+        services.AddSingleton<ISettingsManager, TestSettingsManager>();
 
         // Lightweight IStoreService double: SalesRepService reads the store's ContactDefaultStatus setting to
         // seed a rep's member status. Registered as a singleton so tests can configure per-store defaults
@@ -183,6 +191,42 @@ internal static class TestServicesConfiguration
     {
         public Task<DynamicPropertySearchResult> SearchAsync(DynamicPropertySearchCriteria criteria, bool clone = true)
             => Task.FromResult(new DynamicPropertySearchResult());
+    }
+
+    /// <summary>Inert <see cref="ICurrencyService"/> double — the dictionaries endpoint resolves it, but the
+    /// component tests don't assert on the currency catalog, so an empty list is enough.</summary>
+    private sealed class TestCurrencyService : ICurrencyService
+    {
+        public Task<IEnumerable<Currency>> GetAllCurrenciesAsync() => Task.FromResult<IEnumerable<Currency>>([]);
+        public Task SaveChangesAsync(Currency[] currencies) => Task.CompletedTask;
+        public Task DeleteCurrenciesAsync(string[] codes) => Task.CompletedTask;
+    }
+
+    /// <summary>Minimal <see cref="ISettingsManager"/> double: only <see cref="GetObjectSettingAsync"/> is used
+    /// (by the dictionaries endpoint, to read the configured languages); the rest are inert.</summary>
+    private sealed class TestSettingsManager : ISettingsManager
+    {
+        public IEnumerable<SettingDescriptor> AllRegisteredSettings => [];
+        public void RegisterSettings(IEnumerable<SettingDescriptor> settings, string moduleId = null) { }
+        public void RegisterSettingsForType(IEnumerable<SettingDescriptor> settings, string typeName) { }
+        public IEnumerable<SettingDescriptor> GetSettingsForType(string typeName) => [];
+        public IDictionary<string, string[]> GetSettingTypeAssignments() => new Dictionary<string, string[]>();
+
+        public Task<ObjectSettingEntry> GetObjectSettingAsync(string name, string objectType = null, string objectId = null)
+        {
+            var setting = new ObjectSettingEntry
+            {
+                Name = name,
+                AllowedValues = name == PlatformConstants.Settings.General.Languages.Name ? ["en-US", "de-DE"] : null,
+            };
+            return Task.FromResult(setting);
+        }
+
+        public Task<IEnumerable<ObjectSettingEntry>> GetObjectSettingsAsync(IEnumerable<string> names, string objectType = null, string objectId = null)
+            => Task.FromResult<IEnumerable<ObjectSettingEntry>>([]);
+
+        public Task SaveObjectSettingsAsync(IEnumerable<ObjectSettingEntry> objectSettings) => Task.CompletedTask;
+        public Task RemoveObjectSettingsAsync(IEnumerable<ObjectSettingEntry> objectSettings) => Task.CompletedTask;
     }
 
     /// <summary>

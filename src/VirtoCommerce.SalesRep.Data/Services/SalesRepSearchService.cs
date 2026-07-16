@@ -137,7 +137,8 @@ public class SalesRepSearchService : ISalesRepSearchService
     protected virtual async Task<SalesRepSearchResult> PageByMemberSortAsync(SalesRepSearchCriteria criteria, List<CandidateRow> rows)
     {
         var rowsByMemberId = rows.ToDictionary(r => r.MemberId, r => r);
-        var take = criteria.Take <= 0 ? rows.Count : criteria.Take;
+        // Take <= 0 means "count only" (the platform search convention): TotalCount is returned with no results.
+        var take = Math.Max(criteria.Take, 0);
 
         var memberCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
         memberCriteria.ObjectIds = rowsByMemberId.Keys.ToArray();
@@ -182,7 +183,8 @@ public class SalesRepSearchService : ISalesRepSearchService
         }
 
         var ordered = OrderRows(rows, criteria.SortInfos);
-        var take = criteria.Take <= 0 ? ordered.Count : criteria.Take;
+        // Take <= 0 means "count only" (the platform search convention): TotalCount is returned with no results.
+        var take = Math.Max(criteria.Take, 0);
         var pageRows = ordered.Skip(criteria.Skip).Take(take).ToList();
 
         var items = await BuildItemsForPageAsync(pageRows, keywordMatches);

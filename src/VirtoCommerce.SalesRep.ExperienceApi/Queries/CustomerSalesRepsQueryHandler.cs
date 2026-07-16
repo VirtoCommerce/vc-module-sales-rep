@@ -9,6 +9,7 @@ using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -17,16 +18,19 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
 {
     private readonly IUserSearchService _userSearchService;
     private readonly IMemberSearchService _memberSearchService;
+    private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
 
     public CustomerSalesRepsQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IUserSearchService userSearchService,
-        IMemberSearchService memberSearchService)
+        IMemberSearchService memberSearchService,
+        ISalesRepMemberResponseGroupParser responseGroupParser)
         : base(roleResolver, membershipSearchService)
     {
         _userSearchService = userSearchService;
         _memberSearchService = memberSearchService;
+        _responseGroupParser = responseGroupParser;
     }
 
     public virtual async Task<SalesRepContactSearchResult> Handle(CustomerSalesRepsQuery request, CancellationToken cancellationToken)
@@ -80,8 +84,9 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         membersCriteria.ObjectIds = memberIds;
         membersCriteria.MemberType = nameof(Contact);
         membersCriteria.RootMembersOnly = false;
-        // Only emails + phones are projected onto SalesRepContact; skip the rest of the Full graph.
-        membersCriteria.ResponseGroup = (MemberResponseGroup.WithEmails | MemberResponseGroup.WithPhones).ToString();
+        // Load only the member data the caller selected — emails/phones only when those fields were requested
+        // (id/name/photoUrl are scalar columns loaded with Default). Mirrors the customer queries' field-driven group.
+        membersCriteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;

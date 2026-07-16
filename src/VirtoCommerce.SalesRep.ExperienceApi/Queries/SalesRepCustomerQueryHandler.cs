@@ -4,7 +4,9 @@ using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -14,20 +16,20 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
     private static readonly string _contactResponseGroup =
         (MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
 
-    private static readonly string _organizationResponseGroup =
-        (MemberResponseGroup.WithAddresses | MemberResponseGroup.WithPhones).ToString();
-
     private readonly IMemberService _memberService;
+    private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
     private readonly ISalesRepPrimaryContactResolver _primaryContactResolver;
 
     public SalesRepCustomerQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberService memberService,
+        ISalesRepMemberResponseGroupParser responseGroupParser,
         ISalesRepPrimaryContactResolver primaryContactResolver)
         : base(roleResolver, membershipSearchService)
     {
         _memberService = memberService;
+        _responseGroupParser = responseGroupParser;
         _primaryContactResolver = primaryContactResolver;
     }
 
@@ -50,9 +52,13 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
+        // Load only the member data the caller selected — the organization's addresses only when `address` was
+        // requested, its phones only when `phone` was (id/name/iconUrl/accountType are scalar, loaded with Default).
+        var organizationResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
+
         var organization = (await _memberService.GetByIdsAsync(
                 [request.OrganizationId],
-                _organizationResponseGroup,
+                organizationResponseGroup,
                 [nameof(Organization)]))
             .OfType<Organization>()
             .FirstOrDefault();
@@ -62,7 +68,14 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        var primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(organization, _contactResponseGroup);
+        // primaryContact is a separate lookup, so resolve it only when the caller selected it — or `phone`, which
+        // falls back to the primary contact's phone. Mirrors the field-driven organization load above.
+        Contact primaryContact = null;
+        if (request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.PrimaryContact))
+            || request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.Phone)))
+        {
+            primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(organization, _contactResponseGroup);
+        }
 
         return SalesRepCustomerDetails.FromOrganization(organization, primaryContact);
     }

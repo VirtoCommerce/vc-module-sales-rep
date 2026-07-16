@@ -41,7 +41,7 @@ public class SalesRepCustomerOrderSearchService : CustomerOrderSearchService, IS
         _customerOrderService = crudService;
     }
 
-    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string storeId, string responseGroup)
+    public virtual async Task<IDictionary<string, CustomerOrder>> GetLatestOrdersByOrganizationIdsAsync(IList<string> organizationIds, string customerId, string storeId, string responseGroup)
     {
         var result = new Dictionary<string, CustomerOrder>(StringComparer.OrdinalIgnoreCase);
 
@@ -57,6 +57,10 @@ public class SalesRepCustomerOrderSearchService : CustomerOrderSearchService, IS
 
         var criteria = AbstractTypeFactory<CustomerOrderSearchCriteria>.TryCreateInstance();
         criteria.OrganizationIds = organizationIdsToSearch;
+        // Only orders created by this sales rep — their user id is the order's CustomerId (as X-Order scopes its
+        // "my orders" list), so each customer's "last order" is the rep's own latest order for them, not the
+        // customer's overall latest.
+        criteria.CustomerId = customerId;
         // Scope to the caller's store when provided so a rep never sees another store's orders.
         criteria.StoreIds = string.IsNullOrEmpty(storeId) ? null : [storeId];
         // The caller computes the response group from the requested GraphQL fields — load only what's needed

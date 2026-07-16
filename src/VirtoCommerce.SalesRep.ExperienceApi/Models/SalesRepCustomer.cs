@@ -1,5 +1,7 @@
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
+using CoreAddress = VirtoCommerce.CoreModule.Core.Common.Address;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -13,6 +15,15 @@ public class SalesRepCustomer
 
     /// <summary>Organization (customer) name.</summary>
     public string OrganizationName { get; set; }
+
+    /// <summary>URL of the organization's icon (set from the admin "Manage icon" blade).</summary>
+    public string IconUrl { get; set; }
+
+    /// <summary>
+    /// The organization's default address (or its first). Null when the organization has no address or the caller
+    /// didn't select <c>address</c> (the load is field-driven). The storefront formats it for display.
+    /// </summary>
+    public CoreAddress Address { get; set; }
 
     /// <summary>
     /// Store the caller is browsing (from the query's <c>storeId</c> argument). Not exposed as a GraphQL field —
@@ -39,6 +50,8 @@ public class SalesRepCustomer
     {
         OrganizationId = organization.Id;
         OrganizationName = organization.Name;
+        IconUrl = organization.IconUrl;
+        Address = organization.GetDefaultAddress();
         StoreId = storeId;
     }
 }

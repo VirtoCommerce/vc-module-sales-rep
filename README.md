@@ -1,6 +1,6 @@
 # Virto Commerce Sales Rep Module
 
-The Sales Rep module turns selected users into sales representatives who serve a defined set of customer organizations. It provides a back-office application for administrators to create, assign and manage reps, and a storefront GraphQL (X-API) surface that lets a B2B storefront show the reps supporting an organization, the customers a rep serves, their orders and purchase statistics.
+The Sales Rep module turns selected users into sales representatives who serve a defined set of customer organizations. It provides a back-office application for administrators to create, assign and manage reps, and a storefront GraphQL (X-API) surface that lets a B2B storefront show the reps supporting an organization, the customers a rep serves and their orders.
 
 <!-- TODO: add a hero screenshot of the Sales Reps app once available, e.g.
 <img width="1902" alt="Sales Reps admin app" src="https://github.com/user-attachments/assets/..." /> -->
@@ -12,10 +12,9 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Manage the rep's login account: store, password and lockout
 * Model a rep from existing platform data (a contact, a login account and a role) with no new database tables
 * Let buyers see the sales reps supporting their organization
-* Let reps see the customers they serve, each with its latest order
+* Let reps see the customers they serve, each with the rep's latest order for that customer
 * Show a customer information card — organization, primary contact and account type
-* List and filter a rep's customer orders
-* Report customer order statistics (spend, order count, average order value) with period-over-period comparison
+* List and filter the orders a rep created for their customers
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -30,6 +29,8 @@ The Sales Rep module turns selected users into sales representatives who serve a
 ## XAPI Specification
 
 The storefront queries are exposed on a dedicated scoped schema at `POST /graphql/sales-rep` (with a GraphiQL UI at `/ui/graphiql/sales-rep`). Every query requires an authenticated caller and is store- and membership-scoped, so a rep only sees the customers they serve and a buyer only sees their own reps.
+
+> **Authentication.** Every query needs a bearer token. When the rep's login account is **store-bound**, the `POST /connect/token` password grant must include the `storeId` form parameter (e.g. `storeId=B2B-store`) — otherwise the grant fails with `400 invalid_grant`.
 
 ### Query
 
@@ -53,15 +54,23 @@ The sales reps supporting the caller's organization:
 
 ---
 
-The customer organizations the current rep serves, each with its most recent order:
+The customer organizations the current rep serves, each with the rep's most recent order for that customer:
 
 ```graphql
 {
-  salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "organizationName:asc") {
+  salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "name:asc") {
     totalCount
     items {
       organizationId
       organizationName
+      iconUrl
+      address {
+        line1
+        city
+        regionName
+        postalCode
+        countryCode
+      }
       lastOrder {
         number
         createdDate
@@ -81,6 +90,8 @@ The customer organizations the current rep serves, each with its most recent ord
 }
 ```
 
+The `address` is structured (the default organization address, or its first) — the storefront formats it for display, e.g. `City, Region`. It's loaded only when selected: requesting `address` loads the organization's addresses; omit it and only scalar columns (`organizationName`, `iconUrl`, …) are read.
+
 ---
 
 A single customer information card:
@@ -91,8 +102,15 @@ A single customer information card:
     organizationId
     organizationName
     accountType
+    iconUrl
     phone
-    shipTo
+    address {
+      line1
+      city
+      regionName
+      postalCode
+      countryCode
+    }
     primaryContact {
       fullName
       emails
@@ -104,7 +122,7 @@ A single customer information card:
 
 ---
 
-A rep's customer orders, filterable and paged:
+The orders the rep created for their customers, filterable and paged (add `organizationId` to scope to one customer):
 
 ```graphql
 {
@@ -123,33 +141,6 @@ A rep's customer orders, filterable and paged:
         }
       }
       itemsCount
-    }
-  }
-}
-```
-
----
-
-Customer order statistics in one currency, with aliased date ranges and a period-over-period comparison (each distinct range is aggregated only once per request):
-
-```graphql
-{
-  salesRepCustomerOrderStatistics(organizationId: "7b8c...", currencyCode: "USD") {
-    currencyCode
-    ytd: period(from: "2026-01-01T00:00:00Z") {
-      total
-      count
-      average
-      lastOrderDate
-    }
-    yoy: comparison(
-      current: { from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z" }
-      previous: { from: "2025-01-01T00:00:00Z", to: "2026-01-01T00:00:00Z" }
-    ) {
-      totalChange
-      totalChangePercent
-      countChange
-      countChangePercent
     }
   }
 }
@@ -222,7 +213,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | Module | Why |
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
-| `VirtoCommerce.Orders` | Customer orders and order statistics (consumed via public service APIs, not the data layer). |
+| `VirtoCommerce.Orders` | Customer orders (order search + hydration via the Orders module). |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
