@@ -377,6 +377,30 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepCustomer_PhoneOnly_ResolvesPrimaryContactForFallback()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedContactAsync("owner-1", c =>
+        {
+            c.FirstName = "Olivia";
+            c.LastName = "Owner";
+            c.Name = "Olivia Owner";
+            c.Phones = ["+1-999-0000"];
+        });
+        await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "owner-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // Selecting `phone` but NOT `primaryContact` must still resolve the primary contact — the phone falls back
+        // to it. Guards the gate's phone branch: dropping it would null the contact and lose the phone.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(organizationId:\"org-1\") { phone } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("999-0000");   // resolved from the owner contact (the "+" is JSON-escaped)
+    }
+
+    [Fact]
     public async Task SalesRepCustomer_MapsAccountTypeIconUrlAndAddress()
     {
         using var ctx = SalesRepTestContext.Create();

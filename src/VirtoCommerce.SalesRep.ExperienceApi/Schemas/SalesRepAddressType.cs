@@ -32,6 +32,9 @@ public class SalesRepAddressType : ExtendableGraphType<Address>
         Field(x => x.Name, nullable: true).Description("Name.");
         Field(x => x.Organization, nullable: true).Description("Company name.");
         Field(x => x.Phone, nullable: true).Description("Phone.");
+        // Deliberately nullable — unlike X-Order's OrderAddressType / Profile's MemberAddressType, which declare it
+        // non-null. Address.PostalCode is genuinely optional, so a non-null schema field would error on an address
+        // without one.
         Field(x => x.PostalCode, nullable: true).Description("Postal code.");
         Field(x => x.RegionId, nullable: true).Description("Region id.");
         Field(x => x.RegionName, nullable: true).Description("Region name.");

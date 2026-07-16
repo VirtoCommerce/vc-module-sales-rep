@@ -6,6 +6,7 @@ using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -69,7 +70,14 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        var primaryContact = await ResolvePrimaryContactAsync(organization);
+        // primaryContact is a separate lookup, so resolve it only when the caller selected it — or `phone`, which
+        // falls back to the primary contact's phone. Mirrors the field-driven organization load above.
+        Contact primaryContact = null;
+        if (request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.PrimaryContact))
+            || request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.Phone)))
+        {
+            primaryContact = await ResolvePrimaryContactAsync(organization);
+        }
 
         return SalesRepCustomerDetails.FromOrganization(organization, primaryContact);
     }
