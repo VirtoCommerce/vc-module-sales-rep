@@ -72,7 +72,7 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
     {
         var statisticsContext = (CustomerOrderStatisticsContext)context.Source;
 
-        var loaderKey = $"{nameof(CustomerOrderStatisticsType)}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
+        var loaderKey = $"{nameof(CustomerOrderStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
 
         return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To), CustomerOrderStatisticsPeriod>(
             loaderKey,
@@ -84,6 +84,7 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
                 {
                     var criteria = AbstractTypeFactory<CustomerOrderStatisticsCriteria>.TryCreateInstance();
                     criteria.OrganizationIds = statisticsContext.OrganizationIds;
+                    criteria.CustomerId = statisticsContext.SalesRepUserId;
                     criteria.StoreId = statisticsContext.StoreId;
                     criteria.CurrencyCode = statisticsContext.CurrencyCode;
                     criteria.FromDate = range.From;

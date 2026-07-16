@@ -15,6 +15,13 @@ public class CustomerOrderStatisticsCriteria
     /// </summary>
     public string[] OrganizationIds { get; set; }
 
+    /// <summary>
+    /// Only orders created by this user are counted — the sales rep's own security-account id (rep-created orders
+    /// record it as the order's <c>CustomerId</c>, mirroring how X-Order scopes "my orders"). The creator-scoping
+    /// half of the module's data-isolation invariant; the query handler always sets it to the caller.
+    /// </summary>
+    public string CustomerId { get; set; }
+
     /// <summary>Optional store to scope the orders to. Null aggregates across all stores.</summary>
     public string StoreId { get; set; }
 

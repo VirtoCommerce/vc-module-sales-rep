@@ -9,6 +9,9 @@ public class CustomerOrderStatisticsContext
     /// <summary>Organizations (customers) whose orders are aggregated — one requested customer, or all the rep serves.</summary>
     public string[] OrganizationIds { get; set; }
 
+    /// <summary>The calling sales rep's security-account id; statistics count only orders they created.</summary>
+    public string SalesRepUserId { get; set; }
+
     /// <summary>Store the orders are scoped to (null = all stores).</summary>
     public string StoreId { get; set; }
 

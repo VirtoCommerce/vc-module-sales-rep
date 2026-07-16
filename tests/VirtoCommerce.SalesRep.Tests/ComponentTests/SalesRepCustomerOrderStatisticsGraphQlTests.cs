@@ -293,6 +293,29 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         ytd.GetProperty("count").GetInt32().Should().Be(2);
     }
 
+    [Fact]
+    public async Task Statistics_ExcludesOrdersNotCreatedByRep()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "mine", "org-1", 100m, _feb2026);                                       // created by the rep
+        SeedOrder(ctx, "foreign", "org-1", 999m, _feb2026, createdByUserId: "another-rep-user"); // same served org, ANOTHER rep
+
+        // Data-isolation invariant: a rep sees statistics only for orders they created — a foreign rep's order in the
+        // very same served organization must never contribute.
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}) { total { amount } count } } }
+              """,
+            userId: rep.UserId);
+
+        var ytd = Stats(json).GetProperty("ytd");
+        MoneyAmount(ytd, "total").Should().Be(100m); // only the rep's own order; the foreign 999 is excluded
+        ytd.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
     // ---- helpers ----
 
     /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>
@@ -310,7 +333,8 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
     private static void SeedOrder(
         SalesRepTestContext ctx, string id, string org, decimal total, DateTime createdDate,
-        string currency = "USD", string storeId = "B2B-store", bool isCancelled = false, bool isPrototype = false)
+        string currency = "USD", string storeId = "B2B-store", bool isCancelled = false, bool isPrototype = false,
+        string createdByUserId = null)
     {
         using var db = ctx.NewOrderDbContext();
         db.Add(new CustomerOrderEntity
@@ -318,7 +342,9 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
             Id = id,
             Number = id,
             OrganizationId = org,
-            CustomerId = "customer-1",
+            // A rep-created order records the rep's user id as CustomerId; default the creator to the test's rep so
+            // seeded orders count as "created by the rep". Pass createdByUserId to simulate another rep's order.
+            CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,
             Status = "New",

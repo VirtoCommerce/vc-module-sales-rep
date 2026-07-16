@@ -51,6 +51,8 @@ public class SalesRepCustomerOrderStatisticsQueryHandler : SalesRepQueryHandlerB
 
         var result = AbstractTypeFactory<CustomerOrderStatisticsContext>.TryCreateInstance();
         result.OrganizationIds = organizationIds;
+        // Creator scoping: the rep sees statistics only for orders they created (data-isolation invariant).
+        result.SalesRepUserId = request.UserId;
         result.StoreId = request.StoreId;
         result.CurrencyCode = currencyCode;
         return result;
