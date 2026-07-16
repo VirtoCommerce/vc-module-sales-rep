@@ -716,6 +716,30 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepOrders_WithUnrecognizedStatus_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Several orders across statuses — if an unrecognized-status filter were silently dropped (the bug), ALL of
+        // these would come back; with the fix, none do.
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        SeedOrder(ctx, id: "o-processing", org: "org-1", number: "ORD-PROCESSING", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing");
+
+        // "foo" is not one of this store's selectable status options, so the status service resolves it to no
+        // underlying order status. The filter must then return nothing — mirroring the reported case where filtering
+        // by a status the store doesn't define (e.g. "Failed"/"Inactive") wrongly returned every order.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"foo\"]) { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("ORD-NEW").And.NotContain("ORD-CANCELLED").And.NotContain("ORD-PROCESSING");
+    }
+
+    [Fact]
     public async Task SalesRepOrders_ReturnsLocalizedRawStatus()
     {
         using var ctx = SalesRepTestContext.Create();

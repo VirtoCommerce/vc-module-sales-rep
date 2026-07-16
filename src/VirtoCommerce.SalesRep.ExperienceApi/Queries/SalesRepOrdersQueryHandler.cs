@@ -54,28 +54,20 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
             return result;
         }
 
-        // Keyword/Sort/Skip/Take come from the SearchQuery base; set only the order-specific bits here.
-        var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
-        criteria.OrganizationIds = organizationIds;
-        // Scope to the caller's store when provided so a rep never sees another store's orders.
-        criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
-        // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
-        criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
-        // Selected statuses → the deduped union of their underlying order statuses (1:many for composite/overridden
-        // statuses; resolved by the status service). Filter only when it resolves to a non-empty set.
+        // Resolve the selected statuses to their underlying order statuses (1:many for composite/overridden statuses).
+        // If they were provided but resolve to nothing (all unrecognized for this store), no order can match — return
+        // an empty result rather than silently dropping the filter and returning every order.
+        string[] statuses = null;
         if (request.Statuses?.Count > 0)
         {
-            var resolved = await _statusService.ResolveOrderStatusesAsync(request.StoreId, request.Statuses);
-            if (resolved.Length > 0)
+            statuses = await _statusService.ResolveOrderStatusesAsync(request.StoreId, request.Statuses);
+            if (statuses.Length == 0)
             {
-                criteria.Statuses = resolved;
+                return result;
             }
         }
-        // Recent orders on top by default (VCST-5308); an explicit sort argument overrides it.
-        if (string.IsNullOrEmpty(criteria.Sort))
-        {
-            criteria.Sort = "createdDate:desc";
-        }
+
+        var criteria = BuildSearchCriteria(request, organizationIds, statuses);
 
         var searchResult = await _customerOrderSearchService.SearchAsync(criteria);
 
@@ -85,6 +77,36 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
             .ToList();
 
         return result;
+    }
+
+    /// <summary>
+    /// Assembles the order search criteria for the given organizations and already-resolved statuses. Override to
+    /// customize the criteria — e.g. extra filters, response group or sort. Security scoping (which organizations)
+    /// and status resolution happen in <see cref="Handle"/>; this method only shapes the criteria.
+    /// </summary>
+    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, string[] organizationIds, string[] statuses)
+    {
+        // Keyword/Sort/Skip/Take come from the SearchQuery base; set only the order-specific bits here.
+        var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
+        criteria.OrganizationIds = organizationIds;
+        // Scope to the caller's store when provided so a rep never sees another store's orders.
+        criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
+        // Load only the order data the caller actually selected (e.g. skip line items when itemsCount isn't asked for).
+        criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
+
+        // Apply the resolved status filter when present (null/empty = the caller didn't filter by status).
+        if (statuses?.Length > 0)
+        {
+            criteria.Statuses = statuses;
+        }
+
+        // Recent orders on top by default (VCST-5308); an explicit sort argument overrides it.
+        if (string.IsNullOrEmpty(criteria.Sort))
+        {
+            criteria.Sort = "createdDate:desc";
+        }
+
+        return criteria;
     }
 
     /// <summary>
