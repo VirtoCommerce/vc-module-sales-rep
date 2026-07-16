@@ -65,8 +65,8 @@ internal static class TestGraphQlConfiguration
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
-        // Field-selection → member response group, injected into the customer list/details handlers.
-        services.AddSingleton<ISalesRepCustomerResponseGroupParser, SalesRepCustomerResponseGroupParser>();
+        // Field-selection → member response group, injected into the customer list/details + customerSalesReps handlers.
+        services.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
 
         // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
         // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many filter resolution

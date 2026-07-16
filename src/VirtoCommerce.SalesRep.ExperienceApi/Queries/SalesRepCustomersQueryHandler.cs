@@ -15,13 +15,13 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomersQuery, SalesRepCustomerSearchResult>
 {
     private readonly IMemberSearchService _memberSearchService;
-    private readonly ISalesRepCustomerResponseGroupParser _responseGroupParser;
+    private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
 
     public SalesRepCustomersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberSearchService memberSearchService,
-        ISalesRepCustomerResponseGroupParser responseGroupParser)
+        ISalesRepMemberResponseGroupParser responseGroupParser)
         : base(roleResolver, membershipSearchService)
     {
         _memberSearchService = memberSearchService;

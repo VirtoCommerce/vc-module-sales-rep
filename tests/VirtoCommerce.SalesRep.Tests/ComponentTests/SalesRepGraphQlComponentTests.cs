@@ -482,6 +482,25 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task CustomerSalesReps_LoadsEmailsAndPhonesWhenSelected()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("AcmeOrg");
+        // CreateRep seeds the rep contact with an email + phone.
+        await ctx.CreateRepAsync("Bea", "B2B", "bea@test.com", "AcmeOrg");
+
+        // Selecting emails/phones must hydrate those collections (field-driven WithEmails | WithPhones); a query of
+        // only scalar fields (see CustomerSalesReps_AreScopedByStore) leaves them on Default.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { customerSalesReps { items { fullName emails phones } } }",
+            organizationId: "AcmeOrg");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("bea@test.com");
+        json.Should().Contain("555-0100");   // the seeded phone (the "+" is JSON-escaped)
+    }
+
+    [Fact]
     public async Task SalesRepCustomers_LastOrder_IsScopedByStore()
     {
         using var ctx = SalesRepTestContext.Create();

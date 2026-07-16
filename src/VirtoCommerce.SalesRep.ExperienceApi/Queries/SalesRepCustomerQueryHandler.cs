@@ -20,14 +20,14 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
 
     private readonly IMemberService _memberService;
     private readonly IMemberSearchService _memberSearchService;
-    private readonly ISalesRepCustomerResponseGroupParser _responseGroupParser;
+    private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
 
     public SalesRepCustomerQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberService memberService,
         IMemberSearchService memberSearchService,
-        ISalesRepCustomerResponseGroupParser responseGroupParser)
+        ISalesRepMemberResponseGroupParser responseGroupParser)
         : base(roleResolver, membershipSearchService)
     {
         _memberService = memberService;
