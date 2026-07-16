@@ -4,6 +4,10 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <!-- CoreModule.Core: the Sales Rep dictionaries endpoint reads the currency catalog (ICurrencyService) to
+         populate the admin Currency dropdown from VirtoCommerce data. Version matches the module.manifest
+         VirtoCommerce.Core dependency (same version the Customer module depends on). -->
+    <PackageReference Include="VirtoCommerce.CoreModule.Core" Version="3.1007.0" />
     <!-- OrdersModule.Data (scoped, deliberate exception to "reference other modules' .Core, not .Data"):
          (1) the order search subclasses the Orders module's CustomerOrderSearchService (which lives in .Data) to
              reuse its query/hydration pipeline for the grouped "latest order per organization" lookup; and

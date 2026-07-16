@@ -1,9 +1,11 @@
 using System.Collections.Generic;
+using System.Linq;
 using GraphQL;
 using GraphQL.Types;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
+using VirtoCommerce.Xapi.Core.Index;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
@@ -11,7 +13,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// Query for the customer organizations the current Sales Rep is responsible for (VCST-5304).
 /// The Sales Rep is the caller; their security account id is set server-side from the caller's claims.
 /// </summary>
-public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>
+public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>, IHasIncludeFields
 {
     /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
@@ -25,6 +27,9 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>
     /// request context (the builder copies it to the UserContext), not by this handler.
     /// </summary>
     public string CultureName { get; set; }
+
+    /// <summary>GraphQL selection paths of the requested fields — drives the member response group (load only what was asked for).</summary>
+    public IList<string> IncludeFields { get; set; } = [];
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
@@ -43,5 +48,8 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>
         UserId = context.GetCurrentUserId();
         StoreId = context.GetArgument<string>(nameof(StoreId));
         CultureName = context.GetArgument<string>(nameof(CultureName));
+
+        // Requested field paths (e.g. "items.address.city") → used to load only the needed member data.
+        IncludeFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
     }
 }

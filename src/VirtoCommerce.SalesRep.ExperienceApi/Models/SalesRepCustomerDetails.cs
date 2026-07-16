@@ -1,6 +1,8 @@
 using System.Linq;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
+using CoreAddress = VirtoCommerce.CoreModule.Core.Common.Address;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -27,8 +29,14 @@ public class SalesRepCustomerDetails
     /// <summary>Account type — the organization's business category.</summary>
     public string AccountType { get; set; }
 
-    /// <summary>Default ship-to location, formatted as "City, Region".</summary>
-    public string ShipTo { get; set; }
+    /// <summary>URL of the organization's icon (set from the admin "Manage icon" blade).</summary>
+    public string IconUrl { get; set; }
+
+    /// <summary>
+    /// The organization's default address (or its first). Null when the organization has no address or the caller
+    /// didn't select <c>address</c> (the load is field-driven). The storefront formats it for display.
+    /// </summary>
+    public CoreAddress Address { get; set; }
 
     /// <summary>
     /// Projects a customer <see cref="Organization"/> (with its already-resolved <paramref name="primaryContact"/>)
@@ -50,7 +58,8 @@ public class SalesRepCustomerDetails
         OrganizationId = organization.Id;
         OrganizationName = organization.Name;
         AccountType = organization.BusinessCategory;
-        ShipTo = FormatShipTo(organization);
+        IconUrl = organization.IconUrl;
+        Address = organization.GetDefaultAddress();
 
         if (primaryContact != null)
         {
@@ -59,31 +68,5 @@ public class SalesRepCustomerDetails
 
         // Phone: the primary contact's first, falling back to the organization's.
         Phone = primaryContact?.Phones?.FirstOrDefault() ?? organization.Phones?.FirstOrDefault();
-    }
-
-    private static string FormatShipTo(Organization organization)
-    {
-        var address = organization.Addresses?.FirstOrDefault(x => x.IsDefault)
-            ?? organization.Addresses?.FirstOrDefault();
-
-        if (address == null)
-        {
-            return null;
-        }
-
-        var hasCity = !string.IsNullOrWhiteSpace(address.City);
-        var hasRegion = !string.IsNullOrWhiteSpace(address.RegionName);
-
-        if (hasCity && hasRegion)
-        {
-            return $"{address.City}, {address.RegionName}";
-        }
-
-        if (hasCity)
-        {
-            return address.City;
-        }
-
-        return hasRegion ? address.RegionName : null;
     }
 }

@@ -11,10 +11,11 @@ using VirtoCommerce.Xapi.Core.Index;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 /// <summary>
-/// Paged orders of a single customer organization the current Sales Rep is responsible for (VCST-5308) —
-/// the "Orders" section of the customer profile. Supports keyword search, sorting and paging like the
-/// storefront <c>orders</c> query, but is scoped to one customer and secured to the calling rep.
-/// The Sales Rep is the caller; their security account id is set server-side from the caller's claims.
+/// The orders the current Sales Rep created for the customers they serve (VCST-5308) — the "Orders" view of the
+/// storefront. Supports keyword search, sorting and paging like the storefront <c>orders</c> query; pass
+/// <c>organizationId</c> to scope to a single customer, or omit it for all the rep's assigned customers. Secured to
+/// the calling rep and limited to orders the rep created (their user id is the order's CustomerId, as X-Order scopes
+/// its "my orders" list). The Sales Rep is the caller; their security account id is set server-side from the claims.
 /// </summary>
 public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasIncludeFields
 {

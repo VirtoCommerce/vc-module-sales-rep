@@ -49,7 +49,7 @@
               <VcSelect
                 v-if="isNew"
                 v-model="salesRep.storeId"
-                class="tw-flex-1"
+                class="tw-flex-1 tw-min-w-0"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.STORE')"
                 :options="storeOptions"
                 option-value="id"
@@ -58,7 +58,7 @@
               />
               <VcSelect
                 v-model="salesRep.roleId"
-                class="tw-flex-1"
+                class="tw-flex-1 tw-min-w-0"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ROLE')"
                 :hint="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ROLE_HINT')"
                 :options="roleOptions"
@@ -130,7 +130,7 @@
             <div class="tw-flex tw-flex-row tw-gap-4">
               <VcSelect
                 v-model="salesRep.timeZone"
-                class="tw-flex-1"
+                class="tw-flex-1 tw-min-w-0"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.TIME_ZONE')"
                 :options="timeZones"
                 option-value="id"
@@ -140,7 +140,7 @@
               />
               <VcSelect
                 v-model="salesRep.defaultLanguage"
-                class="tw-flex-1"
+                class="tw-flex-1 tw-min-w-0"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LANGUAGE')"
                 :options="languages"
                 option-value="id"
@@ -150,7 +150,7 @@
               />
               <VcSelect
                 v-model="salesRep.currencyCode"
-                class="tw-flex-1"
+                class="tw-flex-1 tw-min-w-0"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.CURRENCY')"
                 :options="currencies"
                 option-value="id"
@@ -198,7 +198,7 @@
               <div class="tw-flex tw-flex-row tw-gap-4">
                 <VcSelect
                   v-model="address.addressType"
-                  class="tw-flex-1"
+                  class="tw-flex-1 tw-min-w-0"
                   :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_TYPE')"
                   :options="addressTypeOptions"
                   option-value="id"
@@ -215,43 +215,83 @@
                   :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LAST_NAME')"
                 />
               </div>
-              <VcInput
-                v-model="address.line1"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_LINE1')"
-              />
+              <Field
+                v-slot="{ errors, errorMessage, handleChange }"
+                :model-value="address.line1"
+                :name="`address_${index}_line1`"
+                rules="required"
+              >
+                <VcInput
+                  v-model="address.line1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_LINE1')"
+                  required
+                  :error="errors.length > 0"
+                  :error-message="errorMessage"
+                  @update:model-value="handleChange"
+                />
+              </Field>
               <VcInput
                 v-model="address.line2"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_LINE2')"
               />
               <div class="tw-flex tw-flex-row tw-gap-4">
-                <VcInput
-                  v-model="address.city"
-                  class="tw-flex-1"
-                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_CITY')"
-                />
+                <Field
+                  v-slot="{ errors, errorMessage, handleChange }"
+                  :model-value="address.city"
+                  :name="`address_${index}_city`"
+                  rules="required"
+                >
+                  <VcInput
+                    v-model="address.city"
+                    class="tw-flex-1 tw-min-w-0"
+                    :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_CITY')"
+                    required
+                    :error="errors.length > 0"
+                    :error-message="errorMessage"
+                    @update:model-value="handleChange"
+                  />
+                </Field>
                 <VcInput
                   v-model="address.regionName"
                   class="tw-flex-1"
                   :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_REGION')"
                 />
-                <VcInput
-                  v-model="address.postalCode"
-                  class="tw-flex-1"
-                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_POSTAL_CODE')"
-                />
+                <Field
+                  v-slot="{ errors, errorMessage, handleChange }"
+                  :model-value="address.postalCode"
+                  :name="`address_${index}_postalCode`"
+                  rules="required"
+                  class="tw-flex-1 tw-min-w-0"
+                >
+                  <VcInput
+                    v-model="address.postalCode"
+                    class="tw-flex-1 tw-min-w-0"
+                    :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_POSTAL_CODE')"
+                    required
+                    :error="errors.length > 0"
+                    :error-message="errorMessage"
+                    @update:model-value="handleChange"
+                  />
+                </Field>
               </div>
-              <div class="tw-flex tw-flex-row tw-gap-4">
-                <VcInput
-                  v-model="address.countryCode"
-                  class="tw-flex-1"
-                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_COUNTRY_CODE')"
-                />
-                <VcInput
-                  v-model="address.countryName"
-                  class="tw-flex-1"
+              <Field
+                v-slot="{ errors, handleChange }"
+                :model-value="address.countryCode"
+                :name="`address_${index}_country`"
+                rules="required"
+              >
+                <VcSelect
+                  :model-value="address.countryCode"
                   :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.ADDRESS_COUNTRY_NAME')"
+                  :options="countries"
+                  option-value="id"
+                  option-label="title"
+                  searchable
+                  required
+                  :error="errors.length > 0"
+                  @update:model-value="(code: string) => { setCountry(address, code); handleChange(code); }"
                 />
-              </div>
+              </Field>
               <div class="tw-flex tw-flex-row tw-gap-4">
                 <VcInput
                   v-model="address.phone"
@@ -333,7 +373,7 @@ const { createSalesRepPermission, updateSalesRepPermission, accountCreatePermiss
   useSalesRepPermissions();
 const { stores, loadStores, loadingStores } = useStores();
 const { loadOrganizations } = useOrganizations();
-const { timeZones, languages, currencies } = useDictionaries();
+const { timeZones, languages, currencies, countries, loadDictionaries, loadingDictionaries } = useDictionaries();
 const { roles, loadRoles, loadingRoles } = useRoles();
 
 const storeOptions = computed(() => stores.value.map((x) => ({ id: x.id, name: x.name })));
@@ -395,6 +435,14 @@ const removeAddress = (index: number) => {
   salesRep.value.addresses?.splice(index, 1);
 };
 
+// Country is picked from the platform countries catalog: store the ISO code and keep countryName in sync from the
+// selected option. Filling countryName here means the backend never has to resolve it from the code on save
+// (which is what threw a 500 when the code was empty/invalid).
+const setCountry = (address: CustomerAddress, code?: string) => {
+  address.countryCode = code ?? "";
+  address.countryName = countries.value.find((c) => c.id === code)?.title ?? "";
+};
+
 const selectedOrganizations = computed({
   get: () => (salesRep.value.organizations ?? []).map((o) => ({ id: o.organizationId, name: o.organizationName })),
   set: (values: { id?: string; name?: string }[]) => {
@@ -405,7 +453,7 @@ const selectedOrganizations = computed({
   },
 });
 
-const loading = useLoading(loadingOrSavingSalesRep, loadingStores, loadingRoles);
+const loading = useLoading(loadingOrSavingSalesRep, loadingStores, loadingRoles, loadingDictionaries);
 
 // Saving creates/edits both the member and the login account, so it needs both permissions (matches the API).
 const hasSaveAccess = computed(() =>
@@ -482,7 +530,12 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
 
 onMounted(async () => {
   // These loaders are independent — run them concurrently to cut blade-open latency.
-  await Promise.all([loadStores(), loadRoles(), param.value ? loadSalesRep({ id: param.value }) : Promise.resolve()]);
+  await Promise.all([
+    loadStores(),
+    loadRoles(),
+    loadDictionaries(),
+    param.value ? loadSalesRep({ id: param.value }) : Promise.resolve(),
+  ]);
   // Default the role on a new rep so the required dropdown is pre-filled.
   if (!param.value && !salesRep.value.roleId && roles.value.length) {
     salesRep.value.roleId = roles.value[0].id;

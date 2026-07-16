@@ -3,6 +3,8 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Data.Model;
+using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
@@ -377,25 +379,76 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepCustomer_MapsAccountTypeAndShipTo()
+    public async Task SalesRepCustomer_PhoneOnly_ResolvesPrimaryContactForFallback()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedContactAsync("owner-1", c =>
+        {
+            c.FirstName = "Olivia";
+            c.LastName = "Owner";
+            c.Name = "Olivia Owner";
+            c.Phones = ["+1-999-0000"];
+        });
+        await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "owner-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // Selecting `phone` but NOT `primaryContact` must still resolve the primary contact — the phone falls back
+        // to it. Guards the gate's phone branch: dropping it would null the contact and lose the phone.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(organizationId:\"org-1\") { phone } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("999-0000");   // resolved from the owner contact (the "+" is JSON-escaped)
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_MapsAccountTypeIconUrlAndAddress()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationAsync("org-1", o =>
         {
             o.BusinessCategory = "Retailer";
+            o.IconUrl = "https://cdn.test/org-1.png";
             // CountryName + RegionName are set so MemberService.FillAddressNames doesn't call the (dataless)
-            // CountriesService in the harness; shipTo formats from City + RegionName.
+            // CountriesService in the harness. The storefront formats the display string from these structured parts.
             o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
         });
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(organizationId:\"org-1\") { accountType shipTo } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { accountType iconUrl address { line1 city regionName postalCode isDefault } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"accountType\":\"Retailer\"");
-        json.Should().Contain("\"shipTo\":\"Seattle, WA\"");
+        json.Should().Contain("\"iconUrl\":\"https://cdn.test/org-1.png\"");
+        json.Should().Contain("\"line1\":\"1 Main St\"");
+        json.Should().Contain("\"city\":\"Seattle\"");
+        json.Should().Contain("\"regionName\":\"WA\"");
+        json.Should().Contain("\"isDefault\":true");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_MapIconUrlAndAddress()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationAsync("org-1", o =>
+        {
+            o.IconUrl = "https://cdn.test/org-1.png";
+            o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
+        });
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // Selecting `address` on the list must hydrate the org's Addresses (field-driven WithAddresses response
+        // group), while iconUrl is a scalar that loads with Default.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { organizationId iconUrl address { city regionName } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"iconUrl\":\"https://cdn.test/org-1.png\"");
+        json.Should().Contain("\"city\":\"Seattle\"").And.Contain("\"regionName\":\"WA\"");
     }
 
     [Fact]
@@ -428,6 +481,25 @@ public class SalesRepGraphQlComponentTests
             "query { customerSalesReps { totalCount items { fullName } } }",
             organizationId: "AcmeOrg");
         all.Should().Contain("\"totalCount\":2").And.Contain("Bea B2B").And.Contain("Otto Other");
+    }
+
+    [Fact]
+    public async Task CustomerSalesReps_LoadsEmailsAndPhonesWhenSelected()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("AcmeOrg");
+        // CreateRep seeds the rep contact with an email + phone.
+        await ctx.CreateRepAsync("Bea", "B2B", "bea@test.com", "AcmeOrg");
+
+        // Selecting emails/phones must hydrate those collections (field-driven WithEmails | WithPhones); a query of
+        // only scalar fields (see CustomerSalesReps_AreScopedByStore) leaves them on Default.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { customerSalesReps { items { fullName emails phones } } }",
+            organizationId: "AcmeOrg");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("bea@test.com");
+        json.Should().Contain("555-0100");   // the seeded phone (the "+" is JSON-escaped)
     }
 
     [Fact]
@@ -716,6 +788,30 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepOrders_WithUnrecognizedStatus_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Several orders across statuses — if an unrecognized-status filter were silently dropped (the bug), ALL of
+        // these would come back; with the fix, none do.
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        SeedOrder(ctx, id: "o-processing", org: "org-1", number: "ORD-PROCESSING", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing");
+
+        // "foo" is not one of this store's selectable status options, so the status service resolves it to no
+        // underlying order status. The filter must then return nothing — mirroring the reported case where filtering
+        // by a status the store doesn't define (e.g. "Failed"/"Inactive") wrongly returned every order.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"foo\"]) { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("ORD-NEW").And.NotContain("ORD-CANCELLED").And.NotContain("ORD-PROCESSING");
+    }
+
+    [Fact]
     public async Task SalesRepOrders_ReturnsLocalizedRawStatus()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -763,7 +859,295 @@ public class SalesRepGraphQlComponentTests
         json.Should().Contain("\"organizationName\":\"Drift Inn Resort\""); // used the value stored on the order
     }
 
-    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New", string organizationName = null)
+    [Fact]
+    public async Task SalesRepOrders_ExcludesOrdersNotCreatedByRep()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Same customer org: one order created by this rep, one created by someone else (the customer directly, or
+        // another rep). Only the rep's own order must be returned.
+        SeedOrder(ctx, id: "o-mine", org: "org-1", number: "ORD-MINE", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-other", org: "org-1", number: "ORD-OTHER", createdDate: new DateTime(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc), createdByUserId: "another-user");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("ORD-MINE").And.NotContain("ORD-OTHER");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_LastOrder_ReturnsRepsOwnLatestNotCustomers()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // A NEWER order created by someone else must NOT become the customer's "last order" — only the rep's own
+        // latest order counts, even if the customer has a more recent order from another source.
+        SeedOrder(ctx, id: "o-rep", org: "org-1", number: "ORD-REP", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-other", org: "org-1", number: "ORD-OTHER", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), createdByUserId: "another-user");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { organizationId lastOrder { number } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("ORD-REP").And.NotContain("ORD-OTHER");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_LastOrder_IsPerOrganization_NotGlobalLatest()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-a", "org-b");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-a", "org-b");
+        // Each org has its own older + latest order; org-b's latest is the GLOBALLY newest. A regression that
+        // returns the global latest for every organization (broken per-org grouping in the latest-per-org query,
+        // or wrong DataLoader keying) would put ORD-B-NEW on both rows and drop ORD-A-NEW.
+        SeedOrder(ctx, id: "o-a-old", org: "org-a", number: "ORD-A-OLD", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-a-new", org: "org-a", number: "ORD-A-NEW", createdDate: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-b-old", org: "org-b", number: "ORD-B-OLD", createdDate: new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "o-b-new", org: "org-b", number: "ORD-B-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"name:asc\") { items { organizationId lastOrder { number } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Each organization's row carries its OWN latest order — one occurrence of each, in org sort order.
+        json.Should().Contain("ORD-A-NEW").And.Contain("ORD-B-NEW");
+        json.Should().NotContain("ORD-A-OLD").And.NotContain("ORD-B-OLD");
+        // org-a sorts first; its lastOrder (ORD-A-NEW) must appear before org-b's — pins the per-org pairing,
+        // not just "both numbers occur somewhere".
+        json.IndexOf("ORD-A-NEW", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("ORD-B-NEW", StringComparison.Ordinal));
+        json.IndexOf("ORD-B-NEW", StringComparison.Ordinal).Should().Be(json.LastIndexOf("ORD-B-NEW", StringComparison.Ordinal),
+            "the globally newest order must not be duplicated onto other organizations' rows");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_LastOrder_IsNullForOrganizationWithoutOrders()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // No orders seeded at all — the row must come back with lastOrder:null, not an error (the loader's
+        // dictionary simply has no entry for the org).
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { totalCount items { organizationId lastOrder { number } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("\"lastOrder\":null");
+    }
+
+    // ---- caller states: authenticated but not a rep / no organization claim ----
+
+    [Fact]
+    public async Task SalesRepCustomers_ForNonRepCaller_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1"); // data exists, but not for this caller
+
+        // An authenticated user with no memberships at all (a regular customer hitting the endpoint) gets an
+        // empty result, not an error.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { totalCount items { organizationId } } }",
+            userId: "not-a-rep");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("org-1");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_ForNonRepCaller_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // The order belongs to the rep's org; the non-rep caller below must not see it.
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders { totalCount items { number } } }",
+            userId: "not-a-rep");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("ORD-1");
+    }
+
+    [Fact]
+    public async Task CustomerSalesReps_WithoutOrganizationClaim_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // A private (non-organization) customer has no organization_id claim — the common storefront case.
+        // Must yield an empty list, not an error.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { customerSalesReps { totalCount items { id } } }",
+            userId: "private-customer");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+    }
+
+    // ---- stale-data fallbacks on salesRepCustomer ----
+
+    [Fact]
+    public async Task SalesRepCustomer_WhenOrganizationDeleted_ReturnsNull()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // Delete the organization member; the membership row survives (no FK), leaving a stale membership that
+        // points at a gone organization. The query must return null, not throw.
+        await ctx.GetRequiredService<VirtoCommerce.CustomerModule.Core.Services.IMemberService>().DeleteAsync(["org-1"]);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(organizationId:\"org-1\") { organizationId } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepCustomer\":null");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_WithDanglingOwnerId_FallsBackToFirstContact()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // The organization's OwnerId points at a contact that no longer exists — the primary contact must fall
+        // back to the first contact member (here the rep) instead of returning nothing.
+        await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "ghost-owner");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain(rep.Id).And.Contain("Jane Rep");
+        json.Should().NotContain("ghost-owner");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_PhoneFallsBackToOrganizationPhone()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // Owner contact WITHOUT phones + organization with its own phone: the phone must fall back to the
+        // organization's (the second half of the contact-then-organization fallback chain).
+        await ctx.SeedContactAsync("owner-1", c =>
+        {
+            c.FirstName = "Olivia";
+            c.LastName = "Owner";
+            c.Name = "Olivia Owner";
+        });
+        await ctx.SeedOrganizationAsync("org-1", o =>
+        {
+            o.OwnerId = "owner-1";
+            o.Phones = ["+1-777-0000"];
+        });
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(organizationId:\"org-1\") { phone } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("777-0000"); // the organization's phone (the "+" is JSON-escaped)
+    }
+
+    // ---- data caveats and explicit argument edges ----
+
+    [Fact]
+    public async Task Queries_TolerateMembershipWithNullOrganizationId()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // Real databases contain memberships whose OrganizationId is null; give the rep one carrying the same
+        // granting role. Queries must keep working and silently exclude it.
+        var grantingRole = AbstractTypeFactory<Role>.TryCreateInstance();
+        grantingRole.Id = rep.RoleId;
+        grantingRole.Name = rep.RoleName;
+        await ctx.AddMembershipAsync(rep.UserId, organizationId: null, grantingRole);
+
+        var customers = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { totalCount items { organizationId } } }",
+            userId: rep.UserId);
+        customers.Should().NotContain("\"errors\"");
+        customers.Should().Contain("\"totalCount\":1", "the null-organization membership must be excluded, not crash the query");
+        customers.Should().Contain("org-1");
+
+        var orders = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders { totalCount items { number } } }",
+            userId: rep.UserId);
+        orders.Should().NotContain("\"errors\"");
+        orders.Should().Contain("\"totalCount\":1").And.Contain("ORD-1");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_NonExistentOrganizationId_ReturnsNull()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(organizationId:\"no-such-org\") { organizationId } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepCustomer\":null");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_NonExistentOrganizationId_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"no-such-org\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("ORD-1");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_EmptyStatusesList_ReturnsAllOrders()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+
+        // An explicit empty statuses array means "no status filter" (like omitting the argument) — not "match nothing".
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", statuses:[]) { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":2").And.Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
+    }
+
+    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New", string organizationName = null, string createdByUserId = null)
     {
         using var db = ctx.NewOrderDbContext();
         var order = new CustomerOrderEntity
@@ -772,7 +1156,10 @@ public class SalesRepGraphQlComponentTests
             Number = number,
             OrganizationId = org,
             OrganizationName = organizationName,
-            CustomerId = "customer-1",
+            // A rep-created order records the rep's user id as CustomerId (the value the queries filter on). Default
+            // to the test's rep so seeded orders count as "created by the rep"; pass createdByUserId to simulate an
+            // order created by someone else.
+            CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,
             Status = status,
