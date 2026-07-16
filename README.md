@@ -58,7 +58,7 @@ The customer organizations the current rep serves, each with the rep's most rece
 
 ```graphql
 {
-  salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "organizationName:asc") {
+  salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "name:asc") {
     totalCount
     items {
       organizationId
