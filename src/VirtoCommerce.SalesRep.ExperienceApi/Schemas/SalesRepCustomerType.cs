@@ -23,7 +23,7 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
         Field(x => x.OrganizationName, nullable: true).Description("Organization (customer) name.");
 
         Field<SalesRepOrderType>("lastOrder")
-            .Description("The customer's most recent order.")
+            .Description("The rep's most recent order for this customer (only orders the rep created).")
             .Resolve(context =>
             {
                 var organizationId = context.Source.OrganizationId;

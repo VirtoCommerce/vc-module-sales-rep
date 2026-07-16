@@ -5,8 +5,8 @@ using VirtoCommerce.Platform.Core.Common;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 /// <summary>
-/// A customer order projected for Sales Rep storefront views — e.g. a customer's most recent order in the
-/// "My customers" list (VCST-5304). General-purpose so the same type can back any order-valued field
+/// A customer order projected for Sales Rep storefront views — e.g. the rep's most recent order for a customer in
+/// the "My customers" list (VCST-5304). General-purpose so the same type can back any order-valued field
 /// (<c>lastOrder</c>, <c>firstOrder</c>, …).
 /// </summary>
 public class SalesRepOrder : Entity

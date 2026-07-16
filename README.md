@@ -12,9 +12,9 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Manage the rep's login account: store, password and lockout
 * Model a rep from existing platform data (a contact, a login account and a role) with no new database tables
 * Let buyers see the sales reps supporting their organization
-* Let reps see the customers they serve, each with its latest order
+* Let reps see the customers they serve, each with the rep's latest order for that customer
 * Show a customer information card — organization, primary contact and account type
-* List and filter a rep's customer orders
+* List and filter the orders a rep created for their customers
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -54,7 +54,7 @@ The sales reps supporting the caller's organization:
 
 ---
 
-The customer organizations the current rep serves, each with its most recent order:
+The customer organizations the current rep serves, each with the rep's most recent order for that customer:
 
 ```graphql
 {
@@ -105,7 +105,7 @@ A single customer information card:
 
 ---
 
-A rep's customer orders, filterable and paged:
+The orders the rep created for their customers, filterable and paged (add `organizationId` to scope to one customer):
 
 ```graphql
 {
