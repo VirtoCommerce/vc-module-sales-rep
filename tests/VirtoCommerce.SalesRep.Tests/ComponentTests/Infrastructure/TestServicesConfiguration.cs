@@ -1,5 +1,10 @@
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using FluentValidation;
+using VirtoCommerce.CoreModule.Core.Currency;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +17,9 @@ using VirtoCommerce.CustomerModule.Core.Services.Indexed;
 using VirtoCommerce.CustomerModule.Data.Handlers;
 using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
+using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.CustomerModule.Data.Services;
+using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.CustomerModule.Data.Validation;
 using VirtoCommerce.LuceneSearchModule.Data;
 using VirtoCommerce.Platform.Caching;
@@ -34,6 +41,10 @@ using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.SearchModule.Data.SearchPhraseParsing;
 using VirtoCommerce.SearchModule.Data.Services;
+using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.StoreModule.Core.Model;
+using VirtoCommerce.StoreModule.Core.Services;
+using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -129,6 +140,12 @@ internal static class TestServicesConfiguration
         services.AddTransient<MemberSearchRequestBuilder>();
         services.AddTransient<IIndexedMemberSearchService, MemberIndexedSearchService>();
 
+        // Member indexation: the real document builder + a no-op dynamic-property search service (dynamic-
+        // property fields aren't needed for name/email keyword search). Lets tests populate the RAM index so
+        // keyword member searches (which route to the index, not the DB) can be exercised.
+        services.AddSingleton<IDynamicPropertySearchService, NoOpDynamicPropertySearchService>();
+        services.AddSingleton<MemberDocumentBuilder>();
+
         // Real member + membership services
         services.AddTransient<IMemberService, MemberService>();
         services.AddTransient<IMemberSearchService, MemberSearchService>();
@@ -148,7 +165,108 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
+        services.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();
         services.AddTransient<SalesRepController>();
+
+        // Dependencies of the dictionaries endpoint that the harness doesn't otherwise stand up. Countries is
+        // already registered above; currencies and settings get lightweight doubles (the component tests don't
+        // exercise dictionary contents — the controller just needs the graph to resolve).
+        services.AddSingleton<ICurrencyService, TestCurrencyService>();
+        services.AddSingleton<ISettingsManager, TestSettingsManager>();
+
+        // Lightweight IStoreService double: SalesRepService reads the store's ContactDefaultStatus setting to
+        // seed a rep's member status. Registered as a singleton so tests can configure per-store defaults
+        // (see SalesRepTestContext.SetStoreContactDefaultStatus) without standing up a Store DbContext.
+        services.AddSingleton<TestStoreService>();
+        services.AddSingleton<IStoreService>(sp => sp.GetRequiredService<TestStoreService>());
         return services;
+    }
+
+    /// <summary>
+    /// Minimal <see cref="IDynamicPropertySearchService"/> for member indexation — returns no dynamic-property
+    /// definitions, so indexed member documents carry the standard fields (name, emails) used by keyword search.
+    /// </summary>
+    private sealed class NoOpDynamicPropertySearchService : IDynamicPropertySearchService
+    {
+        public Task<DynamicPropertySearchResult> SearchAsync(DynamicPropertySearchCriteria criteria, bool clone = true)
+            => Task.FromResult(new DynamicPropertySearchResult());
+    }
+
+    /// <summary>Inert <see cref="ICurrencyService"/> double — the dictionaries endpoint resolves it, but the
+    /// component tests don't assert on the currency catalog, so an empty list is enough.</summary>
+    private sealed class TestCurrencyService : ICurrencyService
+    {
+        public Task<IEnumerable<Currency>> GetAllCurrenciesAsync() => Task.FromResult<IEnumerable<Currency>>([]);
+        public Task SaveChangesAsync(Currency[] currencies) => Task.CompletedTask;
+        public Task DeleteCurrenciesAsync(string[] codes) => Task.CompletedTask;
+    }
+
+    /// <summary>Minimal <see cref="ISettingsManager"/> double: only <see cref="GetObjectSettingAsync"/> is used
+    /// (by the dictionaries endpoint, to read the configured languages); the rest are inert.</summary>
+    private sealed class TestSettingsManager : ISettingsManager
+    {
+        public IEnumerable<SettingDescriptor> AllRegisteredSettings => [];
+        public void RegisterSettings(IEnumerable<SettingDescriptor> settings, string moduleId = null) { }
+        public void RegisterSettingsForType(IEnumerable<SettingDescriptor> settings, string typeName) { }
+        public IEnumerable<SettingDescriptor> GetSettingsForType(string typeName) => [];
+        public IDictionary<string, string[]> GetSettingTypeAssignments() => new Dictionary<string, string[]>();
+
+        public Task<ObjectSettingEntry> GetObjectSettingAsync(string name, string objectType = null, string objectId = null)
+        {
+            var setting = new ObjectSettingEntry
+            {
+                Name = name,
+                AllowedValues = name == PlatformConstants.Settings.General.Languages.Name ? ["en-US", "de-DE"] : null,
+            };
+            return Task.FromResult(setting);
+        }
+
+        public Task<IEnumerable<ObjectSettingEntry>> GetObjectSettingsAsync(IEnumerable<string> names, string objectType = null, string objectId = null)
+            => Task.FromResult<IEnumerable<ObjectSettingEntry>>([]);
+
+        public Task SaveObjectSettingsAsync(IEnumerable<ObjectSettingEntry> objectSettings) => Task.CompletedTask;
+        public Task RemoveObjectSettingsAsync(IEnumerable<ObjectSettingEntry> objectSettings) => Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// In-memory <see cref="IStoreService"/> double: returns a <see cref="Store"/> whose
+    /// <c>Customer.ContactDefaultStatus</c> setting is whatever a test configured for that store id via
+    /// <see cref="ContactDefaultStatusByStore"/>. Only <c>GetAsync</c> (which backs the <c>GetNoCloneAsync</c>
+    /// extension the service calls) is meaningful; the remaining members are inert.
+    /// </summary>
+    internal sealed class TestStoreService : IStoreService
+    {
+        public ConcurrentDictionary<string, string> ContactDefaultStatusByStore { get; } = new();
+
+        public Task<IList<Store>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            var stores = (ids ?? [])
+                .Where(ContactDefaultStatusByStore.ContainsKey)
+                .Select(id => new Store
+                {
+                    Id = id,
+                    Settings =
+                    [
+                        new ObjectSettingEntry
+                        {
+                            Name = CustomerSettings.ContactDefaultStatus.Name,
+                            ValueType = SettingValueType.ShortText,
+                            Value = ContactDefaultStatusByStore[id],
+                        },
+                    ],
+                })
+                .ToList();
+            return Task.FromResult<IList<Store>>(stores);
+        }
+
+        public Task<IList<Store>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true)
+            => Task.FromResult<IList<Store>>([]);
+
+        public Task SaveChangesAsync(IList<Store> models) => Task.CompletedTask;
+
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => Task.CompletedTask;
+
+        public Task<IList<string>> GetUserAllowedStoreIdsAsync(ApplicationUser user)
+            => Task.FromResult<IList<string>>([]);
     }
 }

@@ -26,5 +26,6 @@
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.ExperienceApi\VirtoCommerce.SalesRep.ExperienceApi.csproj" />
   </ItemGroup>
 </Project>

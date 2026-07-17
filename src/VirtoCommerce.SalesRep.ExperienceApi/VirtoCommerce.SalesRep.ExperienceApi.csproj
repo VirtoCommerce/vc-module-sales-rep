@@ -4,7 +4,8 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1003.0" />
+    <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1012.0" />
+    <!-- CustomerModule.Core and OrdersModule.Core flow transitively from SalesRep.Core (ProjectReference below). -->
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />

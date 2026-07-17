@@ -8,8 +8,11 @@ using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
+using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.StoreModule.Core.Services;
+using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
@@ -20,6 +23,7 @@ public class SalesRepService : ISalesRepService
     private readonly IOrganizationMembershipService _membershipService;
     private readonly IOrganizationMembershipSearchService _membershipSearchService;
     private readonly ISalesRepRoleResolver _roleResolver;
+    private readonly IStoreService _storeService;
     private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
 
     public SalesRepService(
@@ -28,6 +32,7 @@ public class SalesRepService : ISalesRepService
         IOrganizationMembershipService membershipService,
         IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepRoleResolver roleResolver,
+        IStoreService storeService,
         Func<UserManager<ApplicationUser>> userManagerFactory)
     {
         _memberService = memberService;
@@ -35,6 +40,7 @@ public class SalesRepService : ISalesRepService
         _membershipService = membershipService;
         _membershipSearchService = membershipSearchService;
         _roleResolver = roleResolver;
+        _storeService = storeService;
         _userManagerFactory = userManagerFactory;
     }
 
@@ -74,11 +80,13 @@ public class SalesRepService : ISalesRepService
 
             var memberships = await GetSalesRepMembershipsAsync(user.Id, grantingRoleIds);
             result.Organizations = memberships
-                .Select(m => new SalesRepOrganization
+                .Select(m =>
                 {
-                    OrganizationId = m.OrganizationId,
-                    OrganizationName = m.OrganizationName,
-                    MembershipId = m.Id,
+                    var org = AbstractTypeFactory<SalesRepOrganization>.TryCreateInstance();
+                    org.OrganizationId = m.OrganizationId;
+                    org.OrganizationName = m.OrganizationName;
+                    org.MembershipId = m.Id;
+                    return org;
                 })
                 .ToList();
 
@@ -107,6 +115,8 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<SalesRepDetails> SaveChangesInternalAsync(SalesRepDetails salesRep)
     {
+        ValidateAddresses(salesRep);
+
         var isNew = string.IsNullOrEmpty(salesRep.Id);
 
         if (isNew)
@@ -127,7 +137,13 @@ public class SalesRepService : ISalesRepService
             : await _memberService.GetByIdAsync(salesRep.Id, MemberResponseGroup.Full.ToString()) as Contact
               ?? throw new InvalidOperationException($"Sales Rep '{salesRep.Id}' not found");
 
-        ApplyProfile(contact, salesRep);
+        // Only read the store default when the incoming model has no status. New reps carry none (the blade has
+        // no status field), so they get seeded here; an edit round-trips the rep's existing status, so the store
+        // read is skipped when it wouldn't be used (ApplyProfile prefers the incoming status over the default).
+        var defaultContactStatus = string.IsNullOrEmpty(salesRep.Status)
+            ? await ResolveDefaultContactStatusAsync(salesRep.StoreId)
+            : null;
+        ApplyProfile(contact, salesRep, defaultContactStatus);
         await _memberService.SaveChangesAsync([contact]);
         salesRep.Id = contact.Id;
 
@@ -170,6 +186,49 @@ public class SalesRepService : ISalesRepService
         return await GetByIdAsync(salesRep.Id);
     }
 
+    /// <summary>
+    /// Reject addresses missing the fields required to persist them. Country is mandatory because the customer
+    /// module resolves the country name/regions from <c>CountryCode</c> on save (an empty or unknown code throws
+    /// deep in the platform countries service — a NullReferenceException surfacing as an opaque 500). City, Line 1
+    /// and Postal code are the required fields of the classic contact-address form; City is additionally enforced
+    /// by a NOT NULL constraint on the Address table. This is the API-side counterpart to the blade's required-field
+    /// validation, so a malformed payload from any client fails fast with a clear message instead of a 500.
+    /// </summary>
+    protected virtual void ValidateAddresses(SalesRepDetails salesRep)
+    {
+        if (salesRep.Addresses.IsNullOrEmpty())
+        {
+            return;
+        }
+
+        for (var i = 0; i < salesRep.Addresses.Count; i++)
+        {
+            var address = salesRep.Addresses[i];
+            List<string> missing = [];
+            if (string.IsNullOrWhiteSpace(address.CountryCode))
+            {
+                missing.Add("country");
+            }
+            if (string.IsNullOrWhiteSpace(address.City))
+            {
+                missing.Add("city");
+            }
+            if (string.IsNullOrWhiteSpace(address.Line1))
+            {
+                missing.Add("address line 1");
+            }
+            if (string.IsNullOrWhiteSpace(address.PostalCode))
+            {
+                missing.Add("postal code");
+            }
+
+            if (missing.Count > 0)
+            {
+                throw new InvalidOperationException($"Address {i + 1} is missing required field(s): {string.Join(", ", missing)}.");
+            }
+        }
+    }
+
     /// <summary>Best-effort rollback of a contact (and its account) after a failed create. Cleanup errors are
     /// swallowed so the caller can rethrow the original failure that triggered the rollback.</summary>
     protected virtual async Task TryRollbackContactAsync(string memberId)
@@ -197,7 +256,9 @@ public class SalesRepService : ISalesRepService
         //
         // One batched, internally-paged search for the accounts of ALL member ids (UserSearchCriteria.MemberIds)
         // — not a query per id, and not an unbounded single page (SearchAllAsync pages internally).
-        var accounts = await _userSearchService.SearchAllAsync(new UserSearchCriteria { MemberIds = ids });
+        var searchCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        searchCriteria.MemberIds = ids;
+        var accounts = await _userSearchService.SearchAllAsync(searchCriteria);
 
         if (accounts.Count > 0)
         {
@@ -238,7 +299,13 @@ public class SalesRepService : ISalesRepService
     {
         var roles = await _roleResolver.GetSelectableRolesAsync();
         return roles
-            .Select(r => new SalesRepRole { Id = r.Id, Name = r.Name })
+            .Select(r =>
+            {
+                var role = AbstractTypeFactory<SalesRepRole>.TryCreateInstance();
+                role.Id = r.Id;
+                role.Name = r.Name;
+                return role;
+            })
             .ToList();
     }
 
@@ -296,12 +363,22 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<ApplicationUser> UpdateAccountAsync(UserManager<ApplicationUser> userManager, Contact contact, SalesRepDetails salesRep, Role assignableRole, ISet<string> grantingRoleIds)
     {
-        var user = await GetTrackedUserAsync(userManager, contact.Id);
-        if (user == null)
+        var account = await GetTrackedUserAsync(userManager, contact.Id);
+        if (account == null)
         {
             // The contact had no account yet (edge case) — create one.
             return await CreateAccountAsync(userManager, contact, salesRep, assignableRole);
         }
+
+        // UpdateAsync must receive a DETACHED user carrying the desired state — the same contract the platform's
+        // own PUT /api/platform/security/users relies on (its payload is JSON-bound, never the manager's instance).
+        // The instance FindByIdAsync returns is the shared memory-cached one and, right after a cache miss, is ALSO
+        // tracked by this manager's DbContext. Passing it to UpdateAsync corrupts the role update: the platform's
+        // UpdateUserAsync re-loads "the existing user" through that same context, EF identity resolution hands back
+        // the very same instance, and LoadUserDetailsAsync resets its Roles from the DB — so the platform then diffs
+        // the desired roles against themselves and silently drops the change. Editing a clone also keeps mutations
+        // from leaking into the shared cache when a save fails midway.
+        var user = account.CloneTyped();
 
         // The login email is emails[0]. Keep both Email and UserName (the sign-in identifier) in sync with it
         // so they never diverge when the admin changes the login email.
@@ -312,8 +389,9 @@ public class SalesRepService : ISalesRepService
             user.UserName = loginEmail;
         }
 
-        // Set the global role to the selected one: drop any other granting role, ensure the target is present.
-        // (Switching the role re-points the global assignment.)
+        // Set the global role to the selected one: drop any other granting role, keep unrelated roles, ensure the
+        // target is present. UpdateAsync diffs this desired set against the persisted assignments and applies the
+        // difference. (Switching the role re-points the global assignment.)
         var roles = (user.Roles ?? []).Where(r => !grantingRoleIds.Contains(r.Id)).ToList();
         if (assignableRole != null)
         {
@@ -323,7 +401,7 @@ public class SalesRepService : ISalesRepService
 
         ThrowIfFailed(await userManager.UpdateAsync(user));
 
-        // Apply lockout + password on the user already tracked by this UserManager (no extra fetch/manager).
+        // Lockout + password reuse the same detached user; the manager persists them by patching the stored entity.
         await ApplyLockoutAsync(userManager, user, salesRep.IsLocked ? DateTimeOffset.MaxValue : null);
 
         if (!string.IsNullOrEmpty(salesRep.Password))
@@ -339,8 +417,8 @@ public class SalesRepService : ISalesRepService
         var servedOrgIds = DistinctNonEmpty(salesRep.Organizations?.Select(o => o.OrganizationId));
         var existing = await GetAllMembershipsAsync(userId);
 
-        var toSave = new List<OrganizationMembership>();
-        var toDelete = new List<string>();
+        List<OrganizationMembership> toSave = [];
+        List<string> toDelete = [];
 
         GrantOnServedOrgs(servedOrgIds, existing, userId, assignableRole, grantingRoleIds, toSave);
         RevokeFromUnservedOrgs(servedOrgIds, existing, grantingRoleIds, toSave, toDelete);
@@ -433,7 +511,10 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<ApplicationUser> FindUserByMemberIdAsync(string memberId)
     {
-        var result = await _userSearchService.SearchUsersAsync(new UserSearchCriteria { MemberId = memberId, Take = 1 });
+        var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        criteria.MemberId = memberId;
+        criteria.Take = 1;
+        var result = await _userSearchService.SearchUsersAsync(criteria);
         return result.Results.FirstOrDefault();
     }
 
@@ -453,13 +534,27 @@ public class SalesRepService : ISalesRepService
     protected virtual Task<IList<OrganizationMembership>> GetAllMembershipsAsync(string userId)
     {
         // SearchAllAsync pages internally (IOrganizationMembershipSearchService : ISearchService) — no unbounded Take.
-        return _membershipSearchService.SearchAllAsync(new OrganizationMembershipSearchCriteria
-        {
-            UserId = userId,
-        });
+        var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
+        criteria.UserId = userId;
+        return _membershipSearchService.SearchAllAsync(criteria);
     }
 
-    protected virtual void ApplyProfile(Contact contact, SalesRepDetails salesRep)
+    /// <summary>Resolves the store's configured default contact status (<c>Customer.ContactDefaultStatus</c>) so a
+    /// Sales Rep is seeded with the same member status the store would give a self-registered contact (e.g. "Approved"
+    /// = Active in the storefront member list) instead of an empty status that renders as "Inactive". Returns null
+    /// when there is no store bound to the rep or the setting is unset — mirrors <c>ExternalSignInUserBuilder</c>.</summary>
+    protected virtual async Task<string> ResolveDefaultContactStatusAsync(string storeId)
+    {
+        if (string.IsNullOrEmpty(storeId))
+        {
+            return null;
+        }
+
+        var store = await _storeService.GetNoCloneAsync(storeId);
+        return store?.Settings.GetValue<string>(CustomerSettings.ContactDefaultStatus);
+    }
+
+    protected virtual void ApplyProfile(Contact contact, SalesRepDetails salesRep, string defaultStatus)
     {
         contact.Salutation = salesRep.Salutation;
         contact.FirstName = salesRep.FirstName;
@@ -476,7 +571,11 @@ public class SalesRepService : ISalesRepService
         contact.CurrencyCode = salesRep.CurrencyCode;
         contact.About = salesRep.About;
         contact.PhotoUrl = salesRep.PhotoUrl;
-        contact.Status = !string.IsNullOrEmpty(salesRep.Status) ? salesRep.Status : contact.Status;
+        // Status precedence: an explicit status on the incoming model wins; otherwise fall back to the store's
+        // configured default contact status so the rep shows the right member status in the storefront (e.g.
+        // "Active") rather than "Inactive". When neither is available the current status is left untouched.
+        // Blocked reps are represented by account lockout (not this status), so overwriting it here is safe.
+        contact.Status = salesRep.Status.EmptyToNull() ?? defaultStatus.EmptyToNull() ?? contact.Status;
 
         // Login (emails[0]) + additional emails as one de-duplicated list (case-insensitive, order preserved
         // so the login stays first). The login email cannot be dropped here (it's the account).
@@ -490,8 +589,8 @@ public class SalesRepService : ISalesRepService
     /// (the blade has no FullName field). Fall back to a passed FullName or the login email when no parts exist.</summary>
     protected static string DeriveFullName(SalesRepDetails salesRep)
     {
-        var fullName = string.Join(' ', new[] { salesRep.FirstName, salesRep.MiddleName, salesRep.LastName }
-            .Where(x => !string.IsNullOrWhiteSpace(x)));
+        string[] nameParts = [salesRep.FirstName, salesRep.MiddleName, salesRep.LastName];
+        var fullName = string.Join(' ', nameParts.Where(x => !string.IsNullOrWhiteSpace(x)));
         if (!string.IsNullOrWhiteSpace(fullName))
         {
             return fullName;
@@ -511,29 +610,28 @@ public class SalesRepService : ISalesRepService
 
     protected virtual SalesRepDetails ToSalesRep(Contact contact, ApplicationUser user)
     {
-        return new SalesRepDetails
-        {
-            Id = contact.Id,
-            UserId = user?.Id,
-            UserName = user?.UserName,
-            Salutation = contact.Salutation,
-            FirstName = contact.FirstName,
-            MiddleName = contact.MiddleName,
-            LastName = contact.LastName,
-            FullName = contact.FullName,
-            BirthDate = contact.BirthDate,
-            TimeZone = contact.TimeZone,
-            DefaultLanguage = contact.DefaultLanguage,
-            CurrencyCode = contact.CurrencyCode,
-            About = contact.About,
-            PhotoUrl = contact.PhotoUrl,
-            Status = contact.Status,
-            Emails = contact.Emails?.ToList() ?? [],
-            Phones = contact.Phones?.ToList() ?? [],
-            Addresses = contact.Addresses?.ToList() ?? [],
-            StoreId = user?.StoreId,
-            IsLocked = IsLocked(user),
-        };
+        var result = AbstractTypeFactory<SalesRepDetails>.TryCreateInstance();
+        result.Id = contact.Id;
+        result.UserId = user?.Id;
+        result.UserName = user?.UserName;
+        result.Salutation = contact.Salutation;
+        result.FirstName = contact.FirstName;
+        result.MiddleName = contact.MiddleName;
+        result.LastName = contact.LastName;
+        result.FullName = contact.FullName;
+        result.BirthDate = contact.BirthDate;
+        result.TimeZone = contact.TimeZone;
+        result.DefaultLanguage = contact.DefaultLanguage;
+        result.CurrencyCode = contact.CurrencyCode;
+        result.About = contact.About;
+        result.PhotoUrl = contact.PhotoUrl;
+        result.Status = contact.Status;
+        result.Emails = contact.Emails?.ToList() ?? [];
+        result.Phones = contact.Phones?.ToList() ?? [];
+        result.Addresses = contact.Addresses?.ToList() ?? [];
+        result.StoreId = user?.StoreId;
+        result.IsLocked = IsLocked(user);
+        return result;
     }
 
     protected static bool IsLocked(ApplicationUser user)

@@ -167,6 +167,53 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
+     * Reference data (countries, currencies, languages) for the Sales Rep admin dropdowns.
+     * @return OK
+     */
+    getDictionaries(): Promise<SalesRepDictionaries> {
+        let url_ = this.baseUrl + "/api/sales-rep/dictionaries";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processGetDictionaries(_response);
+        });
+    }
+
+    protected processGetDictionaries(response: Response): Promise<SalesRepDictionaries> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDictionaries;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDictionaries>(null as any);
+    }
+
+    /**
      * Get a Sales Rep aggregate by contact member id.
      * @return OK
      */
@@ -575,6 +622,23 @@ export interface SalesRepDetails {
     roleId?: string | undefined;
     roleName?: string | undefined;
     organizations?: SalesRepOrganization[] | undefined;
+}
+
+export interface SalesRepDictionaries {
+    countries?: SalesRepCountry[] | undefined;
+    currencies?: SalesRepCurrency[] | undefined;
+    languages?: string[] | undefined;
+}
+
+export interface SalesRepCountry {
+    id?: string | undefined;
+    name?: string | undefined;
+}
+
+export interface SalesRepCurrency {
+    code?: string | undefined;
+    name?: string | undefined;
+    symbol?: string | undefined;
 }
 
 export interface SalesRepListItem {
