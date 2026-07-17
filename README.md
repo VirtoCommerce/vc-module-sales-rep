@@ -15,6 +15,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Let reps see the customers they serve, each with the rep's latest order for that customer
 * Show a customer information card — organization, primary contact and account type
 * List and filter the orders a rep created for their customers
+* Send a push notification and/or email to the members of a customer organization
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -146,6 +147,28 @@ The orders the rep created for their customers, filterable and paged (add `organ
 }
 ```
 
+### Mutation
+
+Send a communication — a storefront push notification and/or an email — to the members of a customer organization the rep serves (the "My customers" contact action):
+
+```graphql
+mutation {
+  sendCustomerCommunication(command: {
+    organizationId: "7b8c..."
+    sendPush: true
+    sendEmail: true
+    title: "New products available"
+    message: "I've shared a new product list with your team: https://store.example.com/lists/new"
+    storeId: "B2B-store"
+    cultureName: "en-US"
+  })
+}
+```
+
+Returns `true` when at least one channel was dispatched; `false` when the rep does not serve the organization, the organization has no members, or neither channel was selected. `message` is required (max 1000 characters) and may contain a URL; `title` is optional.
+
+Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`).
+
 ## How it works
 
 A sales rep is not a new entity — the module composes three pieces of existing platform data, so it owns **no database tables** and adds **no EF migrations**:
@@ -213,7 +236,9 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | Module | Why |
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
+| `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
 | `VirtoCommerce.Orders` | Customer orders (order search + hydration via the Orders module). |
+| `VirtoCommerce.PushMessages` | Storefront push notifications for customer communications. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
@@ -223,6 +248,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 * Pull requests:
   * [#1 — VCST-5293: Sales rep VC-Shell administration UI](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/1)
   * [#2 — VCST-4907 / VCST-5304 / VCST-5308: X-API endpoints for customers and sales reps](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/2)
+  * [VCST-5310 / VCST-5331: Push & email messaging to customer members](https://virtocommerce.atlassian.net/browse/VCST-5310)
 
 > **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface. The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 
