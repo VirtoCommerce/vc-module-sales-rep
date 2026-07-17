@@ -11,6 +11,10 @@
     <!-- CartModule.Core: the default SalesRepCartKindService maps the built-in "project" kind to the
          ModuleConstants.CartType.Wishlist cart type. Version matches the module.manifest VirtoCommerce.Cart dependency. -->
     <PackageReference Include="VirtoCommerce.CartModule.Core" Version="3.1006.0" />
+    <!-- CatalogModule.Core: the default SalesRepTopSellerFilterRuleResolver lists the store catalog's top-level
+         categories (ICategorySearchService) as the Top Sellers badges and expands a selected one to its subtree.
+         Version matches the module.manifest VirtoCommerce.Catalog dependency. -->
+    <PackageReference Include="VirtoCommerce.CatalogModule.Core" Version="3.1032.0" />
     <!-- CustomerModule.Core and OrdersModule.Core flow transitively from SalesRep.Core (ProjectReference below). -->
   </ItemGroup>
   <ItemGroup>

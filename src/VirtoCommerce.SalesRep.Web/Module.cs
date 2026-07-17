@@ -45,6 +45,11 @@ public class Module : IModule, IHasConfiguration
         // new in a period, derived from the rep's own orders via the Orders repository.
         serviceCollection.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
 
+        // "Top Sellers" ranking (dashboard + customer): the rep's top products by units/revenue over a period,
+        // aggregated from the rep's own order line items via the Orders repository (the row display data is the
+        // line-item snapshot, so no catalog read here — only the category badges touch the catalog).
+        serviceCollection.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
+
         // Storefront X-API (GraphQL) surface: "my customers" (VCST-5304) and "my sales reps" (VCST-4907).
         serviceCollection.AddSalesRepExperienceApi();
     }

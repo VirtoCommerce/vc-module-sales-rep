@@ -1,0 +1,106 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
+using VirtoCommerce.StoreModule.Core.Services;
+using VirtoCommerce.Xapi.Core.Infrastructure;
+
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+
+/// <summary>
+/// Ranks the rep's top-selling products (VCST-5309). Scopes to the organizations the rep may see (the requested one
+/// if served, else all assigned) and to the rep's own orders (creator scope — the data-isolation invariant), then
+/// applies the selected ordering and optional category badge and returns the top-N via
+/// <see cref="ISalesRepTopSellerService"/>.
+/// </summary>
+public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepTopSellersQuery, IList<SalesRepTopSeller>>
+{
+    private const int MaxTake = 10;
+
+    private readonly ISalesRepTopSellerService _topSellerService;
+    private readonly ISalesRepTopSellerSortRuleResolver _sortRuleResolver;
+    private readonly ISalesRepTopSellerFilterRuleResolver _filterRuleResolver;
+    private readonly IStoreService _storeService;
+    private readonly ICurrencyService _currencyService;
+
+    public SalesRepTopSellersQueryHandler(
+        ISalesRepRoleResolver roleResolver,
+        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepTopSellerService topSellerService,
+        ISalesRepTopSellerSortRuleResolver sortRuleResolver,
+        ISalesRepTopSellerFilterRuleResolver filterRuleResolver,
+        IStoreService storeService,
+        ICurrencyService currencyService)
+        : base(roleResolver, membershipSearchService)
+    {
+        _topSellerService = topSellerService;
+        _sortRuleResolver = sortRuleResolver;
+        _filterRuleResolver = filterRuleResolver;
+        _storeService = storeService;
+        _currencyService = currencyService;
+    }
+
+    public virtual async Task<IList<SalesRepTopSeller>> Handle(SalesRepTopSellersQuery request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(request.UserId))
+        {
+            return [];
+        }
+
+        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
+        if (organizationIds.Length == 0)
+        {
+            return [];
+        }
+
+        var currencyCode = request.CurrencyCode;
+        if (string.IsNullOrEmpty(currencyCode))
+        {
+            currencyCode = await ResolveDefaultCurrencyCodeAsync(request.StoreId);
+        }
+
+        var criteria = AbstractTypeFactory<SalesRepTopSellerCriteria>.TryCreateInstance();
+        criteria.OrganizationIds = organizationIds;
+        criteria.CustomerId = request.UserId; // creator scope (data-isolation invariant)
+        criteria.StoreId = request.StoreId;
+        criteria.CurrencyCode = currencyCode;
+        criteria.FromDate = request.Period?.From;
+        criteria.ToDate = request.Period?.To;
+        criteria.Take = Math.Clamp(request.Take, 1, MaxTake);
+
+        // Ordering (empty/unknown → default by-units; a sort never fails closed).
+        criteria = await _sortRuleResolver.ApplySortAsync(request.StoreId, request.Sort, criteria);
+
+        // Category badge (empty → all categories; unrecognized → fail-closed, no results).
+        var filteredCriteria = await _filterRuleResolver.ApplyFilterAsync(request.StoreId, request.Filter, criteria);
+        if (filteredCriteria == null)
+        {
+            return [];
+        }
+
+        return await _topSellerService.GetTopSellersAsync(filteredCriteria);
+    }
+
+    // Currency defaulting: the client's currencyCode wins; otherwise the store's default currency, then primary.
+    private async Task<string> ResolveDefaultCurrencyCodeAsync(string storeId)
+    {
+        if (!string.IsNullOrEmpty(storeId))
+        {
+            var store = await _storeService.GetByIdAsync(storeId);
+            if (!string.IsNullOrEmpty(store?.DefaultCurrency))
+            {
+                return store.DefaultCurrency;
+            }
+        }
+
+        var currencies = await _currencyService.GetAllCurrenciesAsync();
+        return currencies.FirstOrDefault(x => x.IsPrimary)?.Code;
+    }
+}

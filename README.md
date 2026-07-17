@@ -19,6 +19,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Add cart/project statistics (e.g. *active projects*) and *my-customers* counters (customers who ordered in a period, new customers)
 * Show inline per-customer purchase figures on the customers list (YTD / prior-year totals, order counts, first/last order) via a batched per-row statistics field — no N+1
 * Filter the orders/customers lists and every statistics block by a single, optional, server-defined **filter rule** (aggregated order statuses / cart kinds / customer segments), and order the lists by a server-defined **sort rule** (e.g. *recent*, *my last orders*, *ytd purchases*, *name*) — the storefront sends one rule name per axis and the server maps it; both are overridable per project
+* Rank a rep's **top-selling products** (dashboard + per-customer) by units or revenue over a period, optionally within a product category
 * Scope the orders list to an optional created-date **period**
 * Toggle the storefront Sales Rep UI per store
 
@@ -176,9 +177,9 @@ The orders the rep created for their customers, paged, ordered by an optional **
 
 #### Filter rules
 
-Lists and statistics blocks are filtered by a single, optional **named filter rule**, not by raw statuses/types. The storefront reads the selectable rules from a discovery query and sends back one rule `name` in the unified `filter` argument; the server resolves it to the underlying filter — order statuses, a cart type/status set, or a customer segment — and a rule can be a composite (e.g. a business `"inactive"` → `Cancelled` + `Failed`). Omit `filter` for the baseline set (everything the rep may see, minus soft-deleted/prototype); an unrecognized name fails **closed** (no data), never "return everything". Rule sets are overridable per project.
+Lists and statistics blocks are filtered by a single, optional **named filter rule**, not by raw statuses/types. The storefront reads the selectable rules from a discovery query and sends back one rule `name` in the unified `filter` argument; the server resolves it to the underlying filter — order statuses, a cart type/status set, a customer segment, or a product category — and a rule can be a composite (e.g. a business `"inactive"` → `Cancelled` + `Failed`). Omit `filter` for the baseline set (everything the rep may see, minus soft-deleted/prototype); an unrecognized name fails **closed** (no data), never "return everything". Rule sets are overridable per project.
 
-Three rule domains, each with its own discovery query:
+Four rule domains, each with its own discovery query:
 
 ```graphql
 {
@@ -188,6 +189,8 @@ Three rule domains, each with its own discovery query:
   salesRepCartFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
   # customers list + "my customers" counts (customer segments; a single "All" baseline by default)
   salesRepCustomerFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # top sellers list (category badges; the store catalog's top-level non-hidden categories)
+  salesRepTopSellerFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
 }
 ```
 
@@ -195,7 +198,7 @@ Three rule domains, each with its own discovery query:
 
 #### Sort rules
 
-The orders and customers lists are ordered by a single, optional **named sort rule** — a *separate axis* from the filter rules above (a filter chooses *which* records, a sort chooses their *order*), so the two are never crossed into one combinatorial list. The storefront reads the selectable orderings from a discovery query and sends back one rule `name` in the built-in `sort` argument; the server maps it to the actual ordering. Omit `sort` (or send an unknown name) and the domain's **default** ordering applies — a sort only reorders, so unlike a filter it never fails closed. `customerSalesReps` is exempt (a plain list). Rule sets are overridable per project.
+The orders, customers and top-sellers lists are ordered by a single, optional **named sort rule** — a *separate axis* from the filter rules above (a filter chooses *which* records, a sort chooses their *order*), so the two are never crossed into one combinatorial list. The storefront reads the selectable orderings from a discovery query and sends back one rule `name` in the built-in `sort` argument; the server maps it to the actual ordering. Omit `sort` (or send an unknown name) and the domain's **default** ordering applies — a sort only reorders, so unlike a filter it never fails closed. `customerSalesReps` is exempt (a plain list). Rule sets are overridable per project.
 
 ```graphql
 {
@@ -203,6 +206,8 @@ The orders and customers lists are ordered by a single, optional **named sort ru
   salesRepOrderSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
   # customers list — default "my-last-orders"; also "ytd-purchases" and "name"
   salesRepCustomerSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # top sellers list — default "by-units"; also "by-revenue"
+  salesRepTopSellerSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
 }
 ```
 
@@ -289,7 +294,34 @@ Customer counters for the dashboard *My Customers* card — how many customers t
 }
 ```
 
-All statistics obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
+---
+
+#### Top sellers
+
+The rep's top-selling products (dashboard *Top Sellers*, and per-customer when an `organizationId` is passed). Ranked over an optional `period` by a **sort rule** (`salesRepTopSellerSortRules`; default `by-units`, or `by-revenue`), returning the top `take` (default 5, max 10). An optional category `filter` (a `salesRepTopSellerFilterRules` name — a top-level category) restricts the ranking to that category's subtree. Each row's name/sku/image/category come straight from the order line-item snapshot (no catalog read); `revenue` is Money.
+
+```graphql
+{
+  salesRepTopSellers(
+    storeId: "B2B-store"
+    sort: "by-units"
+    period: { from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z" }
+    take: 5
+    cultureName: "en-US"
+    # optional: organizationId (scope to one customer); filter: "<category id>" (restrict to a category subtree)
+  ) {
+    rank
+    productId
+    name
+    sku
+    imageUrl
+    units
+    revenue { amount formattedAmount currency { code } }
+  }
+}
+```
+
+All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
 ## How it works
 
@@ -327,6 +359,8 @@ The dashboard numbers are **aggregated in the database**: the module reads the O
 * **A rule the standard criteria can't express** (e.g. *"stale, or item-less"* orders, or an *"active"* customer segment) — the resolver applies onto the reader's criteria, and each reader exposes a seam to add the predicate: a `BuildQuery` override on the statistics/counts services, or narrowing the members search (`ObjectIds`) for the customers list. Wire it for every reader in the domain so they stay consistent.
 
 **Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression; `ISalesRepCustomerSortRuleResolver` maps it to a spec). Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
+
+**Top Sellers** is an *orders-only* ranking: it aggregates the rep's own order line items grouped by product (units = Σ quantity, revenue = Σ quantity × price) straight from the Orders store — a line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its one catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): the store catalog's top-level non-hidden categories, and a selected badge expands to its subtree of category ids that the ranking then filters on.
 
 ## Administration
 
@@ -372,6 +406,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics. |
 | `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
+| `VirtoCommerce.Catalog` | Top Sellers category badges — the store catalog's top-level categories and subtree expansion (`ICategorySearchService`). |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
 ## Documentation

@@ -248,6 +248,8 @@ internal static class TestServicesConfiguration
                 {
                     Id = id,
                     DefaultCurrency = "EUR",
+                    Catalog = SalesRepTestContext.TestCatalogId, // the catalog the Top Sellers category filter reads
+
                     Settings = ContactDefaultStatusByStore.TryGetValue(id, out var status)
                         ?
                         [

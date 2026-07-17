@@ -46,6 +46,12 @@ public static class ServiceCollectionExtensions
         serviceCollection.AddTransient<ISalesRepOrderSortRuleResolver, SalesRepOrderSortRuleResolver>();
         serviceCollection.AddTransient<ISalesRepCustomerSortRuleResolver, SalesRepCustomerSortRuleResolver>();
 
+        // Top Sellers rules: orderings (by-units default, by-revenue) and category badges (the store catalog's
+        // top-level non-hidden categories, expanded to a subtree on selection). A project registers its own after
+        // this (last registration wins).
+        serviceCollection.AddTransient<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
+        serviceCollection.AddTransient<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
+
         return serviceCollection;
     }
 }

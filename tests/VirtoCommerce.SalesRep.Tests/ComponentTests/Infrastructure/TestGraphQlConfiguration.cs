@@ -11,6 +11,13 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VirtoCommerce.CartModule.Data.Model;
 using VirtoCommerce.CartModule.Data.Repositories;
+using VirtoCommerce.CatalogModule.Core.Model;
+using VirtoCommerce.CatalogModule.Core.Model.Search;
+using VirtoCommerce.CatalogModule.Core.Search;
+using VirtoCommerce.CatalogModule.Core.Services;
+using VirtoCommerce.CatalogModule.Data.Model;
+using VirtoCommerce.CatalogModule.Data.Repositories;
+using VirtoCommerce.CatalogModule.Data.Search;
 using VirtoCommerce.CoreModule.Core.Common;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.OrdersModule.Core.Model;
@@ -70,6 +77,11 @@ internal static class TestGraphQlConfiguration
         // "My customers" counts service (VCST dashboard): also aggregates over the same order repository.
         services.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
 
+        // "Top Sellers" ranking service (VCST-5309): the REAL service aggregating the rep's order line items over
+        // the same order repository (units/revenue per product), so ranking/sort/period/category run end to end.
+        services.AddSingleton<ILogger<SalesRepTopSellerService>>(NullLogger<SalesRepTopSellerService>.Instance);
+        services.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
+
         return services;
     }
 
@@ -93,6 +105,28 @@ internal static class TestGraphQlConfiguration
 
         // The real default cart-kind service (single built-in "project" kind → cart type "Wishlist").
         services.AddTransient<ISalesRepCartFilterRuleResolver, SalesRepCartFilterRuleResolver>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the catalog data slice (real CatalogDbContext/repository on SQLite) and the REAL
+    /// <see cref="CategorySearchService"/>, so the Top Sellers category filter (top-level categories + subtree
+    /// expansion) runs through real code. Category hydration goes through a thin repo-backed
+    /// <see cref="ICategoryService"/> double — the real CategoryService needs ~10 cross-module deps and is not the
+    /// code under test, the same justified stand-in as the order-service double. The raw-database command is stubbed
+    /// (the category search only reads the <c>Categories</c> IQueryable and hydrates by id).
+    /// </summary>
+    public static IServiceCollection AddCatalogSlice(this IServiceCollection services, DbContextOptions<CatalogDbContext> catalogDbOptions)
+    {
+        services.AddSingleton(catalogDbOptions);
+        services.AddScoped<CatalogDbContext>();
+        services.AddSingleton<ICatalogRawDatabaseCommand, StubCatalogRawDatabaseCommand>();
+        services.AddTransient<ICatalogRepository, CatalogRepositoryImpl>();
+        services.AddSingleton<Func<ICatalogRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ICatalogRepository>());
+
+        services.AddTransient<ICategoryService, RepositoryBackedCategoryService>();
+        services.AddTransient<ICategorySearchService, CategorySearchService>();
 
         return services;
     }
@@ -125,6 +159,15 @@ internal static class TestGraphQlConfiguration
         // so the discovery queries and the order-derived customer sort run end to end through real code.
         services.AddSingleton<ISalesRepOrderSortRuleResolver, SalesRepOrderSortRuleResolver>();
         services.AddSingleton<ISalesRepCustomerSortRuleResolver, SalesRepCustomerSortRuleResolver>();
+
+        // Top Sellers: the real sort resolver (by-units/by-revenue). The category-badge resolver is a stub standing
+        // in as a "project override" so component tests avoid a full catalog slice — it expands "electronics" to a
+        // simulated subtree, exercising the subtree-restriction + fail-closed paths. The real catalog-backed resolver
+        // is unit-tested separately.
+        services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
+        // The REAL category-badge resolver — top-level categories from the (real) catalog slice, expanded to a
+        // subtree on selection. Requires AddCatalogSlice.
+        services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
@@ -294,6 +337,58 @@ internal static class TestGraphQlConfiguration
         public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new NotSupportedException();
         public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();
         public Task DeleteAsync(string settingName, IList<string> values) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Thin repo-backed <see cref="ICategoryService"/> for the harness: hydrates categories straight from the
+    /// catalog repository (the real <c>CategoryService</c> needs ~10 cross-module deps and is not the code under
+    /// test). Only the read path is exercised — by the real <see cref="CategorySearchService"/> under test; the
+    /// write / code / outer-id methods are not used.
+    /// </summary>
+    private sealed class RepositoryBackedCategoryService : ICategoryService
+    {
+        private readonly Func<ICatalogRepository> _repositoryFactory;
+
+        public RepositoryBackedCategoryService(Func<ICatalogRepository> repositoryFactory)
+        {
+            _repositoryFactory = repositoryFactory;
+        }
+
+        public async Task<IList<Category>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            if (ids == null || ids.Count == 0)
+            {
+                return [];
+            }
+
+            using var repository = _repositoryFactory();
+            var entities = await repository.GetCategoriesByIdsAsync(ids.ToArray(), responseGroup);
+            return entities.Select(x => x.ToModel(AbstractTypeFactory<Category>.TryCreateInstance())).ToList();
+        }
+
+        public Task<IList<Category>> GetByIdsAsync(IList<string> ids, string responseGroup, string catalogId)
+            => GetAsync(ids, responseGroup);
+
+        public Task<IDictionary<string, string>> GetIdsByCodes(string catalogId, IList<string> codes) => throw new NotSupportedException();
+        public Task<IList<Category>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => throw new NotSupportedException();
+        public Task SaveChangesAsync(IList<Category> models) => throw new NotSupportedException();
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Stub catalog raw-database command: the category search path never touches it (it only reads the Categories
+    /// IQueryable and hydrates by id), so every method throws if ever called.
+    /// </summary>
+    private sealed class StubCatalogRawDatabaseCommand : ICatalogRawDatabaseCommand
+    {
+        public Task<IList<string>> GetAllSeoDuplicatesIdsAsync(CatalogDbContext dbContext) => throw new NotSupportedException();
+        public Task<IList<CategoryHierarchyItem>> GetChildCategoriesAsync(CatalogDbContext dbContext, IList<string> categoryIds) => throw new NotSupportedException();
+        public Task<GenericSearchResult<AssociationEntity>> SearchAssociations(CatalogDbContext dbContext, ProductAssociationSearchCriteria criteria) => throw new NotSupportedException();
+        public Task<IList<CategoryEntity>> SearchCategoriesHierarchyAsync(CatalogDbContext dbContext, string categoryId) => throw new NotSupportedException();
+        public Task RemoveItemsAsync(CatalogDbContext dbContext, IList<string> itemIds) => throw new NotSupportedException();
+        public Task RemoveCategoriesAsync(CatalogDbContext dbContext, IList<string> ids) => throw new NotSupportedException();
+        public Task RemoveCatalogsAsync(CatalogDbContext dbContext, IList<string> ids) => throw new NotSupportedException();
+        public Task RemoveAllPropertyValuesAsync(CatalogDbContext dbContext, PropertyEntity catalogProperty, PropertyEntity categoryProperty, PropertyEntity itemProperty) => throw new NotSupportedException();
     }
 
 }

@@ -1,0 +1,55 @@
+using System;
+
+namespace VirtoCommerce.SalesRep.Core.Models;
+
+/// <summary>
+/// Criteria for the Sales Rep "Top Sellers" ranking (VCST-5309): the rep's own order line items within the served
+/// organizations (and an optional store / category subtree / created-date range), grouped by product, ranked by
+/// <see cref="SortBy"/>, returning only the top <see cref="Take"/>. Cancelled/prototype orders and cancelled line
+/// items are always excluded. Which organizations the caller may see is enforced upstream (the query handler).
+/// </summary>
+public class SalesRepTopSellerCriteria
+{
+    /// <summary>Organizations (customers) whose line items are aggregated. Empty/null aggregates nothing.</summary>
+    public string[] OrganizationIds { get; set; }
+
+    /// <summary>
+    /// Creator scope (data-isolation invariant): only line items of orders created by this user — the rep's own
+    /// security-account id (rep-created orders record it as the order's <c>CustomerId</c>).
+    /// </summary>
+    public string CustomerId { get; set; }
+
+    /// <summary>Optional store to scope the orders to. Null aggregates across all stores.</summary>
+    public string StoreId { get; set; }
+
+    /// <summary>Currency the revenue figures are converted to.</summary>
+    public string CurrencyCode { get; set; }
+
+    /// <summary>
+    /// Optional category subtree to restrict to — the line-item <c>CategoryId</c> must be in this set (the filter
+    /// rule resolves a top-level category to its descendant ids). Null/empty = all categories.
+    /// </summary>
+    public string[] CategoryIds { get; set; }
+
+    /// <summary>Inclusive lower bound on the order created date. Null = no lower bound (lifetime).</summary>
+    public DateTime? FromDate { get; set; }
+
+    /// <summary>Exclusive upper bound on the order created date. Null = no upper bound.</summary>
+    public DateTime? ToDate { get; set; }
+
+    /// <summary>The metric the ranking sorts by.</summary>
+    public SalesRepTopSellerSortBy SortBy { get; set; }
+
+    /// <summary>Max rows to return — the ranking is top-N only.</summary>
+    public int Take { get; set; } = 5;
+}
+
+/// <summary>The metric the Top Sellers ranking sorts by.</summary>
+public enum SalesRepTopSellerSortBy
+{
+    /// <summary>Sum of quantities (units sold).</summary>
+    Units,
+
+    /// <summary>Sum of quantity × unit price (converted to one currency).</summary>
+    Revenue,
+}
