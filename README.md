@@ -80,7 +80,7 @@ The customer organizations the current rep serves, each with the rep's most rece
         countryCode
       }
       # Inline per-row purchase columns — one aggregate query per distinct range for the whole page (no N+1).
-      # currencyCode defaults to the platform primary currency; pass it to convert to the store currency.
+      # Defaults to the store's currency (then the platform primary); pass currencyCode to override per column.
       ytd: orderStatistics(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z") {
         total { amount formattedAmount }
         count
@@ -351,7 +351,7 @@ graph LR
 
 ### Statistics, filter rules and sort rules
 
-The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
+The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. The requested currency is resolved once per query by a shared policy (`ISalesRepCurrencyResolver`, used by every money-bearing query): an explicit `currencyCode` argument if given, else the store's default currency, else the platform primary. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
 
 **Filter rules** are the single, server-owned vocabulary for "which records count". A rule has a stable `name` and resolves to the underlying filter — order statuses, a cart type/status set, or a customer segment — as an overridable mapping (`IFilterRuleResolver`), applied as one optional `filter` argument (omit → the baseline set; unknown name → fail closed). Within a domain the **same resolver drives every reader** — the orders list and the order statistics; the customers list and the "my customers" counts — so a filtered list and its matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
 
@@ -360,7 +360,7 @@ The dashboard numbers are **aggregated in the database**: the module reads the O
 
 **Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression; `ISalesRepCustomerSortRuleResolver` maps it to a spec). Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
 
-**Top Sellers** is an *orders-only* ranking: it aggregates the rep's own order line items grouped by product (units = Σ quantity, revenue = Σ quantity × price) straight from the Orders store — a line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its one catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): the store catalog's top-level non-hidden categories, and a selected badge expands to its subtree of category ids that the ranking then filters on.
+**Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its one catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): the store catalog's top-level non-hidden categories, and a selected badge expands to its subtree of category ids that the ranking then filters on.
 
 ## Administration
 
