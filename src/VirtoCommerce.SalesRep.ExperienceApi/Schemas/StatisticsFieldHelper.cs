@@ -1,5 +1,3 @@
-using System;
-using System.Linq;
 using System.Threading.Tasks;
 using GraphQL;
 using VirtoCommerce.CoreModule.Core.Currency;
@@ -14,29 +12,13 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 /// </summary>
 internal static class StatisticsFieldHelper
 {
-    // Separator for encoding a resolved filter set into the (value-equatable) DataLoader batch key. Unit Separator
-    // (U+001F) never occurs in a status/type/kind value, so join/split round-trips losslessly.
-    private const char SetSeparator = '\u001f';
-
     /// <summary>
-    /// Canonical, order-independent encoding of a resolved filter set (statuses, cart types, …) into a DataLoader
-    /// batch-key segment ("" = no filter), so two selections that resolve to the same set share one aggregate query.
+    /// Reads the single, optional <see cref="SalesRepFilters.ArgumentName"/> rule name from a statistics field — the
+    /// one place the graph types read the filter argument. Null/empty when omitted (the baseline set). The value
+    /// doubles as the filter component of the per-block DataLoader key (resolution happens once per distinct name).
     /// </summary>
-    public static string EncodeSet(string[] values)
-        => values == null || values.Length == 0
-            ? string.Empty
-            : string.Join(SetSeparator, values.OrderBy(x => x, StringComparer.Ordinal));
-
-    /// <summary>Reverses <see cref="EncodeSet"/> ("" → null = no filter).</summary>
-    public static string[] DecodeSet(string encoded)
-        => string.IsNullOrEmpty(encoded) ? null : encoded.Split(SetSeparator);
-
-    /// <summary>
-    /// Reads the unified <see cref="SalesRepFilters.ArgumentName"/> selection from a statistics field and encodes it
-    /// into a stable batch-key segment — the one place the graph types read the filter argument.
-    /// </summary>
-    public static string GetFilterKey(IResolveFieldContext context)
-        => EncodeSet(context.GetArgument<string[]>(SalesRepFilters.ArgumentName));
+    public static string GetFilter(IResolveFieldContext context)
+        => context.GetArgument<string>(SalesRepFilters.ArgumentName);
 
     /// <summary>
     /// Resolves a raw decimal (already converted to <paramref name="currencyCode"/> by the service) into a domain

@@ -37,7 +37,7 @@ public class SalesRepStatisticsListConsistencyGraphQlTests
         SeedOrder(ctx, "f1", "org-1", _feb2026, status: "Failed");
 
         // Same unified 'filters' argument on both the list and the statistics.
-        var filterArg = statusName == null ? "" : $", filters: [\"{statusName}\"]";
+        var filterArg = statusName == null ? "" : $", filter: \"{statusName}\"";
 
         var listJson = await ctx.ExecuteGraphQlAsync(
             $$"""

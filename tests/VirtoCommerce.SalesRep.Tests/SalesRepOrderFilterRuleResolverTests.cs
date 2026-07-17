@@ -34,24 +34,24 @@ public class SalesRepOrderFilterRuleResolverTests
     }
 
     [Fact]
-    public async Task Resolve_KnownStatus_ReturnsItself()
+    public async Task Resolve_KnownRule_MapsToItsStatus()
     {
         var service = CreateService("New", "Cancelled");
 
-        var criteria = await service.ApplyStatisticsFilterAsync("B2B-store", ["Cancelled"], new CustomerOrderStatisticsCriteria());
+        var criteria = await service.ApplyStatisticsFilterAsync("B2B-store", "Cancelled", new CustomerOrderStatisticsCriteria());
 
         criteria.Should().NotBeNull();
         criteria.Statuses.Should().Equal("Cancelled");
     }
 
     [Fact]
-    public async Task Resolve_MultipleStatuses_ReturnsDedupedUnion()
+    public async Task Resolve_IsCaseInsensitive()
     {
-        var service = CreateService("New", "Processing", "Cancelled");
+        var service = CreateService("New", "Cancelled");
 
-        var criteria = await service.ApplyStatisticsFilterAsync("B2B-store", ["New", "Cancelled"], new CustomerOrderStatisticsCriteria());
+        var criteria = await service.ApplyStatisticsFilterAsync("B2B-store", "cancelled", new CustomerOrderStatisticsCriteria());
 
-        criteria.Statuses.Should().BeEquivalentTo("New", "Cancelled");
+        criteria.Statuses.Should().Equal("Cancelled");
     }
 
     [Fact]
@@ -59,10 +59,10 @@ public class SalesRepOrderFilterRuleResolverTests
     {
         var service = CreateService("New", "Processing", "Cancelled");
 
-        var listCriteria = await service.ApplyListFilterAsync("B2B-store", ["New", "Cancelled"], new CustomerOrderSearchCriteria());
-        var statsCriteria = await service.ApplyStatisticsFilterAsync("B2B-store", ["New", "Cancelled"], new CustomerOrderStatisticsCriteria());
+        var listCriteria = await service.ApplyListFilterAsync("B2B-store", "Cancelled", new CustomerOrderSearchCriteria());
+        var statsCriteria = await service.ApplyStatisticsFilterAsync("B2B-store", "Cancelled", new CustomerOrderStatisticsCriteria());
 
-        // The whole point of the shared resolver: both readers filter by exactly the same set.
+        // The whole point of the shared resolver: both readers filter by exactly the same rule → same statuses.
         listCriteria.Statuses.Should().BeEquivalentTo(statsCriteria.Statuses);
     }
 
@@ -71,10 +71,10 @@ public class SalesRepOrderFilterRuleResolverTests
     {
         var service = CreateService("New");
 
-        // Names given but none recognized → null (fail-closed).
-        (await service.ApplyStatisticsFilterAsync("B2B-store", ["Bogus"], new CustomerOrderStatisticsCriteria())).Should().BeNull();
+        // A rule name was given but is unrecognized → null (fail-closed).
+        (await service.ApplyStatisticsFilterAsync("B2B-store", "Bogus", new CustomerOrderStatisticsCriteria())).Should().BeNull();
 
-        // No names → criteria returned unchanged, no status filter applied.
+        // No filter → criteria returned unchanged, no status filter applied (the baseline set).
         var noFilter = await service.ApplyStatisticsFilterAsync("B2B-store", null, new CustomerOrderStatisticsCriteria());
         noFilter.Should().NotBeNull();
         noFilter.Statuses.Should().BeNull();

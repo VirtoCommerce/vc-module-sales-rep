@@ -30,12 +30,12 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
     public string StoreId { get; set; }
 
     /// <summary>
-    /// Optional selected filter-rule names (each a <c>SalesRepOrderFilterRule.name</c>). The handler resolves each to its
-    /// underlying order statuses (1:many for composite/overridden statuses) and filters by their union; omit (or
-    /// empty) for no filter. A list so multi-select works; single-select is a one-element list. Uses the module-wide
-    /// <see cref="SalesRepFilters.ArgumentName"/> so every Sales Rep query selects named rules the same way.
+    /// Optional selected filter-rule name (a <c>SalesRepOrderFilterRule.name</c>). The handler resolves it to the
+    /// rule's underlying order statuses (1:many for a composite rule) and filters by them; omit for the baseline
+    /// (all the rep's orders, security-scoped). An unrecognized name yields no orders (fail-closed). Uses the
+    /// module-wide <see cref="SalesRepFilters.ArgumentName"/> so every Sales Rep query selects a rule the same way.
     /// </summary>
-    public IList<string> Filters { get; set; }
+    public string Filter { get; set; }
 
     /// <summary>
     /// Culture for the localized <c>statusDisplayValue</c> field (e.g. "en-US"). Consumed by the
@@ -59,7 +59,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
 
         yield return Argument<StringGraphType>(nameof(OrganizationId), "Organization (customer) id whose orders to load; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
-        yield return Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Selected filter-rule names (salesRepOrderFilterRules 'name's); filters to the union of their underlying order statuses.");
+        yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Selected filter-rule name (a salesRepOrderFilterRules 'name'); filters to that rule's underlying order statuses. Omit for all the rep's orders.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized statusDisplayValue field (\"en-US\").");
     }
 
@@ -70,7 +70,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
         // Identity comes from the caller's claims; only the customer id (and optional store) are client arguments.
         OrganizationId = context.GetArgument<string>(nameof(OrganizationId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
-        Filters = context.GetArgument<string[]>(SalesRepFilters.ArgumentName);
+        Filter = context.GetArgument<string>(SalesRepFilters.ArgumentName);
         CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
 

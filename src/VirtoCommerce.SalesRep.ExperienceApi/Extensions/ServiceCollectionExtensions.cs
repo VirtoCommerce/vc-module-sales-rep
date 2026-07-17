@@ -35,6 +35,11 @@ public static class ServiceCollectionExtensions
         // to hide/add/recompose kinds (last registration wins).
         serviceCollection.AddTransient<ISalesRepCartFilterRuleResolver, SalesRepCartFilterRuleResolver>();
 
+        // Customer segments (filter options) shared by the customers list + "my customers" counts. Default = none
+        // (segments are behavioral predicates the module can't define generically); a project registers its own
+        // after this to add segments (last registration wins).
+        serviceCollection.AddTransient<ISalesRepCustomerFilterRuleResolver, SalesRepCustomerFilterRuleResolver>();
+
         return serviceCollection;
     }
 }

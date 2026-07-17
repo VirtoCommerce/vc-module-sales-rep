@@ -116,6 +116,10 @@ internal static class TestGraphQlConfiguration
         // end to end. The real default SalesRepOrderFilterRuleResolver is unit-tested separately.
         services.AddSingleton<ISalesRepOrderFilterRuleResolver, StubOrderFilterRuleResolver>();
 
+        // Customer segments: the real default resolver (no segments) — proves the shared seam's passthrough (no
+        // filter → baseline) and fail-closed (any segment name → no data) behavior on the customers list + counts.
+        services.AddSingleton<ISalesRepCustomerFilterRuleResolver, SalesRepCustomerFilterRuleResolver>();
+
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
         services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
@@ -209,9 +213,8 @@ internal static class TestGraphQlConfiguration
     }
 
     /// <summary>
-    /// Stand-in status service acting as a "project override": a 1:1 status ("New") plus a composite ("Inactive" →
-    /// Cancelled + Failed) so tests can prove the status list and the 1:many filter resolution (incl. multi-select
-    /// union).
+    /// Stand-in status service acting as a "project override": a 1:1 rule ("New") plus a composite ("Inactive" →
+    /// Cancelled + Failed) so tests can prove the rule list and the 1:many (composite) filter resolution.
     /// </summary>
     private sealed class StubOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
     {
@@ -224,9 +227,9 @@ internal static class TestGraphQlConfiguration
         public Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(string storeId, string cultureName)
             => Task.FromResult(_statuses);
 
-        public Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderSearchCriteria criteria)
+        public Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, string filter, CustomerOrderSearchCriteria criteria)
         {
-            var resolved = Resolve(selectedNames);
+            var resolved = Resolve(filter);
             if (resolved == null)
             {
                 return Task.FromResult<CustomerOrderSearchCriteria>(null); // fail-closed
@@ -240,9 +243,9 @@ internal static class TestGraphQlConfiguration
             return Task.FromResult(criteria);
         }
 
-        public Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderStatisticsCriteria criteria)
+        public Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerOrderStatisticsCriteria criteria)
         {
-            var resolved = Resolve(selectedNames);
+            var resolved = Resolve(filter);
             if (resolved == null)
             {
                 return Task.FromResult<CustomerOrderStatisticsCriteria>(null); // fail-closed
@@ -256,22 +259,16 @@ internal static class TestGraphQlConfiguration
             return Task.FromResult(criteria);
         }
 
-        // Shared resolution: empty = no filter; non-empty = the union; null = names given but none matched.
-        private static string[] Resolve(IList<string> selectedNames)
+        // Shared resolution: empty = no filter; non-empty = the rule's statuses; null = a name was given but unknown.
+        private static string[] Resolve(string filter)
         {
-            if (selectedNames == null || selectedNames.Count == 0)
+            if (string.IsNullOrEmpty(filter))
             {
                 return [];
             }
 
-            var selected = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
-            var resolved = _statuses
-                .Where(x => selected.Contains(x.Name))
-                .SelectMany(x => x.OrderStatuses)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
-
-            return resolved.Length == 0 ? null : resolved;
+            var rule = _statuses.FirstOrDefault(x => string.Equals(x.Name, filter, StringComparison.OrdinalIgnoreCase));
+            return rule?.OrderStatuses;
         }
     }
 

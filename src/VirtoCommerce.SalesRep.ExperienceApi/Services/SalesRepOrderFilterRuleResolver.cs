@@ -35,9 +35,9 @@ public class SalesRepOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
             .ToList();
     }
 
-    public virtual async Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderSearchCriteria criteria)
+    public virtual async Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, string filter, CustomerOrderSearchCriteria criteria)
     {
-        var statuses = await ResolveStatusesAsync(storeId, selectedNames);
+        var statuses = await ResolveStatusesAsync(storeId, filter);
         if (statuses == null)
         {
             return null; // fail-closed
@@ -51,9 +51,9 @@ public class SalesRepOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
         return criteria;
     }
 
-    public virtual async Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderStatisticsCriteria criteria)
+    public virtual async Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerOrderStatisticsCriteria criteria)
     {
-        var statuses = await ResolveStatusesAsync(storeId, selectedNames);
+        var statuses = await ResolveStatusesAsync(storeId, filter);
         if (statuses == null)
         {
             return null; // fail-closed
@@ -68,27 +68,20 @@ public class SalesRepOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
     }
 
     /// <summary>
-    /// The single status resolution shared by both apply methods. Tri-state: an empty array = no statuses selected
-    /// (no filter); a non-empty array = the deduped union of the selected options' underlying statuses; <c>null</c> =
-    /// statuses were selected but none resolved (fail-closed).
+    /// The single rule resolution shared by both apply methods. Tri-state: an empty array = no filter selected, or a
+    /// recognized rule with no status constraint (e.g. an "All" rule) — the baseline set; a non-empty array = the
+    /// recognized rule's underlying statuses; <c>null</c> = a rule name was given but is unrecognized (fail-closed).
     /// </summary>
-    protected virtual async Task<string[]> ResolveStatusesAsync(string storeId, IList<string> selectedNames)
+    protected virtual async Task<string[]> ResolveStatusesAsync(string storeId, string filter)
     {
-        if (selectedNames == null || selectedNames.Count == 0)
+        if (string.IsNullOrEmpty(filter))
         {
             return [];
         }
 
-        var selected = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
-
         var rules = await GetRulesAsync(storeId, cultureName: null);
+        var rule = rules.FirstOrDefault(x => string.Equals(x.Name, filter, StringComparison.OrdinalIgnoreCase));
 
-        var resolved = rules
-            .Where(x => selected.Contains(x.Name))
-            .SelectMany(x => x.OrderStatuses)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-        return resolved.Length == 0 ? null : resolved;
+        return rule?.OrderStatuses;
     }
 }

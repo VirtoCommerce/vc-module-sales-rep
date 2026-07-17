@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
@@ -16,9 +15,9 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 public interface ISalesRepCartFilterRuleResolver : IFilterRuleResolver<SalesRepCartFilterRule>
 {
     /// <summary>
-    /// Applies the selected kinds' type/status filter to the cart-statistics criteria and returns it. Returns the
-    /// criteria unchanged when no kinds were selected, and <c>null</c> when kinds were selected but none resolved
-    /// (fail-closed).
+    /// Applies the selected rule's type/status filter to the cart-statistics criteria and returns it. Returns the
+    /// criteria unchanged when <paramref name="filter"/> is null/empty (the baseline set), and <c>null</c> when a
+    /// rule name was given but is unrecognized (fail-closed).
     /// </summary>
-    Task<CustomerCartStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerCartStatisticsCriteria criteria);
+    Task<CustomerCartStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerCartStatisticsCriteria criteria);
 }

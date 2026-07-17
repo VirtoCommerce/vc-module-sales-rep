@@ -16,16 +16,19 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
 {
     private readonly IMemberSearchService _memberSearchService;
     private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
+    private readonly ISalesRepCustomerFilterRuleResolver _filterRuleResolver;
 
     public SalesRepCustomersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberSearchService memberSearchService,
-        ISalesRepMemberResponseGroupParser responseGroupParser)
+        ISalesRepMemberResponseGroupParser responseGroupParser,
+        ISalesRepCustomerFilterRuleResolver filterRuleResolver)
         : base(roleResolver, membershipSearchService)
     {
         _memberSearchService = memberSearchService;
         _responseGroupParser = responseGroupParser;
+        _filterRuleResolver = filterRuleResolver;
     }
 
     public virtual async Task<SalesRepCustomerSearchResult> Handle(SalesRepCustomersQuery request, CancellationToken cancellationToken)
@@ -56,7 +59,16 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         // requested (id/name/iconUrl are scalar columns loaded with Default). Mirrors the order query's field-driven
         // response group so the list never over-fetches.
         membersCriteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
-        var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
+
+        // Apply the selected customer segment via the shared resolver (same rule the counts use). Null means a
+        // segment name was given but is unrecognized — return an empty result rather than every served customer.
+        var filteredCriteria = await _filterRuleResolver.ApplyListFilterAsync(request.StoreId, request.Filter, membersCriteria);
+        if (filteredCriteria == null)
+        {
+            return result;
+        }
+
+        var membersSearchResult = await _memberSearchService.SearchMembersAsync(filteredCriteria);
 
         result.TotalCount = membersSearchResult.TotalCount;
         // Carry the caller's store onto each row so the lastOrder resolver can scope orders to it.

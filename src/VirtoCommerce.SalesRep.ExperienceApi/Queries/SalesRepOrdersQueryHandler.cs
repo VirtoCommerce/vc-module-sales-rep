@@ -56,11 +56,10 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
 
         var criteria = BuildSearchCriteria(request, organizationIds);
 
-        // Apply the selected statuses through the SAME resolver the order statistics use (so the list and the stats
-        // filter identically). Null means statuses were provided but none resolved (all unrecognized) — return an
-        // empty result rather than silently dropping the filter and returning every order. No concrete filter field
-        // is inspected here.
-        var filteredCriteria = await _statusService.ApplyListFilterAsync(request.StoreId, request.Filters, criteria);
+        // Apply the selected rule through the SAME resolver the order statistics use (so the list and the stats
+        // filter identically). Null means a rule name was given but is unrecognized — return an empty result rather
+        // than silently dropping the filter and returning every order. No concrete filter field is inspected here.
+        var filteredCriteria = await _statusService.ApplyListFilterAsync(request.StoreId, request.Filter, criteria);
         if (filteredCriteria == null)
         {
             return result;

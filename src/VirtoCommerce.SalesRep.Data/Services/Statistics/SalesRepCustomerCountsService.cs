@@ -30,7 +30,7 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
 
         using var repository = _orderRepositoryFactory();
 
-        var scoped = ApplyScope(repository.CustomerOrders, criteria);
+        var scoped = BuildQuery(repository, criteria);
 
         // Customers the rep ordered for within the range.
         var inRange = scoped;
@@ -66,11 +66,16 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
         return result;
     }
 
-    // The shared filter for both counters: the rep's own (creator-scoped) non-cancelled, non-prototype orders within
-    // the served organizations and optional store. Date bounds are applied by the caller (they differ per counter).
-    private static IQueryable<CustomerOrderEntity> ApplyScope(IQueryable<CustomerOrderEntity> query, SalesRepCustomerCountsCriteria criteria)
+    /// <summary>
+    /// The base order query both counters build on: the rep's own (creator-scoped) non-cancelled, non-prototype
+    /// orders within the served organizations and optional store. Date bounds are applied by the caller (they differ
+    /// per counter). The extension seam for a customer-segment rule the standard criteria can't express — a project
+    /// subclasses this service, calls <c>base</c>, and appends its segment predicate when it recognizes a flag on its
+    /// own <see cref="SalesRepCustomerCountsCriteria"/> subclass (paired with an <c>ISalesRepCustomerFilterRuleResolver</c>).
+    /// </summary>
+    protected virtual IQueryable<CustomerOrderEntity> BuildQuery(IOrderRepository repository, SalesRepCustomerCountsCriteria criteria)
     {
-        query = query.Where(x => !x.IsPrototype && !x.IsCancelled);
+        var query = repository.CustomerOrders.Where(x => !x.IsPrototype && !x.IsCancelled);
 
         if (!criteria.OrganizationIds.IsNullOrEmpty())
         {

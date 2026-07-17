@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -19,12 +18,12 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 public interface ISalesRepOrderFilterRuleResolver : IFilterRuleResolver<SalesRepOrderFilterRule>
 {
     /// <summary>
-    /// Applies the selected statuses to the orders-list search criteria and returns it. Returns the criteria
-    /// unchanged when no statuses were selected, and <c>null</c> when statuses were selected but none resolved
-    /// (all unrecognized for the store) — fail-closed, so the caller yields no orders rather than every order.
+    /// Applies the selected rule to the orders-list search criteria and returns it. Returns the criteria unchanged
+    /// when <paramref name="filter"/> is null/empty (the baseline set), and <c>null</c> when a rule name was given
+    /// but is unrecognized — fail-closed, so the caller yields no orders rather than every order.
     /// </summary>
-    Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderSearchCriteria criteria);
+    Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, string filter, CustomerOrderSearchCriteria criteria);
 
-    /// <summary>The same status resolution applied to the order-statistics criteria. <c>null</c> = fail-closed.</summary>
-    Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderStatisticsCriteria criteria);
+    /// <summary>The same rule resolution applied to the order-statistics criteria. <c>null</c> = fail-closed.</summary>
+    Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerOrderStatisticsCriteria criteria);
 }

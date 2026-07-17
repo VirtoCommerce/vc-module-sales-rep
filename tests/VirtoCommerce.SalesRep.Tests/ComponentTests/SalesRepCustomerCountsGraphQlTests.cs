@@ -145,6 +145,29 @@ public class SalesRepCustomerCountsGraphQlTests
         json.Should().MatchRegex("(?i)anonym");
     }
 
+    [Fact]
+    public async Task Counts_WithUnrecognizedFilter_FailsClosed()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "o1", "org-1", _feb2026);
+
+        // The default customer-segment resolver has no segments → any segment name fails closed (zeroed counters),
+        // never "count every customer".
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCounts {
+                ytd: period({{Ytd}}, filter: "vip") { orderingCustomers newCustomers }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var ytd = Stats(json).GetProperty("ytd");
+        ytd.GetProperty("orderingCustomers").GetInt32().Should().Be(0);
+        ytd.GetProperty("newCustomers").GetInt32().Should().Be(0);
+    }
+
     // ---- helpers ----
 
     private static JsonElement Stats(string json)

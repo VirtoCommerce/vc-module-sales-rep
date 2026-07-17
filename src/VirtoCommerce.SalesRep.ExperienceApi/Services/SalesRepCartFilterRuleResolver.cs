@@ -29,34 +29,30 @@ public class SalesRepCartFilterRuleResolver : ISalesRepCartFilterRuleResolver
         return Task.FromResult(kinds);
     }
 
-    public virtual async Task<CustomerCartStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, IList<string> selectedNames, CustomerCartStatisticsCriteria criteria)
+    public virtual async Task<CustomerCartStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerCartStatisticsCriteria criteria)
     {
-        if (selectedNames == null || selectedNames.Count == 0)
+        if (string.IsNullOrEmpty(filter))
         {
-            return criteria; // no filter
+            return criteria; // no filter → baseline
         }
-
-        var selected = new HashSet<string>(selectedNames, StringComparer.OrdinalIgnoreCase);
 
         var kinds = await GetRulesAsync(storeId, cultureName: null);
-        var matched = kinds.Where(x => selected.Contains(x.Name)).ToList();
+        var kind = kinds.FirstOrDefault(x => string.Equals(x.Name, filter, StringComparison.OrdinalIgnoreCase));
 
-        var types = matched.SelectMany(x => x.Types ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var statuses = matched.SelectMany(x => x.Statuses ?? []).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-
-        if (types.Length == 0 && statuses.Length == 0)
+        if (kind == null)
         {
-            return null; // fail-closed: kinds selected but none recognized
+            return null; // fail-closed: a rule name was given but is unrecognized
         }
 
-        if (types.Length > 0)
+        // A recognized kind with neither types nor statuses is an "all carts" rule → baseline (not fail-closed).
+        if (kind.Types is { Length: > 0 })
         {
-            criteria.Types = types;
+            criteria.Types = kind.Types;
         }
 
-        if (statuses.Length > 0)
+        if (kind.Statuses is { Length: > 0 })
         {
-            criteria.Statuses = statuses;
+            criteria.Statuses = kind.Statuses;
         }
 
         return criteria;

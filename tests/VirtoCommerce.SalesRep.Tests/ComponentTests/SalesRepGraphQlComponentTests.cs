@@ -83,6 +83,40 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepCustomers_WithUnrecognizedFilter_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        // The default customer-segment resolver defines no segments, so any segment name is unrecognized → fail-closed
+        // (no customers), never "all served customers".
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(filter:\"vip\") { totalCount items { organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("org-1").And.NotContain("org-2");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomerFilterRules_DefaultIsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // No built-in customer segments; a project registers its own resolver to add them.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerFilterRules(storeId:\"B2B-store\") { name localizedName } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepCustomerFilterRules\":[]");
+    }
+
+    [Fact]
     public async Task SalesRepCustomers_WithLastOrder_ReturnsMostRecentOrderPerOrganization()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -737,36 +771,15 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
         SeedOrder(ctx, id: "o-failed", org: "org-1", number: "ORD-FAILED", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Failed");
 
-        // "Inactive" is a composite status -> [Cancelled, Failed] (StubOrderFilterRuleResolver); "New" must be excluded.
+        // "Inactive" is a composite rule -> [Cancelled, Failed] (StubOrderFilterRuleResolver); "New" must be excluded.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", filters:[\"Inactive\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filter:\"Inactive\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":2");
         json.Should().Contain("ORD-CANCELLED").And.Contain("ORD-FAILED");
         json.Should().NotContain("ORD-NEW");
-    }
-
-    [Fact]
-    public async Task SalesRepOrders_FiltersByMultipleStatuses_Union()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.SeedOrganizationsAsync("org-1");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
-        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
-        SeedOrder(ctx, id: "o-processing", org: "org-1", number: "ORD-PROCESSING", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing");
-
-        // Multi-select: "New" (-> [New]) + "Inactive" (-> [Cancelled, Failed]); union excludes Processing.
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", filters:[\"New\",\"Inactive\"]) { totalCount items { number } } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"totalCount\":2");
-        json.Should().Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
-        json.Should().NotContain("ORD-PROCESSING");
     }
 
     [Fact]
@@ -803,7 +816,7 @@ public class SalesRepGraphQlComponentTests
         // underlying order status. The filter must then return nothing — mirroring the reported case where filtering
         // by a status the store doesn't define (e.g. "Failed"/"Inactive") wrongly returned every order.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", filters:[\"foo\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filter:\"foo\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -1130,7 +1143,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_EmptyStatusesList_ReturnsAllOrders()
+    public async Task SalesRepOrders_EmptyFilter_ReturnsAllOrders()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
@@ -1138,9 +1151,9 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
 
-        // An explicit empty statuses array means "no status filter" (like omitting the argument) — not "match nothing".
+        // An explicit empty filter string means "no filter" (like omitting the argument) — not "match nothing".
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", filters:[]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filter:\"\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");

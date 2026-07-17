@@ -330,7 +330,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
             $$"""
               query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
                 all:      period({{Ytd}}) { total { amount } count }
-                onlyNew:  period({{Ytd}}, filters: ["New"]) { total { amount } count }
+                onlyNew:  period({{Ytd}}, filter: "New") { total { amount } count }
               } }
               """,
             userId: rep.UserId);
@@ -355,7 +355,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
-                inactive: period({{Ytd}}, filters: ["Inactive"]) { total { amount } count }
+                inactive: period({{Ytd}}, filter: "Inactive") { total { amount } count }
               } }
               """,
             userId: rep.UserId);
@@ -378,7 +378,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
-                bogus: period({{Ytd}}, filters: ["DoesNotExist"]) { total { amount } count }
+                bogus: period({{Ytd}}, filter: "DoesNotExist") { total { amount } count }
               } }
               """,
             userId: rep.UserId);

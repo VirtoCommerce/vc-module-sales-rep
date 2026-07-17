@@ -47,24 +47,24 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
             .Description("Order statistics for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
             .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the order created date (null = no upper bound).")
-            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional business-status names (salesRepOrderFilterRules 'name's); counts only orders whose status is in the union those names resolve to. Omit for every status.")
+            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional filter-rule name (a salesRepOrderFilterRules 'name'); counts only orders matching that rule. Omit for all orders in the range.")
             .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>("from");
                 var to = context.GetArgument<DateTime?>("to");
-                return GetPeriodLoader(context).LoadAsync((from, to, StatisticsFieldHelper.GetFilterKey(context)));
+                return GetPeriodLoader(context).LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context)));
             });
 
         Field<CustomerOrderStatisticsComparisonType>("comparison")
             .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket shared with a 'period' selection is not queried again.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("current", "The later period.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("previous", "The baseline period to compare against.")
-            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional business-status names applied to both periods (see 'period.filters').")
+            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional filter-rule name applied to both periods (see 'period.filter').")
             .Resolve(context =>
             {
                 var current = context.GetArgument<SalesRepStatisticsPeriodInput>("current");
                 var previous = context.GetArgument<SalesRepStatisticsPeriodInput>("previous");
-                var filterKey = StatisticsFieldHelper.GetFilterKey(context);
+                var filterKey = StatisticsFieldHelper.GetFilter(context);
 
                 var loader = GetPeriodLoader(context);
 
@@ -82,13 +82,13 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
     // A per-request batch loader shared by 'period' and 'comparison'. Keyed on the shared context (rep, organizations,
     // store, currency); the batch key adds the range and the raw status selection, so every distinct bucket under one
     // node is aggregated exactly once. Status resolution + fail-closed handling happen here, once per distinct bucket.
-    private IDataLoader<(DateTime? From, DateTime? To, string Filters), CustomerOrderStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
+    private IDataLoader<(DateTime? From, DateTime? To, string Filter), CustomerOrderStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
     {
         var statisticsContext = (CustomerOrderStatisticsContext)context.Source;
 
         var loaderKey = $"{nameof(CustomerOrderStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
 
-        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filters), CustomerOrderStatisticsPeriod>(
+        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filter), CustomerOrderStatisticsPeriod>(
             loaderKey,
             async buckets =>
             {
@@ -104,10 +104,9 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
                     criteria.FromDate = bucket.From;
                     criteria.ToDate = bucket.To;
 
-                    // Apply the selected statuses through the shared resolver (same mapping as the orders list). Null =
-                    // statuses were selected but none resolved → fail-closed: a zeroed period, not "count everything".
-                    var names = StatisticsFieldHelper.DecodeSet(bucket.Filters);
-                    var filtered = await _statusService.ApplyStatisticsFilterAsync(statisticsContext.StoreId, names, criteria);
+                    // Apply the selected rule through the shared resolver (same mapping as the orders list). Null =
+                    // a rule name was given but is unrecognized → fail-closed: a zeroed period, not "count everything".
+                    var filtered = await _statusService.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
 
                     var period = filtered == null
                         ? EmptyPeriod(statisticsContext.CurrencyCode)
