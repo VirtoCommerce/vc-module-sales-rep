@@ -17,9 +17,11 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 /// <summary>
 /// Ranks the products a Sales Rep sold (VCST-5309, "Top Sellers"). Reads the Orders EF store
 /// (<see cref="IOrderRepository.LineItems"/>) directly — the same scoped Orders.Data exception the statistics
-/// services use — projecting the scoped line items (a bounded set: the rep's own orders), then aggregating per
-/// product in memory so revenue math is exact across a currency mix (folded via the shared
-/// <see cref="StatisticsCurrencyConverter"/>). The row's display data is the line-item snapshot, so no catalog read.
+/// services use — and aggregates DB-side (<c>GROUP BY</c> product + currency, <c>SUM</c> of units and of price ×
+/// quantity), so the query returns one row per product/currency instead of every line item (the rep's order volume
+/// can be very large). Per-currency revenue is then folded to the target currency in memory — an exact-decimal,
+/// provider-independent fold via the shared <see cref="StatisticsCurrencyConverter"/>. The row's display data is the
+/// line-item snapshot, so no catalog read.
 /// </summary>
 public class SalesRepTopSellerService : ISalesRepTopSellerService
 {
@@ -48,30 +50,34 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 
         using var repository = _orderRepositoryFactory();
 
-        // Project the scoped line items (bounded: the rep's own orders) and aggregate in memory — exact decimal
-        // revenue across a currency mix, and no reliance on provider-specific SUM(price * qty) translation.
-        var lines = await BuildQuery(repository, criteria)
-            .Select(x => new LineItemProjection
+        // Aggregate DB-side: collapse the scoped line items (the rep's order volume can be very large) to one row per
+        // product + currency (+ display snapshot) with SUM(quantity) and SUM(price × quantity). Grouping by the
+        // display columns too keeps the projection free of string aggregates (portable across EF providers); a
+        // product whose snapshot changed between orders yields more than one row and is re-merged in memory below.
+        var aggregates = await BuildQuery(repository, criteria)
+            .GroupBy(x => new { x.ProductId, x.Currency, x.Name, x.Sku, x.ImageUrl, x.CategoryId })
+            .Select(g => new ProductCurrencyAggregate
             {
-                ProductId = x.ProductId,
-                Currency = x.Currency,
-                Quantity = x.Quantity,
-                Price = x.Price,
-                Name = x.Name,
-                Sku = x.Sku,
-                ImageUrl = x.ImageUrl,
-                CategoryId = x.CategoryId,
+                ProductId = g.Key.ProductId,
+                Currency = g.Key.Currency,
+                Name = g.Key.Name,
+                Sku = g.Key.Sku,
+                ImageUrl = g.Key.ImageUrl,
+                CategoryId = g.Key.CategoryId,
+                Units = g.Sum(x => x.Quantity),
+                Revenue = g.Sum(x => x.Price * x.Quantity),
             })
             .ToListAsync();
 
-        if (lines.Count == 0)
+        if (aggregates.Count == 0)
         {
             return [];
         }
 
         var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
 
-        var products = lines
+        // Re-merge per product across currencies (and any display-snapshot variants), folding revenue to the target.
+        var products = aggregates
             .GroupBy(x => x.ProductId)
             .Select(g => BuildTopSeller(g.Key, g.ToList(), criteria.CurrencyCode, currencies))
             .ToList();
@@ -136,25 +142,25 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         return query;
     }
 
-    private SalesRepTopSeller BuildTopSeller(string productId, IList<LineItemProjection> lines, string currencyCode, IReadOnlyCollection<Currency> currencies)
+    private SalesRepTopSeller BuildTopSeller(string productId, IList<ProductCurrencyAggregate> rows, string currencyCode, IReadOnlyCollection<Currency> currencies)
     {
-        // Revenue is per-currency then folded to the target; units are currency-independent.
-        var byCurrency = lines
+        // Revenue is summed per currency then folded to the target; units are currency-independent.
+        var byCurrency = rows
             .GroupBy(x => x.Currency)
             .Select(cg => new CurrencyStatisticAggregate
             {
                 Currency = cg.Key,
-                Total = cg.Sum(x => x.Price * x.Quantity),
+                Total = cg.Sum(x => x.Revenue),
                 Count = 0,
                 LatestDate = null,
             });
 
         var folded = StatisticsCurrencyConverter.Fold(byCurrency, currencyCode, currencies, _logger);
 
-        var sample = lines[0];
+        var sample = rows[0];
         var result = AbstractTypeFactory<SalesRepTopSeller>.TryCreateInstance();
         result.ProductId = productId;
-        result.Units = lines.Sum(x => x.Quantity);
+        result.Units = rows.Sum(x => x.Units);
         result.Revenue = folded.Total;
         result.CurrencyCode = folded.CurrencyCode;
         result.Name = sample.Name;
@@ -164,15 +170,16 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         return result;
     }
 
-    private sealed class LineItemProjection
+    // One DB-side aggregate row: a product's summed units and revenue in a single currency (and display snapshot).
+    private sealed class ProductCurrencyAggregate
     {
         public string ProductId { get; set; }
         public string Currency { get; set; }
-        public int Quantity { get; set; }
-        public decimal Price { get; set; }
         public string Name { get; set; }
         public string Sku { get; set; }
         public string ImageUrl { get; set; }
         public string CategoryId { get; set; }
+        public int Units { get; set; }
+        public decimal Revenue { get; set; }
     }
 }
