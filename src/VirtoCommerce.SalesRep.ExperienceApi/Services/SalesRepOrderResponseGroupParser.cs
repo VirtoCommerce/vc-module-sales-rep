@@ -20,8 +20,9 @@ public class SalesRepOrderResponseGroupParser : ISalesRepOrderResponseGroupParse
             result |= CustomerOrderResponseGroup.WithPrices;
         }
 
-        // itemsCount needs the line items loaded.
-        if (includeFields.IncludesField(nameof(SalesRepOrder.ItemsCount)))
+        // itemsCount / itemsQuantity need the line items loaded.
+        if (includeFields.IncludesField(nameof(SalesRepOrder.ItemsCount)) ||
+            includeFields.IncludesField(nameof(SalesRepOrder.ItemsQuantity)))
         {
             result |= CustomerOrderResponseGroup.WithItems;
         }

@@ -22,6 +22,12 @@ public class CustomerOrderStatisticsPeriod
     /// <summary>Created date of the most recent order in the range, or null when there are none.</summary>
     public DateTime? LastOrderDate { get; set; }
 
+    /// <summary>
+    /// Created date of the earliest order in the range, or null when there are none. Requested on an unbounded
+    /// period this is the customer's first-ever order date — the "customer since" value.
+    /// </summary>
+    public DateTime? FirstOrderDate { get; set; }
+
     /// <summary>Currency code the monetary values (<see cref="Total"/>, <see cref="Average"/>) are expressed in.</summary>
     public string CurrencyCode { get; set; }
 }

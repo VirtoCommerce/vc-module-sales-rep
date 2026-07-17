@@ -26,5 +26,6 @@ public class CustomerOrderStatisticsPeriodType : ExtendableGraphType<CustomerOrd
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Average));
 
         Field(x => x.LastOrderDate, nullable: true).Description("Date of the most recent order in the range.");
+        Field(x => x.FirstOrderDate, nullable: true).Description("Date of the earliest order in the range; on an unbounded period this is the \"customer since\" date.");
     }
 }

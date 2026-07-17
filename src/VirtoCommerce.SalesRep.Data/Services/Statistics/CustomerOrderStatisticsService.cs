@@ -16,7 +16,7 @@ namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 /// <summary>
 /// Aggregates a customer's orders for the Sales Rep profile widgets (VCST-5309). Unlike the "latest order" lookup
 /// (which stays on the public order search service), sums/averages have no public aggregation API, so this reads
-/// the Orders EF store (<see cref="IOrderRepository"/>) directly to run DB-side SUM/COUNT/MAX instead of loading
+/// the Orders EF store (<see cref="IOrderRepository"/>) directly to run DB-side SUM/COUNT/MAX/MIN instead of loading
 /// orders into memory. That direct Orders.Data dependency is a deliberate, scoped exception to the module's
 /// "reference other modules' .Core, not .Data" rule, justified by this being an analytics query.
 /// </summary>
@@ -41,11 +41,28 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         ArgumentNullException.ThrowIfNull(criteria);
 
         var byCurrency = await AggregateByCurrencyAsync(criteria);
-        return await ConvertAndFoldAsync(byCurrency, criteria);
+        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+        return BuildPeriod(byCurrency, criteria.CurrencyCode, currencies);
+    }
+
+    public virtual async Task<IDictionary<string, CustomerOrderStatisticsPeriod>> GetStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+
+        var byOrgCurrency = await AggregateByOrganizationAndCurrencyAsync(criteria);
+        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+
+        // Fold each organization's per-currency aggregates into one period, in the requested currency.
+        return byOrgCurrency
+            .GroupBy(x => x.OrganizationId)
+            .ToDictionary(
+                g => g.Key,
+                g => BuildPeriod(g.Select(x => x.Aggregate).ToList(), criteria.CurrencyCode, currencies),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// One grouped-by-currency aggregate query. Returns a raw per-currency sum/count/max — no order rows are
+    /// One grouped-by-currency aggregate query. Returns a raw per-currency sum/count/max/min — no order rows are
     /// materialized. The set of orders is shaped by <see cref="BuildQuery"/>.
     /// </summary>
     private async Task<IList<PerCurrencyAggregate>> AggregateByCurrencyAsync(CustomerOrderStatisticsCriteria criteria)
@@ -62,8 +79,50 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
                 Total = g.Sum(x => x.Total),
                 Count = g.Count(),
                 LastOrderDate = g.Max(x => x.CreatedDate),
+                FirstOrderDate = g.Min(x => x.CreatedDate),
             })
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// One grouped-by-(organization, currency) aggregate query for the whole organization set — the per-organization
+    /// counterpart of <see cref="AggregateByCurrencyAsync"/>, so the "My customers" list resolves every visible row's
+    /// purchase figures (and its order-derived sort key) in a single query. Projects to a flat anonymous row in SQL,
+    /// then maps in memory (EF can't project into the nested aggregate directly).
+    /// </summary>
+    private async Task<IList<PerOrganizationCurrencyAggregate>> AggregateByOrganizationAndCurrencyAsync(CustomerOrderStatisticsCriteria criteria)
+    {
+        using var repository = _orderRepositoryFactory();
+
+        var query = BuildQuery(repository, criteria);
+
+        var rows = await query
+            .GroupBy(x => new { x.OrganizationId, x.Currency })
+            .Select(g => new
+            {
+                g.Key.OrganizationId,
+                g.Key.Currency,
+                Total = g.Sum(x => x.Total),
+                Count = g.Count(),
+                LastOrderDate = g.Max(x => x.CreatedDate),
+                FirstOrderDate = g.Min(x => x.CreatedDate),
+            })
+            .ToListAsync();
+
+        return rows
+            .Select(x => new PerOrganizationCurrencyAggregate
+            {
+                OrganizationId = x.OrganizationId,
+                Aggregate = new PerCurrencyAggregate
+                {
+                    Currency = x.Currency,
+                    Total = x.Total,
+                    Count = x.Count,
+                    LastOrderDate = x.LastOrderDate,
+                    FirstOrderDate = x.FirstOrderDate,
+                },
+            })
+            .ToList();
     }
 
     /// <summary>
@@ -114,15 +173,13 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
     }
 
     /// <summary>
-    /// Converts each currency group into <see cref="CustomerOrderStatisticsCriteria.CurrencyCode"/> and folds the
-    /// groups into one period via the shared <see cref="StatisticsCurrencyConverter"/> (current admin-maintained
-    /// exchange rates). Keeping per-currency counts until the fold is what makes the average correct across a mix
-    /// of currencies.
+    /// Converts one set of per-currency aggregates into <paramref name="currencyCode"/> and folds them into a single
+    /// period via the shared <see cref="StatisticsCurrencyConverter"/> (current admin-maintained exchange rates).
+    /// Keeping per-currency counts until the fold is what makes the average correct across a mix of currencies;
+    /// <c>FirstOrderDate</c> is the min across currencies (currency-independent), the counterpart of the fold's max.
     /// </summary>
-    private async Task<CustomerOrderStatisticsPeriod> ConvertAndFoldAsync(IList<PerCurrencyAggregate> byCurrency, CustomerOrderStatisticsCriteria criteria)
+    private CustomerOrderStatisticsPeriod BuildPeriod(IList<PerCurrencyAggregate> byCurrency, string currencyCode, IReadOnlyCollection<Currency> currencies)
     {
-        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
-
         var aggregates = byCurrency.Select(x => new CurrencyStatisticAggregate
         {
             Currency = x.Currency,
@@ -131,13 +188,14 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
             LatestDate = x.LastOrderDate,
         });
 
-        var folded = StatisticsCurrencyConverter.Fold(aggregates, criteria.CurrencyCode, currencies, _logger);
+        var folded = StatisticsCurrencyConverter.Fold(aggregates, currencyCode, currencies, _logger);
 
         var period = AbstractTypeFactory<CustomerOrderStatisticsPeriod>.TryCreateInstance();
         period.Total = folded.Total;
         period.Count = folded.Count;
         period.Average = folded.Average;
         period.LastOrderDate = folded.LatestDate;
+        period.FirstOrderDate = byCurrency.Count == 0 ? null : byCurrency.Min(x => (DateTime?)x.FirstOrderDate);
         period.CurrencyCode = folded.CurrencyCode;
         return period;
     }
@@ -149,5 +207,13 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         public decimal Total { get; set; }
         public int Count { get; set; }
         public DateTime LastOrderDate { get; set; }
+        public DateTime FirstOrderDate { get; set; }
+    }
+
+    /// <summary>A per-currency aggregate tagged with its organization, for the grouped-by-organization query.</summary>
+    private sealed class PerOrganizationCurrencyAggregate
+    {
+        public string OrganizationId { get; set; }
+        public PerCurrencyAggregate Aggregate { get; set; }
     }
 }

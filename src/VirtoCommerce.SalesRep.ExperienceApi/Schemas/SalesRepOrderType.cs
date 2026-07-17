@@ -42,7 +42,8 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
                 var currency = currencies.GetCurrencyForLanguage(context.Source.Currency, context.GetCultureName());
                 return new Money(context.Source.Total, currency);
             });
-        Field(x => x.ItemsCount, nullable: false).Description("Number of line items in the order.");
+        Field(x => x.ItemsCount, nullable: false).Description("Number of distinct line items in the order.");
+        Field(x => x.ItemsQuantity, nullable: false).Description("Total number of units in the order (sum of line-item quantities) — the \"N units\" figure.");
 
         // Organization (customer) name — the value denormalized on the order when present; otherwise resolved from
         // the organization id, batched per request (one member query for the whole page, only for the orders that

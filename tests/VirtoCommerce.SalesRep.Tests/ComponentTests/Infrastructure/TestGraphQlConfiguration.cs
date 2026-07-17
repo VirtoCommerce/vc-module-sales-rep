@@ -116,9 +116,15 @@ internal static class TestGraphQlConfiguration
         // end to end. The real default SalesRepOrderFilterRuleResolver is unit-tested separately.
         services.AddSingleton<ISalesRepOrderFilterRuleResolver, StubOrderFilterRuleResolver>();
 
-        // Customer segments: the real default resolver (no segments) — proves the shared seam's passthrough (no
-        // filter → baseline) and fail-closed (any segment name → no data) behavior on the customers list + counts.
+        // Customer segments: the real default resolver (single "All" baseline segment) — proves the shared seam's
+        // passthrough (no filter / "All" → baseline) and fail-closed (any other segment name → no data) behavior on
+        // the customers list + counts.
         services.AddSingleton<ISalesRepCustomerFilterRuleResolver, SalesRepCustomerFilterRuleResolver>();
+
+        // Orderings (sort options): the real defaults (orders: "recent"; customers: my-last-orders / ytd / name),
+        // so the discovery queries and the order-derived customer sort run end to end through real code.
+        services.AddSingleton<ISalesRepOrderSortRuleResolver, SalesRepOrderSortRuleResolver>();
+        services.AddSingleton<ISalesRepCustomerSortRuleResolver, SalesRepCustomerSortRuleResolver>();
 
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.

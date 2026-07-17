@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Models;
 
@@ -13,4 +14,13 @@ namespace VirtoCommerce.SalesRep.Core.Services.Statistics;
 public interface ICustomerOrderStatisticsService
 {
     Task<CustomerOrderStatisticsPeriod> GetStatisticsAsync(CustomerOrderStatisticsCriteria criteria);
+
+    /// <summary>
+    /// Aggregates the same statistics as <see cref="GetStatisticsAsync"/> but grouped per organization — one entry
+    /// per organization in <see cref="CustomerOrderStatisticsCriteria.OrganizationIds"/> that has orders in range,
+    /// computed in a single grouped query for the whole set rather than one query per organization. Backs the
+    /// "My customers" list's inline per-row purchase columns and its order-derived sorts (last-order date, period
+    /// total). Organizations with no matching orders are omitted (callers treat them as zero / never-ordered).
+    /// </summary>
+    Task<IDictionary<string, CustomerOrderStatisticsPeriod>> GetStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria);
 }

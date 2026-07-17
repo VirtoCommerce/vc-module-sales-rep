@@ -2,7 +2,11 @@ using System;
 using System.Linq;
 using GraphQL;
 using GraphQL.DataLoader;
+using GraphQL.Types;
+using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -15,12 +19,15 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
     public SalesRepCustomerType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
         ISalesRepCustomerOrderSearchService customerOrderSearchService,
-        ISalesRepOrderResponseGroupParser responseGroupParser)
+        ISalesRepOrderResponseGroupParser responseGroupParser,
+        ICustomerOrderStatisticsService statisticsService)
     {
         Name = "SalesRepCustomer";
 
         Field(x => x.OrganizationId, nullable: false).Description("Organization (customer) id.");
         Field(x => x.OrganizationName, nullable: true).Description("Organization (customer) name.");
+        Field(x => x.AccountId, nullable: true).Description("External/display account id (the organization's OuterId); null when it has none.");
+        Field(x => x.AccountType, nullable: true).Description("Account type — the organization's business category (e.g. \"Garden Center\").");
         Field(x => x.IconUrl, nullable: true).Description("URL of the organization's icon.");
         Field<SalesRepAddressType>("address")
             .Description("The organization's default address (structured; the storefront formats it, e.g. \"City, Region\").")
@@ -64,5 +71,67 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 
                 return loader.LoadAsync(organizationId);
             });
+
+        Field<CustomerOrderStatisticsPeriodType>("orderStatistics")
+            .Description("The rep's own order statistics for this customer over a date range (YTD purchases, order count, average, first/last order). Omit both bounds for lifetime; request several aliased selections (e.g. ytd + lastYtd) to build the purchase columns.")
+            .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
+            .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the order created date (null = no upper bound).")
+            .Argument<StringGraphType>("currencyCode", "Currency to convert the figures to (defaults to the platform primary currency).")
+            .Resolve(context =>
+            {
+                var organizationId = context.Source.OrganizationId;
+                if (string.IsNullOrEmpty(organizationId))
+                {
+                    return null;
+                }
+
+                var from = context.GetArgument<DateTime?>("from");
+                var to = context.GetArgument<DateTime?>("to");
+
+                var currencyCode = context.GetArgument<string>("currencyCode");
+                if (string.IsNullOrEmpty(currencyCode))
+                {
+                    currencyCode = context.Source.CurrencyCode;
+                }
+
+                // Only the rep's own orders (their user id is the order's CustomerId), scoped to the caller's store.
+                var salesRepUserId = context.GetCurrentUserId();
+                var storeId = context.Source.StoreId;
+
+                // One grouped aggregate for the whole page per distinct (range, currency) — the range/currency go in
+                // the loader key, the organization ids are the batch, mirroring the counts widget's loader.
+                var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, CustomerOrderStatisticsPeriod>(
+                    $"{nameof(SalesRepCustomerType)}.OrderStatistics:{salesRepUserId}:{storeId}:{currencyCode}:{from:O}:{to:O}",
+                    async organizationIds =>
+                    {
+                        var ids = organizationIds.ToList();
+
+                        var criteria = AbstractTypeFactory<CustomerOrderStatisticsCriteria>.TryCreateInstance();
+                        criteria.OrganizationIds = ids.ToArray();
+                        criteria.CustomerId = salesRepUserId;
+                        criteria.StoreId = storeId;
+                        criteria.CurrencyCode = currencyCode;
+                        criteria.FromDate = from;
+                        criteria.ToDate = to;
+
+                        var byOrganization = await statisticsService.GetStatisticsByOrganizationAsync(criteria);
+
+                        // Every requested id needs an entry; organizations with no orders in range → an empty
+                        // (zeroed) period so the row still renders.
+                        return ids.ToDictionary(
+                            id => id,
+                            id => byOrganization.TryGetValue(id, out var period) ? period : EmptyPeriod(currencyCode),
+                            StringComparer.OrdinalIgnoreCase);
+                    });
+
+                return loader.LoadAsync(organizationId);
+            });
+    }
+
+    private static CustomerOrderStatisticsPeriod EmptyPeriod(string currencyCode)
+    {
+        var period = AbstractTypeFactory<CustomerOrderStatisticsPeriod>.TryCreateInstance();
+        period.CurrencyCode = currencyCode;
+        return period;
     }
 }

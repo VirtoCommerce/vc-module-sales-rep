@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
 
@@ -34,8 +35,14 @@ public class SalesRepOrder : Entity
     /// <summary>Order currency code (the currency in which the order was submitted).</summary>
     public string Currency { get; set; }
 
-    /// <summary>Number of line items in the order.</summary>
+    /// <summary>Number of distinct line items in the order.</summary>
     public int ItemsCount { get; set; }
+
+    /// <summary>
+    /// Total number of units in the order (sum of line-item quantities) — the "N units" figure the storefront shows.
+    /// Distinct from <see cref="ItemsCount"/> (the number of lines), mirroring the X-Cart/X-Order convention.
+    /// </summary>
+    public int ItemsQuantity { get; set; }
 
     /// <summary>Projects a <see cref="CustomerOrder"/> onto the lightweight Sales Rep order DTO.</summary>
     public static SalesRepOrder FromOrder(CustomerOrder order)
@@ -60,5 +67,6 @@ public class SalesRepOrder : Entity
         Total = order.Total;
         Currency = order.Currency;
         ItemsCount = order.Items?.Count ?? 0;
+        ItemsQuantity = order.Items?.Sum(x => x.Quantity) ?? 0;
     }
 }

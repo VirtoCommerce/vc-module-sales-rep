@@ -1,10 +1,10 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using GraphQL;
 using GraphQL.Types;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Index;
@@ -38,6 +38,13 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
     public string Filter { get; set; }
 
     /// <summary>
+    /// Optional date range (by created date) to scope the orders to. Omit for all dates. The <c>recent</c> ordering
+    /// ignores it; date-scoped views (e.g. "biggest orders this quarter") pass it. Sorting is selected separately
+    /// via the built-in <c>sort</c> argument (a <c>salesRepOrderSortRules</c> name).
+    /// </summary>
+    public SalesRepStatisticsPeriodInput Period { get; set; }
+
+    /// <summary>
     /// Culture for the localized <c>statusDisplayValue</c> field (e.g. "en-US"). Consumed by the
     /// <c>SalesRepOrderType</c> LocalizedField resolver via the request context (the builder copies it to the
     /// UserContext), not by this handler.
@@ -60,6 +67,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
         yield return Argument<StringGraphType>(nameof(OrganizationId), "Organization (customer) id whose orders to load; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
         yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Selected filter-rule name (a salesRepOrderFilterRules 'name'); filters to that rule's underlying order statuses. Omit for all the rep's orders.");
+        yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional created-date range to scope the orders to (omit for all dates).");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized statusDisplayValue field (\"en-US\").");
     }
 
@@ -67,10 +75,11 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
     {
         base.Map(context);
 
-        // Identity comes from the caller's claims; only the customer id (and optional store) are client arguments.
+        // Identity comes from the caller's claims; only the customer id (and optional store/filter/period) are client arguments.
         OrganizationId = context.GetArgument<string>(nameof(OrganizationId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
         Filter = context.GetArgument<string>(SalesRepFilters.ArgumentName);
+        Period = context.GetArgument<SalesRepStatisticsPeriodInput>(nameof(Period));
         CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
 
