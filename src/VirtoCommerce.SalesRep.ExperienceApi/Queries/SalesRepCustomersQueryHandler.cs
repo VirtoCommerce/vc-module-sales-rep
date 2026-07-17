@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
@@ -30,7 +29,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
     private readonly ISalesRepCustomerFilterRuleResolver _filterRuleResolver;
     private readonly ISalesRepCustomerSortRuleResolver _sortRuleResolver;
     private readonly ICustomerOrderStatisticsService _statisticsService;
-    private readonly ICurrencyService _currencyService;
+    private readonly ISalesRepCurrencyResolver _currencyResolver;
 
     public SalesRepCustomersQueryHandler(
         ISalesRepRoleResolver roleResolver,
@@ -40,7 +39,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         ISalesRepCustomerFilterRuleResolver filterRuleResolver,
         ISalesRepCustomerSortRuleResolver sortRuleResolver,
         ICustomerOrderStatisticsService statisticsService,
-        ICurrencyService currencyService)
+        ISalesRepCurrencyResolver currencyResolver)
         : base(roleResolver, membershipSearchService)
     {
         _memberSearchService = memberSearchService;
@@ -48,7 +47,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         _filterRuleResolver = filterRuleResolver;
         _sortRuleResolver = sortRuleResolver;
         _statisticsService = statisticsService;
-        _currencyService = currencyService;
+        _currencyResolver = currencyResolver;
     }
 
     public virtual async Task<SalesRepCustomerSearchResult> Handle(SalesRepCustomersQuery request, CancellationToken cancellationToken)
@@ -88,8 +87,10 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         }
 
         // The currency the inline orderStatistics figures default to (and the currency the order-derived sort folds
-        // totals into). Resolved once; carried onto each row for the graph type's inline field.
-        var currencyCode = await ResolvePrimaryCurrencyCodeAsync();
+        // totals into). No per-request currency arg on this query, so default to the store's currency (then platform
+        // primary); the inline orderStatistics field's own currencyCode argument overrides it per column. Resolved
+        // once; carried onto each row for the graph type's inline field.
+        var currencyCode = await _currencyResolver.ResolveCurrencyCodeAsync(requestedCurrencyCode: null, storeId: request.StoreId);
 
         // Interpret the built-in sort argument as a customer sort-rule name (empty/unknown → the default ordering).
         var sortSpec = await _sortRuleResolver.ResolveSortAsync(request.StoreId, request.Sort);
@@ -185,11 +186,5 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
             ? period.LastOrderDate.Value
             : DateTime.MinValue;
         return members.OrderByDescending(LastOrder).ThenBy(m => m.Name);
-    }
-
-    private async Task<string> ResolvePrimaryCurrencyCodeAsync()
-    {
-        var currencies = await _currencyService.GetAllCurrenciesAsync();
-        return currencies.FirstOrDefault(x => x.IsPrimary)?.Code;
     }
 }

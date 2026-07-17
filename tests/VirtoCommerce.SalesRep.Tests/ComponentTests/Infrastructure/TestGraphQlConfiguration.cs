@@ -145,6 +145,11 @@ internal static class TestGraphQlConfiguration
         // Field-selection → member response group, injected into the customer list/details + customerSalesReps handlers.
         services.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
 
+        // Shared currency defaulting (requested → store default → platform primary) for the statistics, customers and
+        // top-sellers handlers. Real service — resolves IStoreService (TestServicesConfiguration; every store's
+        // default = EUR) + ICurrencyService (AddOrderSlice; USD primary + EUR).
+        services.AddSingleton<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
+
         // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
         // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many filter resolution
         // end to end. The real default SalesRepOrderFilterRuleResolver is unit-tested separately.

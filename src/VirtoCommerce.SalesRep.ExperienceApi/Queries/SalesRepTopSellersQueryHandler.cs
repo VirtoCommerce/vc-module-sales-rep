@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
-using VirtoCommerce.StoreModule.Core.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -27,8 +24,7 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
     private readonly ISalesRepTopSellerService _topSellerService;
     private readonly ISalesRepTopSellerSortRuleResolver _sortRuleResolver;
     private readonly ISalesRepTopSellerFilterRuleResolver _filterRuleResolver;
-    private readonly IStoreService _storeService;
-    private readonly ICurrencyService _currencyService;
+    private readonly ISalesRepCurrencyResolver _currencyResolver;
 
     public SalesRepTopSellersQueryHandler(
         ISalesRepRoleResolver roleResolver,
@@ -36,15 +32,13 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         ISalesRepTopSellerService topSellerService,
         ISalesRepTopSellerSortRuleResolver sortRuleResolver,
         ISalesRepTopSellerFilterRuleResolver filterRuleResolver,
-        IStoreService storeService,
-        ICurrencyService currencyService)
+        ISalesRepCurrencyResolver currencyResolver)
         : base(roleResolver, membershipSearchService)
     {
         _topSellerService = topSellerService;
         _sortRuleResolver = sortRuleResolver;
         _filterRuleResolver = filterRuleResolver;
-        _storeService = storeService;
-        _currencyService = currencyService;
+        _currencyResolver = currencyResolver;
     }
 
     public virtual async Task<IList<SalesRepTopSeller>> Handle(SalesRepTopSellersQuery request, CancellationToken cancellationToken)
@@ -60,11 +54,8 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
             return [];
         }
 
-        var currencyCode = request.CurrencyCode;
-        if (string.IsNullOrEmpty(currencyCode))
-        {
-            currencyCode = await ResolveDefaultCurrencyCodeAsync(request.StoreId);
-        }
+        // Client currency wins; else the store's default; else the platform primary.
+        var currencyCode = await _currencyResolver.ResolveCurrencyCodeAsync(request.CurrencyCode, request.StoreId);
 
         var criteria = AbstractTypeFactory<SalesRepTopSellerCriteria>.TryCreateInstance();
         criteria.OrganizationIds = organizationIds;
@@ -86,21 +77,5 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         }
 
         return await _topSellerService.GetTopSellersAsync(filteredCriteria);
-    }
-
-    // Currency defaulting: the client's currencyCode wins; otherwise the store's default currency, then primary.
-    private async Task<string> ResolveDefaultCurrencyCodeAsync(string storeId)
-    {
-        if (!string.IsNullOrEmpty(storeId))
-        {
-            var store = await _storeService.GetByIdAsync(storeId);
-            if (!string.IsNullOrEmpty(store?.DefaultCurrency))
-            {
-                return store.DefaultCurrency;
-            }
-        }
-
-        var currencies = await _currencyService.GetAllCurrenciesAsync();
-        return currencies.FirstOrDefault(x => x.IsPrimary)?.Code;
     }
 }

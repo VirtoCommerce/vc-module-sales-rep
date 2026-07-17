@@ -26,6 +26,10 @@ public static class ServiceCollectionExtensions
         // emails only when asked).
         serviceCollection.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
 
+        // Currency defaulting (requested → store default → platform primary) shared by every dashboard query, so a
+        // store's widgets all fold and display money in one currency. A project overrides it (last registration wins).
+        serviceCollection.AddTransient<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
+
         // Order statuses (filter options) + status→underlying mapping + raw-status localization. Default = each
         // Order.Status value 1:1; a project registers its own after this to hide/add/compose (last registration wins).
         serviceCollection.AddTransient<ISalesRepOrderFilterRuleResolver, SalesRepOrderFilterRuleResolver>();
