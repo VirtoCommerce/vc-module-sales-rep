@@ -5,7 +5,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
 /// <summary>
 /// "My customers" counters for the current Sales Rep (dashboard "My Customers" widget): how many customers they

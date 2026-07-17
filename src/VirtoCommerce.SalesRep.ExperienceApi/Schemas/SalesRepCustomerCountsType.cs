@@ -6,7 +6,7 @@ using GraphQL.DataLoader;
 using GraphQL.Types;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
-using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Schemas;
 

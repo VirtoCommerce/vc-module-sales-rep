@@ -6,7 +6,7 @@ using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
 public class SalesRepCustomerCountsQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerCountsQuery, SalesRepCustomerCountsContext>
 {

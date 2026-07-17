@@ -6,18 +6,18 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
-public class SalesRepCustomerOrderStatisticsQueryBuilder : SalesRepQueryBuilder<SalesRepCustomerOrderStatisticsQuery, CustomerOrderStatisticsContext, CustomerOrderStatisticsType>
+public class SalesRepCustomerCartStatisticsQueryBuilder : SalesRepQueryBuilder<SalesRepCustomerCartStatisticsQuery, CustomerCartStatisticsContext, CustomerCartStatisticsType>
 {
-    protected override string Name => "salesRepCustomerOrderStatistics";
+    protected override string Name => "salesRepCustomerCartStatistics";
 
-    public SalesRepCustomerOrderStatisticsQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
+    public SalesRepCustomerCartStatisticsQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
         : base(mediator, authorizationService)
     {
     }
 
-    protected override async Task BeforeMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerOrderStatisticsQuery request)
+    protected override async Task BeforeMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerCartStatisticsQuery request)
     {
         await base.BeforeMediatorSend(context, request);
 

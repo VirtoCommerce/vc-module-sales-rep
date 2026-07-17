@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Models;
 
-namespace VirtoCommerce.SalesRep.Core.Services;
+namespace VirtoCommerce.SalesRep.Core.Services.Statistics;
 
 /// <summary>
 /// Computes cart/project-derived statistics for a Sales Rep over one date range (VCST dashboard "Active Projects" /

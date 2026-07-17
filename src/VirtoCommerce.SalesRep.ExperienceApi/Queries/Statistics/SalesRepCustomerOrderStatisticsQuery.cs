@@ -5,7 +5,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
 /// <summary>
 /// Order statistics for the current Sales Rep's customers (VCST-5309). Standalone — decoupled from the

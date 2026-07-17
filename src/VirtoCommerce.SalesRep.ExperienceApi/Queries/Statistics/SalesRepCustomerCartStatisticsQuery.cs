@@ -5,7 +5,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
 /// <summary>
 /// Cart/project statistics for the current Sales Rep (dashboard "Active Projects" and related cart widgets).

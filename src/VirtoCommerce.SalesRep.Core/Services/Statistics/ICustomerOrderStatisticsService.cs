@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Models;
 
-namespace VirtoCommerce.SalesRep.Core.Services;
+namespace VirtoCommerce.SalesRep.Core.Services.Statistics;
 
 /// <summary>
 /// Computes order-derived sales statistics for a single customer organization over one date range (VCST-5309).

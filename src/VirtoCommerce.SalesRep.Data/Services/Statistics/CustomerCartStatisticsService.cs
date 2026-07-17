@@ -8,9 +8,9 @@ using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
-using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 
-namespace VirtoCommerce.SalesRep.Data.Services;
+namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 /// <summary>
 /// Aggregates a Sales Rep's carts/projects for the dashboard "Active Projects" / cart widgets. Like the order

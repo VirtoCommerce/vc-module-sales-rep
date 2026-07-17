@@ -6,9 +6,9 @@ using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
-using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 
-namespace VirtoCommerce.SalesRep.Data.Services;
+namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 /// <summary>
 /// Computes the "my customers" counters from the rep's own orders (dashboard "My Customers" widget). Reads the

@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.Platform.Core.Common;
 
-namespace VirtoCommerce.SalesRep.Data.Services;
+namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 /// <summary>Raw per-currency aggregate (sum + count + latest date) read from a module's EF store before conversion.</summary>
 internal sealed class CurrencyStatisticAggregate

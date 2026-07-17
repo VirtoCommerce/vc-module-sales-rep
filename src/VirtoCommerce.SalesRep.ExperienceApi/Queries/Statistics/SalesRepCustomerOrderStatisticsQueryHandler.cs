@@ -9,7 +9,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.StoreModule.Core.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
 public class SalesRepCustomerOrderStatisticsQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerOrderStatisticsQuery, CustomerOrderStatisticsContext>
 {

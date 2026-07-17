@@ -9,9 +9,9 @@ using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
-using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 
-namespace VirtoCommerce.SalesRep.Data.Services;
+namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 /// <summary>
 /// Aggregates a customer's orders for the Sales Rep profile widgets (VCST-5309). Unlike the "latest order" lookup

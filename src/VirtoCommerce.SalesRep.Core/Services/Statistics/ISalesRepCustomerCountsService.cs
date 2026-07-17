@@ -1,7 +1,7 @@
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Models;
 
-namespace VirtoCommerce.SalesRep.Core.Services;
+namespace VirtoCommerce.SalesRep.Core.Services.Statistics;
 
 /// <summary>
 /// Computes the Sales Rep "my customers" counters over one date range (dashboard "My Customers" widget: customers
