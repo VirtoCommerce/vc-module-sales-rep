@@ -13,7 +13,7 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// (<c>salesRepOrders</c>, via the Orders search service) and the order STATISTICS
 /// (<c>salesRepCustomerOrderStatistics</c>, via direct aggregation) must report the same number of orders — no
 /// "list empty but count non-zero", and vice versa. Both read paths resolve statuses through the one
-/// <c>ISalesRepOrderStatusService</c> (its ApplyListFilterAsync / ApplyStatisticsFilterAsync), so this holds even
+/// <c>ISalesRepOrderFilterRuleResolver</c> (its ApplyListFilterAsync / ApplyStatisticsFilterAsync), so this holds even
 /// for a composite (1:many) status. All seeded orders are non-cancelled / non-prototype so the two paths' base exclusions
 /// agree (statistics intentionally drop cancelled/prototype; the list is unfiltered by that).
 /// </summary>

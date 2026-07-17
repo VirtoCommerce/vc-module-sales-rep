@@ -30,7 +30,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
     public string StoreId { get; set; }
 
     /// <summary>
-    /// Optional selected filter-rule names (each a <c>SalesRepOrderStatus.name</c>). The handler resolves each to its
+    /// Optional selected filter-rule names (each a <c>SalesRepOrderFilterRule.name</c>). The handler resolves each to its
     /// underlying order statuses (1:many for composite/overridden statuses) and filters by their union; omit (or
     /// empty) for no filter. A list so multi-select works; single-select is a one-element list. Uses the module-wide
     /// <see cref="SalesRepFilters.ArgumentName"/> so every Sales Rep query selects named rules the same way.
@@ -59,7 +59,7 @@ public class SalesRepOrdersQuery : SearchQuery<SalesRepOrderSearchResult>, IHasI
 
         yield return Argument<StringGraphType>(nameof(OrganizationId), "Organization (customer) id whose orders to load; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
-        yield return Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Selected filter-rule names (salesRepOrderStatuses 'name's); filters to the union of their underlying order statuses.");
+        yield return Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Selected filter-rule names (salesRepOrderFilterRules 'name's); filters to the union of their underlying order statuses.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized statusDisplayValue field (\"en-US\").");
     }
 

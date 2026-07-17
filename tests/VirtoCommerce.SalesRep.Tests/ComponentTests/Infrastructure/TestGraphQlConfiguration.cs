@@ -90,7 +90,7 @@ internal static class TestGraphQlConfiguration
         services.AddTransient<ICustomerCartStatisticsService, CustomerCartStatisticsService>();
 
         // The real default cart-kind service (single built-in "project" kind → cart type "Wishlist").
-        services.AddTransient<ISalesRepCartKindService, SalesRepCartKindService>();
+        services.AddTransient<ISalesRepCartFilterRuleResolver, SalesRepCartFilterRuleResolver>();
 
         return services;
     }
@@ -111,8 +111,8 @@ internal static class TestGraphQlConfiguration
 
         // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
         // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many filter resolution
-        // end to end. The real default SalesRepOrderStatusService is unit-tested separately.
-        services.AddSingleton<ISalesRepOrderStatusService, StubOrderStatusService>();
+        // end to end. The real default SalesRepOrderFilterRuleResolver is unit-tested separately.
+        services.AddSingleton<ISalesRepOrderFilterRuleResolver, StubOrderFilterRuleResolver>();
 
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
@@ -211,15 +211,15 @@ internal static class TestGraphQlConfiguration
     /// Cancelled + Failed) so tests can prove the status list and the 1:many filter resolution (incl. multi-select
     /// union).
     /// </summary>
-    private sealed class StubOrderStatusService : ISalesRepOrderStatusService
+    private sealed class StubOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
     {
-        private static readonly IList<SalesRepOrderStatus> _statuses =
+        private static readonly IList<SalesRepOrderFilterRule> _statuses =
         [
-            SalesRepOrderStatus.Create("New", "New", "New"),
-            SalesRepOrderStatus.Create("Inactive", "Not active", "Cancelled", "Failed"),
+            SalesRepOrderFilterRule.Create("New", "New", "New"),
+            SalesRepOrderFilterRule.Create("Inactive", "Not active", "Cancelled", "Failed"),
         ];
 
-        public Task<IList<SalesRepOrderStatus>> GetRulesAsync(string storeId, string cultureName)
+        public Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(string storeId, string cultureName)
             => Task.FromResult(_statuses);
 
         public Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, IList<string> selectedNames, CustomerOrderSearchCriteria criteria)

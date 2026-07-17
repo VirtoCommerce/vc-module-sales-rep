@@ -19,19 +19,19 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 /// Request any number of ranges via aliased <c>period(from, to, kinds)</c> selections and <c>comparison(current,
 /// previous, kinds)</c> selections; a per-(range, kind-selection) DataLoader coalesces them so each distinct bucket
 /// is aggregated only once. <c>kinds</c> are business names (e.g. "project") the server maps to underlying cart
-/// type/status filters via <see cref="ISalesRepCartKindService"/> — the client never sees internal cart types, and
+/// type/status filters via <see cref="ISalesRepCartFilterRuleResolver"/> — the client never sees internal cart types, and
 /// the mapping (plus fail-closed handling) happens inside the loader, so this graph type sees no concrete filter.
 /// </summary>
 public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatisticsContext>
 {
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
     private readonly ICustomerCartStatisticsService _statisticsService;
-    private readonly ISalesRepCartKindService _kindService;
+    private readonly ISalesRepCartFilterRuleResolver _kindService;
 
     public CustomerCartStatisticsType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
         ICustomerCartStatisticsService statisticsService,
-        ISalesRepCartKindService kindService)
+        ISalesRepCartFilterRuleResolver kindService)
     {
         _dataLoaderContextAccessor = dataLoaderContextAccessor;
         _statisticsService = statisticsService;
@@ -45,7 +45,7 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             .Description("Cart statistics for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the cart created date (null = no lower bound).")
             .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the cart created date (null = no upper bound).")
-            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional cart-kind names (salesRepCartKinds 'name's, e.g. \"project\"); counts only carts matching the type/status filter those kinds resolve to. Omit for every cart.")
+            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional cart-kind names (salesRepCartFilterRules 'name's, e.g. \"project\"); counts only carts matching the type/status filter those kinds resolve to. Omit for every cart.")
             .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>("from");

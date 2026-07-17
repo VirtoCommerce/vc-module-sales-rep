@@ -22,14 +22,14 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
 {
     private readonly ISalesRepCustomerOrderSearchService _customerOrderSearchService;
     private readonly ISalesRepOrderResponseGroupParser _responseGroupParser;
-    private readonly ISalesRepOrderStatusService _statusService;
+    private readonly ISalesRepOrderFilterRuleResolver _statusService;
 
     public SalesRepOrdersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepCustomerOrderSearchService customerOrderSearchService,
         ISalesRepOrderResponseGroupParser responseGroupParser,
-        ISalesRepOrderStatusService statusService)
+        ISalesRepOrderFilterRuleResolver statusService)
         : base(roleResolver, membershipSearchService)
     {
         _customerOrderSearchService = customerOrderSearchService;
@@ -78,7 +78,7 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
 
     /// <summary>
     /// Assembles the security-scoped, paged order search criteria for the given organizations (no status filter —
-    /// that is applied afterwards in <see cref="Handle"/> via the shared <see cref="ISalesRepOrderStatusService"/>).
+    /// that is applied afterwards in <see cref="Handle"/> via the shared <see cref="ISalesRepOrderFilterRuleResolver"/>).
     /// Override to customize the criteria — e.g. extra filters, response group or sort.
     /// </summary>
     protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, string[] organizationIds)

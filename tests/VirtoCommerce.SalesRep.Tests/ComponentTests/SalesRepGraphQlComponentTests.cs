@@ -701,13 +701,13 @@ public class SalesRepGraphQlComponentTests
     // ---- order statuses + status filter (VCST-5308) ----
 
     [Fact]
-    public async Task SalesRepOrderStatuses_ReturnsStatuses()
+    public async Task SalesRepOrderFilterRulees_ReturnsStatuses()
     {
         using var ctx = SalesRepTestContext.Create();
 
         // Caller-agnostic (statuses are store config), but the scoped schema requires authentication.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { name localizedName } }",
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name localizedName } }",
             userId: "any-authenticated-user");
 
         json.Should().NotContain("\"errors\"");
@@ -716,12 +716,12 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrderStatuses_Anonymous_ReturnsAuthorizationError()
+    public async Task SalesRepOrderFilterRulees_Anonymous_ReturnsAuthorizationError()
     {
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { name } }");
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
@@ -737,7 +737,7 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
         SeedOrder(ctx, id: "o-failed", org: "org-1", number: "ORD-FAILED", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Failed");
 
-        // "Inactive" is a composite status -> [Cancelled, Failed] (StubOrderStatusService); "New" must be excluded.
+        // "Inactive" is a composite status -> [Cancelled, Failed] (StubOrderFilterRuleResolver); "New" must be excluded.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrders(organizationId:\"org-1\", filters:[\"Inactive\"]) { totalCount items { number } } }",
             userId: rep.UserId);

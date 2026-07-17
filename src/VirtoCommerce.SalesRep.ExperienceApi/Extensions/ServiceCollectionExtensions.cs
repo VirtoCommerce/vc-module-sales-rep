@@ -28,12 +28,12 @@ public static class ServiceCollectionExtensions
 
         // Order statuses (filter options) + status→underlying mapping + raw-status localization. Default = each
         // Order.Status value 1:1; a project registers its own after this to hide/add/compose (last registration wins).
-        serviceCollection.AddTransient<ISalesRepOrderStatusService, SalesRepOrderStatusService>();
+        serviceCollection.AddTransient<ISalesRepOrderFilterRuleResolver, SalesRepOrderFilterRuleResolver>();
 
         // Cart kinds (filter options) + kind→underlying type/status mapping for the cart/project statistics widgets.
         // Default = a single built-in "project" kind (cart type "Wishlist"); a project registers its own after this
         // to hide/add/recompose kinds (last registration wins).
-        serviceCollection.AddTransient<ISalesRepCartKindService, SalesRepCartKindService>();
+        serviceCollection.AddTransient<ISalesRepCartFilterRuleResolver, SalesRepCartFilterRuleResolver>();
 
         return serviceCollection;
     }

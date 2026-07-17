@@ -21,19 +21,19 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 /// request, and a bucket shared between a <c>period</c> and a <c>comparison</c> is not queried twice.
 /// Each <c>period</c>/<c>comparison</c> also takes an optional <c>statuses</c> filter (business-status names, e.g.
 /// "New" or "OnHold") so status-scoped widgets ("New Orders", "Orders on Hold") reuse this one query. The selected
-/// names are resolved and applied (via the shared <see cref="ISalesRepOrderStatusService"/>) inside the loader, so
+/// names are resolved and applied (via the shared <see cref="ISalesRepOrderFilterRuleResolver"/>) inside the loader, so
 /// this graph type never sees concrete filter fields.
 /// </summary>
 public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStatisticsContext>
 {
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
     private readonly ICustomerOrderStatisticsService _statisticsService;
-    private readonly ISalesRepOrderStatusService _statusService;
+    private readonly ISalesRepOrderFilterRuleResolver _statusService;
 
     public CustomerOrderStatisticsType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
         ICustomerOrderStatisticsService statisticsService,
-        ISalesRepOrderStatusService statusService)
+        ISalesRepOrderFilterRuleResolver statusService)
     {
         _dataLoaderContextAccessor = dataLoaderContextAccessor;
         _statisticsService = statisticsService;
@@ -47,7 +47,7 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
             .Description("Order statistics for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
             .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the order created date (null = no upper bound).")
-            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional business-status names (salesRepOrderStatuses 'name's); counts only orders whose status is in the union those names resolve to. Omit for every status.")
+            .Argument<ListGraphType<StringGraphType>>(SalesRepFilters.ArgumentName, "Optional business-status names (salesRepOrderFilterRules 'name's); counts only orders whose status is in the union those names resolve to. Omit for every status.")
             .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>("from");
