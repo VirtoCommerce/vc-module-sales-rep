@@ -1,6 +1,6 @@
 # Virto Commerce Sales Rep Module
 
-The Sales Rep module turns selected users into sales representatives who serve a defined set of customer organizations. It provides a back-office application for administrators to create, assign and manage reps, and a storefront GraphQL (X-API) surface that lets a B2B storefront show the reps supporting an organization, the customers a rep serves and their orders.
+The Sales Rep module turns selected users into sales representatives who serve a defined set of customer organizations. It provides a back-office application for administrators to create, assign and manage reps, and a storefront GraphQL (X-API) surface that lets a B2B storefront show the reps supporting an organization, the customers a rep serves, their orders, and dashboard statistics (order purchases, carts/projects and customer counters).
 
 <!-- TODO: add a hero screenshot of the Sales Reps app once available, e.g.
 <img width="1902" alt="Sales Reps admin app" src="https://github.com/user-attachments/assets/..." /> -->
@@ -15,6 +15,9 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Let reps see the customers they serve, each with the rep's latest order for that customer
 * Show a customer information card — organization, primary contact and account type
 * List and filter the orders a rep created for their customers
+* Show dashboard **statistics** for a rep — order purchases, average order value and order counts, with period-over-period comparison, converted to one currency
+* Add cart/project statistics (e.g. *active projects*) and *my-customers* counters (customers who ordered in a period, new customers)
+* Filter the orders list and every statistics block by named, server-defined **filter rules** (aggregated order statuses / cart kinds) — the storefront sends a rule name, the server maps it (overridable per project)
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -122,17 +125,19 @@ A single customer information card:
 
 ---
 
-The orders the rep created for their customers, filterable and paged (add `organizationId` to scope to one customer):
+The orders the rep created for their customers, paged and filtered by named **filter rules** via `filters` (add `organizationId` to scope to one customer; omit `filters` for every status):
 
 ```graphql
 {
-  salesRepOrders(storeId: "B2B-store", first: 20, sort: "createdDate:desc") {
+  salesRepOrders(storeId: "B2B-store", filters: ["New"], first: 20, sort: "createdDate:desc") {
     totalCount
     items {
       id
       number
+      organizationName
       createdDate
       status
+      statusDisplayValue
       total {
         amount
         formattedAmount
@@ -145,6 +150,100 @@ The orders the rep created for their customers, filterable and paged (add `organ
   }
 }
 ```
+
+---
+
+#### Filter rules
+
+Statistics blocks and the orders list are filtered by **named filter rules**, not by raw statuses/types. The storefront lists the selectable rules and sends back their `name`s in the unified `filters` argument; the server resolves each name to the underlying order statuses (or cart type/status set) — a rule can map to several (e.g. a business `"inactive"` → `Cancelled` + `Failed`), and the mapping is overridable per project. Unrecognized names fail **closed** (no data), never "return everything".
+
+```graphql
+{
+  # rules for the order statistics + orders list
+  salesRepOrderFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # rules for the cart/project statistics
+  salesRepCartFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+}
+```
+
+---
+
+#### Order statistics
+
+Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filters` (see above).
+
+```graphql
+{
+  salesRepCustomerOrderStatistics(organizationId: "7b8c...", currencyCode: "USD", cultureName: "en-US") {
+    currencyCode
+    ytd: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z") {
+      total { amount formattedAmount }
+      count
+      average { amount formattedAmount }
+      lastOrderDate
+    }
+    newOrders: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filters: ["New"]) {
+      total { amount }
+      count
+    }
+    ytdVsLastYear: comparison(
+      current:  { from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z" }
+      previous: { from: "2025-01-01T00:00:00Z", to: "2026-01-01T00:00:00Z" }
+    ) {
+      totalChange { amount formattedAmount }
+      totalChangePercent
+      countChange
+      countChangePercent
+    }
+  }
+}
+```
+
+---
+
+#### Cart / project statistics
+
+The same shape for carts/projects (dashboard *Active Projects*). `filters` here are cart *kinds* — e.g. the built-in `"project"` (wishlist) — and `count` is the primary metric:
+
+```graphql
+{
+  salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
+    activeProjects: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filters: ["project"]) {
+      count
+      total { amount formattedAmount }
+      lastCartDate
+    }
+  }
+}
+```
+
+---
+
+#### My customers
+
+Customer counters for the dashboard *My Customers* card — how many customers the rep serves, how many ordered in a period, and how many are new in it (with optional period-over-period comparison):
+
+```graphql
+{
+  salesRepCustomerCounts {
+    assignedCustomers
+    thisMonth: period(from: "2026-05-01T00:00:00Z", to: "2026-06-01T00:00:00Z") {
+      orderingCustomers
+      newCustomers
+    }
+    monthOverMonth: comparison(
+      current:  { from: "2026-05-01T00:00:00Z", to: "2026-06-01T00:00:00Z" }
+      previous: { from: "2026-04-01T00:00:00Z", to: "2026-05-01T00:00:00Z" }
+    ) {
+      orderingCustomersChange
+      orderingCustomersChangePercent
+      newCustomersChange
+    }
+  }
+}
+```
+
+All statistics obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
 ## How it works
 
@@ -171,6 +270,15 @@ graph LR
     O1 -. per-org role .-> R
     O2 -. per-org role .-> R
 ```
+
+### Statistics and filter rules
+
+The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
+
+**Filter rules** are the single, server-owned vocabulary for "which orders/carts count". A rule has a stable `name` and resolves to the underlying filter — order statuses, or a cart type/status set — as a 1:many, overridable mapping (`IFilterRuleResolver`). The **same resolver drives both the orders list and the statistics**, so a filtered list and the matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
+
+* **Add/recompose rules** — register a replacement resolver (`ISalesRepOrderFilterRuleResolver` / `ISalesRepCartFilterRuleResolver`); the last registration wins.
+* **A rule the standard criteria can't express** (e.g. *"stale, or item-less"*) — the resolver applies onto the reader's criteria, and the statistics service exposes a `BuildQuery` seam a project subclasses to add the predicate; do the same on the orders search so the two stay consistent.
 
 ## Administration
 
@@ -213,7 +321,8 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | Module | Why |
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
-| `VirtoCommerce.Orders` | Customer orders (order search + hydration via the Orders module). |
+| `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics. |
+| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
@@ -224,7 +333,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
   * [#1 — VCST-5293: Sales rep VC-Shell administration UI](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/1)
   * [#2 — VCST-4907 / VCST-5304 / VCST-5308: X-API endpoints for customers and sales reps](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/2)
 
-> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface. The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
+> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 
 ## References
 
