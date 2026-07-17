@@ -17,7 +17,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * List and filter the orders a rep created for their customers
 * Show dashboard **statistics** for a rep — order purchases, average order value and order counts, with period-over-period comparison, converted to one currency
 * Add cart/project statistics (e.g. *active projects*) and *my-customers* counters (customers who ordered in a period, new customers)
-* Filter the orders list and every statistics block by named, server-defined **filter rules** (aggregated order statuses / cart kinds) — the storefront sends a rule name, the server maps it (overridable per project)
+* Filter the orders/customers lists and every statistics block by a single, optional, server-defined **filter rule** (aggregated order statuses / cart kinds / customer segments) — the storefront sends one rule name, the server maps it (overridable per project)
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -57,10 +57,11 @@ The sales reps supporting the caller's organization:
 
 ---
 
-The customer organizations the current rep serves, each with the rep's most recent order for that customer:
+The customer organizations the current rep serves, each with the rep's most recent order for that customer. Supports keyword/sort/paging, and an optional `filter` — a customer segment from `salesRepCustomerFilterRules` (none built in by default; omit for all served customers):
 
 ```graphql
 {
+  # optional: add  filter: "<segment>"  (a salesRepCustomerFilterRules name; none built in by default) to narrow to a customer segment
   salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "name:asc") {
     totalCount
     items {
@@ -125,11 +126,11 @@ A single customer information card:
 
 ---
 
-The orders the rep created for their customers, paged and filtered by named **filter rules** via `filters` (add `organizationId` to scope to one customer; omit `filters` for every status):
+The orders the rep created for their customers, paged and filtered by an optional named **filter rule** via `filter` (add `organizationId` to scope to one customer; omit `filter` for all the rep's orders):
 
 ```graphql
 {
-  salesRepOrders(storeId: "B2B-store", filters: ["New"], first: 20, sort: "createdDate:desc") {
+  salesRepOrders(storeId: "B2B-store", filter: "New", first: 20, sort: "createdDate:desc") {
     totalCount
     items {
       id
@@ -155,14 +156,18 @@ The orders the rep created for their customers, paged and filtered by named **fi
 
 #### Filter rules
 
-Statistics blocks and the orders list are filtered by **named filter rules**, not by raw statuses/types. The storefront lists the selectable rules and sends back their `name`s in the unified `filters` argument; the server resolves each name to the underlying order statuses (or cart type/status set) — a rule can map to several (e.g. a business `"inactive"` → `Cancelled` + `Failed`), and the mapping is overridable per project. Unrecognized names fail **closed** (no data), never "return everything".
+Lists and statistics blocks are filtered by a single, optional **named filter rule**, not by raw statuses/types. The storefront reads the selectable rules from a discovery query and sends back one rule `name` in the unified `filter` argument; the server resolves it to the underlying filter — order statuses, a cart type/status set, or a customer segment — and a rule can be a composite (e.g. a business `"inactive"` → `Cancelled` + `Failed`). Omit `filter` for the baseline set (everything the rep may see, minus soft-deleted/prototype); an unrecognized name fails **closed** (no data), never "return everything". Rule sets are overridable per project.
+
+Three rule domains, each with its own discovery query:
 
 ```graphql
 {
-  # rules for the order statistics + orders list
+  # orders list + order statistics
   salesRepOrderFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
-  # rules for the cart/project statistics
+  # cart / project statistics
   salesRepCartFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # customers list + "my customers" counts (customer segments; none built in by default)
+  salesRepCustomerFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
 }
 ```
 
@@ -170,7 +175,7 @@ Statistics blocks and the orders list are filtered by **named filter rules**, no
 
 #### Order statistics
 
-Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filters` (see above).
+Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filter` (see above).
 
 ```graphql
 {
@@ -182,7 +187,7 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
       average { amount formattedAmount }
       lastOrderDate
     }
-    newOrders: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filters: ["New"]) {
+    newOrders: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filter: "New") {
       total { amount }
       count
     }
@@ -203,12 +208,12 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
 
 #### Cart / project statistics
 
-The same shape for carts/projects (dashboard *Active Projects*). `filters` here are cart *kinds* — e.g. the built-in `"project"` (wishlist) — and `count` is the primary metric:
+The same shape for carts/projects (dashboard *Active Projects*). `filter` here is a cart *kind* — e.g. the built-in `"project"` (wishlist) — and `count` is the primary metric:
 
 ```graphql
 {
   salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
-    activeProjects: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filters: ["project"]) {
+    activeProjects: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filter: "project") {
       count
       total { amount formattedAmount }
       lastCartDate
@@ -221,7 +226,7 @@ The same shape for carts/projects (dashboard *Active Projects*). `filters` here 
 
 #### My customers
 
-Customer counters for the dashboard *My Customers* card — how many customers the rep serves, how many ordered in a period, and how many are new in it (with optional period-over-period comparison):
+Customer counters for the dashboard *My Customers* card — how many customers the rep serves, how many ordered in a period, and how many are new in it (with optional period-over-period comparison). Each `period`/`comparison` also takes an optional `filter` — a customer segment from `salesRepCustomerFilterRules` (none built in by default):
 
 ```graphql
 {
@@ -275,10 +280,10 @@ graph LR
 
 The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
 
-**Filter rules** are the single, server-owned vocabulary for "which orders/carts count". A rule has a stable `name` and resolves to the underlying filter — order statuses, or a cart type/status set — as a 1:many, overridable mapping (`IFilterRuleResolver`). The **same resolver drives both the orders list and the statistics**, so a filtered list and the matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
+**Filter rules** are the single, server-owned vocabulary for "which records count". A rule has a stable `name` and resolves to the underlying filter — order statuses, a cart type/status set, or a customer segment — as an overridable mapping (`IFilterRuleResolver`), applied as one optional `filter` argument (omit → the baseline set; unknown name → fail closed). Within a domain the **same resolver drives every reader** — the orders list and the order statistics; the customers list and the "my customers" counts — so a filtered list and its matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
 
-* **Add/recompose rules** — register a replacement resolver (`ISalesRepOrderFilterRuleResolver` / `ISalesRepCartFilterRuleResolver`); the last registration wins.
-* **A rule the standard criteria can't express** (e.g. *"stale, or item-less"*) — the resolver applies onto the reader's criteria, and the statistics service exposes a `BuildQuery` seam a project subclasses to add the predicate; do the same on the orders search so the two stay consistent.
+* **Add/recompose rules** — register a replacement resolver (`ISalesRepOrderFilterRuleResolver` / `ISalesRepCartFilterRuleResolver` / `ISalesRepCustomerFilterRuleResolver`); the last registration wins. Customer segments ship with none — the seam is there for projects to fill.
+* **A rule the standard criteria can't express** (e.g. *"stale, or item-less"* orders, or an *"active"* customer segment) — the resolver applies onto the reader's criteria, and each reader exposes a seam to add the predicate: a `BuildQuery` override on the statistics/counts services, or narrowing the members search (`ObjectIds`) for the customers list. Wire it for every reader in the domain so they stay consistent.
 
 ## Administration
 
