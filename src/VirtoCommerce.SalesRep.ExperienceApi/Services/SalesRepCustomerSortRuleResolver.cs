@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
@@ -12,7 +12,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// (the handler ranks by the per-organization order aggregate); "name" is a plain member-column sort. Both the
 /// default and any unrecognized selection resolve to the first rule. Projects override this service to add orderings.
 /// </summary>
-public class SalesRepCustomerSortRuleResolver : ISalesRepCustomerSortRuleResolver
+public class SalesRepCustomerSortRuleResolver : SortRuleResolverBase<SalesRepCustomerSortRule>, ISalesRepCustomerSortRuleResolver
 {
     /// <summary>Newest rep-created order first (the default ordering).</summary>
     public const string MyLastOrdersRuleName = "my-last-orders";
@@ -23,7 +23,7 @@ public class SalesRepCustomerSortRuleResolver : ISalesRepCustomerSortRuleResolve
     /// <summary>Organization name, A→Z (a plain member column).</summary>
     public const string NameRuleName = "name";
 
-    public virtual Task<IList<SalesRepCustomerSortRule>> GetRulesAsync(string storeId, string cultureName)
+    public override Task<IList<SalesRepCustomerSortRule>> GetRulesAsync(string storeId, string cultureName)
         => Task.FromResult<IList<SalesRepCustomerSortRule>>(
         [
             SalesRepCustomerSortRule.Create(MyLastOrdersRuleName, "My last orders"),
@@ -33,14 +33,8 @@ public class SalesRepCustomerSortRuleResolver : ISalesRepCustomerSortRuleResolve
 
     public virtual async Task<SalesRepCustomerSortSpec> ResolveSortAsync(string storeId, string sort)
     {
-        var rules = await GetRulesAsync(storeId, cultureName: null);
-
-        // Default / unrecognized → the first configured rule (a sort never fails closed).
-        var name = !string.IsNullOrEmpty(sort) && rules.Any(x => string.Equals(x.Name, sort, StringComparison.OrdinalIgnoreCase))
-            ? sort
-            : rules.FirstOrDefault()?.Name;
-
-        return BuildSpec(name);
+        var rule = await ResolveRuleAsync(storeId, sort);
+        return BuildSpec(rule?.Name);
     }
 
     /// <summary>Maps a recognized rule name to its ordering spec. Override to map additional custom rules.</summary>
@@ -48,7 +42,7 @@ public class SalesRepCustomerSortRuleResolver : ISalesRepCustomerSortRuleResolve
     {
         if (string.Equals(ruleName, NameRuleName, StringComparison.OrdinalIgnoreCase))
         {
-            return new SalesRepCustomerSortSpec { IsOrderDerived = false, MemberSort = "name:asc", Descending = false };
+            return new SalesRepCustomerSortSpec { IsOrderDerived = false, MemberSort = "name:asc" };
         }
 
         if (string.Equals(ruleName, YtdPurchasesRuleName, StringComparison.OrdinalIgnoreCase))

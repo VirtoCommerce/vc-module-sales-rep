@@ -173,21 +173,18 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         IDictionary<string, CustomerOrderStatisticsPeriod> byOrganization,
         SalesRepCustomerSortSpec sortSpec)
     {
-        // Name breaks ties so the order is deterministic regardless of the members search's own ordering.
+        // Order-derived rules always rank biggest/newest first; name breaks ties so the order is deterministic
+        // regardless of the members search's own ordering.
         if (sortSpec.Metric == SalesRepCustomerSortMetric.Total)
         {
             decimal Total(Member m) => byOrganization.TryGetValue(m.Id, out var period) ? period.Total : 0m;
-            return sortSpec.Descending
-                ? members.OrderByDescending(Total).ThenBy(m => m.Name)
-                : members.OrderBy(Total).ThenBy(m => m.Name);
+            return members.OrderByDescending(Total).ThenBy(m => m.Name);
         }
 
         DateTime LastOrder(Member m) => byOrganization.TryGetValue(m.Id, out var period) && period.LastOrderDate.HasValue
             ? period.LastOrderDate.Value
             : DateTime.MinValue;
-        return sortSpec.Descending
-            ? members.OrderByDescending(LastOrder).ThenBy(m => m.Name)
-            : members.OrderBy(LastOrder).ThenBy(m => m.Name);
+        return members.OrderByDescending(LastOrder).ThenBy(m => m.Name);
     }
 
     private async Task<string> ResolvePrimaryCurrencyCodeAsync()

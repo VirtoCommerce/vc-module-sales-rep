@@ -81,8 +81,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             ? products.OrderByDescending(x => x.Revenue).ThenByDescending(x => x.Units).ThenBy(x => x.ProductId)
             : products.OrderByDescending(x => x.Units).ThenByDescending(x => x.Revenue).ThenBy(x => x.ProductId);
 
-        var take = criteria.Take > 0 ? criteria.Take : 5;
-        var top = ordered.Take(take).ToList();
+        var top = ordered.Take(criteria.Take).ToList();
         for (var i = 0; i < top.Count; i++)
         {
             top[i].Rank = i + 1;
