@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GraphQL;
 using MediatR;
+using Microsoft.Extensions.Logging;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.NotificationsModule.Core.Extensions;
@@ -40,6 +42,7 @@ public class SendCustomerCommunicationCommandHandler
     private readonly INotificationSearchService _notificationSearchService;
     private readonly INotificationSender _notificationSender;
     private readonly IStoreService _storeService;
+    private readonly ILogger<SendCustomerCommunicationCommandHandler> _logger;
 
     public SendCustomerCommunicationCommandHandler(
         ISalesRepRoleResolver roleResolver,
@@ -48,7 +51,8 @@ public class SendCustomerCommunicationCommandHandler
         IPushMessageService pushMessageService,
         INotificationSearchService notificationSearchService,
         INotificationSender notificationSender,
-        IStoreService storeService)
+        IStoreService storeService,
+        ILogger<SendCustomerCommunicationCommandHandler> logger)
         : base(roleResolver, membershipSearchService)
     {
         _recipientResolver = recipientResolver;
@@ -56,6 +60,7 @@ public class SendCustomerCommunicationCommandHandler
         _notificationSearchService = notificationSearchService;
         _notificationSender = notificationSender;
         _storeService = storeService;
+        _logger = logger;
     }
 
     public virtual async Task<bool> Handle(SendCustomerCommunicationCommand request, CancellationToken cancellationToken)
@@ -95,17 +100,40 @@ public class SendCustomerCommunicationCommandHandler
             return false;
         }
 
+        // Each channel is dispatched independently: a delivery failure in one is logged and must not abort the
+        // mutation or prevent the other channel. The mutation reports success when at least one channel was
+        // dispatched (Boolean contract) — a total failure returns false rather than surfacing an internal error.
+        var dispatched = false;
+
         if (request.SendPush)
         {
-            await SendPushAsync(request, recipients);
+            dispatched |= await TryDispatchAsync(() => SendPushAsync(request, recipients), "push", request.OrganizationId);
         }
 
         if (request.SendEmail)
         {
-            await SendEmailAsync(request, recipients);
+            dispatched |= await TryDispatchAsync(() => SendEmailAsync(request, recipients), "email", request.OrganizationId);
         }
 
-        return true;
+        return dispatched;
+    }
+
+    /// <summary>
+    /// Dispatches a single channel, isolating its failure: a delivery error is logged and turns into a
+    /// <c>false</c> result for that channel instead of propagating out and failing the whole mutation.
+    /// </summary>
+    protected virtual async Task<bool> TryDispatchAsync(Func<Task> dispatch, string channel, string organizationId)
+    {
+        try
+        {
+            await dispatch();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Sales Rep {Channel} communication to organization {OrganizationId} failed.", channel, organizationId);
+            return false;
+        }
     }
 
     /// <summary>

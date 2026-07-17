@@ -148,4 +148,33 @@ public class SalesRepCommunicationComponentTests
         json.Should().MatchRegex("(?i)1000");
         Push(ctx).Saved.Should().BeEmpty();
     }
+
+    [Fact]
+    public async Task SendCommunication_EmailChannelThrows_DoesNotAbortMutation_PushStillDispatched()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var repUserId = await SeedServedOrgWithContactsAsync(ctx);
+        Email(ctx).ThrowOnSchedule = true; // email delivery fails (e.g. unrenderable template)
+
+        var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: true, email: true), userId: repUserId);
+
+        // A channel failure must NOT surface as a GraphQL error; push still succeeds → overall true.
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"sendCustomerCommunication\":true");
+        Push(ctx).Saved.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task SendCommunication_OnlyChannelThrows_ReturnsFalseWithoutError()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var repUserId = await SeedServedOrgWithContactsAsync(ctx);
+        Email(ctx).ThrowOnSchedule = true;
+
+        var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: false, email: true), userId: repUserId);
+
+        // The only selected channel failed → false, but still no unhandled error bubbles to the client.
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"sendCustomerCommunication\":false");
+    }
 }

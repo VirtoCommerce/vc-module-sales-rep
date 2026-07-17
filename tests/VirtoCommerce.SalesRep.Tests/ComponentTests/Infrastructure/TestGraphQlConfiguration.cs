@@ -222,8 +222,18 @@ internal static class TestGraphQlConfiguration
     {
         public List<Notification> Scheduled { get; } = [];
 
+        /// <summary>When set, <see cref="ScheduleSendNotificationAsync"/> throws — simulating the real sender
+        /// rejecting an invalid message (e.g. an unrenderable template) — so the handler's per-channel
+        /// resilience can be exercised.</summary>
+        public bool ThrowOnSchedule { get; set; }
+
         public Task ScheduleSendNotificationAsync(Notification notification)
         {
+            if (ThrowOnSchedule)
+            {
+                throw new InvalidOperationException("Simulated notification failure.");
+            }
+
             Scheduled.Add(notification);
             return Task.CompletedTask;
         }
