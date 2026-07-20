@@ -31,6 +31,15 @@ public class SalesRepTopSellerCriteria
     /// </summary>
     public string[] CategoryIds { get; set; }
 
+    /// <summary>
+    /// Optional product-id restriction (VCST-5309, category filter option (a)): the aggregation is limited to these
+    /// products. Null = no restriction; empty = match nothing (no rows). The default filter rule resolver sets this —
+    /// not <see cref="CategoryIds"/> — because it resolves the selected category to product ids via the catalog
+    /// index, which is the only correct membership source for a virtual store catalog (line-item <c>CategoryId</c>
+    /// snapshots the physical category, so it never matches a virtual store category).
+    /// </summary>
+    public string[] ProductIds { get; set; }
+
     /// <summary>Inclusive lower bound on the order created date. Null = no lower bound (lifetime).</summary>
     public DateTime? FromDate { get; set; }
 

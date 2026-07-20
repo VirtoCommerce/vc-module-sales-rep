@@ -51,8 +51,9 @@ public static class ServiceCollectionExtensions
         serviceCollection.AddTransient<ISalesRepCustomerSortRuleResolver, SalesRepCustomerSortRuleResolver>();
 
         // Top Sellers rules: orderings (by-units default, by-revenue) and category badges (the store catalog's
-        // top-level non-hidden categories, expanded to a subtree on selection). A project registers its own after
-        // this (last registration wins).
+        // top-level non-hidden categories; on selection the category is resolved to the rep's sold products in its
+        // subtree via the catalog index). A project registers its own after this (last registration wins). The
+        // resolver's catalog-index + top-seller dependencies are registered by the Catalog and SalesRep modules.
         serviceCollection.AddTransient<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         serviceCollection.AddTransient<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 

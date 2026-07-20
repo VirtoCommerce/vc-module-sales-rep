@@ -12,8 +12,10 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// <summary>
 /// End-to-end component tests for the <c>salesRepTopSellers</c> X-API query (dashboard + customer "Top Sellers"):
 /// seed real order line items into in-memory SQLite and assert the ranking (units / revenue), period scoping, the
-/// category filter (real <c>CategorySearchService</c> over a real catalog slice, top-level + subtree), the take cap
-/// and the data-isolation invariant. No mocks — the real aggregation, sort and category-filter services run.
+/// category filter (real <c>CategorySearchService</c> + real filter resolver over a real catalog slice; category →
+/// product ids resolved by the repo-backed <c>IProductIndexedSearchService</c> stand-in, restricting the ranking to
+/// products in the selected subtree), the take cap and the data-isolation invariant. No mocks — the real
+/// aggregation, sort and category-filter services run.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepTopSellersGraphQlTests
@@ -89,6 +91,9 @@ public class SalesRepTopSellersGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 5, price: 10m, categoryId: "cat-printers"); // nested under electronics
         SeedProductLine(ctx, "o-s", "org-1", "prodShirt", quantity: 8, price: 10m, categoryId: "cat-apparel");
+        // Catalog products (with their real category) so the index-backed filter can resolve subtree membership —
+        // the line-item CategoryId is not what the (option (a)) filter matches on.
+        await ctx.SeedProductsAsync(("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"));
 
         // Filtering by the top-level "electronics" must catch the product filed under the nested "printers".
         var items = TopSellers(await ctx.ExecuteGraphQlAsync(
@@ -96,6 +101,34 @@ public class SalesRepTopSellersGraphQlTests
             userId: rep.UserId));
 
         items.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodPrinter");
+    }
+
+    [Fact]
+    public async Task SalesRepTopSellers_CategoryFilter_ExpandsFullSubtreeRecursively()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // 3-level tree: Electronics → Printers → Laser printers, plus a sibling top-level Apparel.
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-printers", "Printers", "cat-electronics", true),
+            ("cat-laser", "Laser printers", "cat-printers", true),
+            ("cat-apparel", "Apparel", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-l", "org-1", "prodLaser", quantity: 5, price: 10m, categoryId: "cat-laser");     // 2 levels deep
+        SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 4, price: 10m, categoryId: "cat-printers"); // 1 level deep
+        SeedProductLine(ctx, "o-s", "org-1", "prodShirt", quantity: 8, price: 10m, categoryId: "cat-apparel");    // outside the subtree
+        // Catalog products (with their real category) so the index-backed filter resolves the full recursive subtree.
+        await ctx.SeedProductsAsync(("prodLaser", "cat-laser"), ("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"));
+
+        // Filtering by the top-level "electronics" must catch descendants at ANY depth (printers AND laser
+        // printers), but not the sibling apparel — the filter resolves to the whole recursive subtree of ids.
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-electronics\") { productId } }",
+            userId: rep.UserId));
+
+        // Default by-units desc: laser (5) → printer (4); apparel (8) is excluded despite the higher count.
+        items.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodLaser", "prodPrinter");
     }
 
     [Fact]

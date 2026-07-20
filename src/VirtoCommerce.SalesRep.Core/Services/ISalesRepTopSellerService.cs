@@ -14,4 +14,12 @@ namespace VirtoCommerce.SalesRep.Core.Services;
 public interface ISalesRepTopSellerService
 {
     Task<IList<SalesRepTopSeller>> GetTopSellersAsync(SalesRepTopSellerCriteria criteria);
+
+    /// <summary>
+    /// The rep's distinct sold product ids within the criteria's scope (organizations / creator / store / date range,
+    /// excluding cancelled and prototype orders) — the same scoped line-item set the ranking runs over. The category
+    /// filter uses this to bound its catalog-index lookup to the products the rep actually sold (so the index is never
+    /// asked to enumerate a whole category), which also keeps the data-isolation invariant (creator scope) intact.
+    /// </summary>
+    Task<IList<string>> GetSoldProductIdsAsync(SalesRepTopSellerCriteria criteria);
 }

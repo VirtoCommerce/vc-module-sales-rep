@@ -100,6 +100,25 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         return top;
     }
 
+    public virtual async Task<IList<string>> GetSoldProductIdsAsync(SalesRepTopSellerCriteria criteria)
+    {
+        ArgumentNullException.ThrowIfNull(criteria);
+
+        if (criteria.OrganizationIds.IsNullOrEmpty())
+        {
+            return [];
+        }
+
+        using var repository = _orderRepositoryFactory();
+
+        // The rep's distinct sold products in the same scope the ranking uses (creator scope included), so the
+        // category filter can bound its catalog-index lookup and never enumerate a whole category.
+        return await BuildQuery(repository, criteria)
+            .Select(x => x.ProductId)
+            .Distinct()
+            .ToListAsync();
+    }
+
     /// <summary>
     /// The scoped line-item query the ranking runs over: never cancelled line items or cancelled/prototype orders,
     /// then the criteria's organization/creator/store/category scope and date range (all applied via the line
@@ -131,6 +150,12 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         if (!criteria.CategoryIds.IsNullOrEmpty())
         {
             query = query.Where(x => criteria.CategoryIds.Contains(x.CategoryId));
+        }
+
+        // Product restriction (category filter option (a)): null = no restriction; an empty set matches nothing.
+        if (criteria.ProductIds != null)
+        {
+            query = query.Where(x => criteria.ProductIds.Contains(x.ProductId));
         }
 
         if (criteria.FromDate != null)
