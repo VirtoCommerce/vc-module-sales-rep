@@ -75,9 +75,23 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => criteria.Types.Contains(x.Type));
         }
 
+        // Exclude blacklisted types (e.g. "Wishlist" projects). Keep null-type carts (the default cart type) — a raw
+        // NOT IN would drop them under SQL null semantics, so guard explicitly.
+        if (!criteria.ExcludeTypes.IsNullOrEmpty())
+        {
+            query = query.Where(x => x.Type == null || !criteria.ExcludeTypes.Contains(x.Type));
+        }
+
         if (!criteria.Statuses.IsNullOrEmpty())
         {
             query = query.Where(x => criteria.Statuses.Contains(x.Status));
+        }
+
+        // "Active" carts have contents; LineItemsCount is the persisted line-item count (0 when a cart is emptied,
+        // e.g. after its order is placed), so an emptied cart stops counting without loading its items.
+        if (criteria.OnlyNonEmpty)
+        {
+            query = query.Where(x => x.LineItemsCount > 0);
         }
 
         if (criteria.FromDate != null)

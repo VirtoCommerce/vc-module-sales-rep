@@ -103,7 +103,7 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ILogger<CustomerCartStatisticsService>>(NullLogger<CustomerCartStatisticsService>.Instance);
         services.AddTransient<ICustomerCartStatisticsService, CustomerCartStatisticsService>();
 
-        // The real default cart-kind service (single built-in "project" kind → cart type "Wishlist").
+        // The real default cart-kind service (single built-in "active-carts" kind → non-empty, non-Wishlist carts).
         services.AddTransient<ISalesRepCartFilterRuleResolver, SalesRepCartFilterRuleResolver>();
 
         return services;

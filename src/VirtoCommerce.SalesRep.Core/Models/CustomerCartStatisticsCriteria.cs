@@ -33,8 +33,17 @@ public class CustomerCartStatisticsCriteria
     /// <summary>Optional cart-type whitelist (e.g. "Wishlist"). Null/empty counts every cart type.</summary>
     public string[] Types { get; set; }
 
+    /// <summary>
+    /// Optional cart-type blacklist (e.g. "Wishlist" to exclude projects). Null/empty excludes nothing. Carts with a
+    /// null type are always kept (the default cart type is stored as null).
+    /// </summary>
+    public string[] ExcludeTypes { get; set; }
+
     /// <summary>Optional cart-status whitelist. Null/empty counts every status.</summary>
     public string[] Statuses { get; set; }
+
+    /// <summary>When true, counts only non-empty carts (at least one line item). False counts carts regardless of contents.</summary>
+    public bool OnlyNonEmpty { get; set; }
 
     /// <summary>Inclusive lower bound on the cart created date. Null = no lower bound (e.g. lifetime).</summary>
     public DateTime? FromDate { get; set; }

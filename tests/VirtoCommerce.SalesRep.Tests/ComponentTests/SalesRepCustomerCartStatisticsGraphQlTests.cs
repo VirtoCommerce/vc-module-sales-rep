@@ -14,7 +14,7 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// in-memory SQLite, execute real GraphQL through the real scoped schema / MediatR handler / the real
 /// <c>CustomerCartStatisticsService</c>, and assert the aggregated, currency-converted numbers. Money fields are
 /// MoneyType, so numeric values are asserted via <c>{ amount }</c>. The default cart-kind service maps the built-in
-/// "project" kind to cart type "Wishlist".
+/// "active-carts" kind to <b>non-empty</b> (LineItemsCount &gt; 0), <b>non-Wishlist</b> carts.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepCustomerCartStatisticsGraphQlTests
@@ -29,23 +29,24 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     private const string Wishlist = ModuleConstants.CartType.Wishlist;
 
     [Fact]
-    public async Task Cart_ProjectKind_CountsWishlistsOnly_WithComparison()
+    public async Task Cart_ActiveCarts_CountNonEmptyNonWishlist_WithComparison()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedCart(ctx, "w1", "org-1", 100m, _feb2026, type: Wishlist);
-        SeedCart(ctx, "w2", "org-1", 200m, _apr2026, type: Wishlist);
-        SeedCart(ctx, "wprev", "org-1", 40m, _mar2025, type: Wishlist);   // previous year
-        SeedCart(ctx, "c1", "org-1", 999m, _feb2026, type: null);          // normal cart → excluded by "project" kind
+        SeedCart(ctx, "c1", "org-1", 100m, _feb2026);                          // active cart
+        SeedCart(ctx, "c2", "org-1", 200m, _apr2026);                          // active cart
+        SeedCart(ctx, "cprev", "org-1", 40m, _mar2025);                        // active, previous year
+        SeedCart(ctx, "empty", "org-1", 999m, _feb2026, lineItemsCount: 0);    // empty → excluded
+        SeedCart(ctx, "wish", "org-1", 500m, _feb2026, type: Wishlist);        // project → excluded
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
                 currencyCode
-                projects:  period({{Ytd}}, filter: "project") { total { amount } count average { amount } lastCartDate }
-                allCarts:  period({{Ytd}}) { count }
-                yoy: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }, filter: "project") {
+                active:   period({{Ytd}}, filter: "active-carts") { total { amount } count average { amount } lastCartDate }
+                allCarts: period({{Ytd}}) { count }
+                yoy: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }, filter: "active-carts") {
                   countChange countChangePercent totalChange { amount }
                 }
               } }
@@ -55,13 +56,13 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var stats = Stats(json);
         stats.GetProperty("currencyCode").GetString().Should().Be("USD");
 
-        var projects = stats.GetProperty("projects");
-        MoneyAmount(projects, "total").Should().Be(300m); // 100 + 200 (normal cart 999 excluded)
-        projects.GetProperty("count").GetInt32().Should().Be(2);
-        MoneyAmount(projects, "average").Should().Be(150m);
-        projects.GetProperty("lastCartDate").GetDateTime().Should().Be(_apr2026);
+        var active = stats.GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(300m); // 100 + 200 (empty + wishlist excluded)
+        active.GetProperty("count").GetInt32().Should().Be(2);
+        MoneyAmount(active, "average").Should().Be(150m);
+        active.GetProperty("lastCartDate").GetDateTime().Should().Be(_apr2026);
 
-        stats.GetProperty("allCarts").GetProperty("count").GetInt32().Should().Be(3); // both wishlists + the normal cart
+        stats.GetProperty("allCarts").GetProperty("count").GetInt32().Should().Be(4); // baseline: c1, c2, empty, wishlist
 
         var yoy = stats.GetProperty("yoy");
         yoy.GetProperty("countChange").GetInt32().Should().Be(1);            // 2 (YTD) - 1 (prev year)
@@ -70,25 +71,67 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Cart_ExcludesEmptyCarts()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "full", "org-1", 100m, _feb2026, lineItemsCount: 3);
+        SeedCart(ctx, "emptied", "org-1", 999m, _feb2026, lineItemsCount: 0); // e.g. its order was placed → LineItemsCount 0
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
+              """,
+            userId: rep.UserId);
+
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(100m); // the emptied 999 never counts
+        active.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cart_ExcludesWishlists()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "cart", "org-1", 100m, _feb2026);                    // regular non-empty cart → counts
+        SeedCart(ctx, "wish", "org-1", 999m, _feb2026, type: Wishlist);    // non-empty project → excluded
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
+              """,
+            userId: rep.UserId);
+
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(100m); // the wishlist (project) is not an active cart
+        active.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
     public async Task Cart_FoldsMultipleCurrencies_IntoRequestedUsd()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedCart(ctx, "w-usd", "org-1", 100m, _feb2026, type: Wishlist, currency: "USD");
-        SeedCart(ctx, "w-eur", "org-1", 100m, _feb2026, type: Wishlist, currency: "EUR");
+        SeedCart(ctx, "c-usd", "org-1", 100m, _feb2026, currency: "USD");
+        SeedCart(ctx, "c-eur", "org-1", 100m, _feb2026, currency: "EUR");
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                projects: period({{Ytd}}, filter: "project") { total { amount } count average { amount } } } }
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count average { amount } } } }
               """,
             userId: rep.UserId);
 
-        var projects = Stats(json).GetProperty("projects");
-        MoneyAmount(projects, "total").Should().Be(225m); // 100 USD + 100 EUR * 1.25
-        projects.GetProperty("count").GetInt32().Should().Be(2);
-        MoneyAmount(projects, "average").Should().Be(112.5m);
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(225m); // 100 USD + 100 EUR * 1.25
+        active.GetProperty("count").GetInt32().Should().Be(2);
+        MoneyAmount(active, "average").Should().Be(112.5m);
     }
 
     [Fact]
@@ -97,19 +140,19 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedCart(ctx, "live", "org-1", 100m, _feb2026, type: Wishlist);
-        SeedCart(ctx, "dead", "org-1", 999m, _feb2026, type: Wishlist, isDeleted: true);
+        SeedCart(ctx, "live", "org-1", 100m, _feb2026);
+        SeedCart(ctx, "dead", "org-1", 999m, _feb2026, isDeleted: true);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                projects: period({{Ytd}}, filter: "project") { total { amount } count } } }
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
               """,
             userId: rep.UserId);
 
-        var projects = Stats(json).GetProperty("projects");
-        MoneyAmount(projects, "total").Should().Be(100m); // the deleted 999 never counts
-        projects.GetProperty("count").GetInt32().Should().Be(1);
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(100m); // the deleted 999 never counts
+        active.GetProperty("count").GetInt32().Should().Be(1);
     }
 
     [Fact]
@@ -118,7 +161,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedCart(ctx, "w1", "org-1", 100m, _feb2026, type: Wishlist);
+        SeedCart(ctx, "c1", "org-1", 100m, _feb2026);
 
         // An unrecognized kind resolves to an empty filter → zeros, not every cart.
         var json = await ctx.ExecuteGraphQlAsync(
@@ -139,19 +182,19 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedCart(ctx, "b2b", "org-1", 100m, _feb2026, type: Wishlist, storeId: "B2B-store");
-        SeedCart(ctx, "other", "org-1", 500m, _feb2026, type: Wishlist, storeId: "OtherStore");
+        SeedCart(ctx, "b2b", "org-1", 100m, _feb2026, storeId: "B2B-store");
+        SeedCart(ctx, "other", "org-1", 500m, _feb2026, storeId: "OtherStore");
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", storeId: "B2B-store", currencyCode: "USD") {
-                projects: period({{Ytd}}, filter: "project") { total { amount } count } } }
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
               """,
             userId: rep.UserId);
 
-        var projects = Stats(json).GetProperty("projects");
-        MoneyAmount(projects, "total").Should().Be(100m);
-        projects.GetProperty("count").GetInt32().Should().Be(1);
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(100m);
+        active.GetProperty("count").GetInt32().Should().Be(1);
     }
 
     [Fact]
@@ -160,20 +203,20 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
-        SeedCart(ctx, "w1", "org-1", 100m, _feb2026, type: Wishlist);
-        SeedCart(ctx, "w2", "org-2", 200m, _feb2026, type: Wishlist);
-        SeedCart(ctx, "w3", "org-3", 999m, _feb2026, type: Wishlist); // not served → excluded
+        SeedCart(ctx, "c1", "org-1", 100m, _feb2026);
+        SeedCart(ctx, "c2", "org-2", 200m, _feb2026);
+        SeedCart(ctx, "c3", "org-3", 999m, _feb2026); // not served → excluded
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(currencyCode: "USD") {
-                projects: period({{Ytd}}, filter: "project") { total { amount } count } } }
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
               """,
             userId: rep.UserId);
 
-        var projects = Stats(json).GetProperty("projects");
-        MoneyAmount(projects, "total").Should().Be(300m); // org-1 + org-2; org-3 excluded
-        projects.GetProperty("count").GetInt32().Should().Be(2);
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(300m); // org-1 + org-2; org-3 excluded
+        active.GetProperty("count").GetInt32().Should().Be(2);
     }
 
     [Fact]
@@ -182,11 +225,11 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedCart(ctx, "leak", "org-2", 100m, _feb2026, type: Wishlist);
+        SeedCart(ctx, "leak", "org-2", 100m, _feb2026);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
-              query { salesRepCustomerCartStatistics(organizationId:"org-2", currencyCode: "USD") { projects: period({{Ytd}}, filter: "project") { count } } }
+              query { salesRepCustomerCartStatistics(organizationId:"org-2", currencyCode: "USD") { active: period({{Ytd}}, filter: "active-carts") { count } } }
               """,
             userId: rep.UserId);
 
@@ -200,21 +243,21 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedCart(ctx, "mine", "org-1", 100m, _feb2026, type: Wishlist);                                       // created by the rep
-        SeedCart(ctx, "foreign", "org-1", 999m, _feb2026, type: Wishlist, createdByUserId: "another-rep-user"); // same served org, ANOTHER rep
+        SeedCart(ctx, "mine", "org-1", 100m, _feb2026);                                       // created by the rep
+        SeedCart(ctx, "foreign", "org-1", 999m, _feb2026, createdByUserId: "another-rep-user"); // same served org, ANOTHER rep
 
-        // Data-isolation invariant: a rep sees only projects they created — a foreign rep's project in the same
-        // served organization must never contribute.
+        // Data-isolation invariant: a rep sees only carts they created — a foreign rep's cart in the same served
+        // organization must never contribute.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                projects: period({{Ytd}}, filter: "project") { total { amount } count } } }
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
               """,
             userId: rep.UserId);
 
-        var projects = Stats(json).GetProperty("projects");
-        MoneyAmount(projects, "total").Should().Be(100m); // only the rep's own project; the foreign 999 excluded
-        projects.GetProperty("count").GetInt32().Should().Be(1);
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(100m); // only the rep's own cart; the foreign 999 excluded
+        active.GetProperty("count").GetInt32().Should().Be(1);
     }
 
     [Fact]
@@ -224,7 +267,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
             $$"""
-              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") { projects: period({{Ytd}}, filter: "project") { count } } }
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") { active: period({{Ytd}}, filter: "active-carts") { count } } }
               """);
 
         json.Should().Contain("\"errors\"");
@@ -247,7 +290,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     private static void SeedCart(
         SalesRepTestContext ctx, string id, string org, decimal total, DateTime createdDate,
         string type = null, string status = null, string currency = "USD", string storeId = "B2B-store",
-        bool isDeleted = false, string createdByUserId = null)
+        bool isDeleted = false, string createdByUserId = null, int lineItemsCount = 1)
     {
         using var db = ctx.NewCartDbContext();
         db.Add(new ShoppingCartEntity
@@ -256,8 +299,8 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             Name = id,
             CheckoutId = id, // [Required] on ShoppingCartEntity
             OrganizationId = org,
-            // A rep builds a project/cart for the customer, so the cart's CustomerId is the rep's user id; default
-            // the creator to the test's rep. Pass createdByUserId to simulate another rep's cart.
+            // A rep builds a cart for the customer, so the cart's CustomerId is the rep's user id; default the
+            // creator to the test's rep. Pass createdByUserId to simulate another rep's cart.
             CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,
@@ -266,6 +309,8 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             Currency = currency,
             Total = total,
             IsDeleted = isDeleted,
+            // The persisted line-item count is the "active" signal (no line-item rows needed to test the metric).
+            LineItemsCount = lineItemsCount,
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
         });

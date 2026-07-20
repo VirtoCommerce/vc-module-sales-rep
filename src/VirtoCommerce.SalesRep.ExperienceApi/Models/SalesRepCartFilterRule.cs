@@ -21,17 +21,31 @@ public class SalesRepCartFilterRule : INamedFilterRule
     /// <summary>Underlying cart types this kind maps to (empty = any type).</summary>
     public string[] Types { get; set; } = [];
 
+    /// <summary>Cart types this kind excludes (e.g. "Wishlist" to keep projects out of an "active carts" kind).</summary>
+    public string[] ExcludeTypes { get; set; } = [];
+
     /// <summary>Underlying cart statuses this kind maps to (empty = any status).</summary>
     public string[] Statuses { get; set; } = [];
 
+    /// <summary>When true, the kind counts only non-empty carts (carts with at least one line item).</summary>
+    public bool OnlyNonEmpty { get; set; }
+
     /// <summary>Constructs a kind via <see cref="AbstractTypeFactory{T}"/> so downstream can override the type.</summary>
-    public static SalesRepCartFilterRule Create(string name, string localizedName, string[] types = null, string[] statuses = null)
+    public static SalesRepCartFilterRule Create(
+        string name,
+        string localizedName,
+        string[] types = null,
+        string[] statuses = null,
+        string[] excludeTypes = null,
+        bool onlyNonEmpty = false)
     {
         var result = AbstractTypeFactory<SalesRepCartFilterRule>.TryCreateInstance();
         result.Name = name;
         result.LocalizedName = localizedName;
         result.Types = types ?? [];
         result.Statuses = statuses ?? [];
+        result.ExcludeTypes = excludeTypes ?? [];
+        result.OnlyNonEmpty = onlyNonEmpty;
         return result;
     }
 }

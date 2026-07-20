@@ -9,21 +9,26 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 /// <summary>
-/// Default cart-kind source: a single built-in "project" kind mapped to the <see cref="ModuleConstants.CartType.Wishlist"/>
-/// cart type (projects are wishlists in the Sales Rep paradigm). Deliberately filters by type only, not status — a
-/// storefront cart's status is typically null, so a status filter would exclude real projects. Projects override
-/// this service to add/hide/recompose kinds (e.g. an "active carts" kind, or an "active" project status set).
+/// Default cart-kind source: a single built-in "active-carts" kind — non-empty carts that are not projects. It
+/// excludes the <see cref="ModuleConstants.CartType.Wishlist"/> type (projects are wishlists in the Sales Rep paradigm)
+/// and counts only carts with at least one line item, so a cart emptied by placing its order stops counting.
+/// Deliberately does not filter by status — a storefront cart's status is typically null. Projects override this
+/// service to add/hide/recompose kinds (e.g. a "project" wishlist kind, or an "active" status set).
 /// </summary>
 public class SalesRepCartFilterRuleResolver : ISalesRepCartFilterRuleResolver
 {
-    /// <summary>The stable name of the built-in "project" (wishlist) kind.</summary>
-    public const string ProjectKind = "project";
+    /// <summary>The stable name of the built-in "active carts" (non-empty, non-project) kind.</summary>
+    public const string ActiveCartsKind = "active-carts";
 
     public virtual Task<IList<SalesRepCartFilterRule>> GetRulesAsync(string storeId, string cultureName)
     {
         IList<SalesRepCartFilterRule> kinds =
         [
-            SalesRepCartFilterRule.Create(ProjectKind, "Projects", types: [ModuleConstants.CartType.Wishlist]),
+            SalesRepCartFilterRule.Create(
+                ActiveCartsKind,
+                "Active carts",
+                excludeTypes: [ModuleConstants.CartType.Wishlist],
+                onlyNonEmpty: true),
         ];
 
         return Task.FromResult(kinds);
@@ -44,16 +49,23 @@ public class SalesRepCartFilterRuleResolver : ISalesRepCartFilterRuleResolver
             return null; // fail-closed: a rule name was given but is unrecognized
         }
 
-        // A recognized kind with neither types nor statuses is an "all carts" rule → baseline (not fail-closed).
+        // A recognized kind with no filters at all is an "all carts" rule → baseline (not fail-closed).
         if (kind.Types is { Length: > 0 })
         {
             criteria.Types = kind.Types;
+        }
+
+        if (kind.ExcludeTypes is { Length: > 0 })
+        {
+            criteria.ExcludeTypes = kind.ExcludeTypes;
         }
 
         if (kind.Statuses is { Length: > 0 })
         {
             criteria.Statuses = kind.Statuses;
         }
+
+        criteria.OnlyNonEmpty = kind.OnlyNonEmpty;
 
         return criteria;
     }
