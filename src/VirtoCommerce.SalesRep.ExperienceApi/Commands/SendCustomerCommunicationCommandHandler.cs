@@ -17,6 +17,7 @@ using VirtoCommerce.PushMessages.Core.Services;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.StoreModule.Core.Model;
 using VirtoCommerce.StoreModule.Core.Services;
 
@@ -38,6 +39,7 @@ public class SendCustomerCommunicationCommandHandler
     private const int MaxMessageLength = 1000;
 
     private readonly ISalesRepRecipientResolver _recipientResolver;
+    private readonly ISalesRepCommunicationResponseGroupParser _responseGroupParser;
     private readonly IPushMessageService _pushMessageService;
     private readonly INotificationSearchService _notificationSearchService;
     private readonly INotificationSender _notificationSender;
@@ -48,6 +50,7 @@ public class SendCustomerCommunicationCommandHandler
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepRecipientResolver recipientResolver,
+        ISalesRepCommunicationResponseGroupParser responseGroupParser,
         IPushMessageService pushMessageService,
         INotificationSearchService notificationSearchService,
         INotificationSender notificationSender,
@@ -56,6 +59,7 @@ public class SendCustomerCommunicationCommandHandler
         : base(roleResolver, membershipSearchService)
     {
         _recipientResolver = recipientResolver;
+        _responseGroupParser = responseGroupParser;
         _pushMessageService = pushMessageService;
         _notificationSearchService = notificationSearchService;
         _notificationSender = notificationSender;
@@ -87,14 +91,15 @@ public class SendCustomerCommunicationCommandHandler
         }
 
         // Access: the caller must serve exactly this organization (active, unlocked granting membership).
-        var memberships = await GetGrantingMembershipsAsync([request.UserId], [request.OrganizationId]);
-        if (memberships.Count == 0)
+        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
         {
             return false;
         }
 
-        // Resolve the audience once; both channels use the same set.
-        var recipients = await _recipientResolver.ResolveRecipientsAsync(request.OrganizationId);
+        // Resolve the audience once; both channels use the same set. The response group is the minimal member
+        // hydration the selected channels need (email → emails; push → id only).
+        var responseGroup = _responseGroupParser.GetResponseGroup(request);
+        var recipients = await _recipientResolver.ResolveRecipientsAsync(request.OrganizationId, responseGroup);
         if (recipients.Count == 0)
         {
             return false;

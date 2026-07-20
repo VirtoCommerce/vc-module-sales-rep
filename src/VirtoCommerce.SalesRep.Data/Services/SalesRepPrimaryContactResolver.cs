@@ -25,7 +25,7 @@ public class SalesRepPrimaryContactResolver : ISalesRepPrimaryContactResolver
         _memberSearchService = memberSearchService;
     }
 
-    public virtual async Task<Contact> ResolvePrimaryContactAsync(Organization organization, string responseGroup = null)
+    public virtual async Task<Contact> ResolvePrimaryContactAsync(Organization organization, string responseGroup)
     {
         if (organization == null)
         {

@@ -3,10 +3,10 @@ using GraphQL;
 using GraphQL.Types;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
-using VirtoCommerce.Xapi.Core.Security.Authorization;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
@@ -29,10 +29,7 @@ public class SendCustomerCommunicationCommandBuilder
     {
         await base.BeforeMediatorSend(context, request);
 
-        if (!context.IsAuthenticated())
-        {
-            throw AuthorizationError.AnonymousAccessDenied();
-        }
+        context.EnsureAuthenticated();
 
         request.UserId = context.GetCurrentUserId();
     }

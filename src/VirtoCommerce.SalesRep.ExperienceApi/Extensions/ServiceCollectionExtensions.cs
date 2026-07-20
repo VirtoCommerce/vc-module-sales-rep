@@ -26,6 +26,10 @@ public static class ServiceCollectionExtensions
         // emails only when asked).
         serviceCollection.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
 
+        // Channels → recipient member response group for the customer-communication mutation (email loads emails;
+        // push loads only the id).
+        serviceCollection.AddSingleton<ISalesRepCommunicationResponseGroupParser, SalesRepCommunicationResponseGroupParser>();
+
         // Order statuses (filter options) + status→underlying mapping + raw-status localization. Default = each
         // Order.Status value 1:1; a project registers its own after this to hide/add/compose (last registration wins).
         serviceCollection.AddTransient<ISalesRepOrderStatusService, SalesRepOrderStatusService>();

@@ -21,9 +21,9 @@ namespace VirtoCommerce.SalesRep.Core.Services;
 public interface ISalesRepRecipientResolver
 {
     /// <summary>
-    /// The members (contacts) of <paramref name="organizationId"/> to address. Returned members are loaded
-    /// with their emails so the email channel can read a recipient address; the push channel only needs their
-    /// ids (it resolves each member's login accounts itself). Never null; empty when the org has no members.
+    /// The members (contacts) of <paramref name="organizationId"/> to address, hydrated to
+    /// <paramref name="responseGroup"/> (a <c>MemberResponseGroup</c> flags string — the email channel needs the
+    /// Emails collection; push needs only the id). Never null; empty when the org has no members.
     /// </summary>
-    Task<IList<Member>> ResolveRecipientsAsync(string organizationId);
+    Task<IList<Member>> ResolveRecipientsAsync(string organizationId, string responseGroup);
 }

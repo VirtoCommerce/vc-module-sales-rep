@@ -125,8 +125,7 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         {
             // Single customer: the caller must hold an active granting membership in exactly this organization,
             // else a rep could read any organization's orders by guessing its id.
-            var memberships = await GetGrantingMembershipsAsync([request.UserId], [request.OrganizationId]);
-            return memberships.Count > 0 ? [request.OrganizationId] : [];
+            return await ServesOrganizationAsync(request.UserId, request.OrganizationId) ? [request.OrganizationId] : [];
         }
 
         // Dashboard: every organization the rep is assigned to (passed as a single array filter to the search).

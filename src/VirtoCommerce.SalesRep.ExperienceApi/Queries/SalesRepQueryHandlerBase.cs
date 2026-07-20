@@ -53,6 +53,17 @@ public abstract class SalesRepQueryHandlerBase
     }
 
     /// <summary>
+    /// Whether the rep currently serves the organization — i.e. holds an active, unlocked sales-rep-granting
+    /// membership in it. Single-sources the "may this rep act on this organization?" predicate so callers don't
+    /// re-derive it from <see cref="GetGrantingMembershipsAsync"/>.
+    /// </summary>
+    protected async Task<bool> ServesOrganizationAsync(string userId, string organizationId)
+    {
+        var memberships = await GetGrantingMembershipsAsync([userId], [organizationId]);
+        return memberships.Count > 0;
+    }
+
+    /// <summary>
     /// The distinct organizations the given rep is assigned to serve — the organizations of their active,
     /// unlocked sales-rep-granting memberships. Empty when the rep serves none. This is the "customers this rep
     /// serves" set; keeping it here (not re-derived per handler) is what stops the handlers from drifting on it.

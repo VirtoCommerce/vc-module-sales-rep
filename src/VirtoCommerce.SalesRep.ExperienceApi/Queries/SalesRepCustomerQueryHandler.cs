@@ -43,11 +43,7 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         // Security scoping: the caller must hold an active sales-rep-granting membership in exactly the
         // requested organization. Without this a rep could read any organization by guessing its id.
         // OnlyUnlocked: a rep locked in an organization must not see it as a customer.
-        var memberships = await GetGrantingMembershipsAsync(
-            [request.UserId],
-            [request.OrganizationId]);
-
-        if (memberships.Count == 0)
+        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
         {
             return null;
         }

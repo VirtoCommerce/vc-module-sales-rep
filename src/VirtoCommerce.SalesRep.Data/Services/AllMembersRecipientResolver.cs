@@ -16,10 +16,6 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 /// </summary>
 public class AllMembersRecipientResolver : ISalesRepRecipientResolver
 {
-    // WithEmails so the email channel can read a recipient address. The push channel only needs the member id
-    // (it resolves each member's login accounts itself), so no security-accounts group is requested here.
-    private static readonly string _responseGroup = MemberResponseGroup.WithEmails.ToString();
-
     private readonly IMemberSearchService _memberSearchService;
 
     public AllMembersRecipientResolver(IMemberSearchService memberSearchService)
@@ -27,7 +23,7 @@ public class AllMembersRecipientResolver : ISalesRepRecipientResolver
         _memberSearchService = memberSearchService;
     }
 
-    public virtual async Task<IList<Member>> ResolveRecipientsAsync(string organizationId)
+    public virtual async Task<IList<Member>> ResolveRecipientsAsync(string organizationId, string responseGroup)
     {
         if (string.IsNullOrEmpty(organizationId))
         {
@@ -38,7 +34,7 @@ public class AllMembersRecipientResolver : ISalesRepRecipientResolver
         criteria.MemberId = organizationId;    // contacts belonging to the organization
         criteria.MemberType = nameof(Contact); // people only, not nested sub-organizations
         criteria.DeepSearch = false;           // this customer's own members (matches the salesRepCustomer detail rule)
-        criteria.ResponseGroup = _responseGroup;
+        criteria.ResponseGroup = responseGroup;
 
         return await _memberSearchService.SearchAllAsync(criteria);
     }

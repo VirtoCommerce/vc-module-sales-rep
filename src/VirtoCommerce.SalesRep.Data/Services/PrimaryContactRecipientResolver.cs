@@ -15,8 +15,6 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 /// </summary>
 public class PrimaryContactRecipientResolver : ISalesRepRecipientResolver
 {
-    private static readonly string _responseGroup = MemberResponseGroup.WithEmails.ToString();
-
     private readonly IMemberService _memberService;
     private readonly ISalesRepPrimaryContactResolver _primaryContactResolver;
 
@@ -28,21 +26,23 @@ public class PrimaryContactRecipientResolver : ISalesRepRecipientResolver
         _primaryContactResolver = primaryContactResolver;
     }
 
-    public virtual async Task<IList<Member>> ResolveRecipientsAsync(string organizationId)
+    public virtual async Task<IList<Member>> ResolveRecipientsAsync(string organizationId, string responseGroup)
     {
         if (string.IsNullOrEmpty(organizationId))
         {
             return [];
         }
 
+        // The organization is loaded only to resolve its primary contact (owner id, else oldest contact), so a
+        // minimal group is enough; the contact itself is hydrated to the caller's responseGroup.
         var organization = (await _memberService.GetByIdsAsync(
                 [organizationId],
-                responseGroup: null,
+                MemberResponseGroup.Default.ToString(),
                 [nameof(Organization)]))
             .OfType<Organization>()
             .FirstOrDefault();
 
-        var primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(organization, _responseGroup);
+        var primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(organization, responseGroup);
 
         return primaryContact == null ? [] : [primaryContact];
     }

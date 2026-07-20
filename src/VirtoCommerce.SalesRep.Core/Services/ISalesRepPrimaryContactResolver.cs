@@ -15,5 +15,5 @@ public interface ISalesRepPrimaryContactResolver
     /// has neither a resolvable owner nor any contact member. <paramref name="responseGroup"/> controls how richly
     /// the returned contact is loaded (e.g. emails and/or phones), since callers need different projections.
     /// </summary>
-    Task<Contact> ResolvePrimaryContactAsync(Organization organization, string responseGroup = null);
+    Task<Contact> ResolvePrimaryContactAsync(Organization organization, string responseGroup);
 }
