@@ -17,11 +17,12 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 /// <summary>
 /// Ranks the products a Sales Rep sold (VCST-5309, "Top Sellers"). Reads the Orders EF store
 /// (<see cref="IOrderRepository.LineItems"/>) directly — the same scoped Orders.Data exception the statistics
-/// services use — and aggregates DB-side (<c>GROUP BY</c> product + currency, <c>SUM</c> of units and of price ×
-/// quantity), so the query returns one row per product/currency instead of every line item (the rep's order volume
-/// can be very large). Per-currency revenue is then folded to the target currency in memory — an exact-decimal,
-/// provider-independent fold via the shared <see cref="StatisticsCurrencyConverter"/>. The row's display data is the
-/// line-item snapshot, so no catalog read.
+/// services use — and aggregates DB-side (<c>GROUP BY</c> product + currency + unit price, <c>SUM</c> of quantity),
+/// so the query returns a compact per-product/price row set instead of every line item (the rep's order volume can
+/// be very large). Revenue (price × units) and the cross-currency fold are computed in memory via the shared
+/// <see cref="StatisticsCurrencyConverter"/> — the unit price rides in the group key rather than being multiplied in
+/// SQL, because Price is a PostgreSQL <c>money</c> column and <c>money * money</c> has no operator. The row's display
+/// data is the line-item snapshot, so no catalog read.
 /// </summary>
 public class SalesRepTopSellerService : ISalesRepTopSellerService
 {
@@ -51,21 +52,24 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         using var repository = _orderRepositoryFactory();
 
         // Aggregate DB-side: collapse the scoped line items (the rep's order volume can be very large) to one row per
-        // product + currency (+ display snapshot) with SUM(quantity) and SUM(price × quantity). Grouping by the
-        // display columns too keeps the projection free of string aggregates (portable across EF providers); a
-        // product whose snapshot changed between orders yields more than one row and is re-merged in memory below.
+        // product + currency + unit price (+ display snapshot) with SUM(quantity). We deliberately do NOT compute
+        // SUM(price × quantity) in SQL: Price is a PostgreSQL `money` column and EF renders `price * quantity` as
+        // `money * money`, for which Postgres has no operator. Instead the unit price rides in the group key and
+        // revenue (price × units) is summed in memory below — exact decimal, provider-independent. The snapshot
+        // columns are functionally per-product so they add no rows; only distinct unit prices split a product's
+        // rows, which are re-merged per product below.
         var aggregates = await BuildQuery(repository, criteria)
-            .GroupBy(x => new { x.ProductId, x.Currency, x.Name, x.Sku, x.ImageUrl, x.CategoryId })
-            .Select(g => new ProductCurrencyAggregate
+            .GroupBy(x => new { x.ProductId, x.Currency, x.Price, x.Name, x.Sku, x.ImageUrl, x.CategoryId })
+            .Select(g => new ProductPriceAggregate
             {
                 ProductId = g.Key.ProductId,
                 Currency = g.Key.Currency,
+                Price = g.Key.Price,
                 Name = g.Key.Name,
                 Sku = g.Key.Sku,
                 ImageUrl = g.Key.ImageUrl,
                 CategoryId = g.Key.CategoryId,
                 Units = g.Sum(x => x.Quantity),
-                Revenue = g.Sum(x => x.Price * x.Quantity),
             })
             .ToListAsync();
 
@@ -76,7 +80,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 
         var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
 
-        // Re-merge per product across currencies (and any display-snapshot variants), folding revenue to the target.
+        // Re-merge per product across currencies (and unit-price / snapshot variants), computing revenue and folding.
         var products = aggregates
             .GroupBy(x => x.ProductId)
             .Select(g => BuildTopSeller(g.Key, g.ToList(), criteria.CurrencyCode, currencies))
@@ -142,15 +146,16 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         return query;
     }
 
-    private SalesRepTopSeller BuildTopSeller(string productId, IList<ProductCurrencyAggregate> rows, string currencyCode, IReadOnlyCollection<Currency> currencies)
+    private SalesRepTopSeller BuildTopSeller(string productId, IList<ProductPriceAggregate> rows, string currencyCode, IReadOnlyCollection<Currency> currencies)
     {
-        // Revenue is summed per currency then folded to the target; units are currency-independent.
+        // Revenue = Σ(unit price × units) per currency (computed here, not in SQL), then folded to the target;
+        // units are currency-independent.
         var byCurrency = rows
             .GroupBy(x => x.Currency)
             .Select(cg => new CurrencyStatisticAggregate
             {
                 Currency = cg.Key,
-                Total = cg.Sum(x => x.Revenue),
+                Total = cg.Sum(x => x.Price * x.Units),
                 Count = 0,
                 LatestDate = null,
             });
@@ -170,16 +175,18 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         return result;
     }
 
-    // One DB-side aggregate row: a product's summed units and revenue in a single currency (and display snapshot).
-    private sealed class ProductCurrencyAggregate
+    // One DB-side aggregate row: units sold of a product at one unit price in one currency (+ display snapshot).
+    // Revenue (Price × Units) is computed in memory — not in SQL — because Price is a PostgreSQL `money` column and
+    // `money * money` has no operator; the unit price rides in the group key so no SQL money multiplication occurs.
+    private sealed class ProductPriceAggregate
     {
         public string ProductId { get; set; }
         public string Currency { get; set; }
+        public decimal Price { get; set; }
         public string Name { get; set; }
         public string Sku { get; set; }
         public string ImageUrl { get; set; }
         public string CategoryId { get; set; }
         public int Units { get; set; }
-        public decimal Revenue { get; set; }
     }
 }
