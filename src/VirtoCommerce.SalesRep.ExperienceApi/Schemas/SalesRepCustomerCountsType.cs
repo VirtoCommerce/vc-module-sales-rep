@@ -86,6 +86,7 @@ public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCo
                 {
                     var criteria = AbstractTypeFactory<SalesRepCustomerCountsCriteria>.TryCreateInstance();
                     criteria.OrganizationIds = countsContext.OrganizationIds;
+                    criteria.AssignmentDates = countsContext.AssignmentDates;
                     criteria.CustomerId = countsContext.SalesRepUserId;
                     criteria.StoreId = countsContext.StoreId;
                     criteria.FromDate = bucket.From;

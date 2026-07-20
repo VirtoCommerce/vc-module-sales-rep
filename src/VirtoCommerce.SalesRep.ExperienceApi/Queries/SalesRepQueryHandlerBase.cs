@@ -85,4 +85,17 @@ public abstract class SalesRepQueryHandlerBase
 
         return await GetServedOrganizationIdsAsync(userId);
     }
+
+    /// <summary>
+    /// The rep's active granting memberships for the visible scope: the requested organization's membership(s) when
+    /// <paramref name="organizationId"/> is given and the rep serves it (else none), otherwise every granting membership
+    /// the rep has. Parallels <see cref="GetVisibleOrganizationIdsAsync"/> but returns the membership objects, so a
+    /// caller that also needs assignment dates (e.g. the "new customers" counter) resolves them without re-querying.
+    /// </summary>
+    protected async Task<IList<OrganizationMembership>> GetVisibleGrantingMembershipsAsync(string userId, string organizationId)
+    {
+        return string.IsNullOrEmpty(organizationId)
+            ? await GetGrantingMembershipsAsync(userIds: [userId])
+            : await GetGrantingMembershipsAsync([userId], [organizationId]);
+    }
 }

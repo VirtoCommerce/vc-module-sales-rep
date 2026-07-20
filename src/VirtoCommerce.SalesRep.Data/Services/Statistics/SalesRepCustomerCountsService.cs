@@ -11,9 +11,11 @@ using VirtoCommerce.SalesRep.Core.Services.Statistics;
 namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 /// <summary>
-/// Computes the "my customers" counters from the rep's own orders (dashboard "My Customers" widget). Reads the
-/// Orders EF store (<see cref="IOrderRepository"/>) directly — the same scoped .Data exception as the order/cart
-/// statistics services — to count distinct organizations DB-side rather than loading orders into memory.
+/// Computes the "my customers" counters (dashboard "My Customers" widget). "Ordering customers" is counted DB-side
+/// over the rep's own orders — the Orders EF store (<see cref="IOrderRepository"/>) is read directly, the same scoped
+/// .Data exception as the order/cart statistics services, rather than loading orders into memory. "New customers" is
+/// counted from the assignment dates the handler supplies on the criteria (when each served customer was assigned to
+/// the rep), so it reflects recent assignments rather than the customer's first order or creation date.
 /// </summary>
 public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
 {
@@ -49,16 +51,13 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
             .Distinct()
             .CountAsync();
 
-        // Customers whose first-ever order by the rep falls in the range: group all the rep's orders per organization,
-        // take each organization's earliest order date, then count those landing in [FromDate, ToDate).
-        var firstOrderDates = await scoped
-            .GroupBy(x => x.OrganizationId)
-            .Select(g => g.Min(x => x.CreatedDate))
-            .ToListAsync();
-
-        var newCustomers = firstOrderDates.Count(first =>
-            (criteria.FromDate == null || first >= criteria.FromDate.Value) &&
-            (criteria.ToDate == null || first < criteria.ToDate.Value));
+        // Customers newly assigned to the rep within the range: count the per-organization assignment dates the handler
+        // resolved from the rep's granting memberships that land in [FromDate, ToDate). This is an in-memory count over a
+        // bounded set (one date per served organization) — assignment is independent of orders, so no order query.
+        var assignmentDates = criteria.AssignmentDates ?? [];
+        var newCustomers = assignmentDates.Count(assigned =>
+            (criteria.FromDate == null || assigned >= criteria.FromDate.Value) &&
+            (criteria.ToDate == null || assigned < criteria.ToDate.Value));
 
         var result = AbstractTypeFactory<SalesRepCustomerCountsPeriod>.TryCreateInstance();
         result.OrderingCustomers = orderingCustomers;

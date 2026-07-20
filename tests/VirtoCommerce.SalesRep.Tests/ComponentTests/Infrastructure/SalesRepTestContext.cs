@@ -22,6 +22,7 @@ using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Security;
@@ -262,6 +263,26 @@ internal sealed class SalesRepTestContext : IDisposable
         var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
         criteria.UserId = userId;
         return await _provider.GetRequiredService<IOrganizationMembershipSearchService>().SearchAllAsync(criteria);
+    }
+
+    /// <summary>
+    /// Backdate the rep's assignment date (the membership's creation date) for the given organization. The dashboard
+    /// "new customers" counter counts organizations first assigned within a window, so a test controls the assignment
+    /// date rather than relying on when <see cref="CreateRepAsync"/> happened to run. Uses a direct UPDATE so no audit
+    /// interceptor re-stamps the date.
+    /// </summary>
+    public async Task SetMembershipAssignmentDateAsync(string userId, string organizationId, DateTime assignedDate)
+    {
+        using var db = NewCustomerDbContext();
+        await db.Set<VirtoCommerce.CustomerModule.Data.Model.OrganizationMembershipEntity>()
+            .Where(x => x.UserId == userId && x.OrganizationId == organizationId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.CreatedDate, assignedDate));
+
+        // The membership read path is cached (populated at creation): the search caches id-lists and the CRUD service
+        // caches each hydrated model (with its creation date baked in). The raw UPDATE bypasses both, so expire both
+        // regions or the handler keeps reading the stale assignment date.
+        GenericSearchCachingRegion<OrganizationMembership>.ExpireRegion();
+        GenericCachingRegion<OrganizationMembership>.ExpireRegion();
     }
 
     /// <summary>

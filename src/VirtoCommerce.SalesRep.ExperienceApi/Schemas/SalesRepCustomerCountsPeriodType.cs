@@ -11,6 +11,6 @@ public class SalesRepCustomerCountsPeriodType : ExtendableGraphType<SalesRepCust
         Name = "SalesRepCustomerCountsPeriod";
 
         Field(x => x.OrderingCustomers, nullable: false).Description("Distinct customers the rep ordered for within the range.");
-        Field(x => x.NewCustomers, nullable: false).Description("Customers whose first-ever order by the rep falls in the range.");
+        Field(x => x.NewCustomers, nullable: false).Description("Customers first assigned to the rep within the range (by assignment date).");
     }
 }

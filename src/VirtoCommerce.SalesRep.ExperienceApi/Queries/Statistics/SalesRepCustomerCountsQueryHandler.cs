@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Services;
@@ -26,14 +27,24 @@ public class SalesRepCustomerCountsQueryHandler : SalesRepQueryHandlerBase, IQue
 
         // Membership scoping: the one requested customer (only if the rep serves it), or every organization the rep
         // is assigned to. Empty means the rep serves none → no counts.
-        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
-        if (organizationIds.Length == 0)
+        var memberships = await GetVisibleGrantingMembershipsAsync(request.UserId, request.OrganizationId);
+        if (memberships.Count == 0)
         {
             return null;
         }
 
+        // The organizations the rep serves, and the date each was first assigned (earliest granting-membership per org):
+        // "new customers" counts the assignments falling in a window, independent of orders (a long-standing customer
+        // assigned recently is "new").
+        var assignmentsByOrganization = memberships
+            .Where(x => !string.IsNullOrEmpty(x.OrganizationId))
+            .GroupBy(x => x.OrganizationId)
+            .Select(g => new { OrganizationId = g.Key, AssignedDate = g.Min(x => x.CreatedDate) })
+            .ToArray();
+
         var result = AbstractTypeFactory<SalesRepCustomerCountsContext>.TryCreateInstance();
-        result.OrganizationIds = organizationIds;
+        result.OrganizationIds = assignmentsByOrganization.Select(x => x.OrganizationId).ToArray();
+        result.AssignmentDates = assignmentsByOrganization.Select(x => x.AssignedDate).ToArray();
         // Creator scoping: counters derive only from orders the rep created (data-isolation invariant).
         result.SalesRepUserId = request.UserId;
         result.StoreId = request.StoreId;

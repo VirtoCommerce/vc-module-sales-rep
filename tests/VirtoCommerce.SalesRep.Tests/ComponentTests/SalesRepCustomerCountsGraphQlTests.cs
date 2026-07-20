@@ -10,8 +10,9 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
 /// End-to-end component tests for the <c>salesRepCustomerCounts</c> X-API query (dashboard "My Customers" widget):
-/// seed real orders into in-memory SQLite and assert the assigned / ordering / new customer counters, derived only
-/// from the rep's own orders within the organizations they serve.
+/// seed real orders and memberships into in-memory SQLite and assert the assigned / ordering / new customer counters.
+/// "Ordering customers" derives only from the rep's own orders within the organizations they serve; "new customers"
+/// derives from customer assignment dates (the rep's membership creation dates), independent of orders.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepCustomerCountsGraphQlTests
@@ -28,9 +29,12 @@ public class SalesRepCustomerCountsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2"); // serves org-1, org-2
-        SeedOrder(ctx, "o1a", "org-1", _mar2025); // org-1's first order (previous year)
-        SeedOrder(ctx, "o1b", "org-1", _feb2026); // org-1 also ordered this year
-        SeedOrder(ctx, "o2", "org-2", _feb2026);  // org-2's first & only order (this year)
+        // Assignment dates drive "new customers": org-1 assigned last year, org-2 assigned this year.
+        await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-1", _mar2025);
+        await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-2", _feb2026);
+        SeedOrder(ctx, "o1a", "org-1", _mar2025); // org-1 ordered last year…
+        SeedOrder(ctx, "o1b", "org-1", _feb2026); // …and this year
+        SeedOrder(ctx, "o2", "org-2", _feb2026);  // org-2 ordered this year
         SeedOrder(ctx, "o3", "org-3", _feb2026);  // org-3 not served → never counted
 
         var json = await ctx.ExecuteGraphQlAsync(
@@ -51,11 +55,11 @@ public class SalesRepCustomerCountsGraphQlTests
 
         var ytd = counts.GetProperty("ytd");
         ytd.GetProperty("orderingCustomers").GetInt32().Should().Be(2); // org-1 + org-2 ordered in 2026
-        ytd.GetProperty("newCustomers").GetInt32().Should().Be(1);      // only org-2's first order is in 2026
+        ytd.GetProperty("newCustomers").GetInt32().Should().Be(1);      // only org-2 was assigned in 2026
 
         var lastYear = counts.GetProperty("lastYear");
         lastYear.GetProperty("orderingCustomers").GetInt32().Should().Be(1); // only org-1 ordered in 2025
-        lastYear.GetProperty("newCustomers").GetInt32().Should().Be(1);      // org-1's first order is in 2025
+        lastYear.GetProperty("newCustomers").GetInt32().Should().Be(1);      // org-1 was assigned in 2025
 
         var yoy = counts.GetProperty("yoy");
         yoy.GetProperty("orderingCustomersChange").GetInt32().Should().Be(1);            // 2 - 1
@@ -65,11 +69,44 @@ public class SalesRepCustomerCountsGraphQlTests
     }
 
     [Fact]
+    public async Task Counts_NewCustomers_CountedByAssignmentDate_NotFirstOrder()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+        // Both customers first ordered LAST year but were assigned to the rep only THIS year: "new customers" must
+        // follow the assignment date, not the first-order date (a long-standing customer newly assigned is "new").
+        SeedOrder(ctx, "o1", "org-1", _mar2025);
+        SeedOrder(ctx, "o2", "org-2", _mar2025);
+        await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-1", _feb2026);
+        await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-2", _feb2026);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCounts {
+                ytd:      period({{Ytd}}) { orderingCustomers newCustomers }
+                lastYear: period({{LastYear}}) { orderingCustomers newCustomers }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var counts = Stats(json);
+        var ytd = counts.GetProperty("ytd");
+        ytd.GetProperty("newCustomers").GetInt32().Should().Be(2);      // both assigned in 2026 (first-order would give 0)
+        ytd.GetProperty("orderingCustomers").GetInt32().Should().Be(0); // neither ordered in 2026
+
+        var lastYear = counts.GetProperty("lastYear");
+        lastYear.GetProperty("newCustomers").GetInt32().Should().Be(0);      // neither assigned in 2025 (first-order would give 2)
+        lastYear.GetProperty("orderingCustomers").GetInt32().Should().Be(2); // both ordered in 2025
+    }
+
+    [Fact]
     public async Task Counts_ScopeToSingleOrganization()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+        await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-1", _feb2026);
         SeedOrder(ctx, "o1", "org-1", _feb2026);
         SeedOrder(ctx, "o2", "org-2", _feb2026);
 
@@ -86,7 +123,7 @@ public class SalesRepCustomerCountsGraphQlTests
         counts.GetProperty("assignedCustomers").GetInt32().Should().Be(1); // scoped to the one org
         var ytd = counts.GetProperty("ytd");
         ytd.GetProperty("orderingCustomers").GetInt32().Should().Be(1);
-        ytd.GetProperty("newCustomers").GetInt32().Should().Be(1);
+        ytd.GetProperty("newCustomers").GetInt32().Should().Be(1); // org-1 assigned in 2026
     }
 
     [Fact]
@@ -95,11 +132,11 @@ public class SalesRepCustomerCountsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+        await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-1", _feb2026);
+        await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-2", _feb2026);
         SeedOrder(ctx, "mine", "org-1", _feb2026);                                      // the rep's own order
         SeedOrder(ctx, "foreign", "org-2", _feb2026, createdByUserId: "another-rep");   // foreign order in a served org
 
-        // Data-isolation invariant: org-2 only has a foreign rep's order, so it must not count as "ordering" or "new"
-        // for this rep.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCounts {
@@ -108,9 +145,12 @@ public class SalesRepCustomerCountsGraphQlTests
               """,
             userId: rep.UserId);
 
+        // Data-isolation invariant: org-2's only order is a foreign rep's, so it must not count as "ordering" for this
+        // rep (order counters are creator-scoped). It still counts as "new" — org-2 is genuinely assigned to this rep —
+        // which shows the two counters are computed independently (assignments vs the rep's own orders).
         var ytd = Stats(json).GetProperty("ytd");
-        ytd.GetProperty("orderingCustomers").GetInt32().Should().Be(1); // only org-1 (the rep's own)
-        ytd.GetProperty("newCustomers").GetInt32().Should().Be(1);
+        ytd.GetProperty("orderingCustomers").GetInt32().Should().Be(1); // only org-1 (the rep's own order)
+        ytd.GetProperty("newCustomers").GetInt32().Should().Be(2);      // both assigned to the rep in 2026
     }
 
     [Fact]
