@@ -21,8 +21,9 @@ public interface INamedSortRule
     SortDirection DefaultDirection { get; set; }
 
     /// <summary>
-    /// Whether the opposite of <see cref="DefaultDirection"/> is a meaningful ordering. When false, an explicit
-    /// opposite-direction suffix (e.g. <c>recent:asc</c>) is rejected rather than silently ignored.
+    /// Whether the client may choose the sort direction for this rule — i.e. the opposite of
+    /// <see cref="DefaultDirection"/> is also a meaningful ordering. When false, an explicit opposite-direction suffix
+    /// (e.g. <c>recent:asc</c>) is rejected rather than silently ignored.
     /// </summary>
-    bool AllowsReverse { get; set; }
+    bool SupportsDirection { get; set; }
 }

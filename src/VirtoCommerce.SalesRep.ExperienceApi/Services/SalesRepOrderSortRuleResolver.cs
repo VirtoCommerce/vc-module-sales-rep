@@ -24,8 +24,8 @@ public class SalesRepOrderSortRuleResolver : SortRuleResolverBase<SalesRepOrderS
     public override Task<IList<SalesRepOrderSortRule>> GetRulesAsync(string storeId, string cultureName)
         => Task.FromResult<IList<SalesRepOrderSortRule>>(
         [
-            SalesRepOrderSortRule.Create(RecentRuleName, "Most recent", "createdDate", SortDirection.Descending, allowsReverse: false),
-            SalesRepOrderSortRule.Create(TotalRuleName, "Order total", "total", SortDirection.Descending, allowsReverse: true),
+            SalesRepOrderSortRule.Create(RecentRuleName, "Most recent", "createdDate", SortDirection.Descending, supportsDirection: false),
+            SalesRepOrderSortRule.Create(TotalRuleName, "Order total", "total", SortDirection.Descending, supportsDirection: true),
         ]);
 
     public virtual async Task<CustomerOrderSearchCriteria> ApplySortAsync(string storeId, string sort, CustomerOrderSearchCriteria criteria)

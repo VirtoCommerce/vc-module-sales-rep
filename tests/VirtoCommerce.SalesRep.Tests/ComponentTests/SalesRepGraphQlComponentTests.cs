@@ -1328,12 +1328,14 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrderSortRules { name localizedName } }",
+            "query { salesRepOrderSortRules { name localizedName defaultDirection supportsDirection } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         // The two built-in orderings: "recent" (default) and the bidirectional "total".
         json.Should().Contain("\"name\":\"recent\"").And.Contain("\"name\":\"total\"");
+        // Direction metadata drives the storefront's header-sort toggle: both default desc; "total" reverses, "recent" doesn't.
+        json.Should().Contain("\"defaultDirection\":\"desc\"").And.Contain("\"supportsDirection\":true").And.Contain("\"supportsDirection\":false");
     }
 
     [Fact]

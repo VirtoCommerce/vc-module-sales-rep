@@ -28,9 +28,9 @@ public class SalesRepCustomerSortRuleResolver : SortRuleResolverBase<SalesRepCus
     public override Task<IList<SalesRepCustomerSortRule>> GetRulesAsync(string storeId, string cultureName)
         => Task.FromResult<IList<SalesRepCustomerSortRule>>(
         [
-            SalesRepCustomerSortRule.Create(MyLastOrdersRuleName, "My last orders", SortDirection.Descending, allowsReverse: true),
-            SalesRepCustomerSortRule.Create(YtdPurchasesRuleName, "YTD purchases", SortDirection.Descending, allowsReverse: true),
-            SalesRepCustomerSortRule.Create(NameRuleName, "Customer name", SortDirection.Ascending, allowsReverse: true),
+            SalesRepCustomerSortRule.Create(MyLastOrdersRuleName, "My last orders", SortDirection.Descending, supportsDirection: true),
+            SalesRepCustomerSortRule.Create(YtdPurchasesRuleName, "YTD purchases", SortDirection.Descending, supportsDirection: true),
+            SalesRepCustomerSortRule.Create(NameRuleName, "Customer name", SortDirection.Ascending, supportsDirection: true),
         ]);
 
     public virtual async Task<SalesRepCustomerSortSpec> ResolveSortAsync(string storeId, string sort)

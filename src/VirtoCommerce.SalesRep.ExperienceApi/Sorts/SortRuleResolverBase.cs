@@ -15,7 +15,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 ///
 /// Direction semantics are uniform across every list: no suffix → the rule's
 /// <see cref="INamedSortRule.DefaultDirection"/>; a supported suffix → that direction; a valid suffix the rule does
-/// not allow (<see cref="INamedSortRule.AllowsReverse"/> is false) → throw; a garbage suffix → ignored (default
+/// not allow (<see cref="INamedSortRule.SupportsDirection"/> is false) → throw; a garbage suffix → ignored (default
 /// direction). An empty or unknown rule NAME resolves to the first configured rule with its default direction, suffix
 /// ignored — a sort only reorders, so it never fails closed on the name (only an unsupported <em>direction on a
 /// recognized rule</em> is an error).
@@ -57,7 +57,7 @@ public abstract class SortRuleResolverBase<TRule> : ISortRuleResolver<TRule>
         var direction = rule.DefaultDirection;
         if (matched != null && TryParseDirection(directionToken, out var requested))
         {
-            if (requested != rule.DefaultDirection && !rule.AllowsReverse)
+            if (requested != rule.DefaultDirection && !rule.SupportsDirection)
             {
                 throw new ArgumentException(
                     $"Sort direction '{(requested == SortDirection.Descending ? "desc" : "asc")}' is not supported for sort rule '{rule.Name}'.",

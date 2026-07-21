@@ -24,17 +24,17 @@ public class SalesRepTopSellerSortRule : INamedSortRule
     public SortDirection DefaultDirection { get; set; }
 
     /// <inheritdoc />
-    public bool AllowsReverse { get; set; }
+    public bool SupportsDirection { get; set; }
 
     /// <summary>Constructs a rule via <see cref="AbstractTypeFactory{T}"/> so downstream can override the type.</summary>
-    public static SalesRepTopSellerSortRule Create(string name, string localizedName, SalesRepTopSellerSortBy sortBy, SortDirection defaultDirection, bool allowsReverse)
+    public static SalesRepTopSellerSortRule Create(string name, string localizedName, SalesRepTopSellerSortBy sortBy, SortDirection defaultDirection, bool supportsDirection)
     {
         var result = AbstractTypeFactory<SalesRepTopSellerSortRule>.TryCreateInstance();
         result.Name = name;
         result.LocalizedName = localizedName;
         result.SortBy = sortBy;
         result.DefaultDirection = defaultDirection;
-        result.AllowsReverse = allowsReverse;
+        result.SupportsDirection = supportsDirection;
         return result;
     }
 }

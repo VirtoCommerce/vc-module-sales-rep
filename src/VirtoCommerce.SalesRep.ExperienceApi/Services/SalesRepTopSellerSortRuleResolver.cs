@@ -24,8 +24,8 @@ public class SalesRepTopSellerSortRuleResolver : SortRuleResolverBase<SalesRepTo
     public override Task<IList<SalesRepTopSellerSortRule>> GetRulesAsync(string storeId, string cultureName)
         => Task.FromResult<IList<SalesRepTopSellerSortRule>>(
         [
-            SalesRepTopSellerSortRule.Create(ByUnitsRuleName, "By units sold", SalesRepTopSellerSortBy.Units, SortDirection.Descending, allowsReverse: false),
-            SalesRepTopSellerSortRule.Create(ByRevenueRuleName, "By revenue", SalesRepTopSellerSortBy.Revenue, SortDirection.Descending, allowsReverse: false),
+            SalesRepTopSellerSortRule.Create(ByUnitsRuleName, "By units sold", SalesRepTopSellerSortBy.Units, SortDirection.Descending, supportsDirection: false),
+            SalesRepTopSellerSortRule.Create(ByRevenueRuleName, "By revenue", SalesRepTopSellerSortBy.Revenue, SortDirection.Descending, supportsDirection: false),
         ]);
 
     public virtual async Task<SalesRepTopSellerCriteria> ApplySortAsync(string storeId, string sort, SalesRepTopSellerCriteria criteria)
