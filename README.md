@@ -217,7 +217,7 @@ The customers list's `my-last-orders` and `ytd-purchases` orderings are **order-
 
 #### Order statistics
 
-Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filter` (see above).
+Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filter` (see above). Both `period` bounds are **inclusive** and compared as UTC instants — the caller sends the time component (and any local→UTC conversion, exactly as the storefront's own orders date filter does); there is no server-side date truncation.
 
 ```graphql
 {
@@ -360,7 +360,7 @@ The dashboard numbers are **aggregated in the database**: the module reads the O
 
 **Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression; `ISalesRepCustomerSortRuleResolver` maps it to a spec; `ISalesRepTopSellerSortRuleResolver` maps it to the Top Sellers ranking metric). Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
 
-**Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its one catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): the store catalog's top-level non-hidden categories, and a selected badge expands to its subtree of category ids that the ranking then filters on.
+**Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its only catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): it lists the store catalog's top-level non-hidden categories (`ICategorySearchService`), and a selected badge is resolved — through the catalog index (`IProductIndexedSearchService`, the same path the storefront's category pages use, so it works for a virtual store catalog too) — to the rep's own sold products that fall in that category's subtree, which the ranking is then restricted to (bounded by the rep's sold products, so it never enumerates a whole category and the data-isolation rule holds).
 
 ## Administration
 
@@ -403,10 +403,10 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | Module | Why |
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
-| `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics. |
+| `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics and Top Sellers. |
 | `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
-| `VirtoCommerce.Catalog` | Top Sellers category badges — the store catalog's top-level categories and subtree expansion (`ICategorySearchService`). |
+| `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and resolves a selected badge to the rep's sold products in its subtree via the catalog index (`IProductIndexedSearchService`). |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
 ## Documentation
