@@ -1,4 +1,5 @@
 using System;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -7,7 +8,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 /// applied straight to the members search), or an order-derived ordering (<see cref="IsOrderDerived"/>) the members
 /// search can't express — the handler then ranks the served organizations by the rep's per-organization order
 /// aggregate (<see cref="Metric"/> over the optional [<see cref="FromDate"/>, <see cref="ToDate"/>] window) before
-/// paging. <see cref="Descending"/> is the resolved direction (the rule's natural default, or the opposite when the
+/// paging. <see cref="Direction"/> is the resolved direction (the rule's natural default, or the opposite when the
 /// client sent a <c>:asc</c>/<c>:desc</c> suffix the rule allows) and applies to both shapes.
 /// </summary>
 public class SalesRepCustomerSortSpec
@@ -21,8 +22,8 @@ public class SalesRepCustomerSortSpec
     /// <summary>Which per-organization order aggregate to rank by, when order-derived.</summary>
     public SalesRepCustomerSortMetric Metric { get; set; }
 
-    /// <summary>Resolved sort direction: true = descending, false = ascending (set by the resolver from the rule's default direction or an explicit <c>:asc</c>/<c>:desc</c> suffix).</summary>
-    public bool Descending { get; set; }
+    /// <summary>Resolved sort direction (set by the resolver from the rule's default direction or an explicit <c>:asc</c>/<c>:desc</c> suffix).</summary>
+    public SortDirection Direction { get; set; }
 
     /// <summary>Inclusive lower bound for the order-derived metric's window (null = all time).</summary>
     public DateTime? FromDate { get; set; }

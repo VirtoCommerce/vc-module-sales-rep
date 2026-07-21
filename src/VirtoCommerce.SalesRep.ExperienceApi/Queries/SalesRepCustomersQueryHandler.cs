@@ -12,6 +12,7 @@ using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -113,7 +114,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         SalesRepCustomerSearchResult result)
     {
         // Overwrite the raw sort (which carried the rule name) with the resolved member-column expression + direction.
-        criteria.Sort = $"{sortSpec.MemberSortField}:{(sortSpec.Descending ? "desc" : "asc")}";
+        criteria.Sort = $"{sortSpec.MemberSortField}:{sortSpec.Direction.ToToken()}";
 
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(criteria);
 
@@ -175,19 +176,20 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         IDictionary<string, CustomerOrderStatisticsPeriod> byOrganization,
         SalesRepCustomerSortSpec sortSpec)
     {
-        // Rank by the metric in the resolved direction (biggest/newest first unless the query flipped it); name breaks
-        // ties so the order is deterministic regardless of the members search's own ordering.
+        // Rank by the metric in the resolved direction (the rule's natural default unless a ":asc"/":desc" suffix
+        // reversed it); name breaks ties so the order is deterministic regardless of the members search's own ordering.
+        var descending = sortSpec.Direction == SortDirection.Descending;
         if (sortSpec.Metric == SalesRepCustomerSortMetric.Total)
         {
             decimal Total(Member m) => byOrganization.TryGetValue(m.Id, out var period) ? period.Total : 0m;
-            var ranked = sortSpec.Descending ? members.OrderByDescending(Total) : members.OrderBy(Total);
+            var ranked = descending ? members.OrderByDescending(Total) : members.OrderBy(Total);
             return ranked.ThenBy(m => m.Name);
         }
 
         DateTime LastOrder(Member m) => byOrganization.TryGetValue(m.Id, out var period) && period.LastOrderDate.HasValue
             ? period.LastOrderDate.Value
             : DateTime.MinValue;
-        var rankedByDate = sortSpec.Descending ? members.OrderByDescending(LastOrder) : members.OrderBy(LastOrder);
+        var rankedByDate = descending ? members.OrderByDescending(LastOrder) : members.OrderBy(LastOrder);
         return rankedByDate.ThenBy(m => m.Name);
     }
 }

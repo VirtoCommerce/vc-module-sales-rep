@@ -60,7 +60,7 @@ public abstract class SortRuleResolverBase<TRule> : ISortRuleResolver<TRule>
             if (requested != rule.DefaultDirection && !rule.SupportsDirection)
             {
                 throw new ArgumentException(
-                    $"Sort direction '{(requested == SortDirection.Descending ? "desc" : "asc")}' is not supported for sort rule '{rule.Name}'.",
+                    $"Sort direction '{requested.ToToken()}' is not supported for sort rule '{rule.Name}'.",
                     nameof(sort));
             }
 

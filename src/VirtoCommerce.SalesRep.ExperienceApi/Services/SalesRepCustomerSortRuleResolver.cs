@@ -40,7 +40,7 @@ public class SalesRepCustomerSortRuleResolver : SortRuleResolverBase<SalesRepCus
         var (rule, direction) = await ResolveSortRuleAsync(storeId, sort);
 
         var spec = BuildSpec(rule?.Name);
-        spec.Descending = direction == SortDirection.Descending;
+        spec.Direction = direction;
         return spec;
     }
 

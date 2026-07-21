@@ -34,7 +34,7 @@ public class SalesRepOrderSortRuleResolver : SortRuleResolverBase<SalesRepOrderS
 
         if (!string.IsNullOrEmpty(rule?.SortField))
         {
-            criteria.Sort = $"{rule.SortField}:{(direction == SortDirection.Descending ? "desc" : "asc")}";
+            criteria.Sort = $"{rule.SortField}:{direction.ToToken()}";
         }
 
         return criteria;
