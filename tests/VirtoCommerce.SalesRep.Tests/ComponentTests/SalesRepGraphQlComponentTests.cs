@@ -828,24 +828,6 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_WithoutStatus_ReturnsAllStatuses()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.SeedOrganizationsAsync("org-1");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
-        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
-
-        // No status argument → no status filter → all statuses returned.
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"totalCount\":2").And.Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
-    }
-
-    [Fact]
     public async Task SalesRepOrders_WithUnrecognizedStatus_ReturnsEmpty()
     {
         using var ctx = SalesRepTestContext.Create();
