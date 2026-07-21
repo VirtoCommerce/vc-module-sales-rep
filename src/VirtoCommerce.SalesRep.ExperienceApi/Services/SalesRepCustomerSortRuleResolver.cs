@@ -32,20 +32,30 @@ public class SalesRepCustomerSortRuleResolver : SortRuleResolverBase<SalesRepCus
             SalesRepCustomerSortRule.Create(NameRuleName, "Customer name"),
         ]);
 
-    public virtual async Task<SalesRepCustomerSortSpec> ResolveSortAsync(string storeId, string sort)
+    public virtual async Task<SalesRepCustomerSortSpec> ResolveSortAsync(string storeId, string sort, bool? descending)
     {
         var rule = await ResolveRuleAsync(storeId, sort);
-        return BuildSpec(rule?.Name);
+        var spec = BuildSpec(rule?.Name);
+
+        // An explicit direction (when the client sent one) overrides the rule's natural default — so any field can be
+        // ordered either way (name Z→A, purchases/last-order smallest/oldest first).
+        if (descending.HasValue)
+        {
+            spec.Descending = descending.Value;
+        }
+
+        return spec;
     }
 
-    /// <summary>Maps a recognized rule name to its ordering spec. Override to map additional custom rules.</summary>
+    /// <summary>Maps a recognized rule name to its ordering spec, with the rule's natural direction. Override to map additional custom rules.</summary>
     protected virtual SalesRepCustomerSortSpec BuildSpec(string ruleName)
     {
         if (string.Equals(ruleName, NameRuleName, StringComparison.OrdinalIgnoreCase))
         {
             var nameSpec = AbstractTypeFactory<SalesRepCustomerSortSpec>.TryCreateInstance();
             nameSpec.IsOrderDerived = false;
-            nameSpec.MemberSort = "name:asc";
+            nameSpec.MemberSortField = "name";
+            nameSpec.Descending = false; // name is A→Z by default
             return nameSpec;
         }
 
@@ -56,6 +66,7 @@ public class SalesRepCustomerSortRuleResolver : SortRuleResolverBase<SalesRepCus
             ytdSpec.IsOrderDerived = true;
             ytdSpec.Metric = SalesRepCustomerSortMetric.Total;
             ytdSpec.FromDate = startOfYear;
+            ytdSpec.Descending = true; // biggest purchases first by default
             return ytdSpec;
         }
 
@@ -63,6 +74,7 @@ public class SalesRepCustomerSortRuleResolver : SortRuleResolverBase<SalesRepCus
         var defaultSpec = AbstractTypeFactory<SalesRepCustomerSortSpec>.TryCreateInstance();
         defaultSpec.IsOrderDerived = true;
         defaultSpec.Metric = SalesRepCustomerSortMetric.LastOrderDate;
+        defaultSpec.Descending = true; // newest order first by default
         return defaultSpec;
     }
 }

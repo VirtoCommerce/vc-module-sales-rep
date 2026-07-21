@@ -92,8 +92,9 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         // once; carried onto each row for the graph type's inline field.
         var currencyCode = await _currencyResolver.ResolveCurrencyCodeAsync(requestedCurrencyCode: null, storeId: request.StoreId);
 
-        // Interpret the built-in sort argument as a customer sort-rule name (empty/unknown → the default ordering).
-        var sortSpec = await _sortRuleResolver.ResolveSortAsync(request.StoreId, request.Sort);
+        // Interpret the built-in sort argument as a customer sort-rule name (empty/unknown → the default ordering);
+        // the optional SortDescending overrides that rule's natural direction.
+        var sortSpec = await _sortRuleResolver.ResolveSortAsync(request.StoreId, request.Sort, request.SortDescending);
 
         return sortSpec.IsOrderDerived
             ? await SearchOrderedByOrderMetricAsync(request, filteredCriteria, sortSpec, currencyCode, result)
@@ -111,8 +112,8 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         string currencyCode,
         SalesRepCustomerSearchResult result)
     {
-        // Overwrite the raw sort (which carried the rule name) with the resolved member-column expression.
-        criteria.Sort = sortSpec.MemberSort;
+        // Overwrite the raw sort (which carried the rule name) with the resolved member-column expression + direction.
+        criteria.Sort = $"{sortSpec.MemberSortField}:{(sortSpec.Descending ? "desc" : "asc")}";
 
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(criteria);
 
@@ -174,17 +175,19 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         IDictionary<string, CustomerOrderStatisticsPeriod> byOrganization,
         SalesRepCustomerSortSpec sortSpec)
     {
-        // Order-derived rules always rank biggest/newest first; name breaks ties so the order is deterministic
-        // regardless of the members search's own ordering.
+        // Rank by the metric in the resolved direction (biggest/newest first unless the query flipped it); name breaks
+        // ties so the order is deterministic regardless of the members search's own ordering.
         if (sortSpec.Metric == SalesRepCustomerSortMetric.Total)
         {
             decimal Total(Member m) => byOrganization.TryGetValue(m.Id, out var period) ? period.Total : 0m;
-            return members.OrderByDescending(Total).ThenBy(m => m.Name);
+            var ranked = sortSpec.Descending ? members.OrderByDescending(Total) : members.OrderBy(Total);
+            return ranked.ThenBy(m => m.Name);
         }
 
         DateTime LastOrder(Member m) => byOrganization.TryGetValue(m.Id, out var period) && period.LastOrderDate.HasValue
             ? period.LastOrderDate.Value
             : DateTime.MinValue;
-        return members.OrderByDescending(LastOrder).ThenBy(m => m.Name);
+        var rankedByDate = sortSpec.Descending ? members.OrderByDescending(LastOrder) : members.OrderBy(LastOrder);
+        return rankedByDate.ThenBy(m => m.Name);
     }
 }

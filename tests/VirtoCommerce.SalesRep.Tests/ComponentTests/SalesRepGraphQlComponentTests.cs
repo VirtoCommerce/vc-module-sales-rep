@@ -601,6 +601,34 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepOrders_SortByTotal_OrdersByTotalInBothDirections()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Distinct totals; created dates deliberately NOT in total order, so a total sort can't be faked by date.
+        SeedOrder(ctx, id: "small", org: "org-1", number: "ORD-SMALL", createdDate: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc), total: 50m);
+        SeedOrder(ctx, id: "big", org: "org-1", number: "ORD-BIG", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), total: 5000m);
+        SeedOrder(ctx, id: "mid", org: "org-1", number: "ORD-MID", createdDate: new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), total: 500m);
+
+        var largest = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"largest-total\") { items { number } } }",
+            userId: rep.UserId);
+        largest.Should().NotContain("\"errors\"");
+        // Largest total first: BIG (5000) → MID (500) → SMALL (50), regardless of created date.
+        largest.IndexOf("ORD-BIG", StringComparison.Ordinal).Should().BeLessThan(largest.IndexOf("ORD-MID", StringComparison.Ordinal));
+        largest.IndexOf("ORD-MID", StringComparison.Ordinal).Should().BeLessThan(largest.IndexOf("ORD-SMALL", StringComparison.Ordinal));
+
+        var smallest = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"smallest-total\") { items { number } } }",
+            userId: rep.UserId);
+        smallest.Should().NotContain("\"errors\"");
+        // Smallest total first: SMALL (50) → MID (500) → BIG (5000).
+        smallest.IndexOf("ORD-SMALL", StringComparison.Ordinal).Should().BeLessThan(smallest.IndexOf("ORD-MID", StringComparison.Ordinal));
+        smallest.IndexOf("ORD-MID", StringComparison.Ordinal).Should().BeLessThan(smallest.IndexOf("ORD-BIG", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task SalesRepOrders_ReturnsItemsCount()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -1287,7 +1315,7 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"name\":\"recent\"");
+        json.Should().Contain("\"name\":\"recent\"").And.Contain("largest-total").And.Contain("smallest-total");
     }
 
     [Fact]
@@ -1352,6 +1380,46 @@ public class SalesRepGraphQlComponentTests
         // Largest YTD total first: org-high (300) → org-mid (200) → org-low (100; the 10000 foreign order is ignored).
         json.IndexOf("org-high", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-mid", StringComparison.Ordinal));
         json.IndexOf("org-mid", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-low", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_SortByName_Descending_ReversesOrder()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("Acme", "Globex", "Umbrella");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "Acme", "Globex", "Umbrella");
+
+        // sortDescending overrides the "name" rule's natural A→Z.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"name\", sortDescending:true) { items { organizationName } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Z→A: Umbrella → Globex → Acme.
+        json.IndexOf("Umbrella", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("Globex", StringComparison.Ordinal));
+        json.IndexOf("Globex", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("Acme", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_SortByYtdPurchases_Ascending_RanksSmallestFirst()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-high", "org-mid", "org-low");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-high", "org-mid", "org-low");
+        var thisYear = new DateTime(DateTime.UtcNow.Year, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        SeedOrder(ctx, id: "h", org: "org-high", number: "ORD-H", createdDate: thisYear, total: 300m);
+        SeedOrder(ctx, id: "m", org: "org-mid", number: "ORD-M", createdDate: thisYear, total: 200m);
+        SeedOrder(ctx, id: "l", org: "org-low", number: "ORD-L", createdDate: thisYear, total: 100m);
+
+        // sortDescending:false flips "ytd-purchases" from its natural biggest-first to smallest-first.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"ytd-purchases\", sortDescending:false) { items { organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Smallest YTD total first: org-low (100) → org-mid (200) → org-high (300).
+        json.IndexOf("org-low", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-mid", StringComparison.Ordinal));
+        json.IndexOf("org-mid", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-high", StringComparison.Ordinal));
     }
 
     [Fact]

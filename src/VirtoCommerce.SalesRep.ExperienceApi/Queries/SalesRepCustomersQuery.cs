@@ -39,6 +39,12 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>,
     /// <summary>GraphQL selection paths of the requested fields — drives the member response group (load only what was asked for).</summary>
     public IList<string> IncludeFields { get; set; } = [];
 
+    /// <summary>
+    /// Optional explicit sort direction that overrides the selected sort rule's natural one — true = descending,
+    /// false = ascending. Omit to use the rule's default (name A→Z; "my last orders" / "ytd purchases" biggest first).
+    /// </summary>
+    public bool? SortDescending { get; set; }
+
     public override IEnumerable<QueryArgument> GetArguments()
     {
         foreach (var argument in base.GetArguments())
@@ -49,6 +55,7 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>,
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope each customer's last order to (defaults to all stores).");
         yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Selected customer-segment name (a salesRepCustomerFilterRules 'name'); narrows to that segment. Omit for all served customers.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for each customer's lastOrder localized fields (statusDisplayValue, total.formattedAmount), e.g. \"en-US\".");
+        yield return Argument<BooleanGraphType>(nameof(SortDescending), "Override the sort rule's natural direction: true = descending, false = ascending. Omit to use the rule's default.");
     }
 
     public override void Map(IResolveFieldContext context)
@@ -58,6 +65,7 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>,
         StoreId = context.GetArgument<string>(nameof(StoreId));
         Filter = context.GetArgument<string>(SalesRepFilters.ArgumentName);
         CultureName = context.GetArgument<string>(nameof(CultureName));
+        SortDescending = context.GetArgument<bool?>(nameof(SortDescending));
 
         // Requested field paths (e.g. "items.address.city") → used to load only the needed member data.
         IncludeFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];

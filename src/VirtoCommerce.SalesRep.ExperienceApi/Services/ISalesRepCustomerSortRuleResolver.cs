@@ -14,6 +14,9 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// </summary>
 public interface ISalesRepCustomerSortRuleResolver : ISortRuleResolver<SalesRepCustomerSortRule>
 {
-    /// <summary>Resolves the selected (or default) ordering to a concrete spec the customers handler applies.</summary>
-    Task<SalesRepCustomerSortSpec> ResolveSortAsync(string storeId, string sort);
+    /// <summary>
+    /// Resolves the selected (or default) ordering to a concrete spec the customers handler applies.
+    /// <paramref name="descending"/> overrides the rule's natural direction when supplied (null = use the default).
+    /// </summary>
+    Task<SalesRepCustomerSortSpec> ResolveSortAsync(string storeId, string sort, bool? descending);
 }
