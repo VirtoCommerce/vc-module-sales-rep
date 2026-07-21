@@ -67,17 +67,20 @@ public static class ModuleConstants
         /// time-to-live, in minutes, of the corresponding aggregate's memory cache; 0 (or negative) disables caching
         /// for that query. Module-global and non-public: they are operational tuning, not per-store storefront data,
         /// so they are registered only against the module (not the Store type) and never exposed to the storefront.
-        /// Defaults differ by how fast the underlying data moves — order/cart aggregates change often, the customer
-        /// counters (ordering + newly-assigned customers) change rarely.
+        /// All default to <see cref="DefaultCacheLifetimeMinutes"/>; override an individual query if one aggregate
+        /// needs a different freshness.
         /// </summary>
         public static class Caching
         {
+            /// <summary>Default time-to-live (minutes) applied to every statistics cache unless overridden.</summary>
+            public const int DefaultCacheLifetimeMinutes = 5;
+
             public static SettingDescriptor OrderStatisticsCacheExpiration { get; } = new()
             {
                 Name = "SalesRep.Statistics.OrderCacheExpirationMinutes",
                 GroupName = "Sales Rep|Statistics",
                 ValueType = SettingValueType.Integer,
-                DefaultValue = 5,
+                DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
             public static SettingDescriptor CartStatisticsCacheExpiration { get; } = new()
@@ -85,7 +88,7 @@ public static class ModuleConstants
                 Name = "SalesRep.Statistics.CartCacheExpirationMinutes",
                 GroupName = "Sales Rep|Statistics",
                 ValueType = SettingValueType.Integer,
-                DefaultValue = 5,
+                DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
             public static SettingDescriptor CustomerCountsCacheExpiration { get; } = new()
@@ -93,7 +96,7 @@ public static class ModuleConstants
                 Name = "SalesRep.Statistics.CustomerCountsCacheExpirationMinutes",
                 GroupName = "Sales Rep|Statistics",
                 ValueType = SettingValueType.Integer,
-                DefaultValue = 15,
+                DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
             public static SettingDescriptor TopSellerCacheExpiration { get; } = new()
@@ -101,7 +104,7 @@ public static class ModuleConstants
                 Name = "SalesRep.Statistics.TopSellerCacheExpirationMinutes",
                 GroupName = "Sales Rep|Statistics",
                 ValueType = SettingValueType.Integer,
-                DefaultValue = 5,
+                DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
             public static IEnumerable<SettingDescriptor> AllCachingSettings
