@@ -29,7 +29,9 @@ public class SalesRepStatisticsListConsistencyGraphQlTests
     [InlineData("Inactive", 1)]      // composite status (→ Cancelled + Failed) → the one Failed order
     public async Task ListTotalCount_MatchesStatisticsCount_ForSameStatusFilter(string statusName, int expected)
     {
-        using var ctx = SalesRepTestContext.Create();
+        // The composite "Inactive" row exercises a 1:many rule, a project-override of the real resolver; the "New"
+        // and no-filter rows ride the real default 1:1 statuses it also exposes.
+        using var ctx = SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, "n1", "org-1", _feb2026, status: "New");

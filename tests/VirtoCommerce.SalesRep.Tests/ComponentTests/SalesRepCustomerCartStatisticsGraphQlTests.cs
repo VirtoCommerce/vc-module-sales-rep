@@ -274,6 +274,33 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         json.Should().MatchRegex("(?i)anonym");
     }
 
+    [Fact]
+    public async Task Cart_FilterRules_ExposesActiveCartsKind()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        // Discovery query the storefront reads to build the cart-kind filter UI. The default resolver exposes a single
+        // built-in "active-carts" kind (send its name back as the salesRepCustomerCartStatistics filter argument).
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCartFilterRules(storeId:\"B2B-store\") { name localizedName } }",
+            userId: "any-authenticated-user");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"name\":\"active-carts\"").And.Contain("Active carts");
+    }
+
+    [Fact]
+    public async Task Cart_FilterRules_Anonymous_ReturnsAuthorizationError()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        var json = await ctx.ExecuteGraphQlAnonymousAsync(
+            "query { salesRepCartFilterRules(storeId:\"B2B-store\") { name } }");
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)anonym");
+    }
+
     // ---- helpers ----
 
     private static JsonElement Stats(string json)

@@ -21,13 +21,11 @@ using VirtoCommerce.CatalogModule.Data.Search;
 using VirtoCommerce.CoreModule.Core.Common;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.OrdersModule.Core.Model;
-using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Settings;
-using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
@@ -157,10 +155,12 @@ internal static class TestGraphQlConfiguration
         // default = EUR) + ICurrencyService (AddOrderSlice; USD primary + EUR).
         services.AddSingleton<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
 
-        // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
-        // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many filter resolution
-        // end to end. The real default SalesRepOrderFilterRuleResolver is unit-tested separately.
-        services.AddSingleton<ISalesRepOrderFilterRuleResolver, StubOrderFilterRuleResolver>();
+        // Order statuses: the REAL default resolver. It reads the store's configured Order.Status dictionary from
+        // ILocalizableSettingService (the StubLocalizableSettingService below supplies a fixed status set) and maps
+        // each configured status to a 1:1 rule. Composite (1:many) grouping is a documented project-override
+        // capability, exercised end to end by the tests that build the harness with a CompositeOrderFilterRuleResolver
+        // override (SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus)).
+        services.AddSingleton<ISalesRepOrderFilterRuleResolver, SalesRepOrderFilterRuleResolver>();
 
         // Customer segments: the real default resolver (single "All" baseline segment) — proves the shared seam's
         // passthrough (no filter / "All" → baseline) and fail-closed (any other segment name → no data) behavior on
@@ -272,77 +272,23 @@ internal static class TestGraphQlConfiguration
     }
 
     /// <summary>
-    /// Stand-in status service acting as a "project override": a 1:1 rule ("New") plus a composite ("Inactive" →
-    /// Cancelled + Failed) so tests can prove the rule list and the 1:many (composite) filter resolution.
-    /// </summary>
-    private sealed class StubOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
-    {
-        private static readonly IList<SalesRepOrderFilterRule> _statuses =
-        [
-            SalesRepOrderFilterRule.Create("New", "New", "New"),
-            SalesRepOrderFilterRule.Create("Inactive", "Not active", "Cancelled", "Failed"),
-        ];
-
-        public Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(string storeId, string cultureName)
-            => Task.FromResult(_statuses);
-
-        public Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, string filter, CustomerOrderSearchCriteria criteria)
-        {
-            var resolved = Resolve(filter);
-            if (resolved == null)
-            {
-                return Task.FromResult<CustomerOrderSearchCriteria>(null); // fail-closed
-            }
-
-            if (resolved.Length > 0)
-            {
-                criteria.Statuses = resolved;
-            }
-
-            return Task.FromResult(criteria);
-        }
-
-        public Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerOrderStatisticsCriteria criteria)
-        {
-            var resolved = Resolve(filter);
-            if (resolved == null)
-            {
-                return Task.FromResult<CustomerOrderStatisticsCriteria>(null); // fail-closed
-            }
-
-            if (resolved.Length > 0)
-            {
-                criteria.Statuses = resolved;
-            }
-
-            return Task.FromResult(criteria);
-        }
-
-        // Shared resolution: empty = no filter; non-empty = the rule's statuses; null = a name was given but unknown.
-        private static string[] Resolve(string filter)
-        {
-            if (string.IsNullOrEmpty(filter))
-            {
-                return [];
-            }
-
-            var rule = _statuses.FirstOrDefault(x => string.Equals(x.Name, filter, StringComparison.OrdinalIgnoreCase));
-            return rule?.OrderStatuses;
-        }
-    }
-
-    /// <summary>
     /// Stand-in localizable settings: renders a status as "&lt;raw&gt; (&lt;culture&gt;)" so LocalizedField's output is
     /// observable AND proves the culture reached the resolver. Mirrors the real service by returning the raw key
     /// unchanged when no culture is supplied.
     /// </summary>
     private sealed class StubLocalizableSettingService : ILocalizableSettingService
     {
+        /// <summary>The configured Order.Status dictionary the real <see cref="SalesRepOrderFilterRuleResolver"/> reads
+        /// to build its 1:1 status rules — a fixed, representative set covering every status the component tests seed.</summary>
+        private static readonly string[] _orderStatuses = ["New", "Processing", "Completed", "Cancelled", "Failed"];
+
         public Task<string> TranslateAsync(string key, string settingName, string languageCode)
             => Task.FromResult(string.IsNullOrEmpty(key) || string.IsNullOrEmpty(languageCode) ? key : $"{key} ({languageCode})");
 
+        // KeyValue.Key = raw status, Value = localized label. The stub keeps them equal (the label matches the raw
+        // status) — enough for the resolver to expose one rule per configured status.
         public Task<IList<KeyValue>> GetValuesAsync(string settingName, string languageCode)
-            => Task.FromResult<IList<KeyValue>>([]);
+            => Task.FromResult<IList<KeyValue>>(_orderStatuses.Select(s => new KeyValue { Key = s, Value = s }).ToList());
 
         public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new NotSupportedException();
         public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();

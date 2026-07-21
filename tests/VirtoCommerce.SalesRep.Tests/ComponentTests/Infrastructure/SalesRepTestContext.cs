@@ -88,7 +88,12 @@ internal sealed class SalesRepTestContext : IDisposable
         _catalogOptions = catalogOptions;
     }
 
-    public static SalesRepTestContext Create()
+    /// <param name="configureOverrides">
+    /// Optional last-wins registrations applied after the standard slices — a test uses it to shadow a default service
+    /// with a project-override double (e.g. <see cref="OrderFilterRuleOverride.WithCompositeInactiveStatus"/> to
+    /// exercise composite order-status resolution). Omit for the default (real-service) harness.
+    /// </param>
+    public static SalesRepTestContext Create(Action<IServiceCollection> configureOverrides = null)
     {
         // The platform resolves the current user id from these claim types; they are configured at platform
         // startup, so set them here for the GraphQL current-user resolution to work in tests.
@@ -107,15 +112,19 @@ internal sealed class SalesRepTestContext : IDisposable
         var cartOptions = SqliteTestDbContextFactory.CreateOptions<CartDbContext>(cartConnection);
         var catalogOptions = SqliteTestDbContextFactory.CreateOptions<CatalogDbContext>(catalogConnection);
 
-        var provider = new ServiceCollection()
+        var services = new ServiceCollection()
             .AddSecuritySlice(securityOptions)
             .AddCustomerSlice(customerOptions)
             .AddSalesRepSlice()
             .AddOrderSlice(orderOptions)
             .AddCartSlice(cartOptions)
             .AddCatalogSlice(catalogOptions)
-            .AddSalesRepGraphQl()
-            .BuildServiceProvider();
+            .AddSalesRepGraphQl();
+
+        // Per-test last-wins overrides (e.g. a composite order-status resolver), applied after the defaults.
+        configureOverrides?.Invoke(services);
+
+        var provider = services.BuildServiceProvider();
 
         // Subscribe the customer delete-cascade handler to the in-process bus — mirrors the customer module's
         // appBuilder.RegisterEventHandler<UserChangedEvent, DeleteOrganizationMembershipUserChangedEventHandler>().

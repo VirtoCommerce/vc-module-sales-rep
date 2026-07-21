@@ -345,13 +345,14 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
     [Fact]
     public async Task Statistics_StatusFilter_ResolvesCompositeStatus()
     {
-        using var ctx = SalesRepTestContext.Create();
+        // A composite "Inactive" → { Cancelled, Failed } rule is a project-override of the real resolver.
+        using var ctx = SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, "n1", "org-1", 100m, _feb2026, status: "New");
         SeedOrder(ctx, "f1", "org-1", 500m, _feb2026, status: "Failed"); // part of the "Inactive" composite
 
-        // The stub status service maps the business name "Inactive" → { Cancelled, Failed } (1:many).
+        // The override status service maps the business name "Inactive" → { Cancelled, Failed } (1:many).
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
