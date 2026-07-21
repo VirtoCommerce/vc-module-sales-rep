@@ -27,13 +27,13 @@ public class SalesRepCustomerQuery : Query<SalesRepCustomerDetails>, IHasInclude
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        yield return Argument<NonNullGraphType<StringGraphType>>("organizationId", "Organization (customer) id.");
+        yield return Argument<NonNullGraphType<StringGraphType>>(nameof(OrganizationId), "Organization (customer) id.");
     }
 
     public override void Map(IResolveFieldContext context)
     {
         // Identity comes from the caller's claims; only the organization id is a client argument.
-        OrganizationId = context.GetArgument<string>("organizationId");
+        OrganizationId = context.GetArgument<string>(nameof(OrganizationId));
         UserId = context.GetCurrentUserId();
 
         // Requested field paths (e.g. "address.city") → used to load only the needed member data.

@@ -19,7 +19,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 /// </summary>
 public abstract class SalesRepStatisticsQueryHandlerBase<TQuery, TContext> : SalesRepQueryHandlerBase, IQueryHandler<TQuery, TContext>
     where TQuery : Query<TContext>, ISalesRepStatisticsQuery
-    where TContext : SalesRepStatisticsContext
+    where TContext : SalesRepMonetaryStatisticsContext
 {
     private readonly ISalesRepCurrencyResolver _currencyResolver;
 

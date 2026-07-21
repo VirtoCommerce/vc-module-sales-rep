@@ -42,25 +42,25 @@ public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCo
 
         Field<SalesRepCustomerCountsPeriodType>("period")
             .Description("Customer counters for a single date range. Omit both bounds for lifetime.")
-            .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the order created date (null = no upper bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the order created date (null = no lower bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the order created date (null = no upper bound).")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional customer-segment rule name (a salesRepCustomerFilterRules 'name'); counts only customers matching that segment. Omit for all served customers.")
             .Resolve(context =>
             {
-                var from = context.GetArgument<DateTime?>("from");
-                var to = context.GetArgument<DateTime?>("to");
+                var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
+                var to = context.GetArgument<DateTime?>(StatisticsFieldHelper.ToArgument);
                 return GetPeriodLoader(context).LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context)));
             });
 
         Field<SalesRepCustomerCountsComparisonType>("comparison")
             .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket shared with a 'period' selection is not queried again.")
-            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("current", "The later period.")
-            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("previous", "The baseline period to compare against.")
+            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.CurrentArgument, "The later period.")
+            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.PreviousArgument, "The baseline period to compare against.")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional customer-segment rule name applied to both periods (see 'period.filter').")
             .Resolve(context =>
             {
-                var current = context.GetArgument<SalesRepStatisticsPeriodInput>("current");
-                var previous = context.GetArgument<SalesRepStatisticsPeriodInput>("previous");
+                var current = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.CurrentArgument);
+                var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
                 var loader = GetPeriodLoader(context);
 
@@ -97,7 +97,7 @@ public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCo
                     var filtered = await _filterRuleResolver.ApplyCountsFilterAsync(countsContext.StoreId, bucket.Filter, criteria);
 
                     var period = filtered == null
-                        ? EmptyPeriod()
+                        ? StatisticsFieldHelper.EmptyPeriod<SalesRepCustomerCountsPeriod>()
                         : await _countsService.GetCountsAsync(filtered);
                     return (bucket, period);
                 });
@@ -106,9 +106,6 @@ public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCo
                 return results.ToDictionary(x => x.bucket, x => x.period);
             });
     }
-
-    private static SalesRepCustomerCountsPeriod EmptyPeriod()
-        => AbstractTypeFactory<SalesRepCustomerCountsPeriod>.TryCreateInstance();
 
     private static SalesRepCustomerCountsComparison BuildComparison(SalesRepCustomerCountsPeriod current, SalesRepCustomerCountsPeriod previous)
     {

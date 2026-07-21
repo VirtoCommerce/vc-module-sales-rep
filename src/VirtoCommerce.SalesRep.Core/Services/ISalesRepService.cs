@@ -4,6 +4,10 @@ using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Core.Services;
 
+/// <summary>
+/// CRUD for the Sales Rep aggregate (a Contact plus its security account, roles and organization memberships):
+/// load, create, update and delete a rep by its contact member id.
+/// </summary>
 public interface ISalesRepService
 {
     /// <summary>Load a Sales Rep aggregate by its contact member id.</summary>

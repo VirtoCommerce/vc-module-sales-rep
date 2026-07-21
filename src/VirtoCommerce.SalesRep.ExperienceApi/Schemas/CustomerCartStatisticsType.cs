@@ -26,16 +26,16 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 {
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
     private readonly ICustomerCartStatisticsService _statisticsService;
-    private readonly ISalesRepCartFilterRuleResolver _kindService;
+    private readonly ISalesRepCartFilterRuleResolver _filterRuleResolver;
 
     public CustomerCartStatisticsType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
         ICustomerCartStatisticsService statisticsService,
-        ISalesRepCartFilterRuleResolver kindService)
+        ISalesRepCartFilterRuleResolver filterRuleResolver)
     {
         _dataLoaderContextAccessor = dataLoaderContextAccessor;
         _statisticsService = statisticsService;
-        _kindService = kindService;
+        _filterRuleResolver = filterRuleResolver;
 
         Name = "CustomerCartStatistics";
 
@@ -43,25 +43,25 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
         Field<CustomerCartStatisticsPeriodType>("period")
             .Description("Cart statistics for a single date range. Omit both bounds for lifetime.")
-            .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the cart created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the cart created date (null = no upper bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the cart created date (null = no lower bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the cart created date (null = no upper bound).")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); counts only carts matching that rule's type/status/contents filter. Omit for every cart.")
             .Resolve(context =>
             {
-                var from = context.GetArgument<DateTime?>("from");
-                var to = context.GetArgument<DateTime?>("to");
+                var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
+                var to = context.GetArgument<DateTime?>(StatisticsFieldHelper.ToArgument);
                 return GetPeriodLoader(context).LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context)));
             });
 
         Field<CustomerCartStatisticsComparisonType>("comparison")
             .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket shared with a 'period' selection is not queried again.")
-            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("current", "The later period.")
-            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("previous", "The baseline period to compare against.")
+            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.CurrentArgument, "The later period.")
+            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.PreviousArgument, "The baseline period to compare against.")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name applied to both periods (see 'period.filter').")
             .Resolve(context =>
             {
-                var current = context.GetArgument<SalesRepStatisticsPeriodInput>("current");
-                var previous = context.GetArgument<SalesRepStatisticsPeriodInput>("previous");
+                var current = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.CurrentArgument);
+                var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
 
                 var loader = GetPeriodLoader(context);
@@ -100,10 +100,10 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
                     // Apply the selected rule's type/status filter through the shared resolver. Null = a rule name
                     // was given but is unrecognized → fail-closed: a zeroed period, not "count every cart".
-                    var filtered = await _kindService.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
+                    var filtered = await _filterRuleResolver.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
 
                     var period = filtered == null
-                        ? EmptyPeriod(statisticsContext.CurrencyCode)
+                        ? StatisticsFieldHelper.EmptyPeriod<CustomerCartStatisticsPeriod>(p => p.CurrencyCode = statisticsContext.CurrencyCode)
                         : await _statisticsService.GetStatisticsAsync(filtered);
                     return (bucket, period);
                 });
@@ -111,13 +111,6 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                 var results = await Task.WhenAll(tasks);
                 return results.ToDictionary(x => x.bucket, x => x.period);
             });
-    }
-
-    private static CustomerCartStatisticsPeriod EmptyPeriod(string currencyCode)
-    {
-        var period = AbstractTypeFactory<CustomerCartStatisticsPeriod>.TryCreateInstance();
-        period.CurrencyCode = currencyCode;
-        return period;
     }
 
     private static CustomerCartStatisticsComparison BuildComparison(CustomerCartStatisticsPeriod current, CustomerCartStatisticsPeriod previous)

@@ -13,7 +13,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 /// <summary>
 /// Base builder for the Sales Rep search (paged connection) queries. Enforces the module-wide rules in one place —
-/// the caller must be an authenticated Sales Rep, and this field's arguments (e.g. cultureName) are propagated to the
+/// the caller must be authenticated (rep authorization is enforced per-query in the handlers), and this field's arguments (e.g. cultureName) are propagated to the
 /// UserContext for nested item resolvers — so a new search query can't ship without either. Derived builders that
 /// need further pre-send work override <see cref="BeforeMediatorSend"/> and call <c>base.BeforeMediatorSend</c> first.
 /// </summary>

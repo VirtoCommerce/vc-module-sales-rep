@@ -77,8 +77,8 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 
         Field<CustomerOrderStatisticsPeriodType>("orderStatistics")
             .Description("The rep's own order statistics for this customer over a date range (YTD purchases, order count, average, first/last order). Omit both bounds for lifetime; request several aliased selections (e.g. ytd + lastYtd) to build the purchase columns.")
-            .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the order created date (null = no upper bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the order created date (null = no lower bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the order created date (null = no upper bound).")
             .Argument<StringGraphType>("currencyCode", "Currency to convert the figures to (defaults to the store's default currency, then the platform primary).")
             .Resolve(context =>
             {
@@ -88,8 +88,8 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                     return null;
                 }
 
-                var from = context.GetArgument<DateTime?>("from");
-                var to = context.GetArgument<DateTime?>("to");
+                var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
+                var to = context.GetArgument<DateTime?>(StatisticsFieldHelper.ToArgument);
 
                 var currencyCode = context.GetArgument<string>("currencyCode");
                 if (string.IsNullOrEmpty(currencyCode))
@@ -123,7 +123,7 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                         // (zeroed) period so the row still renders.
                         return ids.ToDictionary(
                             id => id,
-                            id => byOrganization.TryGetValue(id, out var period) ? period : EmptyPeriod(currencyCode),
+                            id => byOrganization.TryGetValue(id, out var period) ? period : StatisticsFieldHelper.EmptyPeriod<CustomerOrderStatisticsPeriod>(p => p.CurrencyCode = currencyCode),
                             StringComparer.OrdinalIgnoreCase);
                     },
                     // Dedupe the batch keys case-insensitively, matching both the result dictionary above and the
@@ -132,12 +132,5 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 
                 return loader.LoadAsync(organizationId);
             });
-    }
-
-    private static CustomerOrderStatisticsPeriod EmptyPeriod(string currencyCode)
-    {
-        var period = AbstractTypeFactory<CustomerOrderStatisticsPeriod>.TryCreateInstance();
-        period.CurrencyCode = currencyCode;
-        return period;
     }
 }

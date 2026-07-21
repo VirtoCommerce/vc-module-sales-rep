@@ -18,5 +18,5 @@ public interface ISalesRepTopSellerFilterRuleResolver : IFilterRuleResolver<Sale
     /// it. Returns the criteria unchanged when <paramref name="filter"/> is null/empty (all categories), and
     /// <c>null</c> when a category name was given but is unrecognized (fail-closed).
     /// </summary>
-    Task<SalesRepTopSellerCriteria> ApplyFilterAsync(string storeId, string filter, SalesRepTopSellerCriteria criteria);
+    Task<SalesRepTopSellerCriteria> ApplyListFilterAsync(string storeId, string filter, SalesRepTopSellerCriteria criteria);
 }

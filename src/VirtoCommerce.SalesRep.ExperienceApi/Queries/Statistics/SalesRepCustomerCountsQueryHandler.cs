@@ -9,6 +9,11 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
+/// <summary>
+/// Builds the "my customers" counts context for the current Sales Rep: resolves the organizations they serve and the
+/// per-organization assignment dates (from their granting memberships), so the counters (ordering / new customers)
+/// can be computed per date range. Returns null when the caller has no identity or serves no organizations.
+/// </summary>
 public class SalesRepCustomerCountsQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerCountsQuery, SalesRepCustomerCountsContext>
 {
     public SalesRepCustomerCountsQueryHandler(

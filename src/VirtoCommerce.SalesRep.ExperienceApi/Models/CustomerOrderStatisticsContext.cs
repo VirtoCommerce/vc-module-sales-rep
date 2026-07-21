@@ -5,6 +5,6 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 /// <c>period</c>/<c>comparison</c> sub-field (see <see cref="SalesRepStatisticsContext"/>). Date ranges come from
 /// the sub-field arguments, not here.
 /// </summary>
-public class CustomerOrderStatisticsContext : SalesRepStatisticsContext
+public class CustomerOrderStatisticsContext : SalesRepMonetaryStatisticsContext
 {
 }

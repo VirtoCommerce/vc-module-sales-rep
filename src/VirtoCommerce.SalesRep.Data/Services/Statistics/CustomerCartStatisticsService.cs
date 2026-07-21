@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using VirtoCommerce.CartModule.Data.Model;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.Platform.Core.Caching;
@@ -68,6 +69,26 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
     {
         using var repository = _cartRepositoryFactory();
 
+        return await BuildQuery(repository, criteria)
+            .GroupBy(x => x.Currency)
+            .Select(g => new PerCurrencyAggregate
+            {
+                Currency = g.Key,
+                Total = g.Sum(x => x.Total),
+                Count = g.Count(),
+                LastCartDate = g.Max(x => x.CreatedDate),
+            })
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// The scoped cart query the aggregate runs over: never soft-deleted carts, then the criteria's organization /
+    /// creator / store scope, cart type / exclude-type / status filters, the non-empty flag, and the inclusive
+    /// created-date range. The extension seam mirroring the order-statistics/counts services — a project subclasses
+    /// this service, calls <c>base</c>, and adds its own predicate for a cart-kind rule the standard criteria can't express.
+    /// </summary>
+    protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    {
         var query = repository.ShoppingCarts.Where(x => !x.IsDeleted);
 
         if (!criteria.OrganizationIds.IsNullOrEmpty())
@@ -121,16 +142,7 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
         }
 
-        return await query
-            .GroupBy(x => x.Currency)
-            .Select(g => new PerCurrencyAggregate
-            {
-                Currency = g.Key,
-                Total = g.Sum(x => x.Total),
-                Count = g.Count(),
-                LastCartDate = g.Max(x => x.CreatedDate),
-            })
-            .ToListAsync();
+        return query;
     }
 
     /// <summary>

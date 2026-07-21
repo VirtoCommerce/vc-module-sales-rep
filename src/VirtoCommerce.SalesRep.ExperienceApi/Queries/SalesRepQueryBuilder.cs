@@ -11,7 +11,8 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 /// <summary>
 /// Base builder for the Sales Rep single-result queries. Enforces the module-wide access rule in one place — the
-/// caller must be an authenticated Sales Rep — so a new query can't ship without the guard. Derived builders that
+/// caller must be authenticated (rep authorization is enforced per-query in the handlers) — so a new query can't
+/// ship without the guard. Derived builders that
 /// need extra pre-send work (e.g. propagating arguments) override <see cref="BeforeMediatorSend"/> and call
 /// <c>base.BeforeMediatorSend</c> first.
 /// </summary>

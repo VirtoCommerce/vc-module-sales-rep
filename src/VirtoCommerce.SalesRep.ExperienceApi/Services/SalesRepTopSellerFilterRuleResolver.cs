@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,6 +8,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.StoreModule.Core.Services;
 
@@ -26,7 +26,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// <see cref="ICategorySearchService"/> and the store's catalog via <see cref="IStoreService"/>. A project replaces
 /// this service (DI last-registration wins) to group categories or add rules.
 /// </summary>
-public class SalesRepTopSellerFilterRuleResolver : ISalesRepTopSellerFilterRuleResolver
+public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesRepTopSellerFilterRule>, ISalesRepTopSellerFilterRuleResolver
 {
     /// <summary>Page size used to page the catalog category tree via <c>SearchAllNoCloneAsync</c>.</summary>
     protected const int CategorySearchPageSize = 50;
@@ -48,7 +48,7 @@ public class SalesRepTopSellerFilterRuleResolver : ISalesRepTopSellerFilterRuleR
         _topSellerService = topSellerService;
     }
 
-    public virtual async Task<IList<SalesRepTopSellerFilterRule>> GetRulesAsync(string storeId, string cultureName)
+    public override async Task<IList<SalesRepTopSellerFilterRule>> GetRulesAsync(string storeId, string cultureName)
     {
         var catalogId = await GetStoreCatalogIdAsync(storeId);
         var categories = await GetCatalogCategoriesAsync(catalogId);
@@ -61,27 +61,25 @@ public class SalesRepTopSellerFilterRuleResolver : ISalesRepTopSellerFilterRuleR
             .ToList();
     }
 
-    public virtual async Task<SalesRepTopSellerCriteria> ApplyFilterAsync(string storeId, string filter, SalesRepTopSellerCriteria criteria)
+    public virtual async Task<SalesRepTopSellerCriteria> ApplyListFilterAsync(string storeId, string filter, SalesRepTopSellerCriteria criteria)
     {
         if (string.IsNullOrEmpty(filter))
         {
             return criteria; // no category constraint — all categories
         }
 
+        // Resolve the selected badge through the same rule set the discovery query exposes, so a project that hides
+        // or regroups categories via GetRulesAsync changes what this accepts too. Unrecognized → fail closed.
+        var rule = await ResolveNamedRuleAsync(storeId, filter);
+        if (rule == null)
+        {
+            return null;
+        }
+
         var catalogId = await GetStoreCatalogIdAsync(storeId);
         if (string.IsNullOrEmpty(catalogId))
         {
             return null; // no store catalog to resolve the category against — fail closed
-        }
-
-        var categories = await GetCatalogCategoriesAsync(catalogId);
-
-        // The selection must be a recognized non-hidden top-level category; otherwise fail closed.
-        var root = categories.FirstOrDefault(x =>
-            string.Equals(x.Id, filter, StringComparison.OrdinalIgnoreCase) && IsTopLevel(x) && x.IsActive != false);
-        if (root == null)
-        {
-            return null;
         }
 
         // Bound the index lookup by the rep's own sold products in scope (creator scope already applied by the
@@ -100,7 +98,7 @@ public class SalesRepTopSellerFilterRuleResolver : ISalesRepTopSellerFilterRuleR
         // outline term whose prefix match selects the whole subtree.
         var searchCriteria = AbstractTypeFactory<ProductIndexedSearchCriteria>.TryCreateInstance();
         searchCriteria.CatalogId = catalogId;
-        searchCriteria.Outline = root.Id;
+        searchCriteria.Outline = rule.Name; // the rule name is the category id
         searchCriteria.ObjectIds = candidateProductIds.ToArray();
         searchCriteria.Take = candidateProductIds.Count;
 

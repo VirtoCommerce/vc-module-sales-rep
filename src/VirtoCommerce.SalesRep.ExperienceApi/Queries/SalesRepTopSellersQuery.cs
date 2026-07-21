@@ -19,8 +19,8 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// </summary>
 public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
 {
-    /// <summary>Default number of top products returned when the caller omits <c>take</c>.</summary>
-    public const int DefaultTake = 5;
+    /// <summary>Default number of top products returned when the caller omits <c>take</c> (the Core criteria default).</summary>
+    public const int DefaultTake = SalesRepTopSellerCriteria.DefaultTake;
 
     /// <summary>Upper bound the handler clamps <c>take</c> to.</summary>
     public const int MaxTake = 10;
@@ -57,9 +57,9 @@ public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
         yield return Argument<StringGraphType>(nameof(OrganizationId), "Organization (customer) id to scope to; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (and whose catalog backs the category filter).");
         yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Selected category badge (a salesRepTopSellerFilterRules 'name'); restricts to that category's subtree. Omit for all categories.");
-        yield return Argument<StringGraphType>("sort", "Selected ordering (a salesRepTopSellerSortRules 'name'); defaults to by-units.");
+        yield return Argument<StringGraphType>(nameof(Sort), "Selected ordering (a salesRepTopSellerSortRules 'name'); defaults to by-units.");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional created-date range to aggregate over (omit for lifetime).");
-        yield return Argument<IntGraphType>(nameof(Take), "How many top products to return (default 5, max 10).");
+        yield return Argument<IntGraphType>(nameof(Take), $"How many top products to return (default {DefaultTake}, max {MaxTake}).");
         yield return Argument<StringGraphType>(nameof(CurrencyCode), "Currency to convert revenue to (defaults to the store's default currency).");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the revenue formatted amount (\"en-US\").");
     }
@@ -69,7 +69,7 @@ public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
         OrganizationId = context.GetArgument<string>(nameof(OrganizationId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
         Filter = context.GetArgument<string>(SalesRepFilters.ArgumentName);
-        Sort = context.GetArgument<string>("sort");
+        Sort = context.GetArgument<string>(nameof(Sort));
         Period = context.GetArgument<SalesRepStatisticsPeriodInput>(nameof(Period));
         Take = context.GetArgument<int?>(nameof(Take)) ?? DefaultTake;
         CurrencyCode = context.GetArgument<string>(nameof(CurrencyCode));

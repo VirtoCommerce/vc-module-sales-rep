@@ -1,10 +1,10 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using OrderSettings = VirtoCommerce.OrdersModule.Core.ModuleConstants.Settings.General;
 
@@ -15,7 +15,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// override this service to group / hide / add statuses. Both apply methods share <see cref="ResolveStatusesAsync"/>,
 /// so the list and the statistics filter identically.
 /// </summary>
-public class SalesRepOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
+public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOrderFilterRule>, ISalesRepOrderFilterRuleResolver
 {
     private readonly ILocalizableSettingService _localizableSettingService;
 
@@ -24,7 +24,7 @@ public class SalesRepOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
         _localizableSettingService = localizableSettingService;
     }
 
-    public virtual async Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(string storeId, string cultureName)
+    public override async Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(string storeId, string cultureName)
     {
         // The platform's configured, localizable order-status dictionary (KeyValue.Key = raw status, Value = label).
         var values = await _localizableSettingService.GetValuesAsync(OrderSettings.OrderStatus.Name, cultureName);
@@ -79,8 +79,7 @@ public class SalesRepOrderFilterRuleResolver : ISalesRepOrderFilterRuleResolver
             return [];
         }
 
-        var rules = await GetRulesAsync(storeId, cultureName: null);
-        var rule = rules.FirstOrDefault(x => string.Equals(x.Name, filter, StringComparison.OrdinalIgnoreCase));
+        var rule = await ResolveNamedRuleAsync(storeId, filter);
 
         return rule?.OrderStatuses;
     }

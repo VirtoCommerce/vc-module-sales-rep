@@ -151,26 +151,9 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
     /// </summary>
     protected virtual IQueryable<LineItemEntity> BuildQuery(IOrderRepository repository, SalesRepTopSellerCriteria criteria)
     {
-        var query = repository.LineItems.Where(x =>
-            !x.IsCancelled &&
-            !x.CustomerOrder.IsCancelled &&
-            !x.CustomerOrder.IsPrototype);
-
-        if (!criteria.OrganizationIds.IsNullOrEmpty())
-        {
-            query = query.Where(x => criteria.OrganizationIds.Contains(x.CustomerOrder.OrganizationId));
-        }
-
-        // Creator scoping (data-isolation invariant): only line items of orders the calling rep created.
-        if (!string.IsNullOrEmpty(criteria.CustomerId))
-        {
-            query = query.Where(x => x.CustomerOrder.CustomerId == criteria.CustomerId);
-        }
-
-        if (!string.IsNullOrEmpty(criteria.StoreId))
-        {
-            query = query.Where(x => x.CustomerOrder.StoreId == criteria.StoreId);
-        }
+        // Shared rep scope (excludes cancelled line items + cancelled/prototype orders, then org/creator/store);
+        // category / product / date filters are layered on below.
+        var query = repository.LineItems.ApplyRepScope(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId);
 
         if (!criteria.CategoryIds.IsNullOrEmpty())
         {

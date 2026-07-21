@@ -10,7 +10,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// Source of the Sales Rep customer segments (filter options) shared by both customer readers — the customers list
 /// (<see cref="ApplyListFilterAsync"/>) and the "my customers" counts (<see cref="ApplyCountsFilterAsync"/>) — so a
 /// segment name means the same thing in both. The default implementation defines no segments (a customer segment is
-/// a behavioral predicate the module can't express generically); a project replaces this service (DI last-wins) to
+/// a behavioral predicate the module can't express generically); a project replaces this service (DI last-registration wins) to
 /// add segments, and — for a predicate the standard criteria can't carry — subclasses the reader (narrowing the
 /// members search criteria's <c>ObjectIds</c> for the list, or the counts service's <c>BuildQuery</c> seam).
 /// </summary>

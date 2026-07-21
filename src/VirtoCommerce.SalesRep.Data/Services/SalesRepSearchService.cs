@@ -117,13 +117,17 @@ public class SalesRepSearchService : ISalesRepSearchService
         return BuildRows(criteria, candidateUserIds, usersById, totalCounts, globalRoleUserIds);
     }
 
+    private const string EmailSortColumn = "email";
+    private const string OrganizationsCountSortColumn = "organizationscount";
+    private const string IsLockedSortColumn = "islocked";
+
     // Sort columns backed by an account/aggregate field already on the candidate row (so they can't be a
     // member-DB sort). Everything else — including the default and sort-by-name — is member-backed.
     private static readonly HashSet<string> _rowBackedSortColumns = new(StringComparer.OrdinalIgnoreCase)
     {
-        "email",
-        "organizationscount",
-        "islocked",
+        EmailSortColumn,
+        OrganizationsCountSortColumn,
+        IsLockedSortColumn,
     };
 
     protected static bool IsMemberBackedSort(IList<SortInfo> sortInfos)
@@ -203,8 +207,8 @@ public class SalesRepSearchService : ISalesRepSearchService
         // Only reached for the row-backed columns; default arm is "email".
         Func<CandidateRow, object> selector = sort?.SortColumn?.ToLowerInvariant() switch
         {
-            "organizationscount" => r => r.OrganizationsCount,
-            "islocked" => r => r.IsLocked,
+            OrganizationsCountSortColumn => r => r.OrganizationsCount,
+            IsLockedSortColumn => r => r.IsLocked,
             _ => r => r.Email,
         };
 

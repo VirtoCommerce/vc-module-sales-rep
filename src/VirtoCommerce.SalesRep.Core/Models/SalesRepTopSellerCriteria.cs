@@ -50,8 +50,11 @@ public class SalesRepTopSellerCriteria : ValueObject
     /// <summary>The metric the ranking sorts by.</summary>
     public SalesRepTopSellerSortBy SortBy { get; set; }
 
+    /// <summary>Default value for <see cref="Take"/> when the caller doesn't specify one.</summary>
+    public const int DefaultTake = 5;
+
     /// <summary>Max rows to return — the ranking is top-N only.</summary>
-    public int Take { get; set; } = 5;
+    public int Take { get; set; } = DefaultTake;
 }
 
 /// <summary>The metric the Top Sellers ranking sorts by.</summary>

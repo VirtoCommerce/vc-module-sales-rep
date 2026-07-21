@@ -68,7 +68,7 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         criteria = await _sortRuleResolver.ApplySortAsync(request.StoreId, request.Sort, criteria);
 
         // Category badge (empty → all categories; unrecognized → fail-closed, no results).
-        var filteredCriteria = await _filterRuleResolver.ApplyFilterAsync(request.StoreId, request.Filter, criteria);
+        var filteredCriteria = await _filterRuleResolver.ApplyListFilterAsync(request.StoreId, request.Filter, criteria);
         if (filteredCriteria == null)
         {
             return [];

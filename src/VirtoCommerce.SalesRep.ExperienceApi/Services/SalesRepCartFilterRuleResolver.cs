@@ -1,9 +1,8 @@
-using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.CartModule.Core;
 using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -15,12 +14,12 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// Deliberately does not filter by status — a storefront cart's status is typically null. Projects override this
 /// service to add/hide/recompose kinds (e.g. a "project" wishlist kind, or an "active" status set).
 /// </summary>
-public class SalesRepCartFilterRuleResolver : ISalesRepCartFilterRuleResolver
+public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCartFilterRule>, ISalesRepCartFilterRuleResolver
 {
     /// <summary>The stable name of the built-in "active carts" (non-empty, non-project) kind.</summary>
     public const string ActiveCartsKind = "active-carts";
 
-    public virtual Task<IList<SalesRepCartFilterRule>> GetRulesAsync(string storeId, string cultureName)
+    public override Task<IList<SalesRepCartFilterRule>> GetRulesAsync(string storeId, string cultureName)
     {
         IList<SalesRepCartFilterRule> kinds =
         [
@@ -41,8 +40,7 @@ public class SalesRepCartFilterRuleResolver : ISalesRepCartFilterRuleResolver
             return criteria; // no filter → baseline
         }
 
-        var kinds = await GetRulesAsync(storeId, cultureName: null);
-        var kind = kinds.FirstOrDefault(x => string.Equals(x.Name, filter, StringComparison.OrdinalIgnoreCase));
+        var kind = await ResolveNamedRuleAsync(storeId, filter);
 
         if (kind == null)
         {

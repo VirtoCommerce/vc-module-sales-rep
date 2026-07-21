@@ -13,6 +13,11 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
+/// <summary>
+/// Loads one customer organization's detail card for the Sales Rep (VCST-5308): verifies the rep serves the
+/// requested organization, loads only the fields the caller selected, and resolves the organization's primary
+/// contact (falling back to its first contact). Returns null when the caller has no access.
+/// </summary>
 public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerQuery, SalesRepCustomerDetails>
 {
     private static readonly string _contactResponseGroup =

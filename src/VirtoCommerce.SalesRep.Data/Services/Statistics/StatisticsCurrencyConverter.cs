@@ -58,15 +58,8 @@ internal static class StatisticsCurrencyConverter
             total += new Money(group.Total, sourceCurrency).ConvertTo(targetCurrency).InternalAmount;
             count += group.Count;
 
-            if (group.EarliestDate != null && (earliestDate == null || group.EarliestDate < earliestDate))
-            {
-                earliestDate = group.EarliestDate;
-            }
-
-            if (group.LatestDate != null && (latestDate == null || group.LatestDate > latestDate))
-            {
-                latestDate = group.LatestDate;
-            }
+            earliestDate = EarlierOf(earliestDate, group.EarliestDate);
+            latestDate = LaterOf(latestDate, group.LatestDate);
         }
 
         var roundedTotal = Math.Round(total, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
@@ -76,4 +69,11 @@ internal static class StatisticsCurrencyConverter
 
         return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code);
     }
+
+    // Nullable-aware min/max, extracted so Fold stays flat (keeps its cyclomatic complexity under the gate).
+    private static DateTime? EarlierOf(DateTime? current, DateTime? candidate)
+        => candidate != null && (current == null || candidate < current) ? candidate : current;
+
+    private static DateTime? LaterOf(DateTime? current, DateTime? candidate)
+        => candidate != null && (current == null || candidate > current) ? candidate : current;
 }

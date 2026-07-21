@@ -9,13 +9,13 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 public class SalesRepCartFilterRulesQueryHandler : IQueryHandler<SalesRepCartFilterRulesQuery, IList<SalesRepCartFilterRule>>
 {
-    private readonly ISalesRepCartFilterRuleResolver _kindService;
+    private readonly ISalesRepCartFilterRuleResolver _filterRuleResolver;
 
-    public SalesRepCartFilterRulesQueryHandler(ISalesRepCartFilterRuleResolver kindService)
+    public SalesRepCartFilterRulesQueryHandler(ISalesRepCartFilterRuleResolver filterRuleResolver)
     {
-        _kindService = kindService;
+        _filterRuleResolver = filterRuleResolver;
     }
 
     public virtual Task<IList<SalesRepCartFilterRule>> Handle(SalesRepCartFilterRulesQuery request, CancellationToken cancellationToken)
-        => _kindService.GetRulesAsync(request.StoreId, request.CultureName);
+        => _filterRuleResolver.GetRulesAsync(request.StoreId, request.CultureName);
 }

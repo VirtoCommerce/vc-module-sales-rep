@@ -52,7 +52,7 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
 
         // Which organizations' orders the caller may see: the one requested customer (only if the rep serves it),
         // or — when no customer is specified — every organization the rep is assigned to (the dashboard).
-        var organizationIds = await GetVisibleOrganizationIdsAsync(request);
+        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
         if (organizationIds.Length == 0)
         {
             return result;
@@ -110,12 +110,4 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
 
         return criteria;
     }
-
-    /// <summary>
-    /// The organization ids whose orders the caller may see: a single requested customer the rep serves, or — when
-    /// no customer is specified — every organization the rep is assigned to (the cross-customer dashboard). Returns
-    /// an empty array when the rep serves none (or doesn't serve the requested one), so the caller returns no orders.
-    /// </summary>
-    protected virtual Task<string[]> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
-        => GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
 }

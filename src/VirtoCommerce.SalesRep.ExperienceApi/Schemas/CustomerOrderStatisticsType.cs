@@ -28,16 +28,16 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
 {
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
     private readonly ICustomerOrderStatisticsService _statisticsService;
-    private readonly ISalesRepOrderFilterRuleResolver _statusService;
+    private readonly ISalesRepOrderFilterRuleResolver _filterRuleResolver;
 
     public CustomerOrderStatisticsType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
         ICustomerOrderStatisticsService statisticsService,
-        ISalesRepOrderFilterRuleResolver statusService)
+        ISalesRepOrderFilterRuleResolver filterRuleResolver)
     {
         _dataLoaderContextAccessor = dataLoaderContextAccessor;
         _statisticsService = statisticsService;
-        _statusService = statusService;
+        _filterRuleResolver = filterRuleResolver;
 
         Name = "CustomerOrderStatistics";
 
@@ -45,25 +45,25 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
 
         Field<CustomerOrderStatisticsPeriodType>("period")
             .Description("Order statistics for a single date range. Omit both bounds for lifetime.")
-            .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the order created date (null = no upper bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the order created date (null = no lower bound).")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the order created date (null = no upper bound).")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional filter-rule name (a salesRepOrderFilterRules 'name'); counts only orders matching that rule. Omit for all orders in the range.")
             .Resolve(context =>
             {
-                var from = context.GetArgument<DateTime?>("from");
-                var to = context.GetArgument<DateTime?>("to");
+                var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
+                var to = context.GetArgument<DateTime?>(StatisticsFieldHelper.ToArgument);
                 return GetPeriodLoader(context).LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context)));
             });
 
         Field<CustomerOrderStatisticsComparisonType>("comparison")
             .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket shared with a 'period' selection is not queried again.")
-            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("current", "The later period.")
-            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>("previous", "The baseline period to compare against.")
+            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.CurrentArgument, "The later period.")
+            .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.PreviousArgument, "The baseline period to compare against.")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional filter-rule name applied to both periods (see 'period.filter').")
             .Resolve(context =>
             {
-                var current = context.GetArgument<SalesRepStatisticsPeriodInput>("current");
-                var previous = context.GetArgument<SalesRepStatisticsPeriodInput>("previous");
+                var current = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.CurrentArgument);
+                var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
 
                 var loader = GetPeriodLoader(context);
@@ -106,10 +106,10 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
 
                     // Apply the selected rule through the shared resolver (same mapping as the orders list). Null =
                     // a rule name was given but is unrecognized → fail-closed: a zeroed period, not "count everything".
-                    var filtered = await _statusService.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
+                    var filtered = await _filterRuleResolver.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
 
                     var period = filtered == null
-                        ? EmptyPeriod(statisticsContext.CurrencyCode)
+                        ? StatisticsFieldHelper.EmptyPeriod<CustomerOrderStatisticsPeriod>(p => p.CurrencyCode = statisticsContext.CurrencyCode)
                         : await _statisticsService.GetStatisticsAsync(filtered);
                     return (bucket, period);
                 });
@@ -117,13 +117,6 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
                 var results = await Task.WhenAll(tasks);
                 return results.ToDictionary(x => x.bucket, x => x.period);
             });
-    }
-
-    private static CustomerOrderStatisticsPeriod EmptyPeriod(string currencyCode)
-    {
-        var period = AbstractTypeFactory<CustomerOrderStatisticsPeriod>.TryCreateInstance();
-        period.CurrencyCode = currencyCode;
-        return period;
     }
 
     private static CustomerOrderStatisticsComparison BuildComparison(CustomerOrderStatisticsPeriod current, CustomerOrderStatisticsPeriod previous)
