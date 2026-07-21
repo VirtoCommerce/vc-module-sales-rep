@@ -92,9 +92,9 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         // once; carried onto each row for the graph type's inline field.
         var currencyCode = await _currencyResolver.ResolveCurrencyCodeAsync(requestedCurrencyCode: null, storeId: request.StoreId);
 
-        // Interpret the built-in sort argument as a customer sort-rule name (empty/unknown → the default ordering);
-        // the optional SortDescending overrides that rule's natural direction.
-        var sortSpec = await _sortRuleResolver.ResolveSortAsync(request.StoreId, request.Sort, request.SortDescending);
+        // Interpret the built-in sort argument as a customer sort-rule name with an optional ":asc"/":desc" suffix
+        // (empty/unknown name → the default ordering; an unsupported direction on a recognized rule errors).
+        var sortSpec = await _sortRuleResolver.ResolveSortAsync(request.StoreId, request.Sort);
 
         return sortSpec.IsOrderDerived
             ? await SearchOrderedByOrderMetricAsync(request, filteredCriteria, sortSpec, currencyCode, result)

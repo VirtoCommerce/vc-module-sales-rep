@@ -219,6 +219,22 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_SortByUnitsAscending_ReturnsError()
+    {
+        // Top-seller orderings are one-way (highest first): ranking a "top" list ascending is meaningless, so an
+        // explicit ":asc" is rejected rather than silently ignored.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(sort: \"by-units:asc\") { productId } }",
+            userId: rep.UserId);
+
+        json.Should().Contain("\"errors\"");
+    }
+
+    [Fact]
     public async Task SalesRepTopSellerFilterRules_ReturnsTopLevelActiveCategories()
     {
         using var ctx = SalesRepTestContext.Create();

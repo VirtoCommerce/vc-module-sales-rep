@@ -18,7 +18,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Show dashboard **statistics** for a rep — order purchases, average order value and order counts, with period-over-period comparison, converted to one currency
 * Add cart/project statistics (e.g. *active projects*) and *my-customers* counters (customers who ordered in a period, new customers)
 * Show inline per-customer purchase figures on the customers list (YTD / prior-year totals, order counts, first/last order) via a batched per-row statistics field — no N+1
-* Filter the orders/customers lists and every statistics block by a single, optional, server-defined **filter rule** (aggregated order statuses / cart kinds / customer segments), and order the lists by a server-defined **sort rule** (e.g. *recent*, *my last orders*, *ytd purchases*, *name*) — the storefront sends one rule name per axis and the server maps it; both are overridable per project
+* Filter the orders/customers lists and every statistics block by a single, optional, server-defined **filter rule** (aggregated order statuses / cart kinds / customer segments), and order the lists by a server-defined **sort rule** (orders: *recent* / *total*; customers: *my last orders* / *ytd purchases* / *name*; top sellers: *by units* / *by revenue*) — one rule name per axis, with an optional X-Order-style `:asc`/`:desc` suffix to reverse a rule where that's meaningful; both filter and sort are overridable per project
 * Rank a rep's **top-selling products** (dashboard + per-customer) by units or revenue over a period, optionally within a product category
 * Scope the orders list to an optional created-date **period**
 * Toggle the storefront Sales Rep UI per store
@@ -60,10 +60,11 @@ The sales reps supporting the caller's organization:
 
 ---
 
-The customer organizations the current rep serves, each with the rep's most recent order for that customer and inline purchase figures. Supports keyword search and paging, an optional **sort rule** (`sort` — a `salesRepCustomerSortRules` name; default *my last orders*), and an optional **filter rule** (`filter` — a `salesRepCustomerFilterRules` segment; default *All* = every served customer). Request one or more aliased `orderStatistics(from, to)` blocks per row for the YTD / prior-year purchase columns:
+The customer organizations the current rep serves, each with the rep's most recent order for that customer and inline purchase figures. Supports keyword search and paging, an optional **sort rule** (`sort` — a `salesRepCustomerSortRules` name, optionally with a `:asc`/`:desc` direction suffix; default *my last orders*), and an optional **filter rule** (`filter` — a `salesRepCustomerFilterRules` segment; default *All* = every served customer). Request one or more aliased `orderStatistics(from, to)` blocks per row for the YTD / prior-year purchase columns:
 
 ```graphql
 {
+  # Append `:asc`/`:desc` to the sort rule to flip its natural direction (e.g. "name:desc"); omit the suffix for the rule's default.
   salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "my-last-orders") {
     totalCount
     items {
@@ -140,7 +141,7 @@ A single customer information card:
 
 ---
 
-The orders the rep created for their customers, paged, ordered by an optional **sort rule** (`sort` — a `salesRepOrderSortRules` name; default *recent*) and filtered by an optional **filter rule** (`filter` — a `salesRepOrderFilterRules` status). Add `organizationId` to scope to one customer, and an optional `period` to scope by created date:
+The orders the rep created for their customers, paged, ordered by an optional **sort rule** (`sort` — a `salesRepOrderSortRules` name; default *recent*, or *total* by order value — biggest first, or `total:asc` for smallest) and filtered by an optional **filter rule** (`filter` — a `salesRepOrderFilterRules` status). Add `organizationId` to scope to one customer, and an optional `period` to scope by created date:
 
 ```graphql
 {
@@ -198,11 +199,11 @@ Four rule domains, each with its own discovery query:
 
 #### Sort rules
 
-The orders, customers and top-sellers lists are ordered by a single, optional **named sort rule** — a *separate axis* from the filter rules above (a filter chooses *which* records, a sort chooses their *order*), so the two are never crossed into one combinatorial list. The storefront reads the selectable orderings from a discovery query and sends back one rule `name` in the built-in `sort` argument; the server maps it to the actual ordering. Omit `sort` (or send an unknown name) and the domain's **default** ordering applies — a sort only reorders, so unlike a filter it never fails closed. `customerSalesReps` is exempt (a plain list). Rule sets are overridable per project.
+The orders, customers and top-sellers lists are ordered by a single, optional **named sort rule** — a *separate axis* from the filter rules above (a filter chooses *which* records, a sort chooses their *order*), so the two are never crossed into one combinatorial list. The storefront reads the selectable orderings from a discovery query and sends back one rule `name` in the built-in `sort` argument (optionally with a `:asc`/`:desc` direction suffix — see below); the server maps it to the actual ordering. Omit `sort` (or send an unknown name) and the domain's **default** ordering applies — a sort only reorders, so unlike a filter it never fails closed. `customerSalesReps` is exempt (a plain list). Rule sets are overridable per project.
 
 ```graphql
 {
-  # orders list — default "recent" (newest first)
+  # orders list — default "recent" (newest first, one-way); also "total" (biggest first, "total:asc" for smallest)
   salesRepOrderSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
   # customers list — default "my-last-orders"; also "ytd-purchases" and "name"
   salesRepCustomerSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
@@ -212,6 +213,14 @@ The orders, customers and top-sellers lists are ordered by a single, optional **
 ```
 
 The customers list's `my-last-orders` and `ytd-purchases` orderings are **order-derived** — they can't be expressed as a member column, so the server ranks the served organizations by the rep's own per-organization order aggregate (creator-scoped, the same data-isolation rule) and pages the result; `name` is a plain member-column sort.
+
+Every `sort` argument accepts an optional X-Order-style **direction suffix** — `"<ruleName>:asc"` or `"<ruleName>:desc"`. Omit it for the rule's *natural* direction; add it to reverse a rule **where reversing is meaningful**. On the customers list all three rules are reversible (`name:desc` for Z→A, `ytd-purchases:asc` for smallest-first); on the orders list `total` is reversible (`total:asc` = smallest first) while `recent` is one-way; the top-seller rules are one-way. A direction a rule does **not** support (e.g. `recent:asc`, `by-units:asc`) is **rejected with an error** rather than silently ignored — whereas an unknown *rule name* still falls back to the default ordering (a sort never fails closed on the name, only on an unsupported direction). The customers-list direction applies uniformly to the member-column sort and the order-derived rankings:
+
+```graphql
+{
+  salesRepCustomers(sort: "name:desc") { items { organizationName } }   # names Z→A
+}
+```
 
 ---
 
@@ -358,7 +367,7 @@ The dashboard numbers are **aggregated in the database**: the module reads the O
 * **Add/recompose rules** — register a replacement resolver (`ISalesRepOrderFilterRuleResolver` / `ISalesRepCartFilterRuleResolver` / `ISalesRepCustomerFilterRuleResolver` / `ISalesRepTopSellerFilterRuleResolver`); the last registration wins. Customer segments ship with a single **All** baseline (passthrough); the seam is there for projects to add real segments.
 * **A rule the standard criteria can't express** (e.g. *"stale, or item-less"* orders, or an *"active"* customer segment) — the resolver applies onto the reader's criteria, and each reader exposes a seam to add the predicate: a `BuildQuery` override on the statistics/counts services, or narrowing the members search (`ObjectIds`) for the customers list. Wire it for every reader in the domain so they stay consistent.
 
-**Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression; `ISalesRepCustomerSortRuleResolver` maps it to a spec; `ISalesRepTopSellerSortRuleResolver` maps it to the Top Sellers ranking metric). Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
+**Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression, e.g. *recent* / *total*; `ISalesRepCustomerSortRuleResolver` maps it to a spec; `ISalesRepTopSellerSortRuleResolver` maps it to the Top Sellers ranking metric). The rule `name` carries an optional X-Order-style `:asc`/`:desc` **direction suffix**, parsed once in `SortRuleResolverBase`: each rule declares its `DefaultDirection` and whether it `AllowsReverse`, so the base applies the default when no (or a garbage) suffix is given, applies a supported suffix, and **throws** on a valid-but-unsupported direction on a recognized rule (e.g. `recent:asc`) — while an unknown *rule name* still falls back to the default. Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed on the name. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
 
 **Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its only catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): it lists the store catalog's top-level non-hidden categories (`ICategorySearchService`), and a selected badge is resolved — through the catalog index (`IProductIndexedSearchService`, the same path the storefront's category pages use, so it works for a virtual store catalog too) — to the rep's own sold products that fall in that category's subtree, which the ranking is then restricted to (bounded by the rep's sold products, so it never enumerates a whole category and the data-isolation rule holds).
 

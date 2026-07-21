@@ -1,42 +1,40 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 /// <summary>
-/// Default orders-list ordering source: "recent" (created date, newest first — the default) and "largest/smallest
-/// total" (by order total). Both the default and any unrecognized selection resolve to the first rule, so the list is
-/// always deterministically ordered. Projects override this service to add or replace orderings.
+/// Default orders-list ordering source: "recent" (created date, newest first — the default, one-way) and "total"
+/// (by order value; biggest first by default, "total:asc" for smallest first). Both the default and any unrecognized
+/// selection resolve to the first rule, so the list is always deterministically ordered. Projects override this
+/// service to add or replace orderings.
 /// </summary>
 public class SalesRepOrderSortRuleResolver : SortRuleResolverBase<SalesRepOrderSortRule>, ISalesRepOrderSortRuleResolver
 {
-    /// <summary>Name of the built-in "recent" ordering — created date, newest first (the default).</summary>
+    /// <summary>Name of the built-in "recent" ordering — created date, newest first (the default; one-way).</summary>
     public const string RecentRuleName = "recent";
 
-    /// <summary>Largest order total first.</summary>
-    public const string LargestTotalRuleName = "largest-total";
-
-    /// <summary>Smallest order total first.</summary>
-    public const string SmallestTotalRuleName = "smallest-total";
+    /// <summary>Name of the built-in "total" ordering — by order value; biggest first by default, "total:asc" for smallest first.</summary>
+    public const string TotalRuleName = "total";
 
     public override Task<IList<SalesRepOrderSortRule>> GetRulesAsync(string storeId, string cultureName)
         => Task.FromResult<IList<SalesRepOrderSortRule>>(
         [
-            SalesRepOrderSortRule.Create(RecentRuleName, "Most recent", "createdDate:desc"),
-            SalesRepOrderSortRule.Create(LargestTotalRuleName, "Largest total", "total:desc"),
-            SalesRepOrderSortRule.Create(SmallestTotalRuleName, "Smallest total", "total:asc"),
+            SalesRepOrderSortRule.Create(RecentRuleName, "Most recent", "createdDate", SortDirection.Descending, allowsReverse: false),
+            SalesRepOrderSortRule.Create(TotalRuleName, "Order total", "total", SortDirection.Descending, allowsReverse: true),
         ]);
 
     public virtual async Task<CustomerOrderSearchCriteria> ApplySortAsync(string storeId, string sort, CustomerOrderSearchCriteria criteria)
     {
-        var rule = await ResolveRuleAsync(storeId, sort);
+        var (rule, direction) = await ResolveSortRuleAsync(storeId, sort);
 
-        if (!string.IsNullOrEmpty(rule?.Sort))
+        if (!string.IsNullOrEmpty(rule?.SortField))
         {
-            criteria.Sort = rule.Sort;
+            criteria.Sort = $"{rule.SortField}:{(direction == SortDirection.Descending ? "desc" : "asc")}";
         }
 
         return criteria;

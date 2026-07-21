@@ -611,21 +611,38 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "big", org: "org-1", number: "ORD-BIG", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), total: 5000m);
         SeedOrder(ctx, id: "mid", org: "org-1", number: "ORD-MID", createdDate: new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), total: 500m);
 
+        // Bare "total" → the rule's natural direction (biggest first).
         var largest = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", sort:\"largest-total\") { items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"total\") { items { number } } }",
             userId: rep.UserId);
         largest.Should().NotContain("\"errors\"");
         // Largest total first: BIG (5000) → MID (500) → SMALL (50), regardless of created date.
         largest.IndexOf("ORD-BIG", StringComparison.Ordinal).Should().BeLessThan(largest.IndexOf("ORD-MID", StringComparison.Ordinal));
         largest.IndexOf("ORD-MID", StringComparison.Ordinal).Should().BeLessThan(largest.IndexOf("ORD-SMALL", StringComparison.Ordinal));
 
+        // "total:asc" reverses the reversible "total" rule to smallest first.
         var smallest = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", sort:\"smallest-total\") { items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"total:asc\") { items { number } } }",
             userId: rep.UserId);
         smallest.Should().NotContain("\"errors\"");
         // Smallest total first: SMALL (50) → MID (500) → BIG (5000).
         smallest.IndexOf("ORD-SMALL", StringComparison.Ordinal).Should().BeLessThan(smallest.IndexOf("ORD-MID", StringComparison.Ordinal));
         smallest.IndexOf("ORD-MID", StringComparison.Ordinal).Should().BeLessThan(smallest.IndexOf("ORD-BIG", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_SortByRecentAscending_ReturnsError()
+    {
+        // "recent" is one-way (newest first only): an explicit opposite direction is rejected, not silently ignored.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"recent:asc\") { items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().Contain("\"errors\"");
     }
 
     [Fact]
@@ -1315,7 +1332,8 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"name\":\"recent\"").And.Contain("largest-total").And.Contain("smallest-total");
+        // The two built-in orderings: "recent" (default) and the bidirectional "total".
+        json.Should().Contain("\"name\":\"recent\"").And.Contain("\"name\":\"total\"");
     }
 
     [Fact]
@@ -1389,9 +1407,9 @@ public class SalesRepGraphQlComponentTests
         await ctx.SeedOrganizationsAsync("Acme", "Globex", "Umbrella");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "Acme", "Globex", "Umbrella");
 
-        // sortDescending overrides the "name" rule's natural A→Z.
+        // "name:desc" reverses the "name" rule's natural A→Z.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers(sort:\"name\", sortDescending:true) { items { organizationName } } }",
+            "query { salesRepCustomers(sort:\"name:desc\") { items { organizationName } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -1411,9 +1429,9 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "m", org: "org-mid", number: "ORD-M", createdDate: thisYear, total: 200m);
         SeedOrder(ctx, id: "l", org: "org-low", number: "ORD-L", createdDate: thisYear, total: 100m);
 
-        // sortDescending:false flips "ytd-purchases" from its natural biggest-first to smallest-first.
+        // "ytd-purchases:asc" flips the rule from its natural biggest-first to smallest-first.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers(sort:\"ytd-purchases\", sortDescending:false) { items { organizationId } } }",
+            "query { salesRepCustomers(sort:\"ytd-purchases:asc\") { items { organizationId } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");

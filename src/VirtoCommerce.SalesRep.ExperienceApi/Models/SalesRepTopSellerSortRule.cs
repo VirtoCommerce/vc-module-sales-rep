@@ -20,13 +20,21 @@ public class SalesRepTopSellerSortRule : INamedSortRule
     /// <summary>The ranking metric this rule maps to.</summary>
     public SalesRepTopSellerSortBy SortBy { get; set; }
 
+    /// <inheritdoc />
+    public SortDirection DefaultDirection { get; set; }
+
+    /// <inheritdoc />
+    public bool AllowsReverse { get; set; }
+
     /// <summary>Constructs a rule via <see cref="AbstractTypeFactory{T}"/> so downstream can override the type.</summary>
-    public static SalesRepTopSellerSortRule Create(string name, string localizedName, SalesRepTopSellerSortBy sortBy)
+    public static SalesRepTopSellerSortRule Create(string name, string localizedName, SalesRepTopSellerSortBy sortBy, SortDirection defaultDirection, bool allowsReverse)
     {
         var result = AbstractTypeFactory<SalesRepTopSellerSortRule>.TryCreateInstance();
         result.Name = name;
         result.LocalizedName = localizedName;
         result.SortBy = sortBy;
+        result.DefaultDirection = defaultDirection;
+        result.AllowsReverse = allowsReverse;
         return result;
     }
 }

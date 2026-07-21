@@ -18,12 +18,20 @@ public class SalesRepCustomerSortRule : INamedSortRule
     /// <summary>Localized label shown for the ordering.</summary>
     public string LocalizedName { get; set; }
 
+    /// <inheritdoc />
+    public SortDirection DefaultDirection { get; set; }
+
+    /// <inheritdoc />
+    public bool AllowsReverse { get; set; }
+
     /// <summary>Constructs a rule via <see cref="AbstractTypeFactory{T}"/> so downstream can override the type.</summary>
-    public static SalesRepCustomerSortRule Create(string name, string localizedName)
+    public static SalesRepCustomerSortRule Create(string name, string localizedName, SortDirection defaultDirection, bool allowsReverse)
     {
         var result = AbstractTypeFactory<SalesRepCustomerSortRule>.TryCreateInstance();
         result.Name = name;
         result.LocalizedName = localizedName;
+        result.DefaultDirection = defaultDirection;
+        result.AllowsReverse = allowsReverse;
         return result;
     }
 }
