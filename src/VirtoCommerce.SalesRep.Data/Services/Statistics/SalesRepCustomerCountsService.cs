@@ -74,23 +74,6 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
     /// </summary>
     protected virtual IQueryable<CustomerOrderEntity> BuildQuery(IOrderRepository repository, SalesRepCustomerCountsCriteria criteria)
     {
-        var query = repository.CustomerOrders.Where(x => !x.IsPrototype && !x.IsCancelled);
-
-        if (!criteria.OrganizationIds.IsNullOrEmpty())
-        {
-            query = query.Where(x => criteria.OrganizationIds.Contains(x.OrganizationId));
-        }
-
-        if (!string.IsNullOrEmpty(criteria.CustomerId))
-        {
-            query = query.Where(x => x.CustomerId == criteria.CustomerId);
-        }
-
-        if (!string.IsNullOrEmpty(criteria.StoreId))
-        {
-            query = query.Where(x => x.StoreId == criteria.StoreId);
-        }
-
-        return query;
+        return repository.CustomerOrders.ApplyRepScope(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId);
     }
 }

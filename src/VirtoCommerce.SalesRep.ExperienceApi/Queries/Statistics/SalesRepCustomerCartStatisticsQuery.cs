@@ -13,7 +13,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 /// scope to a single customer, or omit it for the combined view of every organization the rep serves. Secured to
 /// the calling rep and limited to carts the rep created (their user id is the cart's CustomerId).
 /// </summary>
-public class SalesRepCustomerCartStatisticsQuery : Query<CustomerCartStatisticsContext>
+public class SalesRepCustomerCartStatisticsQuery : Query<CustomerCartStatisticsContext>, ISalesRepStatisticsQuery
 {
     /// <summary>Organization (customer) id whose carts are aggregated. Omit for a cross-customer view.</summary>
     public string OrganizationId { get; set; }

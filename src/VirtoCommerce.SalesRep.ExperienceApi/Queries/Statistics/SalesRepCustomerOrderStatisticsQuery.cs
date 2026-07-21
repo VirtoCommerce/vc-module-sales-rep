@@ -14,7 +14,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 /// handler verifies the caller serves it; when omitted, the statistics span every organization the rep is
 /// assigned to (the combined cross-customer view).
 /// </summary>
-public class SalesRepCustomerOrderStatisticsQuery : Query<CustomerOrderStatisticsContext>
+public class SalesRepCustomerOrderStatisticsQuery : Query<CustomerOrderStatisticsContext>, ISalesRepStatisticsQuery
 {
     /// <summary>
     /// Organization (customer) id whose orders are aggregated. Omit for a cross-customer view — the combined

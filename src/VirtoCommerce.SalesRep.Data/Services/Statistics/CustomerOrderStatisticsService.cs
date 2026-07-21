@@ -135,24 +135,8 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
     /// </summary>
     protected virtual IQueryable<CustomerOrderEntity> BuildQuery(IOrderRepository repository, CustomerOrderStatisticsCriteria criteria)
     {
-        var query = repository.CustomerOrders.Where(x => !x.IsPrototype && !x.IsCancelled);
-
-        if (!criteria.OrganizationIds.IsNullOrEmpty())
-        {
-            query = query.Where(x => criteria.OrganizationIds.Contains(x.OrganizationId));
-        }
-
-        // Creator scoping (data-isolation invariant): only orders created by the calling sales rep — their user id
-        // is recorded as the order's CustomerId, exactly as X-Order scopes "my orders".
-        if (!string.IsNullOrEmpty(criteria.CustomerId))
-        {
-            query = query.Where(x => x.CustomerId == criteria.CustomerId);
-        }
-
-        if (!string.IsNullOrEmpty(criteria.StoreId))
-        {
-            query = query.Where(x => x.StoreId == criteria.StoreId);
-        }
+        // Shared creator/organization/store scope (excludes cancelled/prototype); status + date bounds are layered on.
+        var query = repository.CustomerOrders.ApplyRepScope(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId);
 
         if (!criteria.Statuses.IsNullOrEmpty())
         {
