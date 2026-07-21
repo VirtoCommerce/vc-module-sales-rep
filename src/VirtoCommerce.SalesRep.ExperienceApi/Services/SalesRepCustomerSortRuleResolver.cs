@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 
@@ -42,16 +43,26 @@ public class SalesRepCustomerSortRuleResolver : SortRuleResolverBase<SalesRepCus
     {
         if (string.Equals(ruleName, NameRuleName, StringComparison.OrdinalIgnoreCase))
         {
-            return new SalesRepCustomerSortSpec { IsOrderDerived = false, MemberSort = "name:asc" };
+            var nameSpec = AbstractTypeFactory<SalesRepCustomerSortSpec>.TryCreateInstance();
+            nameSpec.IsOrderDerived = false;
+            nameSpec.MemberSort = "name:asc";
+            return nameSpec;
         }
 
         if (string.Equals(ruleName, YtdPurchasesRuleName, StringComparison.OrdinalIgnoreCase))
         {
             var startOfYear = new DateTime(DateTime.UtcNow.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            return new SalesRepCustomerSortSpec { IsOrderDerived = true, Metric = SalesRepCustomerSortMetric.Total, FromDate = startOfYear };
+            var ytdSpec = AbstractTypeFactory<SalesRepCustomerSortSpec>.TryCreateInstance();
+            ytdSpec.IsOrderDerived = true;
+            ytdSpec.Metric = SalesRepCustomerSortMetric.Total;
+            ytdSpec.FromDate = startOfYear;
+            return ytdSpec;
         }
 
         // Default: my last orders (most recent rep order first).
-        return new SalesRepCustomerSortSpec { IsOrderDerived = true, Metric = SalesRepCustomerSortMetric.LastOrderDate };
+        var defaultSpec = AbstractTypeFactory<SalesRepCustomerSortSpec>.TryCreateInstance();
+        defaultSpec.IsOrderDerived = true;
+        defaultSpec.Metric = SalesRepCustomerSortMetric.LastOrderDate;
+        return defaultSpec;
     }
 }
