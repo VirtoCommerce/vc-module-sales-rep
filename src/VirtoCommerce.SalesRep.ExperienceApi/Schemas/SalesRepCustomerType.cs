@@ -65,9 +65,12 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                     async organizationIds =>
                     {
                         var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), salesRepUserId, storeId, responseGroup);
-                        // Keep the loader's key comparer aligned with the service's OrdinalIgnoreCase dictionary.
+                        // The result dictionary matches organization ids case-insensitively (as the search service does).
                         return latestOrders.ToDictionary(kvp => kvp.Key, kvp => SalesRepOrder.FromOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
-                    });
+                    },
+                    // Dedupe the batch keys with the same comparer as the result dictionary, so two ids differing only
+                    // in case collapse to one bucket rather than surviving as distinct keys and colliding on ToDictionary.
+                    StringComparer.OrdinalIgnoreCase);
 
                 return loader.LoadAsync(organizationId);
             });
@@ -122,7 +125,10 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                             id => id,
                             id => byOrganization.TryGetValue(id, out var period) ? period : EmptyPeriod(currencyCode),
                             StringComparer.OrdinalIgnoreCase);
-                    });
+                    },
+                    // Dedupe the batch keys case-insensitively, matching both the result dictionary above and the
+                    // service's OrdinalIgnoreCase grouping, so cased-duplicate ids can't collide on ToDictionary.
+                    StringComparer.OrdinalIgnoreCase);
 
                 return loader.LoadAsync(organizationId);
             });
