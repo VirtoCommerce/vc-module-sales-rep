@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -37,33 +36,15 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
         _settingsManager = settingsManager;
     }
 
-    public virtual async Task<SalesRepCustomerCountsPeriod> GetCountsAsync(SalesRepCustomerCountsCriteria criteria)
+    public virtual Task<SalesRepCustomerCountsPeriod> GetCountsAsync(SalesRepCustomerCountsCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var ttl = await GetCacheTtlAsync();
-        var cacheKey = CacheKey.With(GetType(), nameof(GetCountsAsync), GetCacheKey(criteria));
-        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
-        {
-            StatisticsCache.Apply(options, ttl);
-            return await ComputeCountsAsync(criteria);
-        });
+        return StatisticsCache.GetOrCreateAsync(
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.CustomerCountsCacheExpiration,
+            GetType(), nameof(GetCountsAsync), criteria.GetCacheKey(),
+            () => ComputeCountsAsync(criteria));
     }
-
-    private async Task<TimeSpan> GetCacheTtlAsync()
-    {
-        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.CustomerCountsCacheExpiration);
-        return TimeSpan.FromMinutes(minutes);
-    }
-
-    /// <summary>Every criteria field that shapes the counts, folded into a stable per-query cache key.</summary>
-    private static string GetCacheKey(SalesRepCustomerCountsCriteria criteria) => string.Join('|',
-        StatisticsCache.Join(criteria.OrganizationIds),
-        criteria.CustomerId,
-        criteria.StoreId,
-        StatisticsCache.Join(criteria.AssignmentDates?.Select(x => x.Ticks.ToString(CultureInfo.InvariantCulture))),
-        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
-        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture));
 
     private async Task<SalesRepCustomerCountsPeriod> ComputeCountsAsync(SalesRepCustomerCountsCriteria criteria)
     {

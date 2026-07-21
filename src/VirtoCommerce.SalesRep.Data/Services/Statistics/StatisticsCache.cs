@@ -1,19 +1,45 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
+using VirtoCommerce.Platform.Core.Caching;
+using VirtoCommerce.Platform.Core.Settings;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 /// <summary>
-/// Shared helpers for the time-based caching in the sales-rep statistics services (orders, carts, customer counts).
-/// All three cache their DB aggregate the same way: keyed on the full criteria, expiring purely on a per-query TTL.
-/// See <see cref="Apply"/> for why no entity change token is used.
+/// Shared time-based caching for the sales-rep dashboard aggregate services (orders, carts, customer counts, top
+/// sellers). Every aggregate is cached the same way — keyed on the full criteria, expiring purely on a per-query TTL
+/// (a module setting, in minutes) with no entity change token, so a data change does not flush the widget and
+/// staleness is bounded by the TTL. <see cref="GetOrCreateAsync"/> is the single entry point.
 /// </summary>
 internal static class StatisticsCache
 {
     // PlatformMemoryCache.GetDefaultCacheEntryOptions() stamps this 1-tick expiration when caching is globally off.
     private static readonly TimeSpan CacheDisabled = TimeSpan.FromTicks(1);
+
+    /// <summary>
+    /// Runs <paramref name="factory"/> behind the shared statistics cache. The entry key is
+    /// <c>CacheKey.With(ownerType, method, cacheKey)</c> — <paramref name="ownerType"/> is the concrete service type
+    /// (so an overriding subclass gets its own namespace) and <paramref name="cacheKey"/> is the criteria's
+    /// <c>GetCacheKey()</c>. The TTL setting read and the factory both run only on a cache miss.
+    /// </summary>
+    public static Task<T> GetOrCreateAsync<T>(
+        IPlatformMemoryCache platformMemoryCache,
+        ISettingsManager settingsManager,
+        SettingDescriptor ttlSetting,
+        Type ownerType,
+        string method,
+        string cacheKey,
+        Func<Task<T>> factory)
+    {
+        var key = CacheKey.With(ownerType, method, cacheKey);
+        return platformMemoryCache.GetOrCreateExclusiveAsync(key, async options =>
+        {
+            var minutes = await settingsManager.GetValueAsync<int>(ttlSetting);
+            Apply(options, TimeSpan.FromMinutes(minutes));
+            return await factory();
+        });
+    }
 
     /// <summary>
     /// Configures a statistics cache entry for time-based expiration.
@@ -23,11 +49,10 @@ internal static class StatisticsCache
     /// <item>A non-positive <paramref name="ttl"/> disables caching for this query (per-query opt-out via the module
     /// setting): the entry is expired immediately so the next call recomputes.</item>
     /// <item>Adds NO entity (order/cart/member) change token: a data change does not flush the aggregate, so a busy
-    /// store keeps a useful hit rate and staleness is bounded by the TTL. The dedicated
-    /// <see cref="StatisticsCacheRegion"/> token gives a manual-flush handle and rides the platform-wide reset.</item>
+    /// store keeps a useful hit rate and staleness is bounded by the TTL.</item>
     /// </list>
     /// </summary>
-    public static void Apply(MemoryCacheEntryOptions options, TimeSpan ttl)
+    private static void Apply(MemoryCacheEntryOptions options, TimeSpan ttl)
     {
         if (options.AbsoluteExpirationRelativeToNow == CacheDisabled)
         {
@@ -41,10 +66,5 @@ internal static class StatisticsCache
         }
 
         options.AbsoluteExpirationRelativeToNow = ttl;
-        options.AddExpirationToken(StatisticsCacheRegion.CreateChangeToken());
     }
-
-    /// <summary>Order-insensitive, null-safe join of a set of tokens for use inside a cache key.</summary>
-    public static string Join(IEnumerable<string> values) =>
-        values == null ? string.Empty : string.Join(',', values.OrderBy(x => x, StringComparer.Ordinal));
 }

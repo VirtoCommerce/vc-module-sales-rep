@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -46,32 +45,31 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         _logger = logger;
     }
 
-    public virtual async Task<CustomerOrderStatisticsPeriod> GetStatisticsAsync(CustomerOrderStatisticsCriteria criteria)
+    public virtual Task<CustomerOrderStatisticsPeriod> GetStatisticsAsync(CustomerOrderStatisticsCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var ttl = await GetCacheTtlAsync();
-        var cacheKey = CacheKey.With(GetType(), nameof(GetStatisticsAsync), GetCacheKey(criteria));
-        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
-        {
-            StatisticsCache.Apply(options, ttl);
-            var byCurrency = await AggregateByCurrencyAsync(criteria);
-            var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
-            return BuildPeriod(byCurrency, criteria.CurrencyCode, currencies);
-        });
+        return StatisticsCache.GetOrCreateAsync(
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration,
+            GetType(), nameof(GetStatisticsAsync), criteria.GetCacheKey(),
+            () => ComputeStatisticsAsync(criteria));
     }
 
-    public virtual async Task<IDictionary<string, CustomerOrderStatisticsPeriod>> GetStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria)
+    private async Task<CustomerOrderStatisticsPeriod> ComputeStatisticsAsync(CustomerOrderStatisticsCriteria criteria)
+    {
+        var byCurrency = await AggregateByCurrencyAsync(criteria);
+        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+        return BuildPeriod(byCurrency, criteria.CurrencyCode, currencies);
+    }
+
+    public virtual Task<IDictionary<string, CustomerOrderStatisticsPeriod>> GetStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var ttl = await GetCacheTtlAsync();
-        var cacheKey = CacheKey.With(GetType(), nameof(GetStatisticsByOrganizationAsync), GetCacheKey(criteria));
-        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
-        {
-            StatisticsCache.Apply(options, ttl);
-            return await ComputeStatisticsByOrganizationAsync(criteria);
-        });
+        return StatisticsCache.GetOrCreateAsync(
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration,
+            GetType(), nameof(GetStatisticsByOrganizationAsync), criteria.GetCacheKey(),
+            () => ComputeStatisticsByOrganizationAsync(criteria));
     }
 
     private async Task<IDictionary<string, CustomerOrderStatisticsPeriod>> ComputeStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria)
@@ -212,22 +210,6 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         period.CurrencyCode = folded.CurrencyCode;
         return period;
     }
-
-    private async Task<TimeSpan> GetCacheTtlAsync()
-    {
-        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration);
-        return TimeSpan.FromMinutes(minutes);
-    }
-
-    /// <summary>Every criteria field that shapes the aggregate, folded into a stable per-query cache key.</summary>
-    private static string GetCacheKey(CustomerOrderStatisticsCriteria criteria) => string.Join('|',
-        StatisticsCache.Join(criteria.OrganizationIds),
-        criteria.CustomerId,
-        criteria.StoreId,
-        criteria.CurrencyCode,
-        StatisticsCache.Join(criteria.Statuses),
-        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
-        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>Raw per-currency aggregate read from the database, before currency conversion.</summary>
     private sealed class PerCurrencyAggregate

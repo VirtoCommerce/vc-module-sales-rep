@@ -1,4 +1,5 @@
 using System;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
@@ -10,7 +11,7 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// kind" (e.g. the built-in "active-carts" → excludes type "Wishlist"); the query layer maps business kind names to
 /// these underlying filters.
 /// </summary>
-public class CustomerCartStatisticsCriteria
+public class CustomerCartStatisticsCriteria : ValueObject
 {
     /// <summary>
     /// Organizations (customers) whose carts are aggregated. Which organizations the caller may see is enforced

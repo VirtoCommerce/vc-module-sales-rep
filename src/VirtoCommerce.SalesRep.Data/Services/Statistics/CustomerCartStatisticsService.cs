@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -45,38 +44,21 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         _logger = logger;
     }
 
-    public virtual async Task<CustomerCartStatisticsPeriod> GetStatisticsAsync(CustomerCartStatisticsCriteria criteria)
+    public virtual Task<CustomerCartStatisticsPeriod> GetStatisticsAsync(CustomerCartStatisticsCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var ttl = await GetCacheTtlAsync();
-        var cacheKey = CacheKey.With(GetType(), nameof(GetStatisticsAsync), GetCacheKey(criteria));
-        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
-        {
-            StatisticsCache.Apply(options, ttl);
-            var byCurrency = await AggregateByCurrencyAsync(criteria);
-            return await ConvertAndFoldAsync(byCurrency, criteria);
-        });
+        return StatisticsCache.GetOrCreateAsync(
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.CartStatisticsCacheExpiration,
+            GetType(), nameof(GetStatisticsAsync), criteria.GetCacheKey(),
+            () => ComputeStatisticsAsync(criteria));
     }
 
-    private async Task<TimeSpan> GetCacheTtlAsync()
+    private async Task<CustomerCartStatisticsPeriod> ComputeStatisticsAsync(CustomerCartStatisticsCriteria criteria)
     {
-        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.CartStatisticsCacheExpiration);
-        return TimeSpan.FromMinutes(minutes);
+        var byCurrency = await AggregateByCurrencyAsync(criteria);
+        return await ConvertAndFoldAsync(byCurrency, criteria);
     }
-
-    /// <summary>Every criteria field that shapes the aggregate, folded into a stable per-query cache key.</summary>
-    private static string GetCacheKey(CustomerCartStatisticsCriteria criteria) => string.Join('|',
-        StatisticsCache.Join(criteria.OrganizationIds),
-        criteria.CustomerId,
-        criteria.StoreId,
-        criteria.CurrencyCode,
-        StatisticsCache.Join(criteria.Types),
-        StatisticsCache.Join(criteria.ExcludeTypes),
-        StatisticsCache.Join(criteria.Statuses),
-        criteria.OnlyNonEmpty ? "1" : "0",
-        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
-        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// One grouped-by-currency aggregate query. Returns a raw per-currency sum/count/max — no cart rows are

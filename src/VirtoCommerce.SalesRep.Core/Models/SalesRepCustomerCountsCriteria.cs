@@ -1,4 +1,5 @@
 using System;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
@@ -8,7 +9,7 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// <see cref="AssignmentDates"/> (when each served customer was assigned to the rep), independent of orders.
 /// Cancelled and prototype orders are always excluded.
 /// </summary>
-public class SalesRepCustomerCountsCriteria
+public class SalesRepCustomerCountsCriteria : ValueObject
 {
     /// <summary>
     /// Organizations (customers) the counts are computed over — every organization the rep serves (or one requested

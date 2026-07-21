@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -59,13 +58,10 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             return [];
         }
 
-        var ttl = await GetCacheTtlAsync();
-        var cacheKey = CacheKey.With(GetType(), nameof(GetTopSellersAsync), GetCacheKey(criteria));
-        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
-        {
-            StatisticsCache.Apply(options, ttl);
-            return await ComputeTopSellersAsync(criteria);
-        });
+        return await StatisticsCache.GetOrCreateAsync(
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.TopSellerCacheExpiration,
+            GetType(), nameof(GetTopSellersAsync), criteria.GetCacheKey(),
+            () => ComputeTopSellersAsync(criteria));
     }
 
     private async Task<IList<SalesRepTopSeller>> ComputeTopSellersAsync(SalesRepTopSellerCriteria criteria)
@@ -130,40 +126,23 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             return [];
         }
 
-        var ttl = await GetCacheTtlAsync();
-        var cacheKey = CacheKey.With(GetType(), nameof(GetSoldProductIdsAsync), GetCacheKey(criteria));
-        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
-        {
-            StatisticsCache.Apply(options, ttl);
-            using var repository = _orderRepositoryFactory();
-
-            // The rep's distinct sold products in the same scope the ranking uses (creator scope included), so the
-            // category filter can bound its catalog-index lookup and never enumerate a whole category.
-            return await BuildQuery(repository, criteria)
-                .Select(x => x.ProductId)
-                .Distinct()
-                .ToListAsync();
-        });
+        return await StatisticsCache.GetOrCreateAsync(
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.TopSellerCacheExpiration,
+            GetType(), nameof(GetSoldProductIdsAsync), criteria.GetCacheKey(),
+            () => ComputeSoldProductIdsAsync(criteria));
     }
 
-    private async Task<TimeSpan> GetCacheTtlAsync()
+    private async Task<IList<string>> ComputeSoldProductIdsAsync(SalesRepTopSellerCriteria criteria)
     {
-        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.TopSellerCacheExpiration);
-        return TimeSpan.FromMinutes(minutes);
-    }
+        using var repository = _orderRepositoryFactory();
 
-    /// <summary>Every criteria field that shapes the ranking, folded into a stable per-query cache key.</summary>
-    private static string GetCacheKey(SalesRepTopSellerCriteria criteria) => string.Join('|',
-        StatisticsCache.Join(criteria.OrganizationIds),
-        criteria.CustomerId,
-        criteria.StoreId,
-        criteria.CurrencyCode,
-        StatisticsCache.Join(criteria.CategoryIds),
-        criteria.ProductIds == null ? "*" : StatisticsCache.Join(criteria.ProductIds),
-        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
-        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture),
-        criteria.SortBy.ToString(),
-        criteria.Take.ToString(CultureInfo.InvariantCulture));
+        // The rep's distinct sold products in the same scope the ranking uses (creator scope included), so the
+        // category filter can bound its catalog-index lookup and never enumerate a whole category.
+        return await BuildQuery(repository, criteria)
+            .Select(x => x.ProductId)
+            .Distinct()
+            .ToListAsync();
+    }
 
     /// <summary>
     /// The scoped line-item query the ranking runs over: never cancelled line items or cancelled/prototype orders,

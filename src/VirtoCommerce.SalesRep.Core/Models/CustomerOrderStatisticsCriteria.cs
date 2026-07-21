@@ -1,4 +1,5 @@
 using System;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
@@ -7,7 +8,7 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// and a set of statuses) whose created date falls in [<see cref="FromDate"/>, <see cref="ToDate"/>] (both bounds inclusive), aggregated
 /// and converted to <see cref="CurrencyCode"/>. Cancelled and prototype orders are always excluded.
 /// </summary>
-public class CustomerOrderStatisticsCriteria
+public class CustomerOrderStatisticsCriteria : ValueObject
 {
     /// <summary>
     /// Organizations (customers) whose orders are aggregated. Which organizations the caller may see is enforced

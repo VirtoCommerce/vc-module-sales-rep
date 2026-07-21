@@ -1,4 +1,5 @@
 using System;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
@@ -8,7 +9,7 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// <see cref="SortBy"/>, returning only the top <see cref="Take"/>. Cancelled/prototype orders and cancelled line
 /// items are always excluded. Which organizations the caller may see is enforced upstream (the query handler).
 /// </summary>
-public class SalesRepTopSellerCriteria
+public class SalesRepTopSellerCriteria : ValueObject
 {
     /// <summary>Organizations (customers) whose line items are aggregated. Empty/null aggregates nothing.</summary>
     public string[] OrganizationIds { get; set; }
