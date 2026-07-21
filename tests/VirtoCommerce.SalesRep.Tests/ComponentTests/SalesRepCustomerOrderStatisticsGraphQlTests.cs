@@ -343,6 +343,31 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Statistics_StatusFilter_WithoutPeriod_CountsAllTimeMatches()
+    {
+        // The dashboard "NEW ORDERS" KPI is a dateless, filter-only period — period(filter: "New") with NO from/to —
+        // so it must count matching orders across all time (not scoped to the current year), unlike the ytd widgets.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "old", "org-1", 100m, new DateTime(2024, 3, 1, 0, 0, 0, DateTimeKind.Utc), status: "New"); // years ago
+        SeedOrder(ctx, "recent", "org-1", 200m, _feb2026, status: "New");
+        SeedOrder(ctx, "failed", "org-1", 500m, _feb2026, status: "Failed"); // excluded by the "New" filter
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            """
+            query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+              newOrders: period(filter: "New") { total { amount } count }
+            } }
+            """,
+            userId: rep.UserId);
+
+        var newOrders = Stats(json).GetProperty("newOrders");
+        newOrders.GetProperty("count").GetInt32().Should().Be(2);       // both New orders, incl. the 2024 one
+        MoneyAmount(newOrders, "total").Should().Be(300m);              // 100 + 200 (Failed excluded)
+    }
+
+    [Fact]
     public async Task Statistics_StatusFilter_ResolvesCompositeStatus()
     {
         // A composite "Inactive" → { Cancelled, Failed } rule is a project-override of the real resolver.

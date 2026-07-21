@@ -166,6 +166,27 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_ExposesProductNameSkuAndImageUrl()
+    {
+        // The dashboard's Top Sellers row renders name, sku and the product image — all carried by the order line
+        // item and grouped by product. Assert every display field the frontend selects is surfaced.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-a", "org-1", "prodA", quantity: 10, price: 5m, imageUrl: "catalog/prodA/image.jpg");
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers { productId name sku imageUrl } }",
+            userId: rep.UserId));
+
+        items.Should().HaveCount(1);
+        items[0].GetProperty("productId").GetString().Should().Be("prodA");
+        items[0].GetProperty("name").GetString().Should().Be("Product prodA");
+        items[0].GetProperty("sku").GetString().Should().Be("SKU-prodA");
+        items[0].GetProperty("imageUrl").GetString().Should().Be("catalog/prodA/image.jpg");
+    }
+
+    [Fact]
     public async Task SalesRepTopSellers_ExcludesOtherRepsLineItems()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -231,7 +252,7 @@ public class SalesRepTopSellersGraphQlTests
     private static void SeedProductLine(
         SalesRepTestContext ctx, string orderId, string org, string productId,
         int quantity, decimal price, DateTime? createdDate = null,
-        string categoryId = "cat-default", string createdByUserId = null)
+        string categoryId = "cat-default", string createdByUserId = null, string imageUrl = null)
     {
         var date = createdDate ?? _date;
 
@@ -259,6 +280,7 @@ public class SalesRepTopSellersGraphQlTests
             CategoryId = categoryId,
             Sku = $"SKU-{productId}",
             Name = $"Product {productId}",
+            ImageUrl = imageUrl,
             ProductType = "Physical",
             Quantity = quantity,
             Price = price,

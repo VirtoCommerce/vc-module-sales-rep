@@ -1253,6 +1253,23 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepCustomers_TotalCountOnly_ReturnsServedCount()
+    {
+        // The "My customers" sidebar badge selects ONLY totalCount (no items) — the count path must resolve without
+        // any item hydration.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2", "org-3");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(storeId:\"B2B-store\") { totalCount } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":3");
+    }
+
+    [Fact]
     public async Task SalesRepOrders_Period_FiltersByCreatedDate()
     {
         using var ctx = SalesRepTestContext.Create();
