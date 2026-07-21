@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Data.Model;
@@ -386,12 +387,15 @@ public class SalesRepGraphQlComponentTests
         // The rep also becomes a contact member of org-1, but the explicit owner must win over the fallback.
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
+        // The customer-detail card selects both fullName and name; the mapping populates name from the contact's
+        // full name (they resolve to the same display value).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName phones } phone } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName name phones } phone } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("owner-1").And.Contain("Olivia Owner");
+        json.Should().Contain("owner-1").And.Contain("\"fullName\":\"Olivia Owner\"");
+        json.Should().Contain("\"name\":\"Olivia Owner\""); // name field resolves (mirrors fullName)
         json.Should().Contain("999-0000");       // phone taken from the primary contact (the "+" is JSON-escaped)
         json.Should().NotContain("Jane Rep");    // the rep is a member but not the primary contact
     }
@@ -475,14 +479,16 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         // Selecting `address` on the list must hydrate the org's Addresses (field-driven WithAddresses response
-        // group), while iconUrl is a scalar that loads with Default.
+        // group), while iconUrl is a scalar that loads with Default. postalCode + zip are both selected by the My
+        // Customers list; the storefront shows postalCode (zip is a legacy field that resolves but stays null here).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers { items { organizationId iconUrl address { city regionName } } } }",
+            "query { salesRepCustomers { items { organizationId iconUrl address { postalCode zip city regionName } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"iconUrl\":\"https://cdn.test/org-1.png\"");
         json.Should().Contain("\"city\":\"Seattle\"").And.Contain("\"regionName\":\"WA\"");
+        json.Should().Contain("\"postalCode\":\"98101\"").And.Contain("\"zip\":"); // both fields resolve (zip selectable)
     }
 
     [Fact]
@@ -1383,6 +1389,39 @@ public class SalesRepGraphQlComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"count\":1");   // only the rep's own order
         json.Should().Contain("123.45");        // its total, not doubled by the foreign order
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_OrderStatistics_TwoAliasedRanges_ResolveIndependentlyPerRow()
+    {
+        // The My Customers list selects TWO aliased inline orderStatistics ranges per row (ytd + lastYear), coalesced
+        // by the DataLoader. Each alias must resolve to its own window's figures on the same row.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "y1", org: "org-1", number: "ORD-Y1", createdDate: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "y2", org: "org-1", number: "ORD-Y2", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "ly", org: "org-1", number: "ORD-LY", createdDate: new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            """
+            query { salesRepCustomers { items { organizationId
+              ytd:      orderStatistics(from:"2026-01-01T00:00:00Z", to:"2026-12-31T00:00:00Z") { count total { amount } }
+              lastYear: orderStatistics(from:"2025-01-01T00:00:00Z", to:"2025-12-31T00:00:00Z") { count total { amount } }
+            } } }
+            """,
+            userId: rep.UserId);
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
+        var row = root.GetProperty("data").GetProperty("salesRepCustomers").GetProperty("items").EnumerateArray().Single();
+        var ytd = row.GetProperty("ytd");
+        var lastYear = row.GetProperty("lastYear");
+        ytd.GetProperty("count").GetInt32().Should().Be(2);                                    // the two 2026 orders
+        ytd.GetProperty("total").GetProperty("amount").GetDecimal().Should().Be(246.90m);      // 123.45 * 2
+        lastYear.GetProperty("count").GetInt32().Should().Be(1);                               // the single 2025 order
+        lastYear.GetProperty("total").GetProperty("amount").GetDecimal().Should().Be(123.45m);
     }
 
     [Fact]
