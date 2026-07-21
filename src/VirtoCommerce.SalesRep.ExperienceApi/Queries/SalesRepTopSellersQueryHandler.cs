@@ -19,8 +19,6 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// </summary>
 public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepTopSellersQuery, IList<SalesRepTopSeller>>
 {
-    private const int MaxTake = 10;
-
     private readonly ISalesRepTopSellerService _topSellerService;
     private readonly ISalesRepTopSellerSortRuleResolver _sortRuleResolver;
     private readonly ISalesRepTopSellerFilterRuleResolver _filterRuleResolver;
@@ -64,7 +62,7 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         criteria.CurrencyCode = currencyCode;
         criteria.FromDate = request.Period?.From;
         criteria.ToDate = request.Period?.To;
-        criteria.Take = Math.Clamp(request.Take, 1, MaxTake);
+        criteria.Take = Math.Clamp(request.Take, 1, SalesRepTopSellersQuery.MaxTake);
 
         // Ordering (empty/unknown → default by-units; a sort never fails closed).
         criteria = await _sortRuleResolver.ApplySortAsync(request.StoreId, request.Sort, criteria);

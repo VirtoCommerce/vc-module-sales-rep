@@ -28,6 +28,9 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// </summary>
 public class SalesRepTopSellerFilterRuleResolver : ISalesRepTopSellerFilterRuleResolver
 {
+    /// <summary>Page size used to page the catalog category tree via <c>SearchAllNoCloneAsync</c>.</summary>
+    protected const int CategorySearchPageSize = 50;
+
     private readonly IStoreService _storeService;
     private readonly ICategorySearchService _categorySearchService;
     private readonly IProductIndexedSearchService _productIndexedSearchService;
@@ -127,7 +130,7 @@ public class SalesRepTopSellerFilterRuleResolver : ISalesRepTopSellerFilterRuleR
 
         var criteria = AbstractTypeFactory<CategorySearchCriteria>.TryCreateInstance();
         criteria.CatalogId = catalogId;
-        criteria.Take = 50; // page size for SearchAllNoCloneAsync (it pages through the whole catalog tree)
+        criteria.Take = CategorySearchPageSize; // page size for SearchAllNoCloneAsync (it pages through the whole catalog tree)
         return await _categorySearchService.SearchAllNoCloneAsync(criteria);
     }
 

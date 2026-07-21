@@ -19,6 +19,12 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 /// </summary>
 public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
 {
+    /// <summary>Default number of top products returned when the caller omits <c>take</c>.</summary>
+    public const int DefaultTake = 5;
+
+    /// <summary>Upper bound the handler clamps <c>take</c> to.</summary>
+    public const int MaxTake = 10;
+
     /// <summary>Organization (customer) id to scope to; omit for all the rep's assigned customers.</summary>
     public string OrganizationId { get; set; }
 
@@ -34,8 +40,8 @@ public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
     /// <summary>Optional created-date range to aggregate over. Omit for lifetime.</summary>
     public SalesRepStatisticsPeriodInput Period { get; set; }
 
-    /// <summary>How many top products to return (default 5, clamped to a max of 10).</summary>
-    public int Take { get; set; } = 5;
+    /// <summary>How many top products to return (default <see cref="DefaultTake"/>, clamped to a max of <see cref="MaxTake"/>).</summary>
+    public int Take { get; set; } = DefaultTake;
 
     /// <summary>Currency to convert revenue to (defaults to the store's default currency, then the primary currency).</summary>
     public string CurrencyCode { get; set; }
@@ -65,7 +71,7 @@ public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
         Filter = context.GetArgument<string>(SalesRepFilters.ArgumentName);
         Sort = context.GetArgument<string>("sort");
         Period = context.GetArgument<SalesRepStatisticsPeriodInput>(nameof(Period));
-        Take = context.GetArgument<int?>(nameof(Take)) ?? 5;
+        Take = context.GetArgument<int?>(nameof(Take)) ?? DefaultTake;
         CurrencyCode = context.GetArgument<string>(nameof(CurrencyCode));
         CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
