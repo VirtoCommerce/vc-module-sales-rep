@@ -1,10 +1,14 @@
 using System;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 
@@ -20,16 +24,49 @@ namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
 {
     private readonly Func<IOrderRepository> _orderRepositoryFactory;
+    private readonly IPlatformMemoryCache _platformMemoryCache;
+    private readonly ISettingsManager _settingsManager;
 
-    public SalesRepCustomerCountsService(Func<IOrderRepository> orderRepositoryFactory)
+    public SalesRepCustomerCountsService(
+        Func<IOrderRepository> orderRepositoryFactory,
+        IPlatformMemoryCache platformMemoryCache,
+        ISettingsManager settingsManager)
     {
         _orderRepositoryFactory = orderRepositoryFactory;
+        _platformMemoryCache = platformMemoryCache;
+        _settingsManager = settingsManager;
     }
 
     public virtual async Task<SalesRepCustomerCountsPeriod> GetCountsAsync(SalesRepCustomerCountsCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
+        var ttl = await GetCacheTtlAsync();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetCountsAsync), GetCacheKey(criteria));
+        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
+        {
+            StatisticsCache.Apply(options, ttl);
+            return await ComputeCountsAsync(criteria);
+        });
+    }
+
+    private async Task<TimeSpan> GetCacheTtlAsync()
+    {
+        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.CustomerCountsCacheExpiration);
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>Every criteria field that shapes the counts, folded into a stable per-query cache key.</summary>
+    private static string GetCacheKey(SalesRepCustomerCountsCriteria criteria) => string.Join('|',
+        StatisticsCache.Join(criteria.OrganizationIds),
+        criteria.CustomerId,
+        criteria.StoreId,
+        StatisticsCache.Join(criteria.AssignmentDates?.Select(x => x.Ticks.ToString(CultureInfo.InvariantCulture))),
+        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
+        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture));
+
+    private async Task<SalesRepCustomerCountsPeriod> ComputeCountsAsync(SalesRepCustomerCountsCriteria criteria)
+    {
         using var repository = _orderRepositoryFactory();
 
         var scoped = BuildQuery(repository, criteria);

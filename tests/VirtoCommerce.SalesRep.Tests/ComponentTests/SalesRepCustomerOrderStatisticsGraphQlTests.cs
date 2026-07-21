@@ -468,6 +468,58 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         lifetime.GetProperty("lastOrderDate").GetDateTime().Should().Be(_jun2026);
     }
 
+    [Fact]
+    public async Task Statistics_AreCachedWithinTtl_RepeatQueryDoesNotReflectNewOrders()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "o1", "org-1", 100m, _feb2026);
+
+        var query = $$"""
+                      query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                        ytd: period({{Ytd}}) { total { amount } count } } }
+                      """;
+
+        var first = Stats(await ctx.ExecuteGraphQlAsync(query, userId: rep.UserId)).GetProperty("ytd");
+        MoneyAmount(first, "total").Should().Be(100m);
+
+        // A new order lands after the aggregate was cached; within the TTL the repeat query is served from cache and
+        // deliberately does NOT reflect it (time-based cache, bounded staleness — there is no entity change token).
+        SeedOrder(ctx, "o2", "org-1", 500m, _feb2026);
+
+        var second = Stats(await ctx.ExecuteGraphQlAsync(query, userId: rep.UserId)).GetProperty("ytd");
+        MoneyAmount(second, "total").Should().Be(100m); // cached value, not 600
+        second.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Statistics_CacheIsScopedPerRep_NoCrossRepLeak()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var repA = await ctx.CreateRepAsync("Alice", "Rep", "alice@test.com", "org-1");
+        var repB = await ctx.CreateRepAsync("Bob", "Rep", "bob@test.com", "org-1");
+
+        // Both reps serve org-1, but only rep A created an order there.
+        SeedOrder(ctx, "a1", "org-1", 100m, _feb2026, createdByUserId: repA.UserId);
+
+        var query = $$"""
+                      query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                        ytd: period({{Ytd}}) { total { amount } count } } }
+                      """;
+
+        // A warms the cache with its own figure.
+        MoneyAmount(Stats(await ctx.ExecuteGraphQlAsync(query, userId: repA.UserId)).GetProperty("ytd"), "total")
+            .Should().Be(100m);
+
+        // The cache key is creator-scoped, so B must get its own zeroed aggregate, never A's cached 100 — a cache key
+        // that omitted the rep's id would leak A's statistics to B (data-isolation invariant).
+        var bYtd = Stats(await ctx.ExecuteGraphQlAsync(query, userId: repB.UserId)).GetProperty("ytd");
+        MoneyAmount(bYtd, "total").Should().Be(0m);
+        bYtd.GetProperty("count").GetInt32().Should().Be(0);
+    }
+
     // ---- helpers ----
 
     /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>

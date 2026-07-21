@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 
@@ -23,15 +27,21 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 {
     private readonly Func<ICartRepository> _cartRepositoryFactory;
     private readonly ICurrencyService _currencyService;
+    private readonly IPlatformMemoryCache _platformMemoryCache;
+    private readonly ISettingsManager _settingsManager;
     private readonly ILogger<CustomerCartStatisticsService> _logger;
 
     public CustomerCartStatisticsService(
         Func<ICartRepository> cartRepositoryFactory,
         ICurrencyService currencyService,
+        IPlatformMemoryCache platformMemoryCache,
+        ISettingsManager settingsManager,
         ILogger<CustomerCartStatisticsService> logger)
     {
         _cartRepositoryFactory = cartRepositoryFactory;
         _currencyService = currencyService;
+        _platformMemoryCache = platformMemoryCache;
+        _settingsManager = settingsManager;
         _logger = logger;
     }
 
@@ -39,9 +49,34 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var byCurrency = await AggregateByCurrencyAsync(criteria);
-        return await ConvertAndFoldAsync(byCurrency, criteria);
+        var ttl = await GetCacheTtlAsync();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetStatisticsAsync), GetCacheKey(criteria));
+        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
+        {
+            StatisticsCache.Apply(options, ttl);
+            var byCurrency = await AggregateByCurrencyAsync(criteria);
+            return await ConvertAndFoldAsync(byCurrency, criteria);
+        });
     }
+
+    private async Task<TimeSpan> GetCacheTtlAsync()
+    {
+        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.CartStatisticsCacheExpiration);
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>Every criteria field that shapes the aggregate, folded into a stable per-query cache key.</summary>
+    private static string GetCacheKey(CustomerCartStatisticsCriteria criteria) => string.Join('|',
+        StatisticsCache.Join(criteria.OrganizationIds),
+        criteria.CustomerId,
+        criteria.StoreId,
+        criteria.CurrencyCode,
+        StatisticsCache.Join(criteria.Types),
+        StatisticsCache.Join(criteria.ExcludeTypes),
+        StatisticsCache.Join(criteria.Statuses),
+        criteria.OnlyNonEmpty ? "1" : "0",
+        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
+        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// One grouped-by-currency aggregate query. Returns a raw per-currency sum/count/max — no cart rows are

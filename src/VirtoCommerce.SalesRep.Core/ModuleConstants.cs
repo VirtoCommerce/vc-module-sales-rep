@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using VirtoCommerce.Platform.Core.Settings;
 
 namespace VirtoCommerce.SalesRep.Core;
@@ -61,11 +62,65 @@ public static class ModuleConstants
             }
         }
 
+        /// <summary>
+        /// Backend tuning knobs for the dashboard statistics caches (VCST-5309 widgets). Each value is the
+        /// time-to-live, in minutes, of the corresponding aggregate's memory cache; 0 (or negative) disables caching
+        /// for that query. Module-global and non-public: they are operational tuning, not per-store storefront data,
+        /// so they are registered only against the module (not the Store type) and never exposed to the storefront.
+        /// Defaults differ by how fast the underlying data moves — order/cart aggregates change often, the customer
+        /// counters (ordering + newly-assigned customers) change rarely.
+        /// </summary>
+        public static class Caching
+        {
+            public static SettingDescriptor OrderStatisticsCacheExpiration { get; } = new()
+            {
+                Name = "SalesRep.Statistics.OrderCacheExpirationMinutes",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Integer,
+                DefaultValue = 5,
+            };
+
+            public static SettingDescriptor CartStatisticsCacheExpiration { get; } = new()
+            {
+                Name = "SalesRep.Statistics.CartCacheExpirationMinutes",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Integer,
+                DefaultValue = 5,
+            };
+
+            public static SettingDescriptor CustomerCountsCacheExpiration { get; } = new()
+            {
+                Name = "SalesRep.Statistics.CustomerCountsCacheExpirationMinutes",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Integer,
+                DefaultValue = 15,
+            };
+
+            public static SettingDescriptor TopSellerCacheExpiration { get; } = new()
+            {
+                Name = "SalesRep.Statistics.TopSellerCacheExpirationMinutes",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Integer,
+                DefaultValue = 5,
+            };
+
+            public static IEnumerable<SettingDescriptor> AllCachingSettings
+            {
+                get
+                {
+                    yield return OrderStatisticsCacheExpiration;
+                    yield return CartStatisticsCacheExpiration;
+                    yield return CustomerCountsCacheExpiration;
+                    yield return TopSellerCacheExpiration;
+                }
+            }
+        }
+
         public static IEnumerable<SettingDescriptor> AllSettings
         {
             get
             {
-                return General.AllGeneralSettings;
+                return General.AllGeneralSettings.Concat(Caching.AllCachingSettings);
             }
         }
     }

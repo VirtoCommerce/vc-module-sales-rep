@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +8,10 @@ using Microsoft.Extensions.Logging;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
@@ -28,15 +32,21 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 {
     private readonly Func<IOrderRepository> _orderRepositoryFactory;
     private readonly ICurrencyService _currencyService;
+    private readonly IPlatformMemoryCache _platformMemoryCache;
+    private readonly ISettingsManager _settingsManager;
     private readonly ILogger<SalesRepTopSellerService> _logger;
 
     public SalesRepTopSellerService(
         Func<IOrderRepository> orderRepositoryFactory,
         ICurrencyService currencyService,
+        IPlatformMemoryCache platformMemoryCache,
+        ISettingsManager settingsManager,
         ILogger<SalesRepTopSellerService> logger)
     {
         _orderRepositoryFactory = orderRepositoryFactory;
         _currencyService = currencyService;
+        _platformMemoryCache = platformMemoryCache;
+        _settingsManager = settingsManager;
         _logger = logger;
     }
 
@@ -49,6 +59,17 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             return [];
         }
 
+        var ttl = await GetCacheTtlAsync();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetTopSellersAsync), GetCacheKey(criteria));
+        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
+        {
+            StatisticsCache.Apply(options, ttl);
+            return await ComputeTopSellersAsync(criteria);
+        });
+    }
+
+    private async Task<IList<SalesRepTopSeller>> ComputeTopSellersAsync(SalesRepTopSellerCriteria criteria)
+    {
         using var repository = _orderRepositoryFactory();
 
         // Aggregate DB-side: collapse the scoped line items (the rep's order volume can be very large) to one row per
@@ -109,15 +130,40 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             return [];
         }
 
-        using var repository = _orderRepositoryFactory();
+        var ttl = await GetCacheTtlAsync();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetSoldProductIdsAsync), GetCacheKey(criteria));
+        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
+        {
+            StatisticsCache.Apply(options, ttl);
+            using var repository = _orderRepositoryFactory();
 
-        // The rep's distinct sold products in the same scope the ranking uses (creator scope included), so the
-        // category filter can bound its catalog-index lookup and never enumerate a whole category.
-        return await BuildQuery(repository, criteria)
-            .Select(x => x.ProductId)
-            .Distinct()
-            .ToListAsync();
+            // The rep's distinct sold products in the same scope the ranking uses (creator scope included), so the
+            // category filter can bound its catalog-index lookup and never enumerate a whole category.
+            return await BuildQuery(repository, criteria)
+                .Select(x => x.ProductId)
+                .Distinct()
+                .ToListAsync();
+        });
     }
+
+    private async Task<TimeSpan> GetCacheTtlAsync()
+    {
+        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.TopSellerCacheExpiration);
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>Every criteria field that shapes the ranking, folded into a stable per-query cache key.</summary>
+    private static string GetCacheKey(SalesRepTopSellerCriteria criteria) => string.Join('|',
+        StatisticsCache.Join(criteria.OrganizationIds),
+        criteria.CustomerId,
+        criteria.StoreId,
+        criteria.CurrencyCode,
+        StatisticsCache.Join(criteria.CategoryIds),
+        criteria.ProductIds == null ? "*" : StatisticsCache.Join(criteria.ProductIds),
+        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
+        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture),
+        criteria.SortBy.ToString(),
+        criteria.Take.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>
     /// The scoped line-item query the ranking runs over: never cancelled line items or cancelled/prototype orders,

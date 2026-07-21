@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +8,10 @@ using Microsoft.Extensions.Logging;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 
@@ -24,15 +28,21 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
 {
     private readonly Func<IOrderRepository> _orderRepositoryFactory;
     private readonly ICurrencyService _currencyService;
+    private readonly IPlatformMemoryCache _platformMemoryCache;
+    private readonly ISettingsManager _settingsManager;
     private readonly ILogger<CustomerOrderStatisticsService> _logger;
 
     public CustomerOrderStatisticsService(
         Func<IOrderRepository> orderRepositoryFactory,
         ICurrencyService currencyService,
+        IPlatformMemoryCache platformMemoryCache,
+        ISettingsManager settingsManager,
         ILogger<CustomerOrderStatisticsService> logger)
     {
         _orderRepositoryFactory = orderRepositoryFactory;
         _currencyService = currencyService;
+        _platformMemoryCache = platformMemoryCache;
+        _settingsManager = settingsManager;
         _logger = logger;
     }
 
@@ -40,15 +50,32 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var byCurrency = await AggregateByCurrencyAsync(criteria);
-        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
-        return BuildPeriod(byCurrency, criteria.CurrencyCode, currencies);
+        var ttl = await GetCacheTtlAsync();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetStatisticsAsync), GetCacheKey(criteria));
+        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
+        {
+            StatisticsCache.Apply(options, ttl);
+            var byCurrency = await AggregateByCurrencyAsync(criteria);
+            var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+            return BuildPeriod(byCurrency, criteria.CurrencyCode, currencies);
+        });
     }
 
     public virtual async Task<IDictionary<string, CustomerOrderStatisticsPeriod>> GetStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
+        var ttl = await GetCacheTtlAsync();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetStatisticsByOrganizationAsync), GetCacheKey(criteria));
+        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
+        {
+            StatisticsCache.Apply(options, ttl);
+            return await ComputeStatisticsByOrganizationAsync(criteria);
+        });
+    }
+
+    private async Task<IDictionary<string, CustomerOrderStatisticsPeriod>> ComputeStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria)
+    {
         var byOrgCurrency = await AggregateByOrganizationAndCurrencyAsync(criteria);
         var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
 
@@ -185,6 +212,22 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         period.CurrencyCode = folded.CurrencyCode;
         return period;
     }
+
+    private async Task<TimeSpan> GetCacheTtlAsync()
+    {
+        var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration);
+        return TimeSpan.FromMinutes(minutes);
+    }
+
+    /// <summary>Every criteria field that shapes the aggregate, folded into a stable per-query cache key.</summary>
+    private static string GetCacheKey(CustomerOrderStatisticsCriteria criteria) => string.Join('|',
+        StatisticsCache.Join(criteria.OrganizationIds),
+        criteria.CustomerId,
+        criteria.StoreId,
+        criteria.CurrencyCode,
+        StatisticsCache.Join(criteria.Statuses),
+        criteria.FromDate?.Ticks.ToString(CultureInfo.InvariantCulture),
+        criteria.ToDate?.Ticks.ToString(CultureInfo.InvariantCulture));
 
     /// <summary>Raw per-currency aggregate read from the database, before currency conversion.</summary>
     private sealed class PerCurrencyAggregate
