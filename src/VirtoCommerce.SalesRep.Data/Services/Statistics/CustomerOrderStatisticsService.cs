@@ -150,7 +150,7 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
 
         if (criteria.ToDate != null)
         {
-            query = query.Where(x => x.CreatedDate < criteria.ToDate.Value);
+            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
         }
 
         return query;
@@ -159,8 +159,9 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
     /// <summary>
     /// Converts one set of per-currency aggregates into <paramref name="currencyCode"/> and folds them into a single
     /// period via the shared <see cref="StatisticsCurrencyConverter"/> (current admin-maintained exchange rates).
-    /// Keeping per-currency counts until the fold is what makes the average correct across a mix of currencies;
-    /// <c>FirstOrderDate</c> is the min across currencies (currency-independent), the counterpart of the fold's max.
+    /// Keeping per-currency counts until the fold is what makes the average correct across a mix of currencies.
+    /// <c>FirstOrderDate</c>/<c>LastOrderDate</c> are the min/max over the same configured currencies the fold sums,
+    /// so an order in an unconfigured currency contributes to neither (consistent with <c>Total</c>/<c>Count</c>).
     /// </summary>
     private CustomerOrderStatisticsPeriod BuildPeriod(IList<PerCurrencyAggregate> byCurrency, string currencyCode, IReadOnlyCollection<Currency> currencies)
     {
@@ -169,6 +170,7 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
             Currency = x.Currency,
             Total = x.Total,
             Count = x.Count,
+            EarliestDate = x.FirstOrderDate,
             LatestDate = x.LastOrderDate,
         });
 
@@ -179,7 +181,7 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         period.Count = folded.Count;
         period.Average = folded.Average;
         period.LastOrderDate = folded.LatestDate;
-        period.FirstOrderDate = byCurrency.Count == 0 ? null : byCurrency.Min(x => (DateTime?)x.FirstOrderDate);
+        period.FirstOrderDate = folded.EarliestDate;
         period.CurrencyCode = folded.CurrencyCode;
         return period;
     }

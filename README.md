@@ -254,12 +254,12 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
 
 #### Cart / project statistics
 
-The same shape for carts/projects (dashboard *Active Projects*). `filter` here is a cart *kind* — e.g. the built-in `"project"` (wishlist) — and `count` is the primary metric:
+The same shape for carts/projects (dashboard *Active Projects*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` (non-empty carts that are **not** wishlists) — and `count` is the primary metric:
 
 ```graphql
 {
   salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
-    activeProjects: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filter: "project") {
+    activeCarts: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filter: "active-carts") {
       count
       total { amount formattedAmount }
       lastCartDate

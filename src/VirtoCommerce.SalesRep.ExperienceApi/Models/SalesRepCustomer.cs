@@ -39,8 +39,9 @@ public class SalesRepCustomer
     public string StoreId { get; set; }
 
     /// <summary>
-    /// Currency the inline <c>orderStatistics</c> figures default to (resolved once by the handler — the platform
-    /// primary currency). Not exposed as a GraphQL field; the field's own <c>currencyCode</c> argument overrides it.
+    /// Currency the inline <c>orderStatistics</c> figures default to (resolved once by the handler — the store's
+    /// default currency, then the platform primary). Not exposed as a GraphQL field; the field's own
+    /// <c>currencyCode</c> argument overrides it.
     /// </summary>
     public string CurrencyCode { get; set; }
 

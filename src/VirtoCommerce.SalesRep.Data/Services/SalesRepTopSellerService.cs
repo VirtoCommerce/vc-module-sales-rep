@@ -165,7 +165,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 
         if (criteria.ToDate != null)
         {
-            query = query.Where(x => x.CustomerOrder.CreatedDate < criteria.ToDate.Value);
+            query = query.Where(x => x.CustomerOrder.CreatedDate <= criteria.ToDate.Value);
         }
 
         return query;

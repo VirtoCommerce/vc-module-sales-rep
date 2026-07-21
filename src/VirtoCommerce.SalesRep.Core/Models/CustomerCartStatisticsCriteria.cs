@@ -5,9 +5,10 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// <summary>
 /// Criteria for a single cart/project-statistics bucket: the carts of one organization (or all the rep's served
 /// organizations), optionally scoped to a store, a set of cart types and/or a set of cart statuses, whose created
-/// date falls in [<see cref="FromDate"/>, <see cref="ToDate"/>), aggregated and converted to <see cref="CurrencyCode"/>.
-/// Soft-deleted carts are always excluded. The type/status sets come from a resolved "cart kind" (e.g. "project" →
-/// type "Wishlist"); the query layer maps business kind names to these underlying filters.
+/// date falls in [<see cref="FromDate"/>, <see cref="ToDate"/>] (both bounds inclusive), aggregated and converted to
+/// <see cref="CurrencyCode"/>. Soft-deleted carts are always excluded. The type/status sets come from a resolved "cart
+/// kind" (e.g. the built-in "active-carts" → excludes type "Wishlist"); the query layer maps business kind names to
+/// these underlying filters.
 /// </summary>
 public class CustomerCartStatisticsCriteria
 {
@@ -48,6 +49,6 @@ public class CustomerCartStatisticsCriteria
     /// <summary>Inclusive lower bound on the cart created date. Null = no lower bound (e.g. lifetime).</summary>
     public DateTime? FromDate { get; set; }
 
-    /// <summary>Exclusive upper bound on the cart created date. Null = no upper bound.</summary>
+    /// <summary>Inclusive upper bound on the cart created date. Null = no upper bound.</summary>
     public DateTime? ToDate { get; set; }
 }

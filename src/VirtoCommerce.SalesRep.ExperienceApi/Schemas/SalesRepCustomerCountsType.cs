@@ -43,7 +43,7 @@ public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCo
         Field<SalesRepCustomerCountsPeriodType>("period")
             .Description("Customer counters for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the order created date (null = no upper bound).")
+            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the order created date (null = no upper bound).")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional customer-segment rule name (a salesRepCustomerFilterRules 'name'); counts only customers matching that segment. Omit for all served customers.")
             .Resolve(context =>
             {

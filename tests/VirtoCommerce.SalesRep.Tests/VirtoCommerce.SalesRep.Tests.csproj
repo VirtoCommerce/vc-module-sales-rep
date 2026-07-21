@@ -37,7 +37,7 @@
          a transitive advisory that the repo's TreatWarningsAsErrors turns into a build error — suppress it for
          this test project only. -->
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
-    <!-- TEMP — LOCAL ONLY, DO NOT COMMIT. CatalogModule.Data (referenced only for the Top Sellers catalog test
+    <!-- TEMP — REMOVE WHEN VULNERABILITY FIXED. CatalogModule.Data (referenced only for the Top Sellers catalog test
          slice) → HtmlSanitizer → AngleSharp 0.17.1: a moderate transitive advisory that TreatWarningsAsErrors turns
          into a build error. Test-only (never shipped). Remove once AngleSharp is patched upstream (or fold into a
          permanent suppression like the SQLite one above). -->

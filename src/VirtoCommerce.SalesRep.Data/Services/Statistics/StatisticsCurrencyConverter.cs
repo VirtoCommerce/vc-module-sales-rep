@@ -7,17 +7,18 @@ using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
-/// <summary>Raw per-currency aggregate (sum + count + latest date) read from a module's EF store before conversion.</summary>
+/// <summary>Raw per-currency aggregate (sum + count + earliest/latest date) read from a module's EF store before conversion.</summary>
 internal sealed class CurrencyStatisticAggregate
 {
     public string Currency { get; set; }
     public decimal Total { get; set; }
     public int Count { get; set; }
+    public DateTime? EarliestDate { get; set; }
     public DateTime? LatestDate { get; set; }
 }
 
-/// <summary>Sum / count / average folded into one currency, plus that currency's code and the latest record date.</summary>
-internal sealed record FoldedStatistics(decimal Total, int Count, decimal Average, DateTime? LatestDate, string CurrencyCode);
+/// <summary>Sum / count / average folded into one currency, plus that currency's code and the earliest/latest record date.</summary>
+internal sealed record FoldedStatistics(decimal Total, int Count, decimal Average, DateTime? EarliestDate, DateTime? LatestDate, string CurrencyCode);
 
 /// <summary>
 /// Shared currency fold for the Sales Rep statistics services (orders, carts). Converts a set of per-currency
@@ -25,7 +26,8 @@ internal sealed record FoldedStatistics(decimal Total, int Count, decimal Averag
 /// rate math, using the current admin-maintained <c>ExchangeRate</c> values), then rounds to the target's decimal
 /// digits. Keeping per-currency counts until the fold is what makes the average correct across a mix of currencies.
 /// A source currency with no configured rate is skipped (and logged) rather than blanking the whole widget; the
-/// target currency must be configured (the caller resolves the code).
+/// target currency must be configured (the caller resolves the code). The earliest/latest dates are tracked over the
+/// same skipped set, so a record in an unconfigured currency contributes to neither them nor the sum/count/average.
 /// </summary>
 internal static class StatisticsCurrencyConverter
 {
@@ -40,6 +42,7 @@ internal static class StatisticsCurrencyConverter
 
         var total = 0m;
         var count = 0;
+        DateTime? earliestDate = null;
         DateTime? latestDate = null;
 
         foreach (var group in byCurrency)
@@ -55,6 +58,11 @@ internal static class StatisticsCurrencyConverter
             total += new Money(group.Total, sourceCurrency).ConvertTo(targetCurrency).InternalAmount;
             count += group.Count;
 
+            if (group.EarliestDate != null && (earliestDate == null || group.EarliestDate < earliestDate))
+            {
+                earliestDate = group.EarliestDate;
+            }
+
             if (group.LatestDate != null && (latestDate == null || group.LatestDate > latestDate))
             {
                 latestDate = group.LatestDate;
@@ -66,6 +74,6 @@ internal static class StatisticsCurrencyConverter
             ? 0m
             : Math.Round(total / count, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
 
-        return new FoldedStatistics(roundedTotal, count, average, latestDate, targetCurrency.Code);
+        return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code);
     }
 }

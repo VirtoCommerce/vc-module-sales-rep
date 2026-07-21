@@ -78,8 +78,8 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
         Field<CustomerOrderStatisticsPeriodType>("orderStatistics")
             .Description("The rep's own order statistics for this customer over a date range (YTD purchases, order count, average, first/last order). Omit both bounds for lifetime; request several aliased selections (e.g. ytd + lastYtd) to build the purchase columns.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the order created date (null = no upper bound).")
-            .Argument<StringGraphType>("currencyCode", "Currency to convert the figures to (defaults to the platform primary currency).")
+            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the order created date (null = no upper bound).")
+            .Argument<StringGraphType>("currencyCode", "Currency to convert the figures to (defaults to the store's default currency, then the platform primary).")
             .Resolve(context =>
             {
                 var organizationId = context.Source.OrganizationId;

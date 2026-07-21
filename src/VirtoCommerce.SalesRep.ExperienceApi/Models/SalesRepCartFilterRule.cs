@@ -6,8 +6,8 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 /// <summary>
 /// A selectable cart "kind" for the Sales Rep cart/project widgets — the cart analogue of
 /// <see cref="SalesRepOrderFilterRule"/>, but richer: a kind is a composite filter over cart <see cref="Types"/> and/or
-/// <see cref="Statuses"/> (e.g. "project" → type "Wishlist"; a project could add "activeCart" → default type + an
-/// "active" status set). Extensible: a project registers its own <c>ISalesRepCartFilterRuleResolver</c> and/or overrides
+/// <see cref="Statuses"/> (e.g. the built-in "active-carts" → excludes type "Wishlist" and requires non-empty; a
+/// project could add a "project" → type "Wishlist" kind). Extensible: a project registers its own <c>ISalesRepCartFilterRuleResolver</c> and/or overrides
 /// this type via <c>AbstractTypeFactory.OverrideType</c> to add, hide or recompose kinds.
 /// </summary>
 public class SalesRepCartFilterRule : INamedFilterRule

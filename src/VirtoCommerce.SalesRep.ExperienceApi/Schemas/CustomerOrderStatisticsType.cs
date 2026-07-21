@@ -46,7 +46,7 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
         Field<CustomerOrderStatisticsPeriodType>("period")
             .Description("Order statistics for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the order created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the order created date (null = no upper bound).")
+            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the order created date (null = no upper bound).")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional filter-rule name (a salesRepOrderFilterRules 'name'); counts only orders matching that rule. Omit for all orders in the range.")
             .Resolve(context =>
             {

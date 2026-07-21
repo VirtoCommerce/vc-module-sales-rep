@@ -43,7 +43,7 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
 
         if (criteria.ToDate != null)
         {
-            inRange = inRange.Where(x => x.CreatedDate < criteria.ToDate.Value);
+            inRange = inRange.Where(x => x.CreatedDate <= criteria.ToDate.Value);
         }
 
         var orderingCustomers = await inRange
@@ -52,12 +52,12 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
             .CountAsync();
 
         // Customers newly assigned to the rep within the range: count the per-organization assignment dates the handler
-        // resolved from the rep's granting memberships that land in [FromDate, ToDate). This is an in-memory count over a
+        // resolved from the rep's granting memberships that land in [FromDate, ToDate]. This is an in-memory count over a
         // bounded set (one date per served organization) — assignment is independent of orders, so no order query.
         var assignmentDates = criteria.AssignmentDates ?? [];
         var newCustomers = assignmentDates.Count(assigned =>
             (criteria.FromDate == null || assigned >= criteria.FromDate.Value) &&
-            (criteria.ToDate == null || assigned < criteria.ToDate.Value));
+            (criteria.ToDate == null || assigned <= criteria.ToDate.Value));
 
         var result = AbstractTypeFactory<SalesRepCustomerCountsPeriod>.TryCreateInstance();
         result.OrderingCustomers = orderingCustomers;

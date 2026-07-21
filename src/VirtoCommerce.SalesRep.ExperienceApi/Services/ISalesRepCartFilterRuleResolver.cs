@@ -9,8 +9,8 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 /// Source of the Sales Rep cart "kinds" (filter options) and the mapping that applies a selection to the cart
 /// statistics criteria (type + status). The cart analogue of <see cref="ISalesRepOrderFilterRuleResolver"/>. Only a
 /// statistics apply method exists today (there is no cart list yet); a cart list would add its own apply method
-/// here, keeping both mappings in one class. The default implementation exposes a single built-in "project" kind
-/// (cart type "Wishlist"); a project replaces this service to hide, add or recompose kinds.
+/// here, keeping both mappings in one class. The default implementation exposes a single built-in "active-carts" kind
+/// (non-empty carts that are not wishlists); a project replaces this service to hide, add or recompose kinds.
 /// </summary>
 public interface ISalesRepCartFilterRuleResolver : IFilterRuleResolver<SalesRepCartFilterRule>
 {

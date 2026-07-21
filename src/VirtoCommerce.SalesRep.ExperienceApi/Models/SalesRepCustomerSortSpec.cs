@@ -6,7 +6,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 /// Resolved ordering for the "My customers" list. Two shapes: a plain member-column sort (<see cref="MemberSort"/>,
 /// applied straight to the members search), or an order-derived ordering (<see cref="IsOrderDerived"/>) the members
 /// search can't express — the handler then ranks the served organizations by the rep's per-organization order
-/// aggregate (<see cref="Metric"/> over the optional [<see cref="FromDate"/>, <see cref="ToDate"/>) window, biggest/
+/// aggregate (<see cref="Metric"/> over the optional [<see cref="FromDate"/>, <see cref="ToDate"/>] window, biggest/
 /// newest first) before paging.
 /// </summary>
 public class SalesRepCustomerSortSpec
@@ -23,7 +23,7 @@ public class SalesRepCustomerSortSpec
     /// <summary>Inclusive lower bound for the order-derived metric's window (null = all time).</summary>
     public DateTime? FromDate { get; set; }
 
-    /// <summary>Exclusive upper bound for the order-derived metric's window (null = up to now).</summary>
+    /// <summary>Inclusive upper bound for the order-derived metric's window (null = up to now).</summary>
     public DateTime? ToDate { get; set; }
 }
 

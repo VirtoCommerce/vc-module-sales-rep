@@ -43,7 +43,7 @@ public class SalesRepTopSellerCriteria
     /// <summary>Inclusive lower bound on the order created date. Null = no lower bound (lifetime).</summary>
     public DateTime? FromDate { get; set; }
 
-    /// <summary>Exclusive upper bound on the order created date. Null = no upper bound.</summary>
+    /// <summary>Inclusive upper bound on the order created date. Null = no upper bound.</summary>
     public DateTime? ToDate { get; set; }
 
     /// <summary>The metric the ranking sorts by.</summary>

@@ -18,7 +18,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 /// A Sales Rep's cart/project statistics in one currency (dashboard "Active Projects" and related cart widgets).
 /// Request any number of ranges via aliased <c>period(from, to, kinds)</c> selections and <c>comparison(current,
 /// previous, kinds)</c> selections; a per-(range, kind-selection) DataLoader coalesces them so each distinct bucket
-/// is aggregated only once. <c>kinds</c> are business names (e.g. "project") the server maps to underlying cart
+/// is aggregated only once. <c>kinds</c> are business names (e.g. the built-in "active-carts") the server maps to underlying cart
 /// type/status filters via <see cref="ISalesRepCartFilterRuleResolver"/> — the client never sees internal cart types, and
 /// the mapping (plus fail-closed handling) happens inside the loader, so this graph type sees no concrete filter.
 /// </summary>
@@ -44,7 +44,7 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
         Field<CustomerCartStatisticsPeriodType>("period")
             .Description("Cart statistics for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>("from", "Inclusive lower bound on the cart created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>("to", "Exclusive upper bound on the cart created date (null = no upper bound).")
+            .Argument<DateTimeGraphType>("to", "Inclusive upper bound on the cart created date (null = no upper bound).")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); counts only carts matching that rule's type/status/contents filter. Omit for every cart.")
             .Resolve(context =>
             {

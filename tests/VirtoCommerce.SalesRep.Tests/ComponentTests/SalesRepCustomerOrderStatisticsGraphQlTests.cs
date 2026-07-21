@@ -414,6 +414,60 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         bogus.GetProperty("count").GetInt32().Should().Be(0);
     }
 
+    [Fact]
+    public async Task Statistics_PeriodBounds_AreInclusive()
+    {
+        // Both period bounds are inclusive: Ytd = [2026-01-01T00:00:00Z, 2026-07-11T00:00:00Z]. An order at exactly
+        // the 'to' instant is counted (so the widget reconciles with the orders list, which already treats 'to'
+        // inclusively); an order one second past 'to' is not.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "at-from", "org-1", 100m, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));   // exactly 'from'
+        SeedOrder(ctx, "at-to", "org-1", 200m, new DateTime(2026, 7, 11, 0, 0, 0, DateTimeKind.Utc));    // exactly 'to'
+        SeedOrder(ctx, "past-to", "org-1", 400m, new DateTime(2026, 7, 11, 0, 0, 1, DateTimeKind.Utc));  // 1s past 'to'
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}) { total { amount } count }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var ytd = Stats(json).GetProperty("ytd");
+        MoneyAmount(ytd, "total").Should().Be(300m);              // at-from (100) + at-to (200); past-to excluded
+        ytd.GetProperty("count").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Statistics_UnconfiguredCurrency_ExcludedFromEveryFigure_IncludingFirstOrderDate()
+    {
+        // A currency with no configured exchange rate (GBP — the harness knows only USD + EUR) is skipped by the fold.
+        // firstOrderDate must honor that skip exactly like total/count/lastOrderDate, so the earliest GBP order does
+        // NOT become the "customer since" date (firstOrderDate comes from the fold, not the raw per-currency set).
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "gbp-oldest", "org-1", 999m, new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc), currency: "GBP"); // earliest, but unconfigured
+        SeedOrder(ctx, "usd-first", "org-1", 100m, _feb2026, currency: "USD");
+        SeedOrder(ctx, "usd-last", "org-1", 200m, _jun2026, currency: "USD");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            """
+            query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+              lifetime: period { total { amount } count firstOrderDate lastOrderDate }
+            } }
+            """,
+            userId: rep.UserId);
+
+        var lifetime = Stats(json).GetProperty("lifetime");
+        MoneyAmount(lifetime, "total").Should().Be(300m);                           // 100 + 200 (GBP skipped)
+        lifetime.GetProperty("count").GetInt32().Should().Be(2);                    // GBP order not counted
+        lifetime.GetProperty("firstOrderDate").GetDateTime().Should().Be(_feb2026); // NOT the 2024 GBP order
+        lifetime.GetProperty("lastOrderDate").GetDateTime().Should().Be(_jun2026);
+    }
+
     // ---- helpers ----
 
     /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>

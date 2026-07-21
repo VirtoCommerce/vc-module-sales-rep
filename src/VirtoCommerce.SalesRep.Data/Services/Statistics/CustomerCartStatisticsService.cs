@@ -101,7 +101,7 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 
         if (criteria.ToDate != null)
         {
-            query = query.Where(x => x.CreatedDate < criteria.ToDate.Value);
+            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
         }
 
         return await query
