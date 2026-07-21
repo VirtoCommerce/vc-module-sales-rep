@@ -409,14 +409,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and resolves a selected badge to the rep's sold products in its subtree via the catalog index (`IProductIndexedSearchService`). |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
-## Documentation
-
-* Epic: [VCST-5142 — Sales Rep Hub](https://virtocommerce.atlassian.net/browse/VCST-5142)
-* Pull requests:
-  * [#1 — VCST-5293: Sales rep VC-Shell administration UI](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/1)
-  * [#2 — VCST-4907 / VCST-5304 / VCST-5308: X-API endpoints for customers and sales reps](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/2)
-
-> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
+> **Scope note.** The full **Sales Rep Hub** storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.) is broader than this module. This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 
 ## References
 
