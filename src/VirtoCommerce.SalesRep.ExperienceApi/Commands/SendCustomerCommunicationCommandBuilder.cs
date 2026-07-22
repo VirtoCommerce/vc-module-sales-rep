@@ -10,11 +10,6 @@ using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-/// <summary>
-/// Builds the <c>sendCustomerCommunication</c> mutation on the Sales Rep scoped schema. Enforces the module-wide
-/// rule (the caller must be an authenticated Sales Rep) and sets the caller's identity server-side; the handler
-/// then verifies the Rep actually serves the target organization before sending.
-/// </summary>
 public class SendCustomerCommunicationCommandBuilder
     : CommandBuilder<SendCustomerCommunicationCommand, bool, InputSendCustomerCommunicationType, BooleanGraphType>
 {

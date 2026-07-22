@@ -8,10 +8,6 @@ using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-/// <summary>
-/// Default <see cref="ISalesRepPrimaryContactResolver"/>: the organization's owner contact, then the oldest
-/// contact member as a fallback.
-/// </summary>
 public class SalesRepPrimaryContactResolver : ISalesRepPrimaryContactResolver
 {
     private readonly IMemberService _memberService;
@@ -47,7 +43,6 @@ public class SalesRepPrimaryContactResolver : ISalesRepPrimaryContactResolver
             }
         }
 
-        // Fallback: the first (oldest) contact directly belonging to the organization.
         var criteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
         criteria.MemberId = organization.Id;
         criteria.MemberType = nameof(Contact);

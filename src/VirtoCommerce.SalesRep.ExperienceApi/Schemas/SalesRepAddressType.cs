@@ -4,13 +4,6 @@ using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
-/// <summary>
-/// A customer address projected for Sales Rep storefront views (VCST-5304/5308) — the organization's default
-/// address shown under its name. A thin, self-contained graph type over the platform <see cref="Address"/> that
-/// mirrors each X-module's own address type (X-Order's <c>OrderAddressType</c>, X-Cart's <c>CartAddressType</c>),
-/// so this module stays independent of the profile/cart/order X-APIs. The storefront formats the display string
-/// (e.g. "City, Region"); this only exposes the structured parts.
-/// </summary>
 public class SalesRepAddressType : ExtendableGraphType<Address>
 {
     public SalesRepAddressType()
@@ -32,9 +25,6 @@ public class SalesRepAddressType : ExtendableGraphType<Address>
         Field(x => x.Name, nullable: true).Description("Name.");
         Field(x => x.Organization, nullable: true).Description("Company name.");
         Field(x => x.Phone, nullable: true).Description("Phone.");
-        // Deliberately nullable — unlike X-Order's OrderAddressType / Profile's MemberAddressType, which declare it
-        // non-null. Address.PostalCode is genuinely optional, so a non-null schema field would error on an address
-        // without one.
         Field(x => x.PostalCode, nullable: true).Description("Postal code.");
         Field(x => x.RegionId, nullable: true).Description("Region id.");
         Field(x => x.RegionName, nullable: true).Description("Region name.");

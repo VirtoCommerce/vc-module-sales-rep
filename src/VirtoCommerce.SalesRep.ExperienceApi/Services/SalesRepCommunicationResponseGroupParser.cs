@@ -7,7 +7,6 @@ public class SalesRepCommunicationResponseGroupParser : ISalesRepCommunicationRe
 {
     public virtual string GetResponseGroup(SendCustomerCommunicationCommand command)
     {
-        // Push addresses members by id only (Default); the email channel additionally needs the Emails collection.
         var result = MemberResponseGroup.Default;
 
         if (command.SendEmail)
