@@ -161,16 +161,16 @@ internal static class TestGraphQlConfiguration
         public Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
             => Task.FromResult(_statuses);
 
-        public Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
+        public Task<IList<string>> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
         {
             var selected = new HashSet<string>(selectedStatusNames ?? [], StringComparer.OrdinalIgnoreCase);
             var result = _statuses
                 .Where(x => selected.Contains(x.Name))
                 .SelectMany(x => x.OrderStatuses)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToArray();
+                .ToList();
 
-            return Task.FromResult(result);
+            return Task.FromResult<IList<string>>(result);
         }
     }
 

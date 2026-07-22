@@ -24,8 +24,8 @@ public abstract class SalesRepQueryHandlerBase
     }
 
     protected async Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(
-        string[] userIds = null,
-        string[] organizationIds = null)
+        IList<string> userIds = null,
+        IList<string> organizationIds = null)
     {
         var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
         if (grantingRoleIds.Count == 0)
@@ -48,7 +48,7 @@ public abstract class SalesRepQueryHandlerBase
         return memberships.Count > 0;
     }
 
-    protected async Task<string[]> GetServedOrganizationIdsAsync(string userId)
+    protected async Task<IList<string>> GetServedOrganizationIdsAsync(string userId)
     {
         var memberships = await GetGrantingMembershipsAsync(userIds: [userId]);
 
@@ -56,6 +56,6 @@ public abstract class SalesRepQueryHandlerBase
             .Select(x => x.OrganizationId)
             .Where(x => !string.IsNullOrEmpty(x))
             .Distinct()
-            .ToArray();
+            .ToList();
     }
 }

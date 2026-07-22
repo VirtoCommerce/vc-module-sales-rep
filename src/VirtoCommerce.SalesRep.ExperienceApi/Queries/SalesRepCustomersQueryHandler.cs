@@ -39,7 +39,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
 
         var organizationIds = await GetServedOrganizationIdsAsync(request.UserId);
 
-        if (organizationIds.Length == 0)
+        if (organizationIds.Count == 0)
         {
             return result;
         }

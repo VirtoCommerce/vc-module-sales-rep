@@ -2,13 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
-public class SalesRepDetails
+public class SalesRepDetails : Entity
 {
-    public string Id { get; set; }
-
     public string UserId { get; set; }
 
     public string UserName { get; set; }

@@ -8,5 +8,5 @@ public interface ISalesRepOrderStatusService
 {
     Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName);
 
-    Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames);
+    Task<IList<string>> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames);
 }

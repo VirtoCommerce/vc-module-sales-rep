@@ -1,17 +1,12 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Core.Services;
 
-public interface ISalesRepService
+public interface ISalesRepService : ICrudService<SalesRepDetails>
 {
-    Task<SalesRepDetails> GetByIdAsync(string id);
-
-    Task<SalesRepDetails> SaveChangesAsync(SalesRepDetails salesRep);
-
-    Task DeleteAsync(string[] ids);
-
     Task BlockAsync(string id);
 
     Task UnblockAsync(string id);

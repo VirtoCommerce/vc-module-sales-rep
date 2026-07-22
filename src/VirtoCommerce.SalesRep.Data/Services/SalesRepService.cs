@@ -44,7 +44,24 @@ public class SalesRepService : ISalesRepService
         _userManagerFactory = userManagerFactory;
     }
 
-    public virtual async Task<SalesRepDetails> GetByIdAsync(string id)
+    public virtual async Task<IList<SalesRepDetails>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+    {
+        var result = new List<SalesRepDetails>();
+        if (ids != null)
+        {
+            foreach (var id in ids)
+            {
+                var salesRep = await LoadSalesRepAsync(id);
+                if (salesRep != null)
+                {
+                    result.Add(salesRep);
+                }
+            }
+        }
+        return result;
+    }
+
+    protected virtual async Task<SalesRepDetails> LoadSalesRepAsync(string id)
     {
         if (await _memberService.GetByIdAsync(id, MemberResponseGroup.Full.ToString()) is not Contact contact)
         {
@@ -104,14 +121,18 @@ public class SalesRepService : ISalesRepService
         return result;
     }
 
-    public virtual Task<SalesRepDetails> SaveChangesAsync(SalesRepDetails salesRep)
+    public virtual async Task SaveChangesAsync(IList<SalesRepDetails> models)
     {
-        ArgumentNullException.ThrowIfNull(salesRep);
-        return SaveChangesInternalAsync(salesRep);
+        ArgumentNullException.ThrowIfNull(models);
+        foreach (var model in models)
+        {
+            await SaveOneAsync(model);
+        }
     }
 
-    protected virtual async Task<SalesRepDetails> SaveChangesInternalAsync(SalesRepDetails salesRep)
+    protected virtual async Task SaveOneAsync(SalesRepDetails salesRep)
     {
+        ArgumentNullException.ThrowIfNull(salesRep);
         ValidateAddresses(salesRep);
 
         var isNew = string.IsNullOrEmpty(salesRep.Id);
@@ -161,8 +182,6 @@ public class SalesRepService : ISalesRepService
             await TryRollbackContactAsync(contact.Id);
             throw;
         }
-
-        return await GetByIdAsync(salesRep.Id);
     }
 
     protected virtual void ValidateAddresses(SalesRepDetails salesRep)
@@ -211,9 +230,9 @@ public class SalesRepService : ISalesRepService
         }
     }
 
-    public virtual async Task DeleteAsync(string[] ids)
+    public virtual async Task DeleteAsync(IList<string> ids, bool softDelete = false)
     {
-        if (ids == null || ids.Length == 0)
+        if (ids == null || ids.Count == 0)
         {
             return;
         }
@@ -235,7 +254,7 @@ public class SalesRepService : ISalesRepService
             }
         }
 
-        await _memberService.DeleteAsync(ids);
+        await _memberService.DeleteAsync(ids.ToArray());
     }
 
     public virtual Task BlockAsync(string id)

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using Permissions = VirtoCommerce.CustomerModule.Core.ModuleConstants.Security.Permissions;
@@ -65,7 +66,8 @@ public class SalesRepController : Controller
     public async Task<ActionResult<SalesRepDetails>> Create([FromBody] SalesRepDetails salesRep)
     {
         salesRep.Id = null;
-        var result = await _salesRepService.SaveChangesAsync(salesRep);
+        await _salesRepService.SaveChangesAsync([salesRep]);
+        var result = await _salesRepService.GetByIdAsync(salesRep.Id);
         return Ok(result);
     }
 
@@ -74,7 +76,8 @@ public class SalesRepController : Controller
     [Authorize(PlatformPermissions.SecurityUpdate)]
     public async Task<ActionResult<SalesRepDetails>> Update([FromBody] SalesRepDetails salesRep)
     {
-        var result = await _salesRepService.SaveChangesAsync(salesRep);
+        await _salesRepService.SaveChangesAsync([salesRep]);
+        var result = await _salesRepService.GetByIdAsync(salesRep.Id);
         return Ok(result);
     }
 

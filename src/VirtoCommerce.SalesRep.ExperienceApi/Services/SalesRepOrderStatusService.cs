@@ -26,7 +26,7 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
             .ToList();
     }
 
-    public virtual async Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
+    public virtual async Task<IList<string>> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
     {
         if (selectedStatusNames == null || selectedStatusNames.Count == 0)
         {
@@ -41,6 +41,6 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
             .Where(x => selected.Contains(x.Name))
             .SelectMany(x => x.OrderStatuses)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .ToList();
     }
 }

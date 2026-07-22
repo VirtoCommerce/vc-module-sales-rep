@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -8,7 +9,7 @@ public class SalesRepOrderStatus
 
     public string LocalizedName { get; set; }
 
-    public string[] OrderStatuses { get; set; } = [];
+    public IList<string> OrderStatuses { get; set; } = [];
 
     public static SalesRepOrderStatus Create(string name, string localizedName, params string[] orderStatuses)
     {

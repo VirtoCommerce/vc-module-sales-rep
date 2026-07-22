@@ -35,7 +35,7 @@ public class SalesRepSearchService : ISalesRepSearchService
         _roleResolver = roleResolver;
     }
 
-    public virtual Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria)
+    public virtual Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria, bool clone = true)
     {
         ArgumentNullException.ThrowIfNull(criteria);
         return SearchInternalAsync(criteria);

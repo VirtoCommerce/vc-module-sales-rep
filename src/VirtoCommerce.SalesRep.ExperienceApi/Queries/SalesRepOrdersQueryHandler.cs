@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,16 +41,16 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         }
 
         var organizationIds = await GetVisibleOrganizationIdsAsync(request);
-        if (organizationIds.Length == 0)
+        if (organizationIds.Count == 0)
         {
             return result;
         }
 
-        string[] statuses = null;
+        IList<string> statuses = null;
         if (request.Statuses?.Count > 0)
         {
             statuses = await _statusService.ResolveOrderStatusesAsync(request.StoreId, request.Statuses);
-            if (statuses.Length == 0)
+            if (statuses.Count == 0)
             {
                 return result;
             }
@@ -67,17 +68,17 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         return result;
     }
 
-    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, string[] organizationIds, string[] statuses)
+    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, IList<string> organizationIds, IList<string> statuses)
     {
         var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
-        criteria.OrganizationIds = organizationIds;
+        criteria.OrganizationIds = organizationIds.ToArray();
         criteria.CustomerId = request.UserId;
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
 
-        if (statuses?.Length > 0)
+        if (statuses?.Count > 0)
         {
-            criteria.Statuses = statuses;
+            criteria.Statuses = statuses.ToArray();
         }
 
         if (string.IsNullOrEmpty(criteria.Sort))
@@ -88,7 +89,7 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         return criteria;
     }
 
-    protected virtual async Task<string[]> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
+    protected virtual async Task<IList<string>> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
     {
         if (!string.IsNullOrEmpty(request.OrganizationId))
         {
