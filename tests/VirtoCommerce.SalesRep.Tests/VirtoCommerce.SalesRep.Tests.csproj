@@ -18,6 +18,9 @@
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="FluentAssertions" Version="7.2.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+    <!-- Override EF Core's transitive SQLitePCLRaw 2.1.11 (SQLite < 3.50.2, CVE-2025-6965) with the patched 3.x
+         native bundle. Test-only in-memory DB; not shipped. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
     <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1039.6" />
     <PackageReference Include="VirtoCommerce.SearchModule.Core" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Data" Version="3.1004.0" />
@@ -33,10 +36,6 @@
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1005.0" />
   </ItemGroup>
   <ItemGroup>
-    <!-- SQLite is a test-only, in-memory dependency (never shipped). It pulls SQLitePCLRaw.lib.e_sqlite3 with
-         a transitive advisory that the repo's TreatWarningsAsErrors turns into a build error — suppress it for
-         this test project only. -->
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-2m69-gcr7-jv3q" />
     <!-- TEMP — REMOVE WHEN VULNERABILITY FIXED. CatalogModule.Data (referenced only for the Top Sellers catalog test
          slice) → HtmlSanitizer → AngleSharp 0.17.1: a moderate transitive advisory that TreatWarningsAsErrors turns
          into a build error. Test-only (never shipped). Remove once AngleSharp is patched upstream (or fold into a
