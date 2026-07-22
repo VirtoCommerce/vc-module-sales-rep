@@ -12,6 +12,8 @@ using VirtoCommerce.NotificationsModule.Core.Extensions;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
+using VirtoCommerce.Platform.Core.Security;
+using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.PushMessages.Core.Models;
 using VirtoCommerce.PushMessages.Core.Services;
 using VirtoCommerce.SalesRep.Core.Notifications;
@@ -34,6 +36,7 @@ public class SendCustomerCommunicationCommandHandler
     private readonly INotificationSearchService _notificationSearchService;
     private readonly INotificationSender _notificationSender;
     private readonly IStoreService _storeService;
+    private readonly IUserSearchService _userSearchService;
     private readonly ILogger<SendCustomerCommunicationCommandHandler> _logger;
 
     public SendCustomerCommunicationCommandHandler(
@@ -45,6 +48,7 @@ public class SendCustomerCommunicationCommandHandler
         INotificationSearchService notificationSearchService,
         INotificationSender notificationSender,
         IStoreService storeService,
+        IUserSearchService userSearchService,
         ILogger<SendCustomerCommunicationCommandHandler> logger)
         : base(roleResolver, membershipSearchService)
     {
@@ -54,6 +58,7 @@ public class SendCustomerCommunicationCommandHandler
         _notificationSearchService = notificationSearchService;
         _notificationSender = notificationSender;
         _storeService = storeService;
+        _userSearchService = userSearchService;
         _logger = logger;
     }
 
@@ -86,6 +91,9 @@ public class SendCustomerCommunicationCommandHandler
 
         var responseGroup = _responseGroupParser.GetResponseGroup(request);
         var recipients = await _recipientResolver.ResolveRecipientsAsync(request.OrganizationId, responseGroup);
+
+        recipients = await ExcludeInitiatorAsync(recipients, request.UserId);
+
         if (recipients.Count == 0)
         {
             return false;
@@ -118,6 +126,25 @@ public class SendCustomerCommunicationCommandHandler
             _logger.LogError(ex, "Sales Rep {Channel} communication to organization {OrganizationId} failed.", channel, organizationId);
             return false;
         }
+    }
+
+    protected virtual async Task<IList<Member>> ExcludeInitiatorAsync(IList<Member> recipients, string userId)
+    {
+        if (recipients.Count == 0)
+        {
+            return recipients;
+        }
+
+        var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        criteria.ObjectIds = [userId];
+        criteria.Take = 1;
+
+        var user = (await _userSearchService.SearchUsersAsync(criteria)).Results.FirstOrDefault();
+        var memberId = user?.MemberId;
+
+        return string.IsNullOrEmpty(memberId)
+            ? recipients
+            : recipients.Where(x => !string.Equals(x.Id, memberId, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
     protected virtual async Task SendPushAsync(SendCustomerCommunicationCommand request, IList<Member> recipients)

@@ -177,4 +177,27 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"sendCustomerCommunication\":false");
     }
+
+    [Fact]
+    public async Task SendCommunication_ExcludesInitiatingRep()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationAsync("org-1");
+        await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
+        // The rep serves org-1, so their own contact is a member of it — the rep must NOT receive their own send.
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: true, email: true), userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"sendCustomerCommunication\":true");
+
+        // Push: the customer contact is addressed; the initiating rep's own member id is excluded.
+        var pushMessage = Push(ctx).Saved.Single();
+        pushMessage.MemberIds.Should().Contain("c1").And.NotContain(rep.Id);
+
+        // Email: the customer's address is used; the rep's own address is excluded.
+        var emails = Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).ToList();
+        emails.Should().Contain("c1@test.com").And.NotContain("jane@test.com");
+    }
 }
