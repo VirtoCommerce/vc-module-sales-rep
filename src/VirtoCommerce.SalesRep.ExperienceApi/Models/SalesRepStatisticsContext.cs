@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 /// <summary>
@@ -10,7 +12,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 public abstract class SalesRepStatisticsContext
 {
     /// <summary>Organizations (customers) whose records are aggregated — one requested customer, or all the rep serves.</summary>
-    public string[] OrganizationIds { get; set; }
+    public IList<string> OrganizationIds { get; set; }
 
     /// <summary>The calling sales rep's security-account id; statistics count only records they created.</summary>
     public string SalesRepUserId { get; set; }

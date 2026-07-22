@@ -48,17 +48,17 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
         }
 
         // A recognized kind with no filters at all is an "all carts" rule → baseline (not fail-closed).
-        if (kind.Types is { Length: > 0 })
+        if (kind.Types is { Count: > 0 })
         {
             criteria.Types = kind.Types;
         }
 
-        if (kind.ExcludeTypes is { Length: > 0 })
+        if (kind.ExcludeTypes is { Count: > 0 })
         {
             criteria.ExcludeTypes = kind.ExcludeTypes;
         }
 
-        if (kind.Statuses is { Length: > 0 })
+        if (kind.Statuses is { Count: > 0 })
         {
             criteria.Statuses = kind.Statuses;
         }

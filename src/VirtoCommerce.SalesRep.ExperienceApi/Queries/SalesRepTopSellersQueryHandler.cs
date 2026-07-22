@@ -47,7 +47,7 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         }
 
         var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
-        if (organizationIds.Length == 0)
+        if (organizationIds.Count == 0)
         {
             return [];
         }

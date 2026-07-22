@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 
@@ -19,7 +20,7 @@ public class SalesRepOrderFilterRule : INamedFilterRule
     public string LocalizedName { get; set; }
 
     /// <summary>Underlying order statuses this status maps to (used to filter orders). A single value for a 1:1 status.</summary>
-    public string[] OrderStatuses { get; set; } = [];
+    public IList<string> OrderStatuses { get; set; } = [];
 
     /// <summary>Constructs a status via <see cref="AbstractTypeFactory{T}"/> so downstream can override the type.</summary>
     public static SalesRepOrderFilterRule Create(string name, string localizedName, params string[] orderStatuses)

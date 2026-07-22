@@ -43,9 +43,10 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
             return null; // fail-closed
         }
 
-        if (statuses.Length > 0)
+        if (statuses.Count > 0)
         {
-            criteria.Statuses = statuses;
+            // The Orders search criteria still exposes Statuses as an array; materialize at this external boundary.
+            criteria.Statuses = statuses.ToArray();
         }
 
         return criteria;
@@ -59,7 +60,7 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
             return null; // fail-closed
         }
 
-        if (statuses.Length > 0)
+        if (statuses.Count > 0)
         {
             criteria.Statuses = statuses;
         }
@@ -68,11 +69,11 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
     }
 
     /// <summary>
-    /// The single rule resolution shared by both apply methods. Tri-state: an empty array = no filter selected, or a
-    /// recognized rule with no status constraint (e.g. an "All" rule) — the baseline set; a non-empty array = the
+    /// The single rule resolution shared by both apply methods. Tri-state: an empty list = no filter selected, or a
+    /// recognized rule with no status constraint (e.g. an "All" rule) — the baseline set; a non-empty list = the
     /// recognized rule's underlying statuses; <c>null</c> = a rule name was given but is unrecognized (fail-closed).
     /// </summary>
-    protected virtual async Task<string[]> ResolveStatusesAsync(string storeId, string filter)
+    protected virtual async Task<IList<string>> ResolveStatusesAsync(string storeId, string filter)
     {
         if (string.IsNullOrEmpty(filter))
         {

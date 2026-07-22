@@ -48,8 +48,8 @@ public class SalesRepCustomerCountsQueryHandler : SalesRepQueryHandlerBase, IQue
             .ToArray();
 
         var result = AbstractTypeFactory<SalesRepCustomerCountsContext>.TryCreateInstance();
-        result.OrganizationIds = assignmentsByOrganization.Select(x => x.OrganizationId).ToArray();
-        result.AssignmentDates = assignmentsByOrganization.Select(x => x.AssignedDate).ToArray();
+        result.OrganizationIds = assignmentsByOrganization.Select(x => x.OrganizationId).ToList();
+        result.AssignmentDates = assignmentsByOrganization.Select(x => x.AssignedDate).ToList();
         // Creator scoping: counters derive only from orders the rep created (data-isolation invariant).
         result.SalesRepUserId = request.UserId;
         result.StoreId = request.StoreId;

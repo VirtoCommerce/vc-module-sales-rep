@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 
@@ -19,13 +20,13 @@ public class SalesRepCartFilterRule : INamedFilterRule
     public string LocalizedName { get; set; }
 
     /// <summary>Underlying cart types this kind maps to (empty = any type).</summary>
-    public string[] Types { get; set; } = [];
+    public IList<string> Types { get; set; } = [];
 
     /// <summary>Cart types this kind excludes (e.g. "Wishlist" to keep projects out of an "active carts" kind).</summary>
-    public string[] ExcludeTypes { get; set; } = [];
+    public IList<string> ExcludeTypes { get; set; } = [];
 
     /// <summary>Underlying cart statuses this kind maps to (empty = any status).</summary>
-    public string[] Statuses { get; set; } = [];
+    public IList<string> Statuses { get; set; } = [];
 
     /// <summary>When true, the kind counts only non-empty carts (carts with at least one line item).</summary>
     public bool OnlyNonEmpty { get; set; }

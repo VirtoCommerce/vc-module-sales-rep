@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -53,7 +54,7 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         // Which organizations' orders the caller may see: the one requested customer (only if the rep serves it),
         // or — when no customer is specified — every organization the rep is assigned to (the dashboard).
         var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
-        if (organizationIds.Length == 0)
+        if (organizationIds.Count == 0)
         {
             return result;
         }
@@ -88,11 +89,12 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
     /// no sort — those are applied afterwards in <see cref="Handle"/> via the shared filter- and sort-rule resolvers).
     /// Override to customize the criteria — e.g. extra filters or response group.
     /// </summary>
-    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, string[] organizationIds)
+    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, IList<string> organizationIds)
     {
         // Keyword/Sort/Skip/Take come from the SearchQuery base; set only the order-specific bits here.
         var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
-        criteria.OrganizationIds = organizationIds;
+        // Orders' CustomerOrderSearchCriteria still exposes OrganizationIds as an array; materialize at this boundary.
+        criteria.OrganizationIds = organizationIds.ToArray();
         // Only orders created by this sales rep — their user id is the order's CustomerId (exactly as X-Order scopes
         // its "my orders" list: CanAccessOrderAuthorizationHandler sets SearchCustomerOrderQuery.CustomerId = current
         // user id). Combined with the org scoping, the list is the rep's own orders for the customer(s), not every

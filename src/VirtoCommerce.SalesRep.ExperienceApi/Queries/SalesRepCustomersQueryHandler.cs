@@ -63,7 +63,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         // The organizations this rep serves (bounded by the rep's served-organization count).
         // OnlyUnlocked: a rep locked in an organization does not see it as a customer.
         var organizationIds = await GetServedOrganizationIdsAsync(request.UserId);
-        if (organizationIds.Length == 0)
+        if (organizationIds.Count == 0)
         {
             return result;
         }
@@ -154,7 +154,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         }
 
         var statisticsCriteria = AbstractTypeFactory<CustomerOrderStatisticsCriteria>.TryCreateInstance();
-        statisticsCriteria.OrganizationIds = candidates.Select(x => x.Id).ToArray();
+        statisticsCriteria.OrganizationIds = candidates.Select(x => x.Id).ToList();
         statisticsCriteria.CustomerId = request.UserId;
         statisticsCriteria.StoreId = request.StoreId;
         statisticsCriteria.CurrencyCode = currencyCode;

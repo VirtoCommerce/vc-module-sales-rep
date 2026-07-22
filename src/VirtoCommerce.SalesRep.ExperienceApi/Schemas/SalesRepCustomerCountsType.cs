@@ -38,7 +38,7 @@ public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCo
 
         Field<NonNullGraphType<IntGraphType>>("assignedCustomers")
             .Description("Number of customers (organizations) the rep is assigned to serve.")
-            .Resolve(context => context.Source.OrganizationIds?.Length ?? 0);
+            .Resolve(context => context.Source.OrganizationIds?.Count ?? 0);
 
         Field<SalesRepCustomerCountsPeriodType>("period")
             .Description("Customer counters for a single date range. Omit both bounds for lifetime.")

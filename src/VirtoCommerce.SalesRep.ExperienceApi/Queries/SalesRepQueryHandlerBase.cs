@@ -34,8 +34,8 @@ public abstract class SalesRepQueryHandlerBase
     /// and/or organizations. Returns an empty list when no role grants access.
     /// </summary>
     protected async Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(
-        string[] userIds = null,
-        string[] organizationIds = null)
+        IList<string> userIds = null,
+        IList<string> organizationIds = null)
     {
         var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
         if (grantingRoleIds.Count == 0)
@@ -57,7 +57,7 @@ public abstract class SalesRepQueryHandlerBase
     /// unlocked sales-rep-granting memberships. Empty when the rep serves none. This is the "customers this rep
     /// serves" set; keeping it here (not re-derived per handler) is what stops the handlers from drifting on it.
     /// </summary>
-    protected async Task<string[]> GetServedOrganizationIdsAsync(string userId)
+    protected async Task<IList<string>> GetServedOrganizationIdsAsync(string userId)
     {
         var memberships = await GetGrantingMembershipsAsync(userIds: [userId]);
 
@@ -65,7 +65,7 @@ public abstract class SalesRepQueryHandlerBase
             .Select(x => x.OrganizationId)
             .Where(x => !string.IsNullOrEmpty(x))
             .Distinct()
-            .ToArray();
+            .ToList();
     }
 
     /// <summary>
@@ -75,7 +75,7 @@ public abstract class SalesRepQueryHandlerBase
     /// the rep is assigned to (the cross-customer view). Shared by the orders and statistics queries so they scope
     /// identically.
     /// </summary>
-    protected async Task<string[]> GetVisibleOrganizationIdsAsync(string userId, string organizationId)
+    protected async Task<IList<string>> GetVisibleOrganizationIdsAsync(string userId, string organizationId)
     {
         if (!string.IsNullOrEmpty(organizationId))
         {

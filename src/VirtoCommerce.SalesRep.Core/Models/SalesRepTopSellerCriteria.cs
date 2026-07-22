@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
@@ -12,7 +13,7 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 public class SalesRepTopSellerCriteria : ValueObject
 {
     /// <summary>Organizations (customers) whose line items are aggregated. Empty/null aggregates nothing.</summary>
-    public string[] OrganizationIds { get; set; }
+    public IList<string> OrganizationIds { get; set; }
 
     /// <summary>
     /// Creator scope (data-isolation invariant): only line items of orders created by this user — the rep's own
@@ -30,7 +31,7 @@ public class SalesRepTopSellerCriteria : ValueObject
     /// Optional category subtree to restrict to — the line-item <c>CategoryId</c> must be in this set (the filter
     /// rule resolves a top-level category to its descendant ids). Null/empty = all categories.
     /// </summary>
-    public string[] CategoryIds { get; set; }
+    public IList<string> CategoryIds { get; set; }
 
     /// <summary>
     /// Optional product-id restriction (VCST-5309, category filter option (a)): the aggregation is limited to these
@@ -39,7 +40,7 @@ public class SalesRepTopSellerCriteria : ValueObject
     /// index, which is the only correct membership source for a virtual store catalog (line-item <c>CategoryId</c>
     /// snapshots the physical category, so it never matches a virtual store category).
     /// </summary>
-    public string[] ProductIds { get; set; }
+    public IList<string> ProductIds { get; set; }
 
     /// <summary>Inclusive lower bound on the order created date. Null = no lower bound (lifetime).</summary>
     public DateTime? FromDate { get; set; }

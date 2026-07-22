@@ -43,7 +43,7 @@ public abstract class SalesRepStatisticsQueryHandlerBase<TQuery, TContext> : Sal
         // customer is specified — every organization the rep is assigned to (the combined cross-customer view).
         // Empty means the rep serves none (or doesn't serve the requested one) → no statistics.
         var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
-        if (organizationIds.Length == 0)
+        if (organizationIds.Count == 0)
         {
             return null;
         }

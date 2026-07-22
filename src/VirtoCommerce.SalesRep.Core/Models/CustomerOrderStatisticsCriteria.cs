@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
@@ -14,7 +15,7 @@ public class CustomerOrderStatisticsCriteria : ValueObject
     /// Organizations (customers) whose orders are aggregated. Which organizations the caller may see is enforced
     /// upstream (in the query handler); an empty/null set aggregates nothing.
     /// </summary>
-    public string[] OrganizationIds { get; set; }
+    public IList<string> OrganizationIds { get; set; }
 
     /// <summary>
     /// Only orders created by this user are counted — the sales rep's own security-account id (rep-created orders
@@ -30,7 +31,7 @@ public class CustomerOrderStatisticsCriteria : ValueObject
     public string CurrencyCode { get; set; }
 
     /// <summary>Optional order-status whitelist. Null/empty counts every non-cancelled status.</summary>
-    public string[] Statuses { get; set; }
+    public IList<string> Statuses { get; set; }
 
     /// <summary>Inclusive lower bound on the order created date. Null = no lower bound (e.g. lifetime).</summary>
     public DateTime? FromDate { get; set; }

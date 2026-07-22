@@ -104,7 +104,7 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
 
         var result = await _productIndexedSearchService.SearchAsync(searchCriteria);
 
-        criteria.ProductIds = result.Items?.Select(x => x.Id).ToArray() ?? [];
+        criteria.ProductIds = result.Items?.Select(x => x.Id).ToList() ?? [];
         return criteria;
     }
 

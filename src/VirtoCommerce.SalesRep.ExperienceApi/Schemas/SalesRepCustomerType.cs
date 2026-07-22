@@ -110,7 +110,7 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                         var ids = organizationIds.ToList();
 
                         var criteria = AbstractTypeFactory<CustomerOrderStatisticsCriteria>.TryCreateInstance();
-                        criteria.OrganizationIds = ids.ToArray();
+                        criteria.OrganizationIds = ids.ToList();
                         criteria.CustomerId = salesRepUserId;
                         criteria.StoreId = storeId;
                         criteria.CurrencyCode = currencyCode;

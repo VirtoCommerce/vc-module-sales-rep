@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
@@ -15,5 +16,5 @@ public class SalesRepCustomerCountsContext : SalesRepStatisticsContext
     /// many of these fall in a given window, so a customer assigned recently counts as new regardless of when the
     /// organization itself was created or first ordered.
     /// </summary>
-    public DateTime[] AssignmentDates { get; set; }
+    public IList<DateTime> AssignmentDates { get; set; }
 }

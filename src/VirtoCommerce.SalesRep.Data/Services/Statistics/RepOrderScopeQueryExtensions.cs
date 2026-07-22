@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.Platform.Core.Common;
@@ -13,7 +14,7 @@ internal static class RepOrderScopeQueryExtensions
 {
     public static IQueryable<CustomerOrderEntity> ApplyRepScope(
         this IQueryable<CustomerOrderEntity> query,
-        string[] organizationIds,
+        IList<string> organizationIds,
         string customerId,
         string storeId)
     {
@@ -47,7 +48,7 @@ internal static class RepOrderScopeQueryExtensions
     /// </summary>
     public static IQueryable<LineItemEntity> ApplyRepScope(
         this IQueryable<LineItemEntity> query,
-        string[] organizationIds,
+        IList<string> organizationIds,
         string customerId,
         string storeId)
     {
