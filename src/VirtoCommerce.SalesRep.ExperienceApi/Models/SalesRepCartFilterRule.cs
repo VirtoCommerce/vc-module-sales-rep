@@ -35,9 +35,9 @@ public class SalesRepCartFilterRule : INamedFilterRule
     public static SalesRepCartFilterRule Create(
         string name,
         string localizedName,
-        string[] types = null,
-        string[] statuses = null,
-        string[] excludeTypes = null,
+        IList<string> types = null,
+        IList<string> statuses = null,
+        IList<string> excludeTypes = null,
         bool onlyNonEmpty = false)
     {
         var result = AbstractTypeFactory<SalesRepCartFilterRule>.TryCreateInstance();
