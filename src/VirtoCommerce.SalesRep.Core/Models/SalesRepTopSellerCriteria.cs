@@ -57,13 +57,3 @@ public class SalesRepTopSellerCriteria : ValueObject
     /// <summary>Max rows to return — the ranking is top-N only.</summary>
     public int Take { get; set; } = DefaultTake;
 }
-
-/// <summary>The metric the Top Sellers ranking sorts by.</summary>
-public enum SalesRepTopSellerSortBy
-{
-    /// <summary>Sum of quantities (units sold).</summary>
-    Units,
-
-    /// <summary>Sum of quantity × unit price (converted to one currency).</summary>
-    Revenue,
-}

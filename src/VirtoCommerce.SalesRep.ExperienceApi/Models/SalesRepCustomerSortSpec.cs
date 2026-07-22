@@ -31,13 +31,3 @@ public class SalesRepCustomerSortSpec
     /// <summary>Inclusive upper bound for the order-derived metric's window (null = up to now).</summary>
     public DateTime? ToDate { get; set; }
 }
-
-/// <summary>The per-organization order aggregate an order-derived customer sort ranks by.</summary>
-public enum SalesRepCustomerSortMetric
-{
-    /// <summary>Most recent order's created date.</summary>
-    LastOrderDate,
-
-    /// <summary>Sum of order totals in the window (converted to one currency).</summary>
-    Total,
-}

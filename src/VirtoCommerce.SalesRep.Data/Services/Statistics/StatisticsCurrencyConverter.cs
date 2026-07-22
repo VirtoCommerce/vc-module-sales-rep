@@ -7,19 +7,6 @@ using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
-/// <summary>Raw per-currency aggregate (sum + count + earliest/latest date) read from a module's EF store before conversion.</summary>
-internal sealed class CurrencyStatisticAggregate
-{
-    public string Currency { get; set; }
-    public decimal Total { get; set; }
-    public int Count { get; set; }
-    public DateTime? EarliestDate { get; set; }
-    public DateTime? LatestDate { get; set; }
-}
-
-/// <summary>Sum / count / average folded into one currency, plus that currency's code and the earliest/latest record date.</summary>
-internal sealed record FoldedStatistics(decimal Total, int Count, decimal Average, DateTime? EarliestDate, DateTime? LatestDate, string CurrencyCode);
-
 /// <summary>
 /// Shared currency fold for the Sales Rep statistics services (orders, carts). Converts a set of per-currency
 /// aggregates into one target currency via the domain <see cref="Money"/> type (the single source of truth for FX
