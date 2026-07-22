@@ -48,9 +48,10 @@ public class SalesRepSearchService : ISalesRepSearchService
         _roleResolver = roleResolver;
     }
 
-    public virtual Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria)
+    public virtual Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria, bool clone = true)
     {
         ArgumentNullException.ThrowIfNull(criteria);
+        // clone is a no-op: the search builds a fresh result each call (no shared cache to protect).
         return SearchInternalAsync(criteria);
     }
 

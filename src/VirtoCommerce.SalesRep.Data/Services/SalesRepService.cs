@@ -44,7 +44,26 @@ public class SalesRepService : ISalesRepService
         _userManagerFactory = userManagerFactory;
     }
 
-    public virtual async Task<SalesRepDetails> GetByIdAsync(string id)
+    public virtual async Task<IList<SalesRepDetails>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+    {
+        // The Sales Rep aggregate is not a single persisted entity, so responseGroup/clone don't apply — it always
+        // loads the full aggregate. Load each requested id, skipping ids with no rep, as ICrudService<T> expects.
+        var result = new List<SalesRepDetails>();
+        if (ids != null)
+        {
+            foreach (var id in ids)
+            {
+                var salesRep = await LoadSalesRepAsync(id);
+                if (salesRep != null)
+                {
+                    result.Add(salesRep);
+                }
+            }
+        }
+        return result;
+    }
+
+    protected virtual async Task<SalesRepDetails> LoadSalesRepAsync(string id)
     {
         if (await _memberService.GetByIdAsync(id, MemberResponseGroup.Full.ToString()) is not Contact contact)
         {
@@ -107,14 +126,18 @@ public class SalesRepService : ISalesRepService
         return result;
     }
 
-    public virtual Task<SalesRepDetails> SaveChangesAsync(SalesRepDetails salesRep)
+    public virtual async Task SaveChangesAsync(IList<SalesRepDetails> models)
     {
-        ArgumentNullException.ThrowIfNull(salesRep);
-        return SaveChangesInternalAsync(salesRep);
+        ArgumentNullException.ThrowIfNull(models);
+        foreach (var model in models)
+        {
+            await SaveOneAsync(model);
+        }
     }
 
-    protected virtual async Task<SalesRepDetails> SaveChangesInternalAsync(SalesRepDetails salesRep)
+    protected virtual async Task SaveOneAsync(SalesRepDetails salesRep)
     {
+        ArgumentNullException.ThrowIfNull(salesRep);
         ValidateAddresses(salesRep);
 
         var isNew = string.IsNullOrEmpty(salesRep.Id);
@@ -183,7 +206,8 @@ public class SalesRepService : ISalesRepService
             throw;
         }
 
-        return await GetByIdAsync(salesRep.Id);
+        // The aggregate's id is stamped on `salesRep` in place (salesRep.Id = contact.Id above); a caller that needs
+        // the fully hydrated aggregate (computed role/membership/email fields) re-reads it via GetByIdAsync.
     }
 
     /// <summary>
@@ -243,9 +267,11 @@ public class SalesRepService : ISalesRepService
         }
     }
 
-    public virtual async Task DeleteAsync(string[] ids)
+    public virtual async Task DeleteAsync(IList<string> ids, bool softDelete = false)
     {
-        if (ids == null || ids.Length == 0)
+        // softDelete has no meaning for this aggregate (it spans the customer/security/membership stores and always
+        // hard-deletes the account + cascades); accepted only for ICrudService<T> contract compatibility.
+        if (ids == null || ids.Count == 0)
         {
             return;
         }
@@ -274,7 +300,8 @@ public class SalesRepService : ISalesRepService
             }
         }
 
-        await _memberService.DeleteAsync(ids);
+        // IMemberService.DeleteAsync still takes an array; materialize at this external boundary.
+        await _memberService.DeleteAsync(ids.ToArray());
     }
 
     public virtual Task BlockAsync(string id)

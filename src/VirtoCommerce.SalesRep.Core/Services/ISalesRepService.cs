@@ -1,27 +1,23 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Core.Services;
 
 /// <summary>
 /// CRUD for the Sales Rep aggregate (a Contact plus its security account, roles and organization memberships):
-/// load, create, update and delete a rep by its contact member id.
+/// load, create, update and delete a rep by its contact member id, via the platform
+/// <see cref="ICrudService{T}"/> contract (batch <c>GetAsync</c> / <c>SaveChangesAsync</c> / <c>DeleteAsync</c>;
+/// the single-item <c>GetByIdAsync</c> convenience is a <c>CrudServiceExtensions</c> extension).
 /// </summary>
-public interface ISalesRepService
+/// <remarks>
+/// The aggregate is not a single persisted entity (it spans the customer, security and membership stores), so the
+/// <c>responseGroup</c> / <c>clone</c> (get) and <c>softDelete</c> (delete) parameters are accepted for contract
+/// compatibility but not honored: reads always load the full aggregate and deletes always hard-cascade.
+/// </remarks>
+public interface ISalesRepService : ICrudService<SalesRepDetails>
 {
-    /// <summary>Load a Sales Rep aggregate by its contact member id.</summary>
-    Task<SalesRepDetails> GetByIdAsync(string id);
-
-    /// <summary>
-    /// Create (when <see cref="SalesRepDetails.Id"/> is empty) or update a Sales Rep:
-    /// contact profile + login account + global role + per-organization memberships.
-    /// </summary>
-    Task<SalesRepDetails> SaveChangesAsync(SalesRepDetails salesRep);
-
-    /// <summary>Delete Sales Reps by contact member ids (cascades to the security account).</summary>
-    Task DeleteAsync(string[] ids);
-
     /// <summary>Block (lock out) the rep's account.</summary>
     Task BlockAsync(string id);
 

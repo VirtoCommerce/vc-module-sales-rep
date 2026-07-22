@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 // Managing Sales Reps is a customer-management action, so the endpoints are gated by the customer module's
@@ -76,7 +77,10 @@ public class SalesRepController : Controller
     public async Task<ActionResult<SalesRepDetails>> Create([FromBody] SalesRepDetails salesRep)
     {
         salesRep.Id = null;
-        var result = await _salesRepService.SaveChangesAsync(salesRep);
+        await _salesRepService.SaveChangesAsync([salesRep]);
+        // Re-read the saved aggregate for the response — SaveChangesAsync stamps the id on `salesRep` but the
+        // computed fields (role name, membership ids, login-first email order) are produced only by the read.
+        var result = await _salesRepService.GetByIdAsync(salesRep.Id);
         return Ok(result);
     }
 
@@ -87,7 +91,8 @@ public class SalesRepController : Controller
     [Authorize(PlatformPermissions.SecurityUpdate)]
     public async Task<ActionResult<SalesRepDetails>> Update([FromBody] SalesRepDetails salesRep)
     {
-        var result = await _salesRepService.SaveChangesAsync(salesRep);
+        await _salesRepService.SaveChangesAsync([salesRep]);
+        var result = await _salesRepService.GetByIdAsync(salesRep.Id);
         return Ok(result);
     }
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
@@ -9,11 +10,9 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// Rich aggregate describing a Sales Rep: the underlying Contact (member) profile,
 /// the login account, and the organizations the rep serves.
 /// </summary>
-public class SalesRepDetails
+/// <remarks>The <c>Id</c> (from <see cref="Entity"/>) is the contact member id — the canonical id of a Sales Rep.</remarks>
+public class SalesRepDetails : Entity
 {
-    /// <summary>Contact member id (canonical id of a Sales Rep).</summary>
-    public string Id { get; set; }
-
     /// <summary>Security account (ApplicationUser) id.</summary>
     public string UserId { get; set; }
 
