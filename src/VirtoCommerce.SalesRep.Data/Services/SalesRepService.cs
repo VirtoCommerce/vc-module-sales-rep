@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -25,6 +26,7 @@ public class SalesRepService : ISalesRepService
     private readonly ISalesRepRoleResolver _roleResolver;
     private readonly IStoreService _storeService;
     private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
+    private readonly ILogger<SalesRepService> _logger;
 
     public SalesRepService(
         IMemberService memberService,
@@ -33,7 +35,8 @@ public class SalesRepService : ISalesRepService
         IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepRoleResolver roleResolver,
         IStoreService storeService,
-        Func<UserManager<ApplicationUser>> userManagerFactory)
+        Func<UserManager<ApplicationUser>> userManagerFactory,
+        ILogger<SalesRepService> logger)
     {
         _memberService = memberService;
         _userSearchService = userSearchService;
@@ -42,6 +45,7 @@ public class SalesRepService : ISalesRepService
         _roleResolver = roleResolver;
         _storeService = storeService;
         _userManagerFactory = userManagerFactory;
+        _logger = logger;
     }
 
     public virtual async Task<IList<SalesRepDetails>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
@@ -133,18 +137,35 @@ public class SalesRepService : ISalesRepService
     protected virtual async Task SaveOneAsync(SalesRepDetails salesRep)
     {
         ArgumentNullException.ThrowIfNull(salesRep);
-        ValidateAddresses(salesRep);
 
         var isNew = string.IsNullOrEmpty(salesRep.Id);
 
+        var contact = await SaveContactAsync(salesRep, isNew);
+        salesRep.Id = contact.Id;
+
+        try
+        {
+            var (assignableRole, grantingRoleIds) = await ResolveAssignableRoleAsync(salesRep);
+            var user = await SaveAccountAsync(contact, salesRep, isNew, assignableRole, grantingRoleIds);
+            if (user != null)
+            {
+                await SyncMembershipsAsync(user.Id, salesRep, assignableRole, grantingRoleIds);
+            }
+        }
+        catch when (isNew)
+        {
+            await TryRollbackContactAsync(contact.Id);
+            throw;
+        }
+    }
+
+    protected virtual async Task<Contact> SaveContactAsync(SalesRepDetails salesRep, bool isNew)
+    {
+        ValidateAddresses(salesRep);
+
         if (isNew)
         {
-            var hasLogin = !string.IsNullOrWhiteSpace(salesRep.UserName)
-                || salesRep.Emails?.Any(e => !string.IsNullOrWhiteSpace(e)) == true;
-            if (!hasLogin)
-            {
-                throw new InvalidOperationException("A Sales Rep requires a login email (or user name).");
-            }
+            EnsureHasLoginIdentifier(salesRep);
         }
 
         var contact = isNew
@@ -157,32 +178,34 @@ public class SalesRepService : ISalesRepService
             : null;
         ApplyProfile(contact, salesRep, defaultContactStatus);
         await _memberService.SaveChangesAsync([contact]);
-        salesRep.Id = contact.Id;
+        return contact;
+    }
 
-        try
+    protected virtual async Task<ApplicationUser> SaveAccountAsync(Contact contact, SalesRepDetails salesRep, bool isNew, Role assignableRole, ISet<string> grantingRoleIds)
+    {
+        using var userManager = _userManagerFactory();
+        return isNew
+            ? await CreateAccountAsync(userManager, contact, salesRep, assignableRole)
+            : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleIds);
+    }
+
+    protected virtual async Task<(Role AssignableRole, ISet<string> GrantingRoleIds)> ResolveAssignableRoleAsync(SalesRepDetails salesRep)
+    {
+        var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
+        var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
+            ?? await _roleResolver.EnsureSalesRepRoleAsync();
+        var grantingRoleIds = grantingRoles.Select(r => r.Id).Append(assignableRole.Id).ToHashSet();
+        return (assignableRole, grantingRoleIds);
+    }
+
+    protected static void EnsureHasLoginIdentifier(SalesRepDetails salesRep)
+    {
+        var hasLogin = !string.IsNullOrWhiteSpace(salesRep.UserName)
+            || salesRep.Emails?.Any(e => !string.IsNullOrWhiteSpace(e)) == true;
+        if (!hasLogin)
         {
-            var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
-            var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
-                ?? await _roleResolver.EnsureSalesRepRoleAsync();
-            var grantingRoleIds = grantingRoles.Select(r => r.Id).Append(assignableRole.Id).ToHashSet();
-
-            using var userManager = _userManagerFactory();
-
-            var user = isNew
-                ? await CreateAccountAsync(userManager, contact, salesRep, assignableRole)
-                : await UpdateAccountAsync(userManager, contact, salesRep, assignableRole, grantingRoleIds);
-
-            if (user != null)
-            {
-                await SyncMembershipsAsync(user.Id, salesRep, assignableRole, grantingRoleIds);
-            }
+            throw new InvalidOperationException("A Sales Rep requires a login email (or user name).");
         }
-        catch when (isNew)
-        {
-            await TryRollbackContactAsync(contact.Id);
-            throw;
-        }
-
     }
 
     protected virtual void ValidateAddresses(SalesRepDetails salesRep)
@@ -226,8 +249,9 @@ public class SalesRepService : ISalesRepService
         {
             await DeleteAsync([memberId]);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            _logger.LogError(ex, "Failed to roll back contact '{MemberId}' after a failed Sales Rep create; it may be left orphaned.", memberId);
         }
     }
 
