@@ -2,7 +2,6 @@ using System;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
-/// <summary>Raw per-currency aggregate (sum + count + earliest/latest date) read from a module's EF store before conversion.</summary>
 internal sealed class CurrencyStatisticAggregate
 {
     public string Currency { get; set; }

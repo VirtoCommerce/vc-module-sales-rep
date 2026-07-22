@@ -7,18 +7,10 @@ using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
-/// <summary>
-/// Default orders-list ordering source: "recent" (created date, newest first — the default, one-way) and "total"
-/// (by order value; biggest first by default, "total:asc" for smallest first). Both the default and any unrecognized
-/// selection resolve to the first rule, so the list is always deterministically ordered. Projects override this
-/// service to add or replace orderings.
-/// </summary>
 public class SalesRepOrderSortRuleResolver : SortRuleResolverBase<SalesRepOrderSortRule>, ISalesRepOrderSortRuleResolver
 {
-    /// <summary>Name of the built-in "recent" ordering — created date, newest first (the default; one-way).</summary>
     public const string RecentRuleName = "recent";
 
-    /// <summary>Name of the built-in "total" ordering — by order value; biggest first by default, "total:asc" for smallest first.</summary>
     public const string TotalRuleName = "total";
 
     public override Task<IList<SalesRepOrderSortRule>> GetRulesAsync(string storeId, string cultureName)

@@ -16,13 +16,6 @@ using VirtoCommerce.SalesRep.Core.Services.Statistics;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
-/// <summary>
-/// Aggregates a Sales Rep's carts/projects for the dashboard "Active Projects" / cart widgets. Like the order
-/// statistics service, sums/counts have no public aggregation API, so this reads the Cart EF store
-/// (<see cref="ICartRepository"/>) directly to run DB-side SUM/COUNT/MAX instead of loading carts into memory. That
-/// direct Cart.Data dependency is the same deliberate, scoped exception to the module's "reference other modules'
-/// .Core, not .Data" rule already made for Orders.Data, justified by this being an analytics query.
-/// </summary>
 public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 {
     private readonly Func<ICartRepository> _cartRepositoryFactory;
@@ -61,10 +54,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return await ConvertAndFoldAsync(byCurrency, criteria);
     }
 
-    /// <summary>
-    /// One grouped-by-currency aggregate query. Returns a raw per-currency sum/count/max — no cart rows are
-    /// materialized. Soft-deleted carts are always excluded.
-    /// </summary>
     private async Task<IList<PerCurrencyAggregate>> AggregateByCurrencyAsync(CustomerCartStatisticsCriteria criteria)
     {
         using var repository = _cartRepositoryFactory();
@@ -81,12 +70,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// The scoped cart query the aggregate runs over: never soft-deleted carts, then the criteria's organization /
-    /// creator / store scope, cart type / exclude-type / status filters, the non-empty flag, and the inclusive
-    /// created-date range. The extension seam mirroring the order-statistics/counts services — a project subclasses
-    /// this service, calls <c>base</c>, and adds its own predicate for a cart-kind rule the standard criteria can't express.
-    /// </summary>
     protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var query = repository.ShoppingCarts.Where(x => !x.IsDeleted);
@@ -96,8 +79,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => criteria.OrganizationIds.Contains(x.OrganizationId));
         }
 
-        // Creator scoping (data-isolation invariant): only carts created by the calling sales rep — their user id
-        // is recorded as the cart's CustomerId (the rep builds the project on the customer's behalf).
         if (!string.IsNullOrEmpty(criteria.CustomerId))
         {
             query = query.Where(x => x.CustomerId == criteria.CustomerId);
@@ -113,8 +94,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => criteria.Types.Contains(x.Type));
         }
 
-        // Exclude blacklisted types (e.g. "Wishlist" projects). Keep null-type carts (the default cart type) — a raw
-        // NOT IN would drop them under SQL null semantics, so guard explicitly.
         if (!criteria.ExcludeTypes.IsNullOrEmpty())
         {
             query = query.Where(x => x.Type == null || !criteria.ExcludeTypes.Contains(x.Type));
@@ -125,8 +104,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => criteria.Statuses.Contains(x.Status));
         }
 
-        // "Active" carts have contents; LineItemsCount is the persisted line-item count (0 when a cart is emptied,
-        // e.g. after its order is placed), so an emptied cart stops counting without loading its items.
         if (criteria.OnlyNonEmpty)
         {
             query = query.Where(x => x.LineItemsCount > 0);
@@ -145,11 +122,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return query;
     }
 
-    /// <summary>
-    /// Converts each currency group into <see cref="CustomerCartStatisticsCriteria.CurrencyCode"/> and folds the
-    /// groups into one period via the shared <see cref="StatisticsCurrencyConverter"/> (current admin-maintained
-    /// exchange rates).
-    /// </summary>
     private async Task<CustomerCartStatisticsPeriod> ConvertAndFoldAsync(IList<PerCurrencyAggregate> byCurrency, CustomerCartStatisticsCriteria criteria)
     {
         var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
@@ -173,7 +145,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return period;
     }
 
-    /// <summary>Raw per-currency aggregate read from the database, before currency conversion.</summary>
     private sealed class PerCurrencyAggregate
     {
         public string Currency { get; set; }

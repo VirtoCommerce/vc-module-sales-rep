@@ -6,7 +6,6 @@ using VirtoCommerce.StoreModule.Core.Services;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
-/// <inheritdoc />
 public class SalesRepCurrencyResolver : ISalesRepCurrencyResolver
 {
     private readonly IStoreService _storeService;
@@ -20,13 +19,11 @@ public class SalesRepCurrencyResolver : ISalesRepCurrencyResolver
 
     public virtual async Task<string> ResolveCurrencyCodeAsync(string requestedCurrencyCode, string storeId)
     {
-        // The client's explicit choice always wins.
         if (!string.IsNullOrEmpty(requestedCurrencyCode))
         {
             return requestedCurrencyCode;
         }
 
-        // Otherwise the store's default currency (storeId is an input on every dashboard query).
         if (!string.IsNullOrEmpty(storeId))
         {
             var store = await _storeService.GetByIdAsync(storeId);
@@ -36,7 +33,6 @@ public class SalesRepCurrencyResolver : ISalesRepCurrencyResolver
             }
         }
 
-        // Finally the platform primary currency.
         var currencies = await _currencyService.GetAllCurrenciesAsync();
         return currencies.FirstOrDefault(x => x.IsPrimary)?.Code;
     }

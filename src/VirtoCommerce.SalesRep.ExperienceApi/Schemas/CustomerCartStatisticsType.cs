@@ -14,14 +14,6 @@ using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
-/// <summary>
-/// A Sales Rep's cart/project statistics in one currency (dashboard "Active Projects" and related cart widgets).
-/// Request any number of ranges via aliased <c>period(from, to, kinds)</c> selections and <c>comparison(current,
-/// previous, kinds)</c> selections; a per-(range, kind-selection) DataLoader coalesces them so each distinct bucket
-/// is aggregated only once. <c>kinds</c> are business names (e.g. the built-in "active-carts") the server maps to underlying cart
-/// type/status filters via <see cref="ISalesRepCartFilterRuleResolver"/> — the client never sees internal cart types, and
-/// the mapping (plus fail-closed handling) happens inside the loader, so this graph type sees no concrete filter.
-/// </summary>
 public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatisticsContext>
 {
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
@@ -66,7 +58,6 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
                 var loader = GetPeriodLoader(context);
 
-                // Queue both loads before chaining so they land in the same batch (one dispatch).
                 var currentResult = loader.LoadAsync((current.From, current.To, filterKey));
                 var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey));
 
@@ -75,9 +66,6 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             });
     }
 
-    // A per-request batch loader shared by 'period' and 'comparison'. Keyed on the shared context (rep, organizations,
-    // store, currency); the batch key adds the range and the raw kind selection. Kind resolution + fail-closed
-    // handling happen here, once per distinct bucket.
     private IDataLoader<(DateTime? From, DateTime? To, string Filter), CustomerCartStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
     {
         var statisticsContext = (CustomerCartStatisticsContext)context.Source;
@@ -98,8 +86,6 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                     criteria.FromDate = bucket.From;
                     criteria.ToDate = bucket.To;
 
-                    // Apply the selected rule's type/status filter through the shared resolver. Null = a rule name
-                    // was given but is unrecognized → fail-closed: a zeroed period, not "count every cart".
                     var filtered = await _filterRuleResolver.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
 
                     var period = filtered == null

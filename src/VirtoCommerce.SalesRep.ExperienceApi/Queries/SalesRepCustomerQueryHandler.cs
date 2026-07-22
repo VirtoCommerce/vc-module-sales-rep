@@ -13,11 +13,6 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-/// <summary>
-/// Loads one customer organization's detail card for the Sales Rep (VCST-5308): verifies the rep serves the
-/// requested organization, loads only the fields the caller selected, and resolves the organization's primary
-/// contact (falling back to its first contact). Returns null when the caller has no access.
-/// </summary>
 public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerQuery, SalesRepCustomerDetails>
 {
     private static readonly string _contactResponseGroup =
@@ -47,9 +42,6 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        // Security scoping: the caller must hold an active sales-rep-granting membership in exactly the
-        // requested organization. Without this a rep could read any organization by guessing its id.
-        // OnlyUnlocked: a rep locked in an organization must not see it as a customer.
         var memberships = await GetGrantingMembershipsAsync(
             [request.UserId],
             [request.OrganizationId]);
@@ -59,8 +51,6 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        // Load only the member data the caller selected — the organization's addresses only when `address` was
-        // requested, its phones only when `phone` was (id/name/iconUrl/accountType are scalar, loaded with Default).
         var organizationResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
 
         var organization = (await _memberService.GetByIdsAsync(
@@ -75,8 +65,6 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        // primaryContact is a separate lookup, so resolve it only when the caller selected it — or `phone`, which
-        // falls back to the primary contact's phone. Mirrors the field-driven organization load above.
         Contact primaryContact = null;
         if (request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.PrimaryContact))
             || request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.Phone)))
@@ -87,9 +75,6 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         return SalesRepCustomerDetails.FromOrganization(organization, primaryContact);
     }
 
-    /// <summary>
-    /// Resolves the organization's primary contact: its owner, then the first contact member as a fallback.
-    /// </summary>
     private async Task<Contact> ResolvePrimaryContactAsync(Organization organization)
     {
         if (!string.IsNullOrEmpty(organization.OwnerId))
@@ -107,7 +92,6 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             }
         }
 
-        // Fallback: the first (oldest) contact directly belonging to the organization.
         var contactsCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
         contactsCriteria.MemberId = organization.Id;
         contactsCriteria.MemberType = nameof(Contact);

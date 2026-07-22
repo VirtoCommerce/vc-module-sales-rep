@@ -14,16 +14,6 @@ using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
-/// <summary>
-/// A customer's order statistics in one currency (VCST-5309). Request any number of ranges via aliased
-/// <c>period(from, to)</c> selections and any number of <c>comparison(current, previous)</c> selections; a
-/// per-(range, status-selection) DataLoader coalesces them so each distinct bucket is aggregated only once per
-/// request, and a bucket shared between a <c>period</c> and a <c>comparison</c> is not queried twice.
-/// Each <c>period</c>/<c>comparison</c> also takes an optional <c>statuses</c> filter (business-status names, e.g.
-/// "New" or "OnHold") so status-scoped widgets ("New Orders", "Orders on Hold") reuse this one query. The selected
-/// names are resolved and applied (via the shared <see cref="ISalesRepOrderFilterRuleResolver"/>) inside the loader, so
-/// this graph type never sees concrete filter fields.
-/// </summary>
 public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStatisticsContext>
 {
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
@@ -68,9 +58,6 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
 
                 var loader = GetPeriodLoader(context);
 
-                // Queue both loads before chaining so they land in the same batch (one dispatch); the two ranges
-                // are independent, so deferring 'previous' into 'current's continuation would force a second
-                // round-trip whenever it isn't already requested as a sibling 'period'.
                 var currentResult = loader.LoadAsync((current.From, current.To, filterKey));
                 var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey));
 
@@ -79,9 +66,6 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
             });
     }
 
-    // A per-request batch loader shared by 'period' and 'comparison'. Keyed on the shared context (rep, organizations,
-    // store, currency); the batch key adds the range and the raw status selection, so every distinct bucket under one
-    // node is aggregated exactly once. Status resolution + fail-closed handling happen here, once per distinct bucket.
     private IDataLoader<(DateTime? From, DateTime? To, string Filter), CustomerOrderStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
     {
         var statisticsContext = (CustomerOrderStatisticsContext)context.Source;
@@ -92,8 +76,6 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
             loaderKey,
             async buckets =>
             {
-                // Each distinct (range, status-selection) is one aggregate query; they run concurrently, each on its
-                // own repository instance (its own DbContext), so parallel access is safe.
                 var tasks = buckets.Select(async bucket =>
                 {
                     var criteria = AbstractTypeFactory<CustomerOrderStatisticsCriteria>.TryCreateInstance();
@@ -104,8 +86,6 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
                     criteria.FromDate = bucket.From;
                     criteria.ToDate = bucket.To;
 
-                    // Apply the selected rule through the shared resolver (same mapping as the orders list). Null =
-                    // a rule name was given but is unrecognized → fail-closed: a zeroed period, not "count everything".
                     var filtered = await _filterRuleResolver.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
 
                     var period = filtered == null
@@ -123,7 +103,6 @@ public class CustomerOrderStatisticsType : ExtendableGraphType<CustomerOrderStat
     {
         var result = AbstractTypeFactory<CustomerOrderStatisticsComparison>.TryCreateInstance();
 
-        // Both periods are converted to the same target currency, so the change values carry that currency too.
         result.CurrencyCode = current.CurrencyCode;
         result.TotalChange = current.Total - previous.Total;
         result.TotalChangePercent = StatisticsFieldHelper.Percent(previous.Total, current.Total);

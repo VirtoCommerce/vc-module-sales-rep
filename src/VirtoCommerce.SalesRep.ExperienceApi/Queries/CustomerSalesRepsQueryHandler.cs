@@ -42,8 +42,6 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
             return result;
         }
 
-        // Memberships carrying a sales-rep-granting role in the caller's organization. OnlyUnlocked excludes
-        // per-org locked memberships (a rep locked in this organization must not appear for it).
         var memberships = await GetGrantingMembershipsAsync(organizationIds: [request.OrganizationId]);
 
         var userIds = memberships
@@ -56,10 +54,6 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
             return result;
         }
 
-        // Map security accounts to contact member ids. OnlyUnlocked returns only active accounts (VCST-4907 #5):
-        // blocked/disabled reps are excluded. Deleted reps have no membership and never reach here.
-        // StoreId scopes to the caller's store when provided — a rep's account is store-bound, so a rep from
-        // another store is not exposed to this storefront.
         var userCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
         userCriteria.ObjectIds = userIds;
         userCriteria.Take = userIds.Length;
@@ -78,14 +72,10 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
             return result;
         }
 
-        // Filter (keyword), sort and page the reps' contacts in the database.
-        // GetSearchCriteria carries the request's Keyword/Sort/Skip/Take onto the criteria.
         var membersCriteria = request.GetSearchCriteria<MembersSearchCriteria>();
         membersCriteria.ObjectIds = memberIds;
         membersCriteria.MemberType = nameof(Contact);
         membersCriteria.RootMembersOnly = false;
-        // Load only the member data the caller selected — emails/phones only when those fields were requested
-        // (id/name/photoUrl are scalar columns loaded with Default). Mirrors the customer queries' field-driven group.
         membersCriteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(membersCriteria);
 

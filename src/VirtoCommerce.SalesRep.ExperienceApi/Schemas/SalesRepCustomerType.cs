@@ -43,33 +43,20 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                     return null;
                 }
 
-                // The store is uniform across a page (from the query's storeId argument); fold it into the loader
-                // key so orders stay scoped to the caller's store and different stores never share a batch.
                 var storeId = context.Source.StoreId;
 
-                // Only the current sales rep's own orders count as a customer's "last order" — the rep's user id is
-                // the order's CustomerId (as X-Order scopes its "my orders" list). Fold it into the loader key so
-                // different callers never share a batch.
                 var salesRepUserId = context.GetCurrentUserId();
 
-                // Load only the order data the caller selected under lastOrder (e.g. skip line items unless
-                // itemsCount was requested). The selection is uniform across the page, so fold the resulting
-                // response group into the loader key too.
                 var responseGroup = responseGroupParser.GetResponseGroup(
                     context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? []);
 
-                // Batch every customer row on the page into one service call (which runs one bounded search
-                // per organization) instead of a resolver-level order query per row.
                 var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, SalesRepOrder>(
                     $"{nameof(SalesRepCustomerType)}.LastOrderByOrganizationId:{salesRepUserId}:{storeId}:{responseGroup}",
                     async organizationIds =>
                     {
                         var latestOrders = await customerOrderSearchService.GetLatestOrdersByOrganizationIdsAsync(organizationIds.ToList(), salesRepUserId, storeId, responseGroup);
-                        // The result dictionary matches organization ids case-insensitively (as the search service does).
                         return latestOrders.ToDictionary(kvp => kvp.Key, kvp => SalesRepOrder.FromOrder(kvp.Value), StringComparer.OrdinalIgnoreCase);
                     },
-                    // Dedupe the batch keys with the same comparer as the result dictionary, so two ids differing only
-                    // in case collapse to one bucket rather than surviving as distinct keys and colliding on ToDictionary.
                     StringComparer.OrdinalIgnoreCase);
 
                 return loader.LoadAsync(organizationId);
@@ -97,12 +84,9 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
                     currencyCode = context.Source.CurrencyCode;
                 }
 
-                // Only the rep's own orders (their user id is the order's CustomerId), scoped to the caller's store.
                 var salesRepUserId = context.GetCurrentUserId();
                 var storeId = context.Source.StoreId;
 
-                // One grouped aggregate for the whole page per distinct (range, currency) — the range/currency go in
-                // the loader key, the organization ids are the batch, mirroring the counts widget's loader.
                 var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, CustomerOrderStatisticsPeriod>(
                     $"{nameof(SalesRepCustomerType)}.OrderStatistics:{salesRepUserId}:{storeId}:{currencyCode}:{from:O}:{to:O}",
                     async organizationIds =>
@@ -119,15 +103,11 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
 
                         var byOrganization = await statisticsService.GetStatisticsByOrganizationAsync(criteria);
 
-                        // Every requested id needs an entry; organizations with no orders in range → an empty
-                        // (zeroed) period so the row still renders.
                         return ids.ToDictionary(
                             id => id,
                             id => byOrganization.TryGetValue(id, out var period) ? period : StatisticsFieldHelper.EmptyPeriod<CustomerOrderStatisticsPeriod>(p => p.CurrencyCode = currencyCode),
                             StringComparer.OrdinalIgnoreCase);
                     },
-                    // Dedupe the batch keys case-insensitively, matching both the result dictionary above and the
-                    // service's OrdinalIgnoreCase grouping, so cased-duplicate ids can't collide on ToDictionary.
                     StringComparer.OrdinalIgnoreCase);
 
                 return loader.LoadAsync(organizationId);

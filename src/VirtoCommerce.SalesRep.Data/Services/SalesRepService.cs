@@ -46,8 +46,6 @@ public class SalesRepService : ISalesRepService
 
     public virtual async Task<IList<SalesRepDetails>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
     {
-        // The Sales Rep aggregate is not a single persisted entity, so responseGroup/clone don't apply — it always
-        // loads the full aggregate. Load each requested id, skipping ids with no rep, as ICrudService<T> expects.
         var result = new List<SalesRepDetails>();
         if (ids != null)
         {
@@ -75,8 +73,6 @@ public class SalesRepService : ISalesRepService
 
         if (user != null)
         {
-            // The Email table row order isn't guaranteed; the blade treats emails[0] as the login, so put
-            // the account's login email first (the rest are "additional emails").
             var loginEmail = !string.IsNullOrEmpty(user.Email) ? user.Email : user.UserName;
             if (!string.IsNullOrEmpty(loginEmail))
             {
@@ -109,7 +105,6 @@ public class SalesRepService : ISalesRepService
                 })
                 .ToList();
 
-            // No global role (per-org-only rep) — derive the role from a membership.
             if (string.IsNullOrEmpty(result.RoleId))
             {
                 var membershipRole = memberships
@@ -144,9 +139,6 @@ public class SalesRepService : ISalesRepService
 
         if (isNew)
         {
-            // A login account is mandatory for a Sales Rep. Without a login email (or an explicit user name)
-            // account creation fails with an opaque Identity error AFTER the contact was already saved, so
-            // reject early with a clear message instead.
             var hasLogin = !string.IsNullOrWhiteSpace(salesRep.UserName)
                 || salesRep.Emails?.Any(e => !string.IsNullOrWhiteSpace(e)) == true;
             if (!hasLogin)
@@ -160,9 +152,6 @@ public class SalesRepService : ISalesRepService
             : await _memberService.GetByIdAsync(salesRep.Id, MemberResponseGroup.Full.ToString()) as Contact
               ?? throw new InvalidOperationException($"Sales Rep '{salesRep.Id}' not found");
 
-        // Only read the store default when the incoming model has no status. New reps carry none (the blade has
-        // no status field), so they get seeded here; an edit round-trips the rep's existing status, so the store
-        // read is skipped when it wouldn't be used (ApplyProfile prefers the incoming status over the default).
         var defaultContactStatus = string.IsNullOrEmpty(salesRep.Status)
             ? await ResolveDefaultContactStatusAsync(salesRep.StoreId)
             : null;
@@ -172,8 +161,6 @@ public class SalesRepService : ISalesRepService
 
         try
         {
-            // Resolve the granting-role set once and derive both the id-set and the role to assign from it
-            // (the UI-chosen role if it grants the permission, else the lazily seeded default).
             var grantingRoles = await _roleResolver.GetRolesGrantingAccessAsync();
             var assignableRole = grantingRoles.FirstOrDefault(r => r.Id == salesRep.RoleId)
                 ?? await _roleResolver.EnsureSalesRepRoleAsync();
@@ -192,32 +179,12 @@ public class SalesRepService : ISalesRepService
         }
         catch when (isNew)
         {
-            // The contact was persisted before the account/membership step failed. There is no cross-service
-            // transaction, so compensate: roll the just-created contact back (reusing the module's own delete,
-            // which also removes any partially-created account) so a failed create never leaves an orphan
-            // member. The original exception is rethrown to the caller.
-            //
-            // NOTE: this compensation is intentionally CREATE-ONLY. On update the contact profile is saved
-            // first, so if the later account/role/membership sync throws, the rep is left partially updated
-            // with no rollback. That is a conscious tradeoff (no cross-service transaction is available, and
-            // rolling an update back to its prior state would require snapshotting every touched aggregate);
-            // an update failure surfaces as an error and the admin can re-save.
             await TryRollbackContactAsync(contact.Id);
             throw;
         }
 
-        // The aggregate's id is stamped on `salesRep` in place (salesRep.Id = contact.Id above); a caller that needs
-        // the fully hydrated aggregate (computed role/membership/email fields) re-reads it via GetByIdAsync.
     }
 
-    /// <summary>
-    /// Reject addresses missing the fields required to persist them. Country is mandatory because the customer
-    /// module resolves the country name/regions from <c>CountryCode</c> on save (an empty or unknown code throws
-    /// deep in the platform countries service — a NullReferenceException surfacing as an opaque 500). City, Line 1
-    /// and Postal code are the required fields of the classic contact-address form; City is additionally enforced
-    /// by a NOT NULL constraint on the Address table. This is the API-side counterpart to the blade's required-field
-    /// validation, so a malformed payload from any client fails fast with a clear message instead of a 500.
-    /// </summary>
     protected virtual void ValidateAddresses(SalesRepDetails salesRep)
     {
         if (salesRep.Addresses.IsNullOrEmpty())
@@ -253,8 +220,6 @@ public class SalesRepService : ISalesRepService
         }
     }
 
-    /// <summary>Best-effort rollback of a contact (and its account) after a failed create. Cleanup errors are
-    /// swallowed so the caller can rethrow the original failure that triggered the rollback.</summary>
     protected virtual async Task TryRollbackContactAsync(string memberId)
     {
         try
@@ -263,25 +228,16 @@ public class SalesRepService : ISalesRepService
         }
         catch (Exception)
         {
-            // Intentionally ignored — see summary above.
         }
     }
 
     public virtual async Task DeleteAsync(IList<string> ids, bool softDelete = false)
     {
-        // softDelete has no meaning for this aggregate (it spans the customer/security/membership stores and always
-        // hard-deletes the account + cascades); accepted only for ICrudService<T> contract compatibility.
         if (ids == null || ids.Count == 0)
         {
             return;
         }
 
-        // Member delete does NOT cascade to the login account, so delete the account(s) explicitly first.
-        // Deleting the ApplicationUser removes its role assignments and triggers the customer module's
-        // user-deleted handler that clears its OrganizationMemberships.
-        //
-        // One batched, internally-paged search for the accounts of ALL member ids (UserSearchCriteria.MemberIds)
-        // — not a query per id, and not an unbounded single page (SearchAllAsync pages internally).
         var searchCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
         searchCriteria.MemberIds = ids;
         var accounts = await _userSearchService.SearchAllAsync(searchCriteria);
@@ -291,7 +247,6 @@ public class SalesRepService : ISalesRepService
             using var userManager = _userManagerFactory();
             foreach (var found in accounts)
             {
-                // FindByIdAsync gets the managed entity required for deletion (search results are detached).
                 var user = await userManager.FindByIdAsync(found.Id);
                 if (user != null)
                 {
@@ -300,7 +255,6 @@ public class SalesRepService : ISalesRepService
             }
         }
 
-        // IMemberService.DeleteAsync still takes an array; materialize at this external boundary.
         await _memberService.DeleteAsync(ids.ToArray());
     }
 
@@ -344,14 +298,12 @@ public class SalesRepService : ISalesRepService
         await ApplyLockoutAsync(userManager, user, lockoutEnd);
     }
 
-    /// <summary>Enable lockout and set the end date on a user already tracked by <paramref name="userManager"/>.</summary>
     protected static async Task ApplyLockoutAsync(UserManager<ApplicationUser> userManager, ApplicationUser user, DateTimeOffset? lockoutEnd)
     {
         await userManager.SetLockoutEnabledAsync(user, true);
         ThrowIfFailed(await userManager.SetLockoutEndDateAsync(user, lockoutEnd));
     }
 
-    /// <summary>Reset the password of a user already tracked by <paramref name="userManager"/>.</summary>
     protected static async Task ResetPasswordAsync(UserManager<ApplicationUser> userManager, ApplicationUser user, string newPassword)
     {
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
@@ -369,7 +321,6 @@ public class SalesRepService : ISalesRepService
         user.StoreId = salesRep.StoreId;
         user.UserType = "Customer";
 
-        // Every new Sales Rep gets the global Sales Rep role assignment (deterministic seeded role).
         if (assignableRole != null)
         {
             user.Roles = [assignableRole];
@@ -393,22 +344,13 @@ public class SalesRepService : ISalesRepService
         var account = await GetTrackedUserAsync(userManager, contact.Id);
         if (account == null)
         {
-            // The contact had no account yet (edge case) — create one.
             return await CreateAccountAsync(userManager, contact, salesRep, assignableRole);
         }
 
-        // UpdateAsync must receive a DETACHED user carrying the desired state — the same contract the platform's
-        // own PUT /api/platform/security/users relies on (its payload is JSON-bound, never the manager's instance).
-        // The instance FindByIdAsync returns is the shared memory-cached one and, right after a cache miss, is ALSO
-        // tracked by this manager's DbContext. Passing it to UpdateAsync corrupts the role update: the platform's
-        // UpdateUserAsync re-loads "the existing user" through that same context, EF identity resolution hands back
-        // the very same instance, and LoadUserDetailsAsync resets its Roles from the DB — so the platform then diffs
-        // the desired roles against themselves and silently drops the change. Editing a clone also keeps mutations
-        // from leaking into the shared cache when a save fails midway.
+        // Edit a DETACHED clone, never the FindByIdAsync instance: on a cache miss that instance is also tracked by
+        // this manager's DbContext, and UpdateAsync would then diff the roles against themselves and silently drop the change.
         var user = account.CloneTyped();
 
-        // The login email is emails[0]. Keep both Email and UserName (the sign-in identifier) in sync with it
-        // so they never diverge when the admin changes the login email.
         var loginEmail = contact.Emails.FirstOrDefault();
         if (!string.IsNullOrEmpty(loginEmail))
         {
@@ -416,9 +358,6 @@ public class SalesRepService : ISalesRepService
             user.UserName = loginEmail;
         }
 
-        // Set the global role to the selected one: drop any other granting role, keep unrelated roles, ensure the
-        // target is present. UpdateAsync diffs this desired set against the persisted assignments and applies the
-        // difference. (Switching the role re-points the global assignment.)
         var roles = (user.Roles ?? []).Where(r => !grantingRoleIds.Contains(r.Id)).ToList();
         if (assignableRole != null)
         {
@@ -428,7 +367,6 @@ public class SalesRepService : ISalesRepService
 
         ThrowIfFailed(await userManager.UpdateAsync(user));
 
-        // Lockout + password reuse the same detached user; the manager persists them by patching the stored entity.
         await ApplyLockoutAsync(userManager, user, salesRep.IsLocked ? DateTimeOffset.MaxValue : null);
 
         if (!string.IsNullOrEmpty(salesRep.Password))
@@ -460,12 +398,8 @@ public class SalesRepService : ISalesRepService
         }
     }
 
-    /// <summary>Grant the selected role on every served org, creating the membership when absent and
-    /// re-pointing an existing one (dropping any other granting role) so a role change takes effect.</summary>
     protected virtual void GrantOnServedOrgs(IList<string> servedOrgIds, IList<OrganizationMembership> existing, string userId, Role assignableRole, ISet<string> grantingRoleIds, List<OrganizationMembership> toSave)
     {
-        // One membership per org is expected, but guard against duplicates (bad data) rather than letting
-        // ToDictionary throw — keep the first membership for each org.
         var existingByOrg = existing
             .GroupBy(m => m.OrganizationId)
             .ToDictionary(g => g.Key, g => g.First());
@@ -482,8 +416,6 @@ public class SalesRepService : ISalesRepService
         }
     }
 
-    /// <summary>Revoke the granting role from memberships of orgs no longer served, deleting a membership
-    /// left with no roles.</summary>
     protected static void RevokeFromUnservedOrgs(IList<string> servedOrgIds, IList<OrganizationMembership> existing, ISet<string> grantingRoleIds, List<OrganizationMembership> toSave, List<string> toDelete)
     {
         var unserved = existing.Where(m => !servedOrgIds.Contains(m.OrganizationId)
@@ -502,7 +434,6 @@ public class SalesRepService : ISalesRepService
         }
     }
 
-    /// <summary>Re-point an existing membership to the selected role; returns true when it changed.</summary>
     protected virtual bool TryRepointMembershipRole(OrganizationMembership membership, Role assignableRole, ISet<string> grantingRoleIds)
     {
         var alreadyCorrect = membership.Roles.Any(r => r.RoleId == assignableRole.Id);
@@ -551,7 +482,6 @@ public class SalesRepService : ISalesRepService
         return found == null ? null : await userManager.FindByIdAsync(found.Id);
     }
 
-    /// <summary>All memberships of a user that carry a role granting the sales-rep permission.</summary>
     protected virtual async Task<IList<OrganizationMembership>> GetSalesRepMembershipsAsync(string userId, ISet<string> grantingRoleIds)
     {
         var all = await GetAllMembershipsAsync(userId);
@@ -560,16 +490,11 @@ public class SalesRepService : ISalesRepService
 
     protected virtual Task<IList<OrganizationMembership>> GetAllMembershipsAsync(string userId)
     {
-        // SearchAllAsync pages internally (IOrganizationMembershipSearchService : ISearchService) — no unbounded Take.
         var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
         criteria.UserId = userId;
         return _membershipSearchService.SearchAllAsync(criteria);
     }
 
-    /// <summary>Resolves the store's configured default contact status (<c>Customer.ContactDefaultStatus</c>) so a
-    /// Sales Rep is seeded with the same member status the store would give a self-registered contact (e.g. "Approved"
-    /// = Active in the storefront member list) instead of an empty status that renders as "Inactive". Returns null
-    /// when there is no store bound to the rep or the setting is unset — mirrors <c>ExternalSignInUserBuilder</c>.</summary>
     protected virtual async Task<string> ResolveDefaultContactStatusAsync(string storeId)
     {
         if (string.IsNullOrEmpty(storeId))
@@ -590,7 +515,6 @@ public class SalesRepService : ISalesRepService
 
         var fullName = DeriveFullName(salesRep);
         contact.FullName = fullName;
-        // Persist the Name column so SQL search/sort by name works.
         contact.Name = fullName;
         contact.BirthDate = salesRep.BirthDate;
         contact.TimeZone = salesRep.TimeZone;
@@ -598,22 +522,14 @@ public class SalesRepService : ISalesRepService
         contact.CurrencyCode = salesRep.CurrencyCode;
         contact.About = salesRep.About;
         contact.PhotoUrl = salesRep.PhotoUrl;
-        // Status precedence: an explicit status on the incoming model wins; otherwise fall back to the store's
-        // configured default contact status so the rep shows the right member status in the storefront (e.g.
-        // "Active") rather than "Inactive". When neither is available the current status is left untouched.
-        // Blocked reps are represented by account lockout (not this status), so overwriting it here is safe.
         contact.Status = salesRep.Status.EmptyToNull() ?? defaultStatus.EmptyToNull() ?? contact.Status;
 
-        // Login (emails[0]) + additional emails as one de-duplicated list (case-insensitive, order preserved
-        // so the login stays first). The login email cannot be dropped here (it's the account).
         contact.Emails = DistinctNonEmpty(salesRep.Emails);
         contact.Phones = DistinctNonEmpty(salesRep.Phones);
         contact.Addresses = salesRep.Addresses?.ToList() ?? [];
         contact.Organizations = DistinctNonEmpty(salesRep.Organizations?.Select(o => o.OrganizationId));
     }
 
-    /// <summary>(Re)derive the full name from the name parts so editing First/Middle/Last refreshes Name/FullName
-    /// (the blade has no FullName field). Fall back to a passed FullName or the login email when no parts exist.</summary>
     protected static string DeriveFullName(SalesRepDetails salesRep)
     {
         string[] nameParts = [salesRep.FirstName, salesRep.MiddleName, salesRep.LastName];
@@ -626,7 +542,6 @@ public class SalesRepService : ISalesRepService
         return !string.IsNullOrWhiteSpace(salesRep.FullName) ? salesRep.FullName : salesRep.Emails?.FirstOrDefault();
     }
 
-    /// <summary>Trim out null/blank values and de-duplicate case-insensitively, preserving order.</summary>
     protected static List<string> DistinctNonEmpty(IEnumerable<string> values)
     {
         return values?

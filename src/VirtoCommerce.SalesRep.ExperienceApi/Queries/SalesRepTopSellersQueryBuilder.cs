@@ -23,8 +23,6 @@ public class SalesRepTopSellersQueryBuilder : SalesRepQueryBuilder<SalesRepTopSe
     {
         await base.BeforeMediatorSend(context, request);
 
-        // Propagate this field's arguments (notably cultureName) to the UserContext so the nested
-        // SalesRepTopSellerType.revenue MoneyType resolver can read the culture for its formatted amount.
         context.CopyArgumentsToUserContext();
     }
 }

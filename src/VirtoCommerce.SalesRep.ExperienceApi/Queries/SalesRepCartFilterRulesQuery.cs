@@ -6,17 +6,10 @@ using VirtoCommerce.Xapi.Core.BaseQueries;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-/// <summary>
-/// Returns the selectable Sales Rep cart kinds. The selected kind's <c>name</c> is sent back in the
-/// <c>salesRepCustomerCartStatistics</c> <c>filters</c> argument. Caller-agnostic — kinds are store configuration,
-/// not rep-scoped data. Mirrors <see cref="SalesRepOrderFilterRulesQuery"/>.
-/// </summary>
 public class SalesRepCartFilterRulesQuery : Query<IList<SalesRepCartFilterRule>>
 {
-    /// <summary>Store to read the configured cart kinds from.</summary>
     public string StoreId { get; set; }
 
-    /// <summary>Culture for localized kind labels (e.g. "en-US").</summary>
     public string CultureName { get; set; }
 
     public override IEnumerable<QueryArgument> GetArguments()

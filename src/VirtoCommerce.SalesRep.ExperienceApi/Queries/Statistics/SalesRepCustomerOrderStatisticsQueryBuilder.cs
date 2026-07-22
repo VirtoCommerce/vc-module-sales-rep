@@ -21,8 +21,6 @@ public class SalesRepCustomerOrderStatisticsQueryBuilder : SalesRepQueryBuilder<
     {
         await base.BeforeMediatorSend(context, request);
 
-        // Propagate this field's arguments (notably cultureName) to the UserContext so the nested MoneyType
-        // resolvers on period/comparison can read the culture for their formatted amounts.
         context.CopyArgumentsToUserContext();
     }
 }

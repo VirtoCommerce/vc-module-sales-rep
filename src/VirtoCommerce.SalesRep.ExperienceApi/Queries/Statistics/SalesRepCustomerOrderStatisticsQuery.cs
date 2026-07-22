@@ -7,34 +7,16 @@ using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
 
-/// <summary>
-/// Order statistics for the current Sales Rep's customers (VCST-5309). Standalone — decoupled from the
-/// customer-details card so the sales-performance widgets can evolve on their own. The Sales Rep is the caller;
-/// their security account id is set server-side from the claims. When an <see cref="OrganizationId"/> is given the
-/// handler verifies the caller serves it; when omitted, the statistics span every organization the rep is
-/// assigned to (the combined cross-customer view).
-/// </summary>
 public class SalesRepCustomerOrderStatisticsQuery : Query<CustomerOrderStatisticsContext>, ISalesRepStatisticsQuery
 {
-    /// <summary>
-    /// Organization (customer) id whose orders are aggregated. Omit for a cross-customer view — the combined
-    /// statistics of every organization the rep is assigned to.
-    /// </summary>
     public string OrganizationId { get; set; }
 
-    /// <summary>Optional store to scope the orders to (defaults to all stores).</summary>
     public string StoreId { get; set; }
 
-    /// <summary>Currency to convert all figures to (defaults to the store's default currency, then the primary currency).</summary>
     public string CurrencyCode { get; set; }
 
-    /// <summary>
-    /// Culture for the money fields' formatted amounts (e.g. "en-US"). Consumed by the MoneyType resolvers via the
-    /// request context (the builder copies it to the UserContext), not by this handler.
-    /// </summary>
     public string CultureName { get; set; }
 
-    /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
 
     public override IEnumerable<QueryArgument> GetArguments()
@@ -47,7 +29,6 @@ public class SalesRepCustomerOrderStatisticsQuery : Query<CustomerOrderStatistic
 
     public override void Map(IResolveFieldContext context)
     {
-        // Identity comes from the caller's claims; the rest are client arguments.
         OrganizationId = context.GetArgument<string>(nameof(OrganizationId));
         StoreId = context.GetArgument<string>(nameof(StoreId));
         CurrencyCode = context.GetArgument<string>(nameof(CurrencyCode));

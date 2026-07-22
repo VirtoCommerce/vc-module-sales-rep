@@ -9,12 +9,6 @@ internal static class UserSearchServiceExtensions
 {
     private const int DefaultPageSize = 50;
 
-    /// <summary>
-    /// Enumerates ALL users matching the criteria by paging internally, so no single unbounded page is fetched.
-    /// IUserSearchService doesn't implement ISearchService (so the platform SearchAllAsync extension doesn't
-    /// apply), but UserSearchCriteria/UserSearchResult already support paging and SearchUsersAsync already
-    /// pages — this is the same loop the platform's SearchAllAsync runs over SearchBatchesAsync.
-    /// </summary>
     public static async Task<IList<ApplicationUser>> SearchAllAsync(this IUserSearchService userSearchService, UserSearchCriteria criteria, int pageSize = DefaultPageSize)
     {
         List<ApplicationUser> result = [];

@@ -12,7 +12,6 @@ public class CustomerOrderStatisticsComparisonType : ExtendableGraphType<Custome
     {
         Name = "CustomerOrderStatisticsComparison";
 
-        // Monetary changes as Money (amount + formattedAmount + currency); the percentages and count change stay scalars.
         Field<NonNullGraphType<MoneyType>>("totalChange")
             .Description("Current total minus previous total (amount, formatted amount and currency).")
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.TotalChange));

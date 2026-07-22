@@ -14,11 +14,6 @@ using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
-/// <summary>
-/// The Sales Rep "my customers" counters (dashboard "My Customers" widget). <c>assignedCustomers</c> is the size of
-/// the rep's served-organization set; <c>period(from, to)</c> and <c>comparison(current, previous)</c> expose the
-/// range-dependent counters (customers who ordered, customers new in the range), coalesced per range by a DataLoader.
-/// </summary>
 public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCountsContext>
 {
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
@@ -92,8 +87,6 @@ public class SalesRepCustomerCountsType : ExtendableGraphType<SalesRepCustomerCo
                     criteria.FromDate = bucket.From;
                     criteria.ToDate = bucket.To;
 
-                    // Apply the selected customer segment through the shared resolver (same rule the customers list
-                    // uses). Null = a segment name was given but is unrecognized → fail-closed: zeroed counters.
                     var filtered = await _filterRuleResolver.ApplyCountsFilterAsync(countsContext.StoreId, bucket.Filter, criteria);
 
                     var period = filtered == null

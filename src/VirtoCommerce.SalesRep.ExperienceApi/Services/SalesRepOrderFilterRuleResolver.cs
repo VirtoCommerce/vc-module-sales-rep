@@ -10,11 +10,6 @@ using OrderSettings = VirtoCommerce.OrdersModule.Core.ModuleConstants.Settings.G
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
-/// <summary>
-/// Default status source: each configured <c>Order.Status</c> dictionary value is a status option (1:1). Projects
-/// override this service to group / hide / add statuses. Both apply methods share <see cref="ResolveStatusesAsync"/>,
-/// so the list and the statistics filter identically.
-/// </summary>
 public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOrderFilterRule>, ISalesRepOrderFilterRuleResolver
 {
     private readonly ILocalizableSettingService _localizableSettingService;
@@ -26,10 +21,8 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
 
     public override async Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(string storeId, string cultureName)
     {
-        // The platform's configured, localizable order-status dictionary (KeyValue.Key = raw status, Value = label).
         var values = await _localizableSettingService.GetValuesAsync(OrderSettings.OrderStatus.Name, cultureName);
 
-        // Default: each configured order status is its own option (Name == the raw status; label localized).
         return values
             .Select(x => SalesRepOrderFilterRule.Create(x.Key, x.Value, x.Key))
             .ToList();
@@ -40,12 +33,11 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
         var statuses = await ResolveStatusesAsync(storeId, filter);
         if (statuses == null)
         {
-            return null; // fail-closed
+            return null;
         }
 
         if (statuses.Count > 0)
         {
-            // The Orders search criteria still exposes Statuses as an array; materialize at this external boundary.
             criteria.Statuses = statuses.ToArray();
         }
 
@@ -57,7 +49,7 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
         var statuses = await ResolveStatusesAsync(storeId, filter);
         if (statuses == null)
         {
-            return null; // fail-closed
+            return null;
         }
 
         if (statuses.Count > 0)
@@ -68,11 +60,6 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
         return criteria;
     }
 
-    /// <summary>
-    /// The single rule resolution shared by both apply methods. Tri-state: an empty list = no filter selected, or a
-    /// recognized rule with no status constraint (e.g. an "All" rule) — the baseline set; a non-empty list = the
-    /// recognized rule's underlying statuses; <c>null</c> = a rule name was given but is unrecognized (fail-closed).
-    /// </summary>
     protected virtual async Task<IList<string>> ResolveStatusesAsync(string storeId, string filter)
     {
         if (string.IsNullOrEmpty(filter))

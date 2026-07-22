@@ -28,12 +28,7 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
         Field(x => x.Number, nullable: true).Description("Human-readable order number.");
         Field(x => x.OrganizationId, nullable: true).Description("Organization (customer) id the order belongs to.");
         Field(x => x.CreatedDate, nullable: false).Description("Date the order was placed.");
-        // Adds `status` (raw) + `statusDisplayValue` (localized from the Order.Status dictionary; culture from context).
         LocalizedField(x => x.Status, OrderSettings.OrderStatus, localizableSettingService, nullable: true);
-        // Grand total as Money so clients get amount + formattedAmount (+ the currency object). The order stores a
-        // currency code; resolve it to the full Currency for the requested culture — GetAllCurrenciesAsync is cached,
-        // so this is safe per row without a DataLoader. Culture comes from the query's cultureName argument (copied to
-        // the user context by the SalesRepSearchQueryBuilder base); when absent, formatting falls back to the invariant culture.
         Field<NonNullGraphType<MoneyType>>("total")
             .Description("Order grand total (amount, formatted amount and currency).")
             .ResolveAsync(async context =>
@@ -45,9 +40,6 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
         Field(x => x.ItemsCount, nullable: false).Description("Number of distinct line items in the order.");
         Field(x => x.ItemsQuantity, nullable: false).Description("Total number of units in the order (sum of line-item quantities) — the \"N units\" figure.");
 
-        // Organization (customer) name — the value denormalized on the order when present; otherwise resolved from
-        // the organization id, batched per request (one member query for the whole page, only for the orders that
-        // are missing it) so the cross-customer dashboard doesn't do N lookups.
         Field<StringGraphType>("organizationName")
             .Description("Organization (customer) name.")
             .Resolve(context =>

@@ -11,12 +11,6 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-/// <summary>
-/// Ranks the rep's top-selling products (VCST-5309). Scopes to the organizations the rep may see (the requested one
-/// if served, else all assigned) and to the rep's own orders (creator scope — the data-isolation invariant), then
-/// applies the selected ordering and optional category badge and returns the top-N via
-/// <see cref="ISalesRepTopSellerService"/>.
-/// </summary>
 public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepTopSellersQuery, IList<SalesRepTopSeller>>
 {
     private readonly ISalesRepTopSellerService _topSellerService;
@@ -52,22 +46,19 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
             return [];
         }
 
-        // Client currency wins; else the store's default; else the platform primary.
         var currencyCode = await _currencyResolver.ResolveCurrencyCodeAsync(request.CurrencyCode, request.StoreId);
 
         var criteria = AbstractTypeFactory<SalesRepTopSellerCriteria>.TryCreateInstance();
         criteria.OrganizationIds = organizationIds;
-        criteria.CustomerId = request.UserId; // creator scope (data-isolation invariant)
+        criteria.CustomerId = request.UserId;
         criteria.StoreId = request.StoreId;
         criteria.CurrencyCode = currencyCode;
         criteria.FromDate = request.Period?.From;
         criteria.ToDate = request.Period?.To;
         criteria.Take = Math.Clamp(request.Take, 1, SalesRepTopSellersQuery.MaxTake);
 
-        // Ordering (empty/unknown → default by-units; a sort never fails closed).
         criteria = await _sortRuleResolver.ApplySortAsync(request.StoreId, request.Sort, criteria);
 
-        // Category badge (empty → all categories; unrecognized → fail-closed, no results).
         var filteredCriteria = await _filterRuleResolver.ApplyListFilterAsync(request.StoreId, request.Filter, criteria);
         if (filteredCriteria == null)
         {

@@ -6,16 +6,10 @@ using VirtoCommerce.Xapi.Core.BaseQueries;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-/// <summary>
-/// Returns the selectable Sales Rep orders-list orderings (VCST-5309). The selected rule's <c>name</c> is sent back
-/// as the <c>salesRepOrders</c> "sort" argument. Store configuration, not rep-scoped data.
-/// </summary>
 public class SalesRepOrderSortRulesQuery : Query<IList<SalesRepOrderSortRule>>
 {
-    /// <summary>Store to read the configured orderings from.</summary>
     public string StoreId { get; set; }
 
-    /// <summary>Culture for localized sort labels (e.g. "en-US").</summary>
     public string CultureName { get; set; }
 
     public override IEnumerable<QueryArgument> GetArguments()

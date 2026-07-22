@@ -12,9 +12,6 @@ public class CustomerOrderStatisticsPeriodType : ExtendableGraphType<CustomerOrd
     {
         Name = "CustomerOrderStatisticsPeriod";
 
-        // total/average as Money (amount + formattedAmount + currency), mirroring SalesRepOrder.total. The service
-        // already converted the amounts to the period's currency; StatisticsFieldHelper resolves that code to a
-        // Currency for the requested culture (GetAllCurrenciesAsync is cached, so it's safe per field without a loader).
         Field<NonNullGraphType<MoneyType>>("total")
             .Description("Sum of order totals in the range (amount, formatted amount and currency).")
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Total));

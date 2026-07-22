@@ -10,46 +10,28 @@ using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-/// <summary>
-/// The rep's top-selling products (VCST-5309, dashboard + customer "Top Sellers"). Ranks the rep's own order line
-/// items grouped by product over an optional period; pass <c>organizationId</c> to scope to one customer, omit it
-/// for all assigned customers. Ordering is a <c>salesRepTopSellerSortRules</c> name (default by-units); an optional
-/// category badge (<c>filter</c>, a <c>salesRepTopSellerFilterRules</c> name) restricts to a category subtree. The
-/// Sales Rep is the caller; their security account id is set server-side from the claims.
-/// </summary>
 public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
 {
-    /// <summary>Default number of top products returned when the caller omits <c>take</c> (the Core criteria default).</summary>
     public const int DefaultTake = SalesRepTopSellerCriteria.DefaultTake;
 
-    /// <summary>Upper bound the handler clamps <c>take</c> to.</summary>
     public const int MaxTake = 10;
 
-    /// <summary>Organization (customer) id to scope to; omit for all the rep's assigned customers.</summary>
     public string OrganizationId { get; set; }
 
-    /// <summary>Optional store to scope the orders to (and whose catalog backs the category filter).</summary>
     public string StoreId { get; set; }
 
-    /// <summary>Selected category badge (a <c>SalesRepTopSellerFilterRule.name</c>); omit for all categories. Unrecognized → no results (fail-closed).</summary>
     public string Filter { get; set; }
 
-    /// <summary>Selected ordering (a <c>SalesRepTopSellerSortRule.name</c>); empty/unknown → by-units.</summary>
     public string Sort { get; set; }
 
-    /// <summary>Optional created-date range to aggregate over. Omit for lifetime.</summary>
     public SalesRepStatisticsPeriodInput Period { get; set; }
 
-    /// <summary>How many top products to return (default <see cref="DefaultTake"/>, clamped to a max of <see cref="MaxTake"/>).</summary>
     public int Take { get; set; } = DefaultTake;
 
-    /// <summary>Currency to convert revenue to (defaults to the store's default currency, then the primary currency).</summary>
     public string CurrencyCode { get; set; }
 
-    /// <summary>Culture for the revenue formatted amount (e.g. "en-US"); consumed by the MoneyType resolver via the UserContext.</summary>
     public string CultureName { get; set; }
 
-    /// <summary>Security account id of the current Sales Rep (set server-side from the caller's claims).</summary>
     public string UserId { get; set; }
 
     public override IEnumerable<QueryArgument> GetArguments()

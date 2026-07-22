@@ -7,15 +7,6 @@ using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
-/// <summary>
-/// Shared currency fold for the Sales Rep statistics services (orders, carts). Converts a set of per-currency
-/// aggregates into one target currency via the domain <see cref="Money"/> type (the single source of truth for FX
-/// rate math, using the current admin-maintained <c>ExchangeRate</c> values), then rounds to the target's decimal
-/// digits. Keeping per-currency counts until the fold is what makes the average correct across a mix of currencies.
-/// A source currency with no configured rate is skipped (and logged) rather than blanking the whole widget; the
-/// target currency must be configured (the caller resolves the code). The earliest/latest dates are tracked over the
-/// same skipped set, so a record in an unconfigured currency contributes to neither them nor the sum/count/average.
-/// </summary>
 internal static class StatisticsCurrencyConverter
 {
     public static FoldedStatistics Fold(
@@ -41,7 +32,6 @@ internal static class StatisticsCurrencyConverter
                 continue;
             }
 
-            // InternalAmount keeps the unrounded decimal; the fold is rounded once at the end.
             total += new Money(group.Total, sourceCurrency).ConvertTo(targetCurrency).InternalAmount;
             count += group.Count;
 
@@ -57,7 +47,6 @@ internal static class StatisticsCurrencyConverter
         return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code);
     }
 
-    // Nullable-aware min/max, extracted so Fold stays flat (keeps its cyclomatic complexity under the gate).
     private static DateTime? EarlierOf(DateTime? current, DateTime? candidate)
         => candidate != null && (current == null || candidate < current) ? candidate : current;
 

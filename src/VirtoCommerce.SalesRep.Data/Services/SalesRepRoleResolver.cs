@@ -16,9 +16,6 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
 
     private readonly Func<RoleManager<Role>> _roleManagerFactory;
 
-    // Memoized for the lifetime of this (transient, per-request) resolver. A single SaveChanges/GetById
-    // queries the granting-role set several times; the scan below is the expensive part. Invalidated when
-    // EnsureSalesRepRoleAsync creates a new granting role.
     private IList<Role> _grantingRolesCache;
 
     public SalesRepRoleResolver(Func<RoleManager<Role>> roleManagerFactory)
@@ -35,7 +32,6 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
     {
         using var roleManager = _roleManagerFactory();
 
-        // RoleManager.Roles returns role stubs without permissions; FindByIdAsync loads (cached) permission claims.
         var roleIds = roleManager.Roles.Select(x => x.Id).ToList();
 
         List<Role> granting = [];
@@ -59,19 +55,9 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
 
     public virtual Task<IList<Role>> GetSelectableRolesAsync()
     {
-        // Read-only: just the roles that currently grant the permission. The default role is seeded once at
-        // module startup (Module.PostInitialize -> EnsureSalesRepRoleAsync), NOT here, so this stays free of
-        // write side effects (it backs a GET endpoint) and there is no per-request seeding race.
         return GetRolesGrantingAccessAsync();
     }
 
-    /// <summary>
-    /// Returns a role granting the permission, creating a default one ONLY when none currently does.
-    /// The created role gets a random (GUID) id — never a well-known constant — so nothing keys off the id;
-    /// a Sales Rep is identified by holding the permission. Because a granting role then exists, subsequent
-    /// calls return it instead of creating another, so an admin can delete the built-in role and replace it
-    /// with their own without it being re-seeded.
-    /// </summary>
     public virtual async Task<Role> EnsureSalesRepRoleAsync()
     {
         var granting = await GetRolesGrantingAccessAsync();
@@ -94,7 +80,7 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
 
-        _grantingRolesCache = null; // a new granting role now exists — drop the memoized (empty) set
+        _grantingRolesCache = null;
         return role;
     }
 }

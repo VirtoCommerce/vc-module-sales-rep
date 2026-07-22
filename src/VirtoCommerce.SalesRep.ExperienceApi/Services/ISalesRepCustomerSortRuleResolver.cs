@@ -4,20 +4,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
-/// <summary>
-/// Source of the "My customers" list orderings (sort options) and the mapping that resolves a selection to a
-/// <see cref="SalesRepCustomerSortSpec"/> — a spec, not a bare sort string, because some orderings (last-order date,
-/// period purchases) are derived from the rep's orders and the members search can't sort by them. The default
-/// exposes "my last orders" (default), "ytd purchases" and "name"; a project replaces this service (DI
-/// last-registration wins) to add orderings. An unknown/empty selection resolves to the default ordering (a sort
-/// never fails closed).
-/// </summary>
 public interface ISalesRepCustomerSortRuleResolver : ISortRuleResolver<SalesRepCustomerSortRule>
 {
-    /// <summary>
-    /// Resolves the selected (or default) ordering to a concrete spec the customers handler applies. The direction
-    /// comes from an optional <c>:asc</c>/<c>:desc</c> suffix on <paramref name="sort"/> (parsed by the sort-rule
-    /// resolver base); omit it for the rule's natural direction.
-    /// </summary>
     Task<SalesRepCustomerSortSpec> ResolveSortAsync(string storeId, string sort);
 }
