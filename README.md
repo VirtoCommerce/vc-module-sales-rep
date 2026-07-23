@@ -8,7 +8,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 ## Key features
 
 * Manage sales representatives from a dedicated back-office app — create, edit, block/unblock and delete
-* Assign each rep the customer organizations they serve — globally or per organization
+* Assign a rep the customer organizations they serve (a per-organization role); a global role marks a user as a rep without tying them to any specific customer
 * Manage the rep's login account: store, password and lockout
 * Model a rep from existing platform data (a contact, a login account and a role) with no new database tables
 * Let buyers see the sales reps supporting their organization
@@ -338,7 +338,7 @@ A sales rep is not a new entity — the module composes three pieces of existing
 
 * a **Contact** (`Member`, from the Customer module) — the rep's profile; its id is the canonical id of a sales rep;
 * an **ApplicationUser** (platform security) — the login account;
-* a **role granting `sales-rep:access`** — assigned globally (serves everyone) and/or per organization via `OrganizationMembership` (serves specific customers).
+* a **role granting `sales-rep:access`** — assigned per organization via `OrganizationMembership` (the rep serves those specific customers) and/or globally (the user *is* a sales rep, but a global role on its own serves **no** organization — it never means "serves everyone").
 
 A user *is* a sales rep whenever they hold the `sales-rep:access` permission — never by matching a role id or name. Searching for reps returns the union of users holding the global role and users holding the role through a per-organization membership.
 
