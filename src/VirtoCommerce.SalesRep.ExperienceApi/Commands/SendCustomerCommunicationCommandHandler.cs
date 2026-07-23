@@ -73,7 +73,6 @@ public class SendCustomerCommunicationCommandHandler
             throw AuthorizationError.Forbidden();
         }
 
-        // Load the caller once — its MemberId excludes the rep from their own send, its StoreId gates the email channel.
         var caller = await GetUserAsync(request.UserId);
 
         var responseGroup = _responseGroupParser.GetResponseGroup(request);
@@ -87,8 +86,6 @@ public class SendCustomerCommunicationCommandHandler
             return result;
         }
 
-        // Each channel is attempted independently: a failure on one never blocks the other, and every shortfall
-        // is recorded as a stable warning code (and logged) rather than a misleading success.
         if (request.SendPush)
         {
             await DispatchPushAsync(request, recipients, result);
@@ -144,8 +141,6 @@ public class SendCustomerCommunicationCommandHandler
 
     protected virtual async Task DispatchEmailAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, ApplicationUser caller, SalesRepCommunicationResult result)
     {
-        // Store scoping is a security boundary: the email template tenant and the sender From come from the store,
-        // so a rep may only send email on the store their account is bound to (or one of its trusted groups).
         var store = await _storeService.GetByIdAsync(request.StoreId);
         if (!IsStoreAllowed(store, caller?.StoreId))
         {
@@ -199,7 +194,6 @@ public class SendCustomerCommunicationCommandHandler
             return false;
         }
 
-        // Mirrors the login-time rule (ContactSignInValidator): the caller's home store, or a trusted group of it.
         return store.Id == callerStoreId || store.TrustedGroups?.Contains(callerStoreId) == true;
     }
 

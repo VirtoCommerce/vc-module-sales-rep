@@ -25,15 +25,10 @@ public static class ModuleConstants
 
     public static class Communication
     {
-        // Mirrors PushMessageEntity.Topic [StringLength(128)] — a longer title fails the push save.
         public const int MaxTitleLength = 128;
 
-        // Kept below PushMessageEntity.ShortMessage [StringLength(1024)].
         public const int MaxMessageLength = 1000;
 
-        // Stable, string outcome codes returned in SalesRepCommunicationResult.Warnings and mapped to a
-        // localized message by the storefront. Strings (not an enum) so downstream projects can contribute
-        // their own codes without recompiling this contract.
         public static class Warnings
         {
             public const string NoRecipients = "NoRecipients";
