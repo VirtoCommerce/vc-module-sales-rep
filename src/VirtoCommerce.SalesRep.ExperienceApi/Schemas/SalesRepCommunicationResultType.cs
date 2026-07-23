@@ -17,7 +17,6 @@ public class SalesRepCommunicationResultType : ExtendableGraphType<SalesRepCommu
         Field(x => x.EmailSent, nullable: false)
             .Description("Whether the email was accepted for delivery.");
         Field<NonNullGraphType<ListGraphType<NonNullGraphType<StringGraphType>>>>(nameof(SalesRepCommunicationResult.Warnings))
-            .Description("Stable outcome codes for any channel that did not deliver (empty on full success). The storefront maps each code to a localized message.")
-            .Resolve(context => context.Source.Warnings);
+            .Description("Stable outcome codes for any channel that did not deliver (empty on full success). The storefront maps each code to a localized message.");
     }
 }

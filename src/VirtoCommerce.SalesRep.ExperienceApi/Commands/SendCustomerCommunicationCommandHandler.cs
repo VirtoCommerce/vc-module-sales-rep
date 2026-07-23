@@ -66,12 +66,12 @@ public class SendCustomerCommunicationCommandHandler
     {
         ValidateRequest(request);
 
-        var result = AbstractTypeFactory<SalesRepCommunicationResult>.TryCreateInstance();
-
         if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
         {
             throw AuthorizationError.Forbidden();
         }
+
+        var result = AbstractTypeFactory<SalesRepCommunicationResult>.TryCreateInstance();
 
         var caller = await GetUserAsync(request.UserId);
 
@@ -101,7 +101,7 @@ public class SendCustomerCommunicationCommandHandler
 
     protected virtual void ValidateRequest(SendCustomerCommunicationCommand request)
     {
-        if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.OrganizationId))
+        if (string.IsNullOrEmpty(request.OrganizationId))
         {
             throw new ExecutionError("Organization is required.");
         }
@@ -252,14 +252,8 @@ public class SendCustomerCommunicationCommandHandler
 
         foreach (var recipient in recipients)
         {
-            var email = recipient.Emails?.FirstOrDefault(x => !string.IsNullOrEmpty(x));
-            if (string.IsNullOrEmpty(email))
-            {
-                continue;
-            }
-
             var notification = (SalesRepMessageEmailNotification)template.Clone();
-            notification.To = email;
+            notification.To = recipient.Emails.First(x => !string.IsNullOrEmpty(x));
 
             await _notificationSender.ScheduleSendNotificationAsync(notification);
         }
