@@ -11,25 +11,25 @@ using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.NotificationsModule.Core.Extensions;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.PushMessages.Core.Models;
 using VirtoCommerce.PushMessages.Core.Services;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.StoreModule.Core.Model;
 using VirtoCommerce.StoreModule.Core.Services;
+using VirtoCommerce.Xapi.Core.Security.Authorization;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
 public class SendCustomerCommunicationCommandHandler
-    : SalesRepQueryHandlerBase, IRequestHandler<SendCustomerCommunicationCommand, bool>
+    : SalesRepQueryHandlerBase, IRequestHandler<SendCustomerCommunicationCommand, SalesRepCommunicationResult>
 {
-    private const int MaxMessageLength = 1000;
-
     private readonly ISalesRepRecipientResolver _recipientResolver;
     private readonly ISalesRepCommunicationResponseGroupParser _responseGroupParser;
     private readonly IPushMessageService _pushMessageService;
@@ -62,11 +62,51 @@ public class SendCustomerCommunicationCommandHandler
         _logger = logger;
     }
 
-    public virtual async Task<bool> Handle(SendCustomerCommunicationCommand request, CancellationToken cancellationToken)
+    public virtual async Task<SalesRepCommunicationResult> Handle(SendCustomerCommunicationCommand request, CancellationToken cancellationToken)
+    {
+        ValidateRequest(request);
+
+        var result = AbstractTypeFactory<SalesRepCommunicationResult>.TryCreateInstance();
+
+        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        {
+            throw AuthorizationError.Forbidden();
+        }
+
+        // Load the caller once — its MemberId excludes the rep from their own send, its StoreId gates the email channel.
+        var caller = await GetUserAsync(request.UserId);
+
+        var responseGroup = _responseGroupParser.GetResponseGroup(request);
+        var recipients = await _recipientResolver.ResolveRecipientsAsync(request.OrganizationId, responseGroup);
+        recipients = ExcludeInitiator(recipients, caller?.MemberId);
+
+        if (recipients.Count == 0)
+        {
+            _logger.LogInformation("Sales Rep communication to organization {OrganizationId} has no recipients.", request.OrganizationId);
+            result.Warnings.Add(ModuleConstants.Communication.Warnings.NoRecipients);
+            return result;
+        }
+
+        // Each channel is attempted independently: a failure on one never blocks the other, and every shortfall
+        // is recorded as a stable warning code (and logged) rather than a misleading success.
+        if (request.SendPush)
+        {
+            await DispatchPushAsync(request, recipients, result);
+        }
+
+        if (request.SendEmail)
+        {
+            await DispatchEmailAsync(request, recipients, caller, result);
+        }
+
+        return result;
+    }
+
+    protected virtual void ValidateRequest(SendCustomerCommunicationCommand request)
     {
         if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.OrganizationId))
         {
-            return false;
+            throw new ExecutionError("Organization is required.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Message))
@@ -74,44 +114,98 @@ public class SendCustomerCommunicationCommandHandler
             throw new ExecutionError("Message is required.");
         }
 
-        if (request.Message.Length > MaxMessageLength)
+        if (request.Message.Length > ModuleConstants.Communication.MaxMessageLength)
         {
-            throw new ExecutionError($"Message must not exceed {MaxMessageLength} characters.");
+            throw new ExecutionError($"Message must not exceed {ModuleConstants.Communication.MaxMessageLength} characters.");
+        }
+
+        if (request.Title?.Length > ModuleConstants.Communication.MaxTitleLength)
+        {
+            throw new ExecutionError($"Title must not exceed {ModuleConstants.Communication.MaxTitleLength} characters.");
         }
 
         if (!request.SendPush && !request.SendEmail)
         {
-            return false;
+            throw new ExecutionError("At least one delivery channel must be selected.");
+        }
+    }
+
+    protected virtual async Task DispatchPushAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, SalesRepCommunicationResult result)
+    {
+        if (await TryDispatchAsync(() => SendPushAsync(request, recipients), "push", request.OrganizationId))
+        {
+            result.PushSent = true;
+        }
+        else
+        {
+            result.Warnings.Add(ModuleConstants.Communication.Warnings.PushSendFailed);
+        }
+    }
+
+    protected virtual async Task DispatchEmailAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, ApplicationUser caller, SalesRepCommunicationResult result)
+    {
+        // Store scoping is a security boundary: the email template tenant and the sender From come from the store,
+        // so a rep may only send email on the store their account is bound to (or one of its trusted groups).
+        var store = await _storeService.GetByIdAsync(request.StoreId);
+        if (!IsStoreAllowed(store, caller?.StoreId))
+        {
+            _logger.LogError(
+                "Sales Rep email communication denied: user {UserId} (store {CallerStoreId}) attempted to send on store {StoreId}.",
+                request.UserId, caller?.StoreId, request.StoreId);
+            result.Warnings.Add(ModuleConstants.Communication.Warnings.EmailStoreAccessDenied);
+            return;
         }
 
-        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        if (string.IsNullOrEmpty(store.Email))
+        {
+            _logger.LogWarning("Sales Rep email communication skipped: store {StoreId} has no sender email configured.", request.StoreId);
+            result.Warnings.Add(ModuleConstants.Communication.Warnings.EmailUnavailable);
+            return;
+        }
+
+        var template = await _notificationSearchService.GetNotificationAsync<SalesRepMessageEmailNotification>(
+            new TenantIdentity(request.StoreId, nameof(Store)));
+        if (template == null)
+        {
+            _logger.LogWarning(
+                "Sales Rep email communication skipped: no {Template} configured for store {StoreId}.",
+                nameof(SalesRepMessageEmailNotification), request.StoreId);
+            result.Warnings.Add(ModuleConstants.Communication.Warnings.EmailUnavailable);
+            return;
+        }
+
+        var emailRecipients = recipients.Where(HasEmail).ToList();
+        if (emailRecipients.Count == 0)
+        {
+            _logger.LogInformation("Sales Rep email communication to organization {OrganizationId} has no recipients with an email address.", request.OrganizationId);
+            result.Warnings.Add(ModuleConstants.Communication.Warnings.EmailNoRecipients);
+            return;
+        }
+
+        if (await TryDispatchAsync(() => SendEmailAsync(request, emailRecipients, store, template), "email", request.OrganizationId))
+        {
+            result.EmailSent = true;
+        }
+        else
+        {
+            result.Warnings.Add(ModuleConstants.Communication.Warnings.EmailSendFailed);
+        }
+    }
+
+    protected static bool IsStoreAllowed(Store store, string callerStoreId)
+    {
+        if (store == null || string.IsNullOrEmpty(callerStoreId))
         {
             return false;
         }
 
-        var responseGroup = _responseGroupParser.GetResponseGroup(request);
-        var recipients = await _recipientResolver.ResolveRecipientsAsync(request.OrganizationId, responseGroup);
+        // Mirrors the login-time rule (ContactSignInValidator): the caller's home store, or a trusted group of it.
+        return store.Id == callerStoreId || store.TrustedGroups?.Contains(callerStoreId) == true;
+    }
 
-        recipients = await ExcludeInitiatorAsync(recipients, request.UserId);
-
-        if (recipients.Count == 0)
-        {
-            return false;
-        }
-
-        var dispatched = false;
-
-        if (request.SendPush)
-        {
-            dispatched |= await TryDispatchAsync(() => SendPushAsync(request, recipients), "push", request.OrganizationId);
-        }
-
-        if (request.SendEmail)
-        {
-            dispatched |= await TryDispatchAsync(() => SendEmailAsync(request, recipients), "email", request.OrganizationId);
-        }
-
-        return dispatched;
+    private static bool HasEmail(Member member)
+    {
+        return member.Emails?.Any(x => !string.IsNullOrEmpty(x)) == true;
     }
 
     protected virtual async Task<bool> TryDispatchAsync(Func<Task> dispatch, string channel, string organizationId)
@@ -128,20 +222,17 @@ public class SendCustomerCommunicationCommandHandler
         }
     }
 
-    protected virtual async Task<IList<Member>> ExcludeInitiatorAsync(IList<Member> recipients, string userId)
+    protected virtual async Task<ApplicationUser> GetUserAsync(string userId)
     {
-        if (recipients.Count == 0)
-        {
-            return recipients;
-        }
-
         var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
         criteria.ObjectIds = [userId];
         criteria.Take = 1;
 
-        var user = (await _userSearchService.SearchUsersAsync(criteria)).Results.FirstOrDefault();
-        var memberId = user?.MemberId;
+        return (await _userSearchService.SearchUsersAsync(criteria)).Results.FirstOrDefault();
+    }
 
+    protected virtual IList<Member> ExcludeInitiator(IList<Member> recipients, string memberId)
+    {
         return string.IsNullOrEmpty(memberId)
             ? recipients
             : recipients.Where(x => !string.Equals(x.Id, memberId, StringComparison.OrdinalIgnoreCase)).ToList();
@@ -158,19 +249,9 @@ public class SendCustomerCommunicationCommandHandler
         await _pushMessageService.SaveChangesAsync([pushMessage]);
     }
 
-    protected virtual async Task SendEmailAsync(SendCustomerCommunicationCommand request, IList<Member> recipients)
+    protected virtual async Task SendEmailAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, Store store, SalesRepMessageEmailNotification template)
     {
-        var template = await _notificationSearchService.GetNotificationAsync<SalesRepMessageEmailNotification>(
-            new TenantIdentity(request.StoreId, nameof(Store)));
-
-        if (template == null)
-        {
-            return;
-        }
-
-        var store = await _storeService.GetByIdAsync(request.StoreId);
-
-        template.From = store?.Email;
+        template.From = store.Email;
         template.Title = request.Title;
         template.Message = request.Message;
         template.LanguageCode = request.CultureName;

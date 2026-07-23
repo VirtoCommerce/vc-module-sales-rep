@@ -4,7 +4,7 @@ using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
-public class InputSendCustomerCommunicationType : ExtendableInputObjectGraphType
+public class InputSendCustomerCommunicationType : ExtendableInputObjectGraphType<SendCustomerCommunicationCommand>
 {
     public InputSendCustomerCommunicationType()
     {

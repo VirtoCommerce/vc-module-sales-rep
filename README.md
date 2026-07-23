@@ -161,13 +161,37 @@ mutation {
     message: "I've shared a new product list with your team: https://store.example.com/lists/new"
     storeId: "B2B-store"
     cultureName: "en-US"
-  })
+  }) {
+    succeeded
+    pushSent
+    emailSent
+    warnings
+  }
 }
 ```
 
-Returns `true` when at least one channel was dispatched; `false` when the rep does not serve the organization, the organization has no members, or neither channel was selected. `message` is required (max 1000 characters) and may contain a URL; `title` is optional.
+The mutation returns a **result** describing each channel's outcome, so a partial success (one channel delivered, the other could not) is visible to the storefront:
 
-Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`).
+| Field | Meaning |
+|-------|---------|
+| `succeeded` | `true` when at least one requested channel was accepted for delivery (`pushSent || emailSent`). |
+| `pushSent` / `emailSent` | Per-channel delivery outcome. Each channel is attempted **independently** — one failing never blocks the other. |
+| `warnings` | Stable string codes explaining any channel that did not deliver (empty on full success). |
+
+The request itself is rejected with a GraphQL error only when it is **malformed or not allowed**: not authenticated, `message` missing or over 1000 characters, `title` over 128 characters, no channel selected, or the rep does not serve the organization (`Access denied.`). Everything else is reported through `warnings`:
+
+| Warning code | Channel | When |
+|--------------|---------|------|
+| `NoRecipients` | — | The organization has no members to notify (the rep is excluded from their own send). |
+| `EmailUnavailable` | email | The store's email is not configured — no `SalesRepMessageEmailNotification` template, or the store has no sender address. |
+| `EmailStoreAccessDenied` | email | The `storeId` is not the caller's own store (nor one of its trusted groups). Email uses the store's template and sender address, so it is scoped to the caller's store; push is store-agnostic and unaffected. |
+| `EmailNoRecipients` | email | Recipients exist, but none has an email address. |
+| `EmailSendFailed` | email | The email could not be scheduled (transient). |
+| `PushSendFailed` | push | The push could not be saved (transient). |
+
+Codes are plain strings (see `ModuleConstants.Communication.Warnings`) — not an enum — so a downstream project can contribute its own codes; the storefront maps each to a localized message.
+
+Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
 
 ## How it works
 

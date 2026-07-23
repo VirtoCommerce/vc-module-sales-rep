@@ -95,7 +95,8 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<IPushMessageService>(sp => sp.GetRequiredService<CapturingPushMessageService>());
         services.AddSingleton<CapturingNotificationSender>();
         services.AddSingleton<INotificationSender>(sp => sp.GetRequiredService<CapturingNotificationSender>());
-        services.AddSingleton<INotificationSearchService, StubNotificationSearchService>();
+        services.AddSingleton<StubNotificationSearchService>();
+        services.AddSingleton<INotificationSearchService>(sp => sp.GetRequiredService<StubNotificationSearchService>());
 
         services.AddGraphQL(builder =>
         {
@@ -251,15 +252,18 @@ internal static class TestGraphQlConfiguration
     /// <summary>
     /// Stub <see cref="INotificationSearchService"/>: returns a fresh <see cref="SalesRepMessageEmailNotification"/>
     /// with an empty tenant identity, so the <c>GetNotificationAsync</c> extension's tenant-less fallback resolves
-    /// it (a registered store-scoped template is not needed to exercise the handler's dispatch logic).
+    /// it (a registered store-scoped template is not needed to exercise the handler's dispatch logic). Set
+    /// <see cref="TemplateAvailable"/> to <c>false</c> to simulate a store with no email template configured.
     /// </summary>
-    private sealed class StubNotificationSearchService : INotificationSearchService
+    internal sealed class StubNotificationSearchService : INotificationSearchService
     {
+        public bool TemplateAvailable { get; set; } = true;
+
         public Task<NotificationSearchResult> SearchNotificationsAsync(NotificationSearchCriteria criteria)
         {
             var result = new NotificationSearchResult { Results = [], TotalCount = 0 };
 
-            if (criteria.NotificationType == nameof(SalesRepMessageEmailNotification) && string.IsNullOrEmpty(criteria.TenantId))
+            if (TemplateAvailable && criteria.NotificationType == nameof(SalesRepMessageEmailNotification) && string.IsNullOrEmpty(criteria.TenantId))
             {
                 var notification = new SalesRepMessageEmailNotification();
                 result.Results = [notification];

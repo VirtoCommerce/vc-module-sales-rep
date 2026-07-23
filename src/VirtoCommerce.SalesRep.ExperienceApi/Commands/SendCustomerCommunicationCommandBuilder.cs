@@ -1,9 +1,9 @@
 using System.Threading.Tasks;
 using GraphQL;
-using GraphQL.Types;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -11,7 +11,7 @@ using VirtoCommerce.Xapi.Core.Extensions;
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
 public class SendCustomerCommunicationCommandBuilder
-    : CommandBuilder<SendCustomerCommunicationCommand, bool, InputSendCustomerCommunicationType, BooleanGraphType>
+    : CommandBuilder<SendCustomerCommunicationCommand, SalesRepCommunicationResult, InputSendCustomerCommunicationType, SalesRepCommunicationResultType>
 {
     protected override string Name => "sendCustomerCommunication";
 

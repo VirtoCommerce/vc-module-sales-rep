@@ -239,22 +239,40 @@ internal static class TestServicesConfiguration
     {
         public ConcurrentDictionary<string, string> ContactDefaultStatusByStore { get; } = new();
 
+        // Sender From address per store (drives the email channel's store scoping + EmailUnavailable checks).
+        public ConcurrentDictionary<string, string> EmailByStore { get; } = new();
+
+        // Trusted groups per store (mirrors Store.TrustedGroups for the store-access check).
+        public ConcurrentDictionary<string, IList<string>> TrustedGroupsByStore { get; } = new();
+
         public Task<IList<Store>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
         {
             var stores = (ids ?? [])
-                .Where(ContactDefaultStatusByStore.ContainsKey)
-                .Select(id => new Store
+                .Where(id => ContactDefaultStatusByStore.ContainsKey(id) || EmailByStore.ContainsKey(id) || TrustedGroupsByStore.ContainsKey(id))
+                .Select(id =>
                 {
-                    Id = id,
-                    Settings =
-                    [
-                        new ObjectSettingEntry
-                        {
-                            Name = CustomerSettings.ContactDefaultStatus.Name,
-                            ValueType = SettingValueType.ShortText,
-                            Value = ContactDefaultStatusByStore[id],
-                        },
-                    ],
+                    var store = new Store
+                    {
+                        Id = id,
+                        Email = EmailByStore.GetValueOrDefault(id),
+                        TrustedGroups = TrustedGroupsByStore.GetValueOrDefault(id) ?? [],
+                        Settings = [],
+                    };
+
+                    if (ContactDefaultStatusByStore.TryGetValue(id, out var status))
+                    {
+                        store.Settings =
+                        [
+                            new ObjectSettingEntry
+                            {
+                                Name = CustomerSettings.ContactDefaultStatus.Name,
+                                ValueType = SettingValueType.ShortText,
+                                Value = status,
+                            },
+                        ];
+                    }
+
+                    return store;
                 })
                 .ToList();
             return Task.FromResult<IList<Store>>(stores);
