@@ -252,7 +252,7 @@ public class SendCustomerCommunicationCommandHandler
 
         foreach (var recipient in recipients)
         {
-            var notification = (SalesRepMessageEmailNotification)template.Clone();
+            var notification = template.CloneTyped();
             notification.To = recipient.Emails.First(x => !string.IsNullOrEmpty(x));
 
             await _notificationSender.ScheduleSendNotificationAsync(notification);
