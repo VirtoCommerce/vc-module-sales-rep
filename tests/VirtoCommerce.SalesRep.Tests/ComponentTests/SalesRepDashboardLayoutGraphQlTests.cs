@@ -2,6 +2,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
+using VirtoCommerce.SalesRep.Core.Models.Dashboard;
+using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
@@ -165,6 +167,44 @@ public class SalesRepDashboardLayoutGraphQlTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
+    }
+
+    [Fact]
+    public async Task Layout_PreservesDownstreamDerivedType_OnRoundTrip()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        var service = ctx.GetRequiredService<IDashboardLayoutService>();
+
+        // A downstream module registered derived types (see AbstractTypeFactoryInitializer): a ROOT
+        // TestExtendedDashboardLayout (Theme) and a nested TestExtendedDashboardBlock (ColorScheme), each with a
+        // field the base contract has no knowledge of.
+        var layout = new TestExtendedDashboardLayout
+        {
+            SchemaVersion = 1,
+            Theme = "midnight",
+            Regions =
+            [
+                new DashboardRegion
+                {
+                    Id = "statistics",
+                    Blocks = [new TestExtendedDashboardBlock { Id = "b1", Type = "stat", ColorScheme = "dark" }],
+                },
+            ],
+        };
+
+        await service.SaveLayoutAsync(rep.UserId, "dashboard", layout);
+        var loaded = await service.GetLayoutAsync(rep.UserId, "dashboard");
+
+        // ROOT: DeserializeObject<DashboardLayout> returns the registered derived type, not the base generic argument.
+        loaded.Should().BeOfType<TestExtendedDashboardLayout>();
+        ((TestExtendedDashboardLayout)loaded).Theme.Should().Be("midnight");
+
+        // NESTED: the block element is reconstructed as its derived type too, and its extra field survives.
+        var block = loaded.Regions.Single().Blocks.Single();
+        block.Should().BeOfType<TestExtendedDashboardBlock>();
+        ((TestExtendedDashboardBlock)block).ColorScheme.Should().Be("dark");
     }
 
     // ---- helpers ----

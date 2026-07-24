@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.JsonConverters;
 using VirtoCommerce.SalesRep.Core.Models.Dashboard;
 using VirtoCommerce.SalesRep.Core.Services;
 
@@ -13,10 +14,15 @@ public class DashboardLayoutService(ICustomerPreferenceService customerPreferenc
     protected const string PreferenceName = "SalesRepDashboardLayout";
 
     // Keep JSON strings as-is (a "date:desc" sort token must not be coerced to a DateTime) and omit nulls.
+    // PolymorphJsonConverter makes deserialization honor AbstractTypeFactory: a module that registers a derived
+    // layout/region/block/setting type gets that type back (with its extra fields) on load. It is a no-op until an
+    // override is registered (CanConvert is gated on AbstractTypeFactory<T>.HasOverrides). Writing already emits the
+    // runtime type's members, so the converter is read-only.
     private static readonly JsonSerializerSettings _serializerSettings = new()
     {
         DateParseHandling = DateParseHandling.None,
         NullValueHandling = NullValueHandling.Ignore,
+        Converters = { new PolymorphJsonConverter() },
     };
 
     public virtual async Task<DashboardLayout> GetLayoutAsync(string userId, string scope, string storeId = null)
@@ -47,7 +53,7 @@ public class DashboardLayoutService(ICustomerPreferenceService customerPreferenc
     // Per-user key, optionally scoped to a store: "SalesRepDashboardLayout.{scope}[.{storeId}]".
     protected virtual IList<string> BuildNameParts(string scope, string storeId)
     {
-        var parts = new List<string> { PreferenceName, scope };
+        List<string> parts = [PreferenceName, scope];
 
         if (!string.IsNullOrEmpty(storeId))
         {
