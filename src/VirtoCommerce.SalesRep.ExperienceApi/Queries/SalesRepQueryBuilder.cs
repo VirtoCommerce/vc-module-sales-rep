@@ -1,6 +1,7 @@
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
+using System;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
@@ -20,8 +21,14 @@ public abstract class SalesRepQueryBuilder<TQuery, TResult, TResultGraphType>
     where TQuery : IQuery<TResult>, IExtendableQuery, IHasArguments
     where TResultGraphType : IGraphType
 {
+    protected SalesRepQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
+    {
+    }
+
+    [Obsolete("Use the constructor without IMediator. The mediator is resolved from context.RequestServices per request.", DiagnosticId = "VC0015", UrlFormat = "https://docs.virtocommerce.org/products/products-virto3-versions")]
     protected SalesRepQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
-        : base(mediator, authorizationService)
+        : this(authorizationService)
     {
     }
 
