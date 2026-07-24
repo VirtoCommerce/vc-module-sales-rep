@@ -1,6 +1,5 @@
 using System.Threading;
 using System.Threading.Tasks;
-using GraphQL;
 using MediatR;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models.Dashboard;
@@ -12,17 +11,13 @@ public class SaveDashboardLayoutCommandHandler(IDashboardLayoutService dashboard
     : IRequestHandler<SaveDashboardLayoutCommand, DashboardLayout>
 {
     // Full-document replace: the storefront always holds the whole layout, so we persist it verbatim
-    // (keyed on the caller's own user id, so a rep can only read/write their own layout).
+    // (keyed on the caller's own user id, so a rep can only read/write their own layout). Scope is required
+    // by the NonNull input field and validated by the service — same as the query path.
     public virtual async Task<DashboardLayout> Handle(SaveDashboardLayoutCommand request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(request.Scope))
-        {
-            throw new ExecutionError("Scope is required.");
-        }
-
         var layout = AbstractTypeFactory<DashboardLayout>.TryCreateInstance();
         layout.SchemaVersion = request.SchemaVersion;
-        layout.Regions = request.Regions ?? [];
+        layout.Regions = request.Regions;
 
         await dashboardLayoutService.SaveLayoutAsync(request.UserId, request.Scope, layout, request.StoreId);
 
