@@ -3,7 +3,7 @@ using System.Threading;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Data.Model;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.SalesRep.Core.Models.Dashboard;
+using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -34,9 +34,9 @@ internal static class AbstractTypeFactoryInitializer
         AbstractTypeFactory<MemberEntity>.RegisterType<VendorEntity>();
         AbstractTypeFactory<MemberEntity>.RegisterType<EmployeeEntity>();
 
-        // Simulates a downstream module extending the dashboard-layout contract with derived types — at the ROOT
-        // (DashboardLayout) and a nested collection element (DashboardBlock) — so persistence round-trips prove both.
-        AbstractTypeFactory<DashboardLayout>.OverrideType<DashboardLayout, TestExtendedDashboardLayout>();
-        AbstractTypeFactory<DashboardBlock>.OverrideType<DashboardBlock, TestExtendedDashboardBlock>();
+        // Simulates a downstream module extending the layout contract with derived types — at the ROOT
+        // (Layout) and a nested collection element (LayoutBlock) — so persistence round-trips prove both.
+        AbstractTypeFactory<Layout>.OverrideType<Layout, TestExtendedLayout>();
+        AbstractTypeFactory<LayoutBlock>.OverrideType<LayoutBlock, TestExtendedLayoutBlock>();
     }
 }

@@ -1,10 +1,10 @@
 using System.Collections.Generic;
-using VirtoCommerce.SalesRep.Core.Models.Dashboard;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-public class SaveDashboardLayoutCommand : ICommand<DashboardLayout>
+public class SaveLayoutCommand : ICommand<Layout>
 {
     public string Scope { get; set; }
 
@@ -12,7 +12,7 @@ public class SaveDashboardLayoutCommand : ICommand<DashboardLayout>
 
     public int SchemaVersion { get; set; }
 
-    public IList<DashboardRegion> Regions { get; set; } = [];
+    public IList<LayoutRegion> Regions { get; set; } = [];
 
     public string UserId { get; set; }
 }

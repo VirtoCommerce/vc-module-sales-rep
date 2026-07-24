@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 using GraphQL;
 using GraphQL.Types;
-using VirtoCommerce.SalesRep.Core.Models.Dashboard;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Dashboard;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepDashboardLayoutQuery : Query<DashboardLayout>
+public class SalesRepLayoutQuery : Query<Layout>
 {
     public string Scope { get; set; }
 

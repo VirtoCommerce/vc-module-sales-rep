@@ -43,7 +43,7 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
-        serviceCollection.AddTransient<IDashboardLayoutService, DashboardLayoutService>();
+        serviceCollection.AddTransient<ILayoutService, LayoutService>();
 
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
 

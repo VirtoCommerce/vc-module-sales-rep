@@ -1,8 +1,8 @@
 using System.Collections.Generic;
 
-namespace VirtoCommerce.SalesRep.Core.Models.Dashboard;
+namespace VirtoCommerce.SalesRep.Core.Models;
 
-public class DashboardBlock
+public class LayoutBlock
 {
     public string Id { get; set; }
 
@@ -10,5 +10,5 @@ public class DashboardBlock
 
     public bool Hidden { get; set; }
 
-    public IList<DashboardSetting> Settings { get; set; } = [];
+    public IList<LayoutSetting> Settings { get; set; } = [];
 }

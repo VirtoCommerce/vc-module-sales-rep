@@ -4,14 +4,14 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.JsonConverters;
-using VirtoCommerce.SalesRep.Core.Models.Dashboard;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-public class DashboardLayoutService(ICustomerPreferenceService customerPreferenceService) : IDashboardLayoutService
+public class LayoutService(ICustomerPreferenceService customerPreferenceService) : ILayoutService
 {
-    protected const string PreferenceName = "SalesRepDashboardLayout";
+    protected const string PreferenceName = "SalesRepLayout";
 
     // Keep JSON strings as-is (a "date:desc" sort token must not be coerced to a DateTime) and omit nulls.
     // PolymorphJsonConverter makes deserialization honor AbstractTypeFactory: a module that registers a derived
@@ -25,7 +25,7 @@ public class DashboardLayoutService(ICustomerPreferenceService customerPreferenc
         Converters = { new PolymorphJsonConverter() },
     };
 
-    public virtual async Task<DashboardLayout> GetLayoutAsync(string userId, string scope, string storeId = null)
+    public virtual async Task<Layout> GetLayoutAsync(string userId, string scope, string storeId = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
         ArgumentException.ThrowIfNullOrEmpty(scope);
@@ -34,10 +34,10 @@ public class DashboardLayoutService(ICustomerPreferenceService customerPreferenc
 
         return string.IsNullOrEmpty(value)
             ? null
-            : JsonConvert.DeserializeObject<DashboardLayout>(value, _serializerSettings);
+            : JsonConvert.DeserializeObject<Layout>(value, _serializerSettings);
     }
 
-    public virtual async Task SaveLayoutAsync(string userId, string scope, DashboardLayout layout, string storeId = null)
+    public virtual async Task SaveLayoutAsync(string userId, string scope, Layout layout, string storeId = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(userId);
         ArgumentException.ThrowIfNullOrEmpty(scope);
@@ -50,7 +50,7 @@ public class DashboardLayoutService(ICustomerPreferenceService customerPreferenc
         await customerPreferenceService.SaveValue(userId, BuildNameParts(scope, storeId), value);
     }
 
-    // Per-user key, optionally scoped to a store: "SalesRepDashboardLayout.{scope}[.{storeId}]".
+    // Per-user key, optionally scoped to a store: "SalesRepLayout.{scope}[.{storeId}]".
     protected virtual IList<string> BuildNameParts(string scope, string storeId)
     {
         List<string> parts = [PreferenceName, scope];

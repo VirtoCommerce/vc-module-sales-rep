@@ -2,7 +2,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
-using VirtoCommerce.SalesRep.Core.Models.Dashboard;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
@@ -10,13 +10,13 @@ using Xunit;
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// End-to-end component tests for the dashboard-layout X-API (save/load): execute the real
-/// <c>saveSalesRepDashboardLayout</c> mutation and <c>salesRepDashboardLayout</c> query through the real scoped
-/// schema / MediatR handlers / <c>DashboardLayoutService</c> over the real <c>CustomerPreference</c> store on
+/// End-to-end component tests for the layout X-API (save/load): execute the real
+/// <c>saveSalesRepLayout</c> mutation and <c>salesRepLayout</c> query through the real scoped
+/// schema / MediatR handlers / <c>LayoutService</c> over the real <c>CustomerPreference</c> store on
 /// in-memory SQLite, and assert the layout round-trips. No mocks.
 /// </summary>
 [Trait("Category", "Component")]
-public class SalesRepDashboardLayoutGraphQlTests
+public class SalesRepLayoutGraphQlTests
 {
     [Fact]
     public async Task SaveThenLoad_RoundTripsLayout()
@@ -65,7 +65,7 @@ public class SalesRepDashboardLayoutGraphQlTests
         var json = await ctx.ExecuteGraphQlAsync(LoadQuery("dashboard"), userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"salesRepDashboardLayout\":null"); // storefront then renders its registry default
+        json.Should().Contain("\"salesRepLayout\":null"); // storefront then renders its registry default
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public class SalesRepDashboardLayoutGraphQlTests
         // B never saved a layout; A's must not leak to B — the key is the caller's own user id (data-isolation invariant).
         var json = await ctx.ExecuteGraphQlAsync(LoadQuery("dashboard"), userId: repB.UserId);
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"salesRepDashboardLayout\":null");
+        json.Should().Contain("\"salesRepLayout\":null");
     }
 
     [Fact]
@@ -95,7 +95,7 @@ public class SalesRepDashboardLayoutGraphQlTests
 
         // customerProfile was never saved — null even though `dashboard` exists for the same user.
         var customerProfile = await ctx.ExecuteGraphQlAsync(LoadQuery("customerProfile"), userId: rep.UserId);
-        customerProfile.Should().Contain("\"salesRepDashboardLayout\":null");
+        customerProfile.Should().Contain("\"salesRepLayout\":null");
 
         // The dashboard surface still loads independently.
         Data(await ctx.ExecuteGraphQlAsync(LoadQuery("dashboard"), userId: rep.UserId))
@@ -113,7 +113,7 @@ public class SalesRepDashboardLayoutGraphQlTests
 
         // Same scope + user, different store → a separate key, so nothing is saved there.
         var otherStore = await ctx.ExecuteGraphQlAsync(LoadQuery("dashboard", storeId: "OtherStore"), userId: rep.UserId);
-        otherStore.Should().Contain("\"salesRepDashboardLayout\":null");
+        otherStore.Should().Contain("\"salesRepLayout\":null");
 
         // The store it was saved under still loads.
         Data(await ctx.ExecuteGraphQlAsync(LoadQuery("dashboard", storeId: "B2B-store"), userId: rep.UserId))
@@ -132,7 +132,7 @@ public class SalesRepDashboardLayoutGraphQlTests
         // A second save (same key) fully replaces the first — not a merge.
         var replacement = """
             mutation {
-              saveSalesRepDashboardLayout(command: {
+              saveSalesRepLayout(command: {
                 scope: "dashboard", storeId: "B2B-store", schemaVersion: 2
                 regions: [ { id: "statistics", blocks: [ { id: "only", type: "news", hidden: false, settings: [] } ] } ]
               }) { schemaVersion regions { id blocks { id } } }
@@ -175,21 +175,21 @@ public class SalesRepDashboardLayoutGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        var service = ctx.GetRequiredService<IDashboardLayoutService>();
+        var service = ctx.GetRequiredService<ILayoutService>();
 
         // A downstream module registered derived types (see AbstractTypeFactoryInitializer): a ROOT
-        // TestExtendedDashboardLayout (Theme) and a nested TestExtendedDashboardBlock (ColorScheme), each with a
+        // TestExtendedLayout (Theme) and a nested TestExtendedLayoutBlock (ColorScheme), each with a
         // field the base contract has no knowledge of.
-        var layout = new TestExtendedDashboardLayout
+        var layout = new TestExtendedLayout
         {
             SchemaVersion = 1,
             Theme = "midnight",
             Regions =
             [
-                new DashboardRegion
+                new LayoutRegion
                 {
                     Id = "statistics",
-                    Blocks = [new TestExtendedDashboardBlock { Id = "b1", Type = "stat", ColorScheme = "dark" }],
+                    Blocks = [new TestExtendedLayoutBlock { Id = "b1", Type = "stat", ColorScheme = "dark" }],
                 },
             ],
         };
@@ -197,14 +197,14 @@ public class SalesRepDashboardLayoutGraphQlTests
         await service.SaveLayoutAsync(rep.UserId, "dashboard", layout);
         var loaded = await service.GetLayoutAsync(rep.UserId, "dashboard");
 
-        // ROOT: DeserializeObject<DashboardLayout> returns the registered derived type, not the base generic argument.
-        loaded.Should().BeOfType<TestExtendedDashboardLayout>();
-        ((TestExtendedDashboardLayout)loaded).Theme.Should().Be("midnight");
+        // ROOT: DeserializeObject<Layout> returns the registered derived type, not the base generic argument.
+        loaded.Should().BeOfType<TestExtendedLayout>();
+        ((TestExtendedLayout)loaded).Theme.Should().Be("midnight");
 
         // NESTED: the block element is reconstructed as its derived type too, and its extra field survives.
         var block = loaded.Regions.Single().Blocks.Single();
-        block.Should().BeOfType<TestExtendedDashboardBlock>();
-        ((TestExtendedDashboardBlock)block).ColorScheme.Should().Be("dark");
+        block.Should().BeOfType<TestExtendedLayoutBlock>();
+        ((TestExtendedLayoutBlock)block).ColorScheme.Should().Be("dark");
     }
 
     // ---- helpers ----
@@ -212,7 +212,7 @@ public class SalesRepDashboardLayoutGraphQlTests
     // A representative layout: two regions, a hidden block, empty settings, and string/number/bool setting values.
     private static string SaveMutation(string scope, string storeId = "B2B-store") => $$"""
         mutation {
-          saveSalesRepDashboardLayout(command: {
+          saveSalesRepLayout(command: {
             scope: "{{scope}}"
             storeId: "{{storeId}}"
             schemaVersion: 1
@@ -242,20 +242,20 @@ public class SalesRepDashboardLayoutGraphQlTests
 
     private static string LoadQuery(string scope, string storeId = "B2B-store") => $$"""
         query {
-          salesRepDashboardLayout(scope: "{{scope}}", storeId: "{{storeId}}") {
+          salesRepLayout(scope: "{{scope}}", storeId: "{{storeId}}") {
             schemaVersion modifiedDate
             regions { id blocks { id type hidden settings { key value } } }
           }
         }
         """;
 
-    /// <summary>The <c>data.salesRepDashboardLayout</c> node, after asserting the response carries no errors.</summary>
+    /// <summary>The <c>data.salesRepLayout</c> node, after asserting the response carries no errors.</summary>
     private static JsonElement Data(string json)
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
         root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty("salesRepDashboardLayout").Clone();
+        return root.GetProperty("data").GetProperty("salesRepLayout").Clone();
     }
 
     /// <summary>The <c>value</c> of a block setting by key (fails if the key is absent).</summary>
