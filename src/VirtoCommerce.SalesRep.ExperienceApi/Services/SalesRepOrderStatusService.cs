@@ -8,10 +8,6 @@ using OrderSettings = VirtoCommerce.OrdersModule.Core.ModuleConstants.Settings.G
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
-/// <summary>
-/// Default status source: each configured <c>Order.Status</c> dictionary value is a status option (1:1). Projects
-/// override this service to group / hide / add statuses.
-/// </summary>
 public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 {
     private readonly ILocalizableSettingService _localizableSettingService;
@@ -23,16 +19,14 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 
     public virtual async Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
     {
-        // The platform's configured, localizable order-status dictionary (KeyValue.Key = raw status, Value = label).
         var values = await _localizableSettingService.GetValuesAsync(OrderSettings.OrderStatus.Name, cultureName);
 
-        // Default: each configured order status is its own option (Name == the raw status; label localized).
         return values
             .Select(x => SalesRepOrderStatus.Create(x.Key, x.Value, x.Key))
             .ToList();
     }
 
-    public virtual async Task<string[]> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
+    public virtual async Task<IList<string>> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
     {
         if (selectedStatusNames == null || selectedStatusNames.Count == 0)
         {
@@ -41,13 +35,12 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
 
         var selected = new HashSet<string>(selectedStatusNames, StringComparer.OrdinalIgnoreCase);
 
-        // One status-list read; union the underlying statuses of every selected option.
         var statuses = await GetStatusesAsync(storeId, cultureName: null);
 
         return statuses
             .Where(x => selected.Contains(x.Name))
             .SelectMany(x => x.OrderStatuses)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+            .ToList();
     }
 }

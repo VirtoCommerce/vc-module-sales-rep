@@ -64,8 +64,6 @@ public class SalesRepDictionaryService : ISalesRepDictionaryService
             .ToList();
     }
 
-    /// <summary>The configured storefront languages — the allowed values of the platform "Languages" dictionary
-    /// setting (the same source the customer contact admin populates its Language dropdown from).</summary>
     protected virtual async Task<IList<string>> GetLanguagesAsync()
     {
         var setting = await _settingsManager.GetObjectSettingAsync(PlatformConstants.Settings.General.Languages.Name);

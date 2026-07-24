@@ -5,7 +5,11 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1015.0" />
-    <!-- CustomerModule.Core and OrdersModule.Core flow transitively from SalesRep.Core (ProjectReference below). -->
+    <!-- CustomerModule.Core, OrdersModule.Core and NotificationsModule.Core flow transitively from SalesRep.Core. -->
+    <!-- PushMessages.Core: the mutation saves a PushMessage (Sent) to deliver the in-store push. -->
+    <PackageReference Include="VirtoCommerce.PushMessages.Core" Version="3.1004.0" />
+    <!-- StoreModule.Core: the email channel reads the store's sender address (IStoreService). -->
+    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />

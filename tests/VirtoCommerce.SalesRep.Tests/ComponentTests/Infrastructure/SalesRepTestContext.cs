@@ -128,6 +128,16 @@ internal sealed class SalesRepTestContext : IDisposable
         => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
             .ContactDefaultStatusByStore[storeId] = status;
 
+    /// <summary>Configure a store's sender From address (so the email channel resolves it and passes its store scoping).</summary>
+    public void SetStoreEmail(string storeId, string email)
+        => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
+            .EmailByStore[storeId] = email;
+
+    /// <summary>Configure a store's trusted groups (mirrors Store.TrustedGroups for the email store-access check).</summary>
+    public void SetStoreTrustedGroups(string storeId, params string[] groups)
+        => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
+            .TrustedGroupsByStore[storeId] = [.. groups];
+
     /// <summary>
     /// Prime the platform's <see cref="UserManager{T}"/> memory cache for a user (as any read that goes
     /// through <c>FindByIdAsync</c> does in the running app). A subsequent edit then gets the cached instance,

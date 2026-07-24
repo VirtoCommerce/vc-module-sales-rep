@@ -9,11 +9,6 @@ public static class ModuleConstants
     {
         public static class Permissions
         {
-            /// <summary>
-            /// The permission that DEFINES a Sales Rep (held by the rep, via a role — globally or per-org).
-            /// NOT an admin permission: managing reps via the REST API/admin app uses the customer module's
-            /// member-management permissions (customer:read/create/update/delete) instead.
-            /// </summary>
             public const string Access = "sales-rep:access";
 
             public static string[] AllPermissions { get; } =
@@ -24,12 +19,24 @@ public static class ModuleConstants
 
         public static class Roles
         {
-            /// <summary>
-            /// Display name of the default role created (with a random id) the first time a Sales Rep is saved
-            /// and no role yet grants <see cref="Permissions.Access"/>. Admins may rename or delete it — a Sales
-            /// Rep is identified by holding the permission, never by this role's id.
-            /// </summary>
             public const string SalesRepRoleName = "Sales Representative";
+        }
+    }
+
+    public static class Communication
+    {
+        public const int MaxTitleLength = 128;
+
+        public const int MaxMessageLength = 1000;
+
+        public static class Warnings
+        {
+            public const string NoRecipients = "NoRecipients";
+            public const string EmailUnavailable = "EmailUnavailable";
+            public const string EmailStoreAccessDenied = "EmailStoreAccessDenied";
+            public const string EmailNoRecipients = "EmailNoRecipients";
+            public const string EmailSendFailed = "EmailSendFailed";
+            public const string PushSendFailed = "PushSendFailed";
         }
     }
 
@@ -37,12 +44,6 @@ public static class ModuleConstants
     {
         public static class General
         {
-            /// <summary>
-            /// Per-store, public flag that toggles the Sales Rep UI's visibility on that store's storefront.
-            /// It is a presentation switch only — it does NOT gate the backend X-API or the data it returns
-            /// (those stay secured by rep membership scoping). Public + registered for the Store type so the
-            /// storefront reads it from <c>store.settings.modules</c>; defaults to enabled.
-            /// </summary>
             public static SettingDescriptor SalesRepEnabled { get; } = new()
             {
                 Name = "SalesRep.Enabled",
