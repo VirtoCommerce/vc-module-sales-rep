@@ -13,19 +13,6 @@ using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-/// <summary>
-/// Searches Sales Reps as the union of:
-///   A) users whose global role grants "sales-rep:access", and
-///   B) users who hold a role granting "sales-rep:access" in any OrganizationMembership.
-/// The union has no single queryable source (roles/accounts live in platform security, memberships in the
-/// customer module, and the account↔member link is on the platform side), so the candidate <b>id</b> set is
-/// resolved from both sources and unioned in memory — bounded by the (admin) Sales Rep population.
-/// Member <b>detail</b> (name/email/dates) is then fetched ONLY for the returned page:
-///   - member-backed sorts (name/created/modified) delegate keyword-filtering, sorting and paging to the
-///     member search (runs in the DB, returns just the page);
-///   - account-backed sorts (email/orgcount/locked) sort the bounded candidate rows in memory and enrich
-///     only the page.
-/// </summary>
 public class SalesRepSearchService : ISalesRepSearchService
 {
     private readonly IUserSearchService _userSearchService;
@@ -48,7 +35,7 @@ public class SalesRepSearchService : ISalesRepSearchService
         _roleResolver = roleResolver;
     }
 
-    public virtual Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria)
+    public virtual Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria, bool clone = true)
     {
         ArgumentNullException.ThrowIfNull(criteria);
         return SearchInternalAsync(criteria);
@@ -70,26 +57,19 @@ public class SalesRepSearchService : ISalesRepSearchService
             return result;
         }
 
-        // Fetch member detail only for the page: DB-side when the sort is member-backed, otherwise sort the
-        // bounded rows in memory (their account/count fields are already known) and enrich just the page.
         return IsMemberBackedSort(criteria.SortInfos)
             ? await PageByMemberSortAsync(criteria, rows)
             : await PageByRowSortAsync(criteria, rows);
     }
 
-    /// <summary>Resolve the bounded candidate set (ids + account-side fields) from sources A and B, apply the
-    /// id-level filters, and dedupe to one row per member. No member detail is fetched here.</summary>
     protected virtual async Task<List<CandidateRow>> ResolveCandidateRowsAsync(SalesRepSearchCriteria criteria, IList<Role> grantingRoles)
     {
         var grantingRoleIds = grantingRoles.Select(r => r.Id).ToArray();
         var orgScoped = !string.IsNullOrEmpty(criteria.OrganizationId);
 
-        // Source A: users whose GLOBAL role grants the permission (skipped for an org-scoped view).
         var usersById = new Dictionary<string, ApplicationUser>();
         HashSet<string> globalRoleUserIds = orgScoped ? [] : await LoadGlobalRoleUsersAsync(grantingRoles, usersById);
 
-        // Source B: per-org reps via a DB-side aggregate. An org-scoped view counts only users serving that
-        // org, so total org counts are then resolved separately to reflect all of a rep's served organizations.
         string[] orgIds = orgScoped ? [criteria.OrganizationId] : null;
         var scopedCriteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
         scopedCriteria.RoleIds = grantingRoleIds;
@@ -117,8 +97,6 @@ public class SalesRepSearchService : ISalesRepSearchService
         return BuildRows(criteria, candidateUserIds, usersById, totalCounts, globalRoleUserIds);
     }
 
-    // Sort columns backed by an account/aggregate field already on the candidate row (so they can't be a
-    // member-DB sort). Everything else — including the default and sort-by-name — is member-backed.
     private static readonly HashSet<string> _rowBackedSortColumns = new(StringComparer.OrdinalIgnoreCase)
     {
         "email",
@@ -132,19 +110,14 @@ public class SalesRepSearchService : ISalesRepSearchService
         return string.IsNullOrEmpty(column) || !_rowBackedSortColumns.Contains(column);
     }
 
-    /// <summary>Member-backed sort: let the member search filter (keyword), sort and page in the database over
-    /// the candidate member ids, returning only the requested page.</summary>
     protected virtual async Task<SalesRepSearchResult> PageByMemberSortAsync(SalesRepSearchCriteria criteria, List<CandidateRow> rows)
     {
         var rowsByMemberId = rows.ToDictionary(r => r.MemberId, r => r);
-        // Take <= 0 means "count only" (the platform search convention): TotalCount is returned with no results.
         var take = Math.Max(criteria.Take, 0);
 
         var memberCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
         memberCriteria.ObjectIds = rowsByMemberId.Keys.ToArray();
         memberCriteria.Keyword = criteria.Keyword;
-        // Candidates are contacts that ARE org members; disable the "root members only" default that would
-        // otherwise exclude them.
         memberCriteria.RootMembersOnly = false;
         memberCriteria.ResponseGroup = MemberResponseGroup.WithEmails.ToString();
         memberCriteria.Sort = BuildMemberSort(criteria.SortInfos);
@@ -163,9 +136,6 @@ public class SalesRepSearchService : ISalesRepSearchService
         return pageResult;
     }
 
-    /// <summary>Account-backed sort (email/orgcount/locked): sort the bounded candidate rows in memory and
-    /// enrich only the page. A keyword still needs member name/email, so it is resolved via the member search
-    /// over the candidate ids (bounded) before sorting.</summary>
     protected virtual async Task<SalesRepSearchResult> PageByRowSortAsync(SalesRepSearchCriteria criteria, List<CandidateRow> rows)
     {
         Dictionary<string, Member> keywordMatches = null;
@@ -183,7 +153,6 @@ public class SalesRepSearchService : ISalesRepSearchService
         }
 
         var ordered = OrderRows(rows, criteria.SortInfos);
-        // Take <= 0 means "count only" (the platform search convention): TotalCount is returned with no results.
         var take = Math.Max(criteria.Take, 0);
         var pageRows = ordered.Skip(criteria.Skip).Take(take).ToList();
 
@@ -200,7 +169,6 @@ public class SalesRepSearchService : ISalesRepSearchService
         var sort = sortInfos?.FirstOrDefault();
         var descending = sort?.SortDirection == SortDirection.Descending;
 
-        // Only reached for the row-backed columns; default arm is "email".
         Func<CandidateRow, object> selector = sort?.SortColumn?.ToLowerInvariant() switch
         {
             "organizationscount" => r => r.OrganizationsCount,
@@ -211,7 +179,6 @@ public class SalesRepSearchService : ISalesRepSearchService
         return (descending ? rows.OrderByDescending(selector) : rows.OrderBy(selector)).ToList();
     }
 
-    /// <summary>Map the Sales Rep sort token to a Member DB column (default and sort-by-name → Name).</summary>
     protected static string BuildMemberSort(IList<SortInfo> sortInfos)
     {
         var sort = sortInfos?.FirstOrDefault();
@@ -233,7 +200,6 @@ public class SalesRepSearchService : ISalesRepSearchService
             return [];
         }
 
-        // Reuse members already loaded by the keyword pass; otherwise fetch only the page's members.
         var membersById = known ?? (await _memberService.GetByIdsAsync(
             pageRows.Select(r => r.MemberId).ToArray(),
             MemberResponseGroup.WithEmails.ToString())).ToDictionary(m => m.Id, m => m);
@@ -262,7 +228,6 @@ public class SalesRepSearchService : ISalesRepSearchService
         return item;
     }
 
-    /// <summary>Load users whose global role grants the permission into <paramref name="usersById"/> and return their ids.</summary>
     protected virtual async Task<HashSet<string>> LoadGlobalRoleUsersAsync(IList<Role> grantingRoles, Dictionary<string, ApplicationUser> usersById)
     {
         HashSet<string> ids = [];
@@ -272,8 +237,6 @@ public class SalesRepSearchService : ISalesRepSearchService
             return ids;
         }
 
-        // Fetch ALL users holding a granting role, paging internally (SearchAllAsync helper) rather than an
-        // unbounded single-page fetch.
         var globalUserCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
         globalUserCriteria.Roles = roleNames;
         var globalUsers = await _userSearchService.SearchAllAsync(globalUserCriteria);
@@ -287,7 +250,6 @@ public class SalesRepSearchService : ISalesRepSearchService
         return ids;
     }
 
-    /// <summary>Project the candidate users into rows, applying the id-level filters and deduping to one row per member.</summary>
     protected virtual List<CandidateRow> BuildRows(
         SalesRepSearchCriteria criteria,
         HashSet<string> candidateUserIds,
@@ -323,7 +285,6 @@ public class SalesRepSearchService : ISalesRepSearchService
             });
         }
 
-        // One account per member expected; dedupe defensively.
         return rows.GroupBy(r => r.MemberId).Select(g => g.First()).ToList();
     }
 
@@ -345,7 +306,6 @@ public class SalesRepSearchService : ISalesRepSearchService
             return;
         }
 
-        // Reuse the platform user search (honors ObjectIds, eager-loads roles) rather than hand-chunking UserManager.Users.
         var missingCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
         missingCriteria.ObjectIds = missing;
         missingCriteria.Take = missing.Count;

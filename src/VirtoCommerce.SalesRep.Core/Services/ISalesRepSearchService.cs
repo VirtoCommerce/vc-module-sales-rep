@@ -1,9 +1,8 @@
-using System.Threading.Tasks;
+using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Core.Services;
 
-public interface ISalesRepSearchService
+public interface ISalesRepSearchService : ISearchService<SalesRepSearchCriteria, SalesRepSearchResult, SalesRepListItem>
 {
-    Task<SalesRepSearchResult> SearchAsync(SalesRepSearchCriteria criteria);
 }

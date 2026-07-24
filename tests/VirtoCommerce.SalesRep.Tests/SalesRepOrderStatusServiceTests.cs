@@ -28,7 +28,7 @@ public class SalesRepOrderStatusServiceTests
         var result = await service.GetStatusesAsync("B2B-store", "en-US");
 
         result.Select(x => x.Name).Should().Equal("New", "Processing", "Cancelled");
-        result.Should().OnlyContain(x => x.OrderStatuses.Length == 1 && x.OrderStatuses[0] == x.Name);
+        result.Should().OnlyContain(x => x.OrderStatuses.Count == 1 && x.OrderStatuses[0] == x.Name);
     }
 
     [Fact]
