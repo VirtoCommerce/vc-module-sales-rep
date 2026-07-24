@@ -43,6 +43,8 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
+        serviceCollection.AddTransient<IDashboardLayoutService, DashboardLayoutService>();
+
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
 
         serviceCollection.AddSalesRepExperienceApi();
