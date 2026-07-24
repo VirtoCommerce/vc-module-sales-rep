@@ -166,6 +166,7 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         services.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();
+        services.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
         services.AddTransient<SalesRepController>();
 
         // Dependencies of the dictionaries endpoint that the harness doesn't otherwise stand up. Countries is
@@ -241,17 +242,34 @@ internal static class TestServicesConfiguration
     {
         public ConcurrentDictionary<string, string> ContactDefaultStatusByStore { get; } = new();
 
+        // Sender From address per store (drives the email channel's store scoping + EmailUnavailable checks).
+        public ConcurrentDictionary<string, string> EmailByStore { get; } = new();
+
+        // Trusted groups per store (mirrors Store.TrustedGroups for the store-access check).
+        public ConcurrentDictionary<string, IList<string>> TrustedGroupsByStore { get; } = new();
+
         public Task<IList<Store>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
         {
+            // Return a store for EVERY id (the VCST-5309 statistics tests need every store to report its default
+            // currency + test catalog), carrying both features' fields: EUR/Catalog (statistics) and Email/
+            // TrustedGroups (the email channel's sender + store-access check), plus ContactDefaultStatus when a test
+            // configured it.
             var stores = (ids ?? [])
-                .Select(id => new Store
+                .Select(id =>
                 {
-                    Id = id,
-                    DefaultCurrency = "EUR",
-                    Catalog = SalesRepTestContext.TestCatalogId, // the catalog the Top Sellers category filter reads
+                    var store = new Store
+                    {
+                        Id = id,
+                        DefaultCurrency = "EUR",
+                        Catalog = SalesRepTestContext.TestCatalogId, // the catalog the Top Sellers category filter reads
+                        Email = EmailByStore.GetValueOrDefault(id),
+                        TrustedGroups = TrustedGroupsByStore.GetValueOrDefault(id) ?? [],
+                        Settings = [],
+                    };
 
-                    Settings = ContactDefaultStatusByStore.TryGetValue(id, out var status)
-                        ?
+                    if (ContactDefaultStatusByStore.TryGetValue(id, out var status))
+                    {
+                        store.Settings =
                         [
                             new ObjectSettingEntry
                             {
@@ -259,8 +277,10 @@ internal static class TestServicesConfiguration
                                 ValueType = SettingValueType.ShortText,
                                 Value = status,
                             },
-                        ]
-                        : [],
+                        ];
+                    }
+
+                    return store;
                 })
                 .ToList();
             return Task.FromResult<IList<Store>>(stores);

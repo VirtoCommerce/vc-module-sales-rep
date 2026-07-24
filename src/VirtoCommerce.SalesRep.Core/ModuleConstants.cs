@@ -24,6 +24,23 @@ public static class ModuleConstants
         }
     }
 
+    public static class Communication
+    {
+        public const int MaxTitleLength = 128;
+
+        public const int MaxMessageLength = 1000;
+
+        public static class Warnings
+        {
+            public const string NoRecipients = "NoRecipients";
+            public const string EmailUnavailable = "EmailUnavailable";
+            public const string EmailStoreAccessDenied = "EmailStoreAccessDenied";
+            public const string EmailNoRecipients = "EmailNoRecipients";
+            public const string EmailSendFailed = "EmailSendFailed";
+            public const string PushSendFailed = "PushSendFailed";
+        }
+    }
+
     public static class Settings
     {
         public static class General

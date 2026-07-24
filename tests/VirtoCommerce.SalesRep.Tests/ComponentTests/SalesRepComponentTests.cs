@@ -65,7 +65,7 @@ public class SalesRepComponentTests
             FirstName = "Jane",
             MiddleName = "Q",
             LastName = "Rep",
-            BirthDate = new DateTime(1990, 5, 15),
+            BirthDate = new DateTime(1990, 5, 15, 0, 0, 0, DateTimeKind.Utc),
             TimeZone = "Pacific Standard Time",
             DefaultLanguage = "en-US",
             CurrencyCode = "USD",
@@ -90,7 +90,7 @@ public class SalesRepComponentTests
         created.MiddleName.Should().Be("Q");
         created.LastName.Should().Be("Rep");
         created.FullName.Should().Be("Jane Q Rep");
-        created.BirthDate!.Value.Date.Should().Be(new DateTime(1990, 5, 15)); // stored date (VC normalizes DateTime to UTC)
+        created.BirthDate!.Value.Date.Should().Be(new DateTime(1990, 5, 15)); // UTC input avoids a local-midnight → prior-UTC-day shift in non-UTC timezones
         created.TimeZone.Should().Be("Pacific Standard Time");
         created.DefaultLanguage.Should().Be("en-US");
         created.CurrencyCode.Should().Be("USD");

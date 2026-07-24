@@ -21,6 +21,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Filter the orders/customers lists and every statistics block by a single, optional, server-defined **filter rule** (aggregated order statuses / cart kinds / customer segments), and order the lists by a server-defined **sort rule** (orders: *recent* / *total*; customers: *my last orders* / *ytd purchases* / *name*; top sellers: *by units* / *by revenue*) — one rule name per axis, with an optional X-Order-style `:asc`/`:desc` suffix to reverse a rule where that's meaningful; both filter and sort are overridable per project
 * Rank a rep's **top-selling products** (dashboard + per-customer) by units or revenue over a period, optionally within a product category
 * Scope the orders list to an optional created-date **period**
+* Send a push notification and/or email to the members of a customer organization
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -330,6 +331,52 @@ The rep's top-selling products (dashboard *Top Sellers*, and per-customer when a
 }
 ```
 
+### Mutation
+
+Send a communication — a storefront push notification and/or an email — to the members of a customer organization the rep serves (the "My customers" contact action):
+
+```graphql
+mutation {
+  sendCustomerCommunication(command: {
+    organizationId: "7b8c..."
+    sendPush: true
+    sendEmail: true
+    title: "New products available"
+    message: "I've shared a new product list with your team: https://store.example.com/lists/new"
+    storeId: "B2B-store"
+    cultureName: "en-US"
+  }) {
+    succeeded
+    pushSent
+    emailSent
+    warnings
+  }
+}
+```
+
+The mutation returns a **result** describing each channel's outcome, so a partial success (one channel delivered, the other could not) is visible to the storefront:
+
+| Field | Meaning |
+|-------|---------|
+| `succeeded` | `true` when at least one requested channel was accepted for delivery (`pushSent || emailSent`). |
+| `pushSent` / `emailSent` | Per-channel delivery outcome. Each channel is attempted **independently** — one failing never blocks the other. |
+| `warnings` | Stable string codes explaining any channel that did not deliver (empty on full success). |
+
+The request itself is rejected with a GraphQL error only when it is **malformed or not allowed**: not authenticated, `message` missing or over 1000 characters, `title` over 128 characters, no channel selected, or the rep does not serve the organization (`Access denied.`). Everything else is reported through `warnings`:
+
+| Warning code | Channel | When |
+|--------------|---------|------|
+| `NoRecipients` | — | The organization has no members to notify (the rep is excluded from their own send). |
+| `EmailUnavailable` | email | The store's email is not configured — no `SalesRepMessageEmailNotification` template, or the store has no sender address. |
+| `EmailStoreAccessDenied` | email | The `storeId` is not the caller's own store (nor one of its trusted groups). Email uses the store's template and sender address, so it is scoped to the caller's store; push is store-agnostic and unaffected. |
+| `EmailNoRecipients` | email | Recipients exist, but none has an email address. |
+| `EmailSendFailed` | email | The email could not be scheduled (transient). |
+| `PushSendFailed` | push | The push could not be saved (transient). |
+
+Codes are plain strings (see `ModuleConstants.Communication.Warnings`) — not an enum — so a downstream project can contribute its own codes; the storefront maps each to a localized message.
+
+Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
+
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
 ## How it works
@@ -414,11 +461,22 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
 | `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics and Top Sellers. |
 | `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics. |
+| `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
+| `VirtoCommerce.PushMessages` | Storefront push notifications for customer communications. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
 | `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and resolves a selected badge to the rep's sold products in its subtree via the catalog index (`IProductIndexedSearchService`). |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
-> **Scope note.** The full **Sales Rep Hub** storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.) is broader than this module. This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
+## Documentation
+
+* Epic: [VCST-5142 — Sales Rep Hub](https://virtocommerce.atlassian.net/browse/VCST-5142)
+* Pull requests:
+  * [#1 — VCST-5293: Sales rep VC-Shell administration UI](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/1)
+  * [#2 — VCST-4907 / VCST-5304 / VCST-5308: X-API endpoints for customers and sales reps](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/2)
+  * [VCST-5309: Sales rep dashboard statistics, sort rules & Top Sellers](https://virtocommerce.atlassian.net/browse/VCST-5309)
+  * [VCST-5310 / VCST-5331: Push & email messaging to customer members](https://virtocommerce.atlassian.net/browse/VCST-5310)
+
+> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 
 ## References
 

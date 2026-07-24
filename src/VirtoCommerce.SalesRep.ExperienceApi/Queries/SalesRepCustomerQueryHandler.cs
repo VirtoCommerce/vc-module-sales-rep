@@ -2,9 +2,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
-using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -19,20 +17,20 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         (MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
 
     private readonly IMemberService _memberService;
-    private readonly IMemberSearchService _memberSearchService;
     private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
+    private readonly ISalesRepPrimaryContactResolver _primaryContactResolver;
 
     public SalesRepCustomerQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         IMemberService memberService,
-        IMemberSearchService memberSearchService,
-        ISalesRepMemberResponseGroupParser responseGroupParser)
+        ISalesRepMemberResponseGroupParser responseGroupParser,
+        ISalesRepPrimaryContactResolver primaryContactResolver)
         : base(roleResolver, membershipSearchService)
     {
         _memberService = memberService;
-        _memberSearchService = memberSearchService;
         _responseGroupParser = responseGroupParser;
+        _primaryContactResolver = primaryContactResolver;
     }
 
     public virtual async Task<SalesRepCustomerDetails> Handle(SalesRepCustomerQuery request, CancellationToken cancellationToken)
@@ -42,11 +40,7 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        var memberships = await GetGrantingMembershipsAsync(
-            [request.UserId],
-            [request.OrganizationId]);
-
-        if (memberships.Count == 0)
+        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
         {
             return null;
         }
@@ -69,38 +63,9 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         if (request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.PrimaryContact))
             || request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.Phone)))
         {
-            primaryContact = await ResolvePrimaryContactAsync(organization);
+            primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(organization, _contactResponseGroup);
         }
 
         return SalesRepCustomerDetails.FromOrganization(organization, primaryContact);
-    }
-
-    private async Task<Contact> ResolvePrimaryContactAsync(Organization organization)
-    {
-        if (!string.IsNullOrEmpty(organization.OwnerId))
-        {
-            var owner = (await _memberService.GetByIdsAsync(
-                    [organization.OwnerId],
-                    _contactResponseGroup,
-                    [nameof(Contact)]))
-                .OfType<Contact>()
-                .FirstOrDefault();
-
-            if (owner != null)
-            {
-                return owner;
-            }
-        }
-
-        var contactsCriteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
-        contactsCriteria.MemberId = organization.Id;
-        contactsCriteria.MemberType = nameof(Contact);
-        contactsCriteria.DeepSearch = false;
-        contactsCriteria.ResponseGroup = _contactResponseGroup;
-        contactsCriteria.Sort = "createdDate:asc";
-        contactsCriteria.Take = 1;
-        var contactsSearchResult = await _memberSearchService.SearchMembersAsync(contactsCriteria);
-
-        return contactsSearchResult.Results.OfType<Contact>().FirstOrDefault();
     }
 }

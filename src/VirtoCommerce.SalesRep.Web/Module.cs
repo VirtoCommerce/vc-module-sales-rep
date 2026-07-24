@@ -1,10 +1,14 @@
+using System.IO;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.NotificationsModule.Core.Services;
+using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
@@ -37,6 +41,10 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
 
+        serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
+
+        serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
+
         serviceCollection.AddSalesRepExperienceApi();
     }
 
@@ -50,6 +58,10 @@ public class Module : IModule, IHasConfiguration
 
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
+
+        var notificationRegistrar = serviceProvider.GetRequiredService<INotificationRegistrar>();
+        var notificationTemplatesPath = Path.Combine(ModuleInfo.FullPhysicalPath, "NotificationTemplates");
+        notificationRegistrar.RegisterNotification<SalesRepMessageEmailNotification>().WithTemplatesFromPath(notificationTemplatesPath);
 
         appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
 

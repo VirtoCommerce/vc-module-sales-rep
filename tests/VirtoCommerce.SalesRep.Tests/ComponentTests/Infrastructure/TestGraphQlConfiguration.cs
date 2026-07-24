@@ -20,12 +20,17 @@ using VirtoCommerce.CatalogModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Data.Search;
 using VirtoCommerce.CoreModule.Core.Common;
 using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.NotificationsModule.Core.Model;
+using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.PushMessages.Core.Models;
+using VirtoCommerce.PushMessages.Core.Services;
+using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
@@ -149,6 +154,7 @@ internal static class TestGraphQlConfiguration
 
         // Field-selection → member response group, injected into the customer list/details + customerSalesReps handlers.
         services.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
+        services.AddSingleton<ISalesRepCommunicationResponseGroupParser, SalesRepCommunicationResponseGroupParser>();
 
         // Shared currency defaulting (requested → store default → platform primary) for the statistics, customers and
         // top-sellers handlers. Real service — resolves IStoreService (TestServicesConfiguration; every store's
@@ -186,6 +192,17 @@ internal static class TestGraphQlConfiguration
         // ICurrencyService (for MoneyType and the statistics conversion) is registered once in AddOrderSlice
         // (TestCurrencyService: USD primary + EUR, with a rounding policy). No second registration here — a second
         // AddSingleton would win by last-registration and shadow it, which previously broke the statistics tests.
+
+        // Customer-communication mutation (VCST-5310): the REAL default recipient resolver (over the real member
+        // search) plus capturing doubles for the two external delivery services (PushMessages / Notifications are
+        // not wired in this harness). The doubles record what was dispatched so tests can assert recipients.
+        services.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
+        services.AddSingleton<CapturingPushMessageService>();
+        services.AddSingleton<IPushMessageService>(sp => sp.GetRequiredService<CapturingPushMessageService>());
+        services.AddSingleton<CapturingNotificationSender>();
+        services.AddSingleton<INotificationSender>(sp => sp.GetRequiredService<CapturingNotificationSender>());
+        services.AddSingleton<StubNotificationSearchService>();
+        services.AddSingleton<INotificationSearchService>(sp => sp.GetRequiredService<StubNotificationSearchService>());
 
         services.AddGraphQL(builder =>
         {
@@ -293,6 +310,87 @@ internal static class TestGraphQlConfiguration
         public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new NotSupportedException();
         public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();
         public Task DeleteAsync(string settingName, IList<string> values) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Capturing <see cref="IPushMessageService"/>: records every saved <see cref="PushMessage"/> so tests can
+    /// assert the push channel's audience (MemberIds) and content. Stands in for the PushMessages module, which is
+    /// not wired in this harness; only the write path the mutation uses is meaningful.
+    /// </summary>
+    internal sealed class CapturingPushMessageService : IPushMessageService
+    {
+        public List<PushMessage> Saved { get; } = [];
+
+        public Task SaveChangesAsync(IList<PushMessage> models)
+        {
+            Saved.AddRange(models);
+            return Task.CompletedTask;
+        }
+
+        public Task<IList<PushMessage>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+            => Task.FromResult<IList<PushMessage>>([]);
+
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => Task.CompletedTask;
+
+        public Task<PushMessage> ChangeTracking(string messageId, bool value) => Task.FromResult<PushMessage>(null);
+    }
+
+    /// <summary>
+    /// Capturing <see cref="INotificationSender"/>: records every scheduled notification so tests can assert the
+    /// email channel's recipients (To) and content. Stands in for the real sender/queue.
+    /// </summary>
+    internal sealed class CapturingNotificationSender : INotificationSender
+    {
+        public List<Notification> Scheduled { get; } = [];
+
+        /// <summary>When set, <see cref="ScheduleSendNotificationAsync"/> throws — simulating the real sender
+        /// rejecting an invalid message (e.g. an unrenderable template) — so the handler's per-channel
+        /// resilience can be exercised.</summary>
+        public bool ThrowOnSchedule { get; set; }
+
+        public Task ScheduleSendNotificationAsync(Notification notification)
+        {
+            if (ThrowOnSchedule)
+            {
+                throw new InvalidOperationException("Simulated notification failure.");
+            }
+
+            Scheduled.Add(notification);
+            return Task.CompletedTask;
+        }
+
+        public Task<NotificationSendResult> SendNotificationAsync(Notification notification)
+        {
+            Scheduled.Add(notification);
+            return Task.FromResult(new NotificationSendResult { IsSuccess = true });
+        }
+
+        public void EnqueueNotificationSending(string messageId) { }
+    }
+
+    /// <summary>
+    /// Stub <see cref="INotificationSearchService"/>: returns a fresh <see cref="SalesRepMessageEmailNotification"/>
+    /// with an empty tenant identity, so the <c>GetNotificationAsync</c> extension's tenant-less fallback resolves
+    /// it (a registered store-scoped template is not needed to exercise the handler's dispatch logic). Set
+    /// <see cref="TemplateAvailable"/> to <c>false</c> to simulate a store with no email template configured.
+    /// </summary>
+    internal sealed class StubNotificationSearchService : INotificationSearchService
+    {
+        public bool TemplateAvailable { get; set; } = true;
+
+        public Task<NotificationSearchResult> SearchNotificationsAsync(NotificationSearchCriteria criteria)
+        {
+            var result = new NotificationSearchResult { Results = [], TotalCount = 0 };
+
+            if (TemplateAvailable && criteria.NotificationType == nameof(SalesRepMessageEmailNotification) && string.IsNullOrEmpty(criteria.TenantId))
+            {
+                var notification = new SalesRepMessageEmailNotification();
+                result.Results = [notification];
+                result.TotalCount = 1;
+            }
+
+            return Task.FromResult(result);
+        }
     }
 
     /// <summary>

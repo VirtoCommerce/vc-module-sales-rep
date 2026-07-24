@@ -42,6 +42,12 @@ public abstract class SalesRepQueryHandlerBase
         return await _membershipSearchService.SearchAllNoCloneAsync(criteria);
     }
 
+    protected async Task<bool> ServesOrganizationAsync(string userId, string organizationId)
+    {
+        var memberships = await GetGrantingMembershipsAsync([userId], [organizationId]);
+        return memberships.Count > 0;
+    }
+
     protected async Task<IList<string>> GetServedOrganizationIdsAsync(string userId)
     {
         var memberships = await GetGrantingMembershipsAsync(userIds: [userId]);
