@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using GraphQL.Types;
+using System;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -11,8 +12,14 @@ public class SalesRepOrderStatusesQueryBuilder : SalesRepQueryBuilder<SalesRepOr
 {
     protected override string Name => "salesRepOrderStatuses";
 
+    public SalesRepOrderStatusesQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
+    {
+    }
+
+    [Obsolete("Use the constructor without IMediator. The mediator is resolved from context.RequestServices per request.", DiagnosticId = "VC0015", UrlFormat = "https://docs.virtocommerce.org/products/products-virto3-versions")]
     public SalesRepOrderStatusesQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
-        : base(mediator, authorizationService)
+        : this(authorizationService)
     {
     }
 }

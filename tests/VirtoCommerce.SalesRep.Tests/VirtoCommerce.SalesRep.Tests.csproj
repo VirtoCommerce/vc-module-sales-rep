@@ -28,7 +28,7 @@
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
     <!-- Store .Core only: the harness registers a lightweight in-memory IStoreService double (TestStoreService)
          so the real SalesRepService can read the store's ContactDefaultStatus. No Store .Data/DbContext needed. -->
-    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1005.0" />
+    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
   </ItemGroup>
   <ItemGroup>
     <!-- SQLite is a test-only, in-memory dependency (never shipped). It pulls SQLitePCLRaw.lib.e_sqlite3 with
