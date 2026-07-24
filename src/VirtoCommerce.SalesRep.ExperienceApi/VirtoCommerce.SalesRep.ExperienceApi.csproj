@@ -4,10 +4,10 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1012.0" />
+    <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1015.0" />
     <!-- StoreModule.Core (IStoreService): the store's default currency in SalesRepCustomerOrderStatisticsQueryHandler,
          and the store's sender address for the email channel. Otherwise only transitive via Xapi.Core. -->
-    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1005.0" />
+    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
     <!-- CartModule.Core: the default SalesRepCartFilterRuleResolver uses ModuleConstants.CartType.Wishlist to map the
          built-in "active-carts" kind (non-empty carts that exclude the Wishlist type). Version matches the module.manifest VirtoCommerce.Cart dependency. -->
     <PackageReference Include="VirtoCommerce.CartModule.Core" Version="3.1006.0" />

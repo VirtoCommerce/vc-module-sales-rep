@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using GraphQL.Types;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
@@ -11,8 +10,8 @@ public class SalesRepCustomerSortRulesQueryBuilder : SalesRepQueryBuilder<SalesR
 {
     protected override string Name => "salesRepCustomerSortRules";
 
-    public SalesRepCustomerSortRulesQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
-        : base(mediator, authorizationService)
+    public SalesRepCustomerSortRulesQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
     {
     }
 }

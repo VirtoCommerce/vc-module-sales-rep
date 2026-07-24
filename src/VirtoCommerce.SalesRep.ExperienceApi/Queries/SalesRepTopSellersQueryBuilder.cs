@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
@@ -14,8 +13,8 @@ public class SalesRepTopSellersQueryBuilder : SalesRepQueryBuilder<SalesRepTopSe
 {
     protected override string Name => "salesRepTopSellers";
 
-    public SalesRepTopSellersQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
-        : base(mediator, authorizationService)
+    public SalesRepTopSellersQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
     {
     }
 

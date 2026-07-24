@@ -1,6 +1,5 @@
 using System.Threading.Tasks;
 using GraphQL;
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
@@ -12,8 +11,8 @@ public class SalesRepCustomerOrderStatisticsQueryBuilder : SalesRepQueryBuilder<
 {
     protected override string Name => "salesRepCustomerOrderStatistics";
 
-    public SalesRepCustomerOrderStatisticsQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
-        : base(mediator, authorizationService)
+    public SalesRepCustomerOrderStatisticsQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
     {
     }
 

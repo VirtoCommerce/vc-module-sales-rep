@@ -1,4 +1,3 @@
-using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
@@ -9,8 +8,8 @@ public class SalesRepCustomerCountsQueryBuilder : SalesRepQueryBuilder<SalesRepC
 {
     protected override string Name => "salesRepCustomerCounts";
 
-    public SalesRepCustomerCountsQueryBuilder(IMediator mediator, IAuthorizationService authorizationService)
-        : base(mediator, authorizationService)
+    public SalesRepCustomerCountsQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
     {
     }
 }
