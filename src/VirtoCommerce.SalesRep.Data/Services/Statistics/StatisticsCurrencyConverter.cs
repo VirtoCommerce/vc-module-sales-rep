@@ -60,7 +60,7 @@ internal static class StatisticsCurrencyConverter
 
     // A non-null warning means some records were dropped from the figures above (their currency is not configured, so they
     // cannot be converted to the target currency), i.e. the totals/counts are partial. Null when everything was included.
-    private static string BuildWarning(int excludedCount, IReadOnlyCollection<string> excludedCurrencies)
+    private static string BuildWarning(int excludedCount, List<string> excludedCurrencies)
     {
         if (excludedCurrencies.Count == 0)
         {
