@@ -187,6 +187,28 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_VaryingSnapshotAcrossOrders_ShowsLatestOrdersDisplay()
+    {
+        // The same product sold twice with a different image snapshot: units sum across both, but the display fields
+        // must come from the MOST RECENT order — deterministically, not from an arbitrary grouped row.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-old", "org-1", "prodA", quantity: 5, price: 10m,
+            createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), imageUrl: "old.jpg");
+        SeedProductLine(ctx, "o-new", "org-1", "prodA", quantity: 3, price: 10m,
+            createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), imageUrl: "new.jpg");
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers { productId units imageUrl } }",
+            userId: rep.UserId));
+
+        items.Should().HaveCount(1);
+        items[0].GetProperty("units").GetInt32().Should().Be(8);          // summed across both snapshots
+        items[0].GetProperty("imageUrl").GetString().Should().Be("new.jpg"); // latest order's snapshot
+    }
+
+    [Fact]
     public async Task SalesRepTopSellers_ExcludesOtherRepsLineItems()
     {
         using var ctx = SalesRepTestContext.Create();

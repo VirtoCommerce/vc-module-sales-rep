@@ -72,6 +72,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
                 ImageUrl = g.Key.ImageUrl,
                 CategoryId = g.Key.CategoryId,
                 Units = g.Sum(x => x.Quantity),
+                LastOrderedDate = g.Max(x => x.CustomerOrder.CreatedDate),
             })
             .ToListAsync();
 
@@ -166,7 +167,16 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 
         var folded = StatisticsCurrencyConverter.Fold(byCurrency, currencyCode, currencies, _logger);
 
-        var sample = rows[0];
+        // Display fields (name/sku/image/category) are line-item snapshots that can vary across the orders a product
+        // was sold in. Show the most recently sold snapshot, deterministically — the display-field tiebreak keeps the
+        // result stable when several snapshots share the same latest order date (was: an arbitrary GroupBy row).
+        var sample = rows
+            .OrderByDescending(x => x.LastOrderedDate)
+            .ThenBy(x => x.Sku, StringComparer.Ordinal)
+            .ThenBy(x => x.Name, StringComparer.Ordinal)
+            .ThenBy(x => x.ImageUrl, StringComparer.Ordinal)
+            .ThenBy(x => x.CategoryId, StringComparer.Ordinal)
+            .First();
         var result = AbstractTypeFactory<SalesRepTopSeller>.TryCreateInstance();
         result.ProductId = productId;
         result.Units = rows.Sum(x => x.Units);
@@ -189,5 +199,6 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         public string ImageUrl { get; set; }
         public string CategoryId { get; set; }
         public int Units { get; set; }
+        public DateTime LastOrderedDate { get; set; }
     }
 }
