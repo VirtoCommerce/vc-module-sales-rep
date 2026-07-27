@@ -58,6 +58,8 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
                 var loader = GetPeriodLoader(context);
 
+                // Queue both loads before chaining so they land in the same batch (one dispatch); a range shared
+                // with a 'period' selection is then aggregated only once.
                 var currentResult = loader.LoadAsync((current.From, current.To, filterKey));
                 var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey));
 
@@ -72,6 +74,8 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
         var loaderKey = $"{nameof(CustomerCartStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
 
+        // Per-request batch loader shared by 'period' and 'comparison': keyed on the shared context, with the range
+        // in the batch key, so each distinct range is aggregated only once per request (no N+1).
         return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filter), CustomerCartStatisticsPeriod>(
             loaderKey,
             async buckets =>

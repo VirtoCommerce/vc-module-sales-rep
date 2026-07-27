@@ -8,13 +8,6 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-/// <summary>
-/// Base for the rule-discovery handlers (order/cart/customer/top-seller filter and sort rules). The rule vocabulary
-/// is sales-rep-only, so — like the statistics handlers — it requires the caller to hold at least one granting
-/// sales-rep membership. A merely-authenticated user (e.g. a regular buyer) gets an empty list instead of being able
-/// to enumerate the vocabulary (which for the top-seller filter rules would expose the store's top-level catalog
-/// categories). Concrete handlers supply the rules via <see cref="GetRulesAsync"/>.
-/// </summary>
 public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQueryHandlerBase, IQueryHandler<TQuery, IList<TRule>>
     where TQuery : Query<IList<TRule>>, ISalesRepRulesQuery
 {
@@ -32,6 +25,8 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
             return [];
         }
 
+        // Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list, never the
+        // vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog categories.
         var organizationIds = await GetServedOrganizationIdsAsync(request.UserId);
         if (organizationIds.Count == 0)
         {

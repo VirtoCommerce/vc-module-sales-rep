@@ -58,8 +58,6 @@ internal static class StatisticsCurrencyConverter
         return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code, BuildWarning(excludedCount, excludedCurrencies));
     }
 
-    // A non-null warning means some records were dropped from the figures above (their currency is not configured, so they
-    // cannot be converted to the target currency), i.e. the totals/counts are partial. Null when everything was included.
     private static string BuildWarning(int excludedCount, List<string> excludedCurrencies)
     {
         if (excludedCurrencies.Count == 0)
@@ -69,8 +67,7 @@ internal static class StatisticsCurrencyConverter
 
         var codes = string.Join(", ", excludedCurrencies);
 
-        // Count is only meaningful for the order/cart folds; the top-seller fold carries revenue-only groups (count 0),
-        // so fall back to a currency-only message there.
+        // Order/cart folds carry real counts; the top-seller fold's groups are revenue-only (count 0), hence two forms.
         return excludedCount > 0
             ? $"Excluded {excludedCount} record(s) in unconfigured currencies ({codes}) from these figures."
             : $"Excluded amounts in unconfigured currencies ({codes}) from these figures.";

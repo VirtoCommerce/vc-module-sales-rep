@@ -167,9 +167,8 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 
         var folded = StatisticsCurrencyConverter.Fold(byCurrency, currencyCode, currencies, _logger);
 
-        // Display fields (name/sku/image/category) are line-item snapshots that can vary across the orders a product
-        // was sold in. Show the most recently sold snapshot, deterministically — the display-field tiebreak keeps the
-        // result stable when several snapshots share the same latest order date (was: an arbitrary GroupBy row).
+        // Display fields are per-order line-item snapshots that can vary; pick the latest deterministically (ordinal
+        // tiebreak keeps it stable when order dates tie) rather than an arbitrary GroupBy row.
         var sample = rows
             .OrderByDescending(x => x.LastOrderedDate)
             .ThenBy(x => x.Sku, StringComparer.Ordinal)

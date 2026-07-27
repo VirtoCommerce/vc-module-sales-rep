@@ -109,6 +109,8 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var skip = criteria.Skip;
         var take = criteria.Take;
 
+        // Order-derived metrics live in the orders, not the member index, so we can't page in the DB: load every
+        // served-org candidate (bounded by the rep's assignment count), then rank + page in memory.
         criteria.Skip = 0;
         criteria.Take = criteria.ObjectIds?.Count ?? 0;
         criteria.Sort = null;
