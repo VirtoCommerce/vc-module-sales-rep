@@ -29,7 +29,7 @@
          Customer/Order search + event services). The module under test references only their .Core. -->
     <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
-    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1006.0" />
+    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0-alpha.803-vcst-5332-customer-wishlist-sharing-scope" />
     <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1032.0" />
     <!-- Store .Core only: the harness registers a lightweight in-memory IStoreService double (TestStoreService)
          so the real SalesRepService can read the store's ContactDefaultStatus. No Store .Data/DbContext needed. -->
