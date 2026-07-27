@@ -278,12 +278,15 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     public async Task Cart_FilterRules_ExposesActiveCartsKind()
     {
         using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         // Discovery query the storefront reads to build the cart-kind filter UI. The default resolver exposes a single
         // built-in "active-carts" kind (send its name back as the salesRepCustomerCartStatistics filter argument).
+        // Rule discovery is sales-rep-only, so the caller must hold a granting membership.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCartFilterRules(storeId:\"B2B-store\") { name localizedName } }",
-            userId: "any-authenticated-user");
+            userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"name\":\"active-carts\"").And.Contain("Active carts");

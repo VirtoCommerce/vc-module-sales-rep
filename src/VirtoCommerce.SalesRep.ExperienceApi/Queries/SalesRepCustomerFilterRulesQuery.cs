@@ -3,14 +3,17 @@ using GraphQL;
 using GraphQL.Types;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
+using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomerFilterRulesQuery : Query<IList<SalesRepCustomerFilterRule>>
+public class SalesRepCustomerFilterRulesQuery : Query<IList<SalesRepCustomerFilterRule>>, ISalesRepRulesQuery
 {
     public string StoreId { get; set; }
 
     public string CultureName { get; set; }
+
+    public string UserId { get; set; }
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
@@ -22,5 +25,6 @@ public class SalesRepCustomerFilterRulesQuery : Query<IList<SalesRepCustomerFilt
     {
         StoreId = context.GetArgument<string>(nameof(StoreId));
         CultureName = context.GetArgument<string>(nameof(CultureName));
+        UserId = context.GetCurrentUserId();
     }
 }

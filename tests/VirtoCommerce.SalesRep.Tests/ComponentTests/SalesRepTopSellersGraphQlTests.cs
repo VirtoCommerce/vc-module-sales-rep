@@ -255,6 +255,27 @@ public class SalesRepTopSellersGraphQlTests
         json.Should().NotContain("cat-printers").And.NotContain("cat-hidden");
     }
 
+    [Fact]
+    public async Task SalesRepTopSellerFilterRules_NonRepCaller_ReturnsEmpty()
+    {
+        // Authorization: rule discovery is sales-rep-only. Even with a rep and categories fully set up, a merely-
+        // authenticated caller with no granting membership (a regular B2B buyer) must not enumerate the vocabulary —
+        // which for the top-seller filter rules would leak the store's top-level catalog category IDs/names.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-apparel", "Apparel", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellerFilterRules(storeId: \"B2B-store\") { name } }",
+            userId: "regular-buyer");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().NotContain("cat-electronics").And.NotContain("cat-apparel");
+    }
+
     // ---- helpers ----
 
     private static JsonElement[] TopSellers(string json)

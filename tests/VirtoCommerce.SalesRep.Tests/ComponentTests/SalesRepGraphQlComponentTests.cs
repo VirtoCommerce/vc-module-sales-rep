@@ -789,11 +789,13 @@ public class SalesRepGraphQlComponentTests
     public async Task SalesRepOrderFilterRulees_ReturnsStatuses()
     {
         using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
-        // Caller-agnostic (statuses are store config), but the scoped schema requires authentication.
+        // Rule discovery is sales-rep-only: the caller must hold a granting membership (see the authorization gate).
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name localizedName } }",
-            userId: "any-authenticated-user");
+            userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         // The real default resolver maps each configured Order.Status to a 1:1 rule (name == raw status).
@@ -809,10 +811,12 @@ public class SalesRepGraphQlComponentTests
         // A project override (CompositeOrderFilterRuleResolver) adds a composite "Inactive" → { Cancelled, Failed }
         // rule on top of the real 1:1 statuses; the discovery query must surface it with its localized label.
         using var ctx = SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name localizedName } }",
-            userId: "any-authenticated-user");
+            userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"name\":\"New\"");                                // base 1:1 statuses still present
