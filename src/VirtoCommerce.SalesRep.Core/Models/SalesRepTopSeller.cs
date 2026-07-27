@@ -19,4 +19,8 @@ public class SalesRepTopSeller
     public decimal Revenue { get; set; }
 
     public string CurrencyCode { get; set; }
+
+    // Non-null when some of this product's sales were left out of Revenue because their currency is not configured
+    // (and so could not be converted to CurrencyCode); Revenue is then partial. Null = complete.
+    public string Warning { get; set; }
 }

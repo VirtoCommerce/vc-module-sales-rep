@@ -142,6 +142,7 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         period.Average = folded.Average;
         period.LastCartDate = folded.LatestDate;
         period.CurrencyCode = folded.CurrencyCode;
+        period.Warning = folded.Warning;
         return period;
     }
 

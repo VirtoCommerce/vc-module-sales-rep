@@ -186,6 +186,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         result.Sku = sample.Sku;
         result.ImageUrl = sample.ImageUrl;
         result.CategoryId = sample.CategoryId;
+        result.Warning = folded.Warning;
         return result;
     }
 

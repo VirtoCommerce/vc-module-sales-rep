@@ -23,5 +23,6 @@ public class CustomerCartStatisticsPeriodType : ExtendableGraphType<CustomerCart
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Average));
 
         Field(x => x.LastCartDate, nullable: true).Description("Date of the most recent cart in the range.");
+        Field(x => x.Warning, nullable: true).Description("Non-null when the figures are partial because some carts were in an unconfigured currency and could not be converted; describes what was excluded.");
     }
 }

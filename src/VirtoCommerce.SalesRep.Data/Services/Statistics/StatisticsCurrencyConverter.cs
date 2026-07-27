@@ -23,12 +23,23 @@ internal static class StatisticsCurrencyConverter
         DateTime? earliestDate = null;
         DateTime? latestDate = null;
 
+        var excludedCount = 0;
+        var excludedCurrencies = new List<string>();
+
         foreach (var group in byCurrency)
         {
             var sourceCurrency = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(group.Currency));
             if (sourceCurrency == null)
             {
                 logger.LogWarning("Skipping {Count} record(s) in unconfigured currency '{Currency}' while computing sales-rep statistics.", group.Count, group.Currency);
+
+                excludedCount += group.Count;
+                var label = string.IsNullOrEmpty(group.Currency) ? "unspecified" : group.Currency;
+                if (!excludedCurrencies.Contains(label, StringComparer.OrdinalIgnoreCase))
+                {
+                    excludedCurrencies.Add(label);
+                }
+
                 continue;
             }
 
@@ -44,7 +55,25 @@ internal static class StatisticsCurrencyConverter
             ? 0m
             : Math.Round(total / count, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
 
-        return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code);
+        return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code, BuildWarning(excludedCount, excludedCurrencies));
+    }
+
+    // A non-null warning means some records were dropped from the figures above (their currency is not configured, so they
+    // cannot be converted to the target currency), i.e. the totals/counts are partial. Null when everything was included.
+    private static string BuildWarning(int excludedCount, IReadOnlyCollection<string> excludedCurrencies)
+    {
+        if (excludedCurrencies.Count == 0)
+        {
+            return null;
+        }
+
+        var codes = string.Join(", ", excludedCurrencies);
+
+        // Count is only meaningful for the order/cart folds; the top-seller fold carries revenue-only groups (count 0),
+        // so fall back to a currency-only message there.
+        return excludedCount > 0
+            ? $"Excluded {excludedCount} record(s) in unconfigured currencies ({codes}) from these figures."
+            : $"Excluded amounts in unconfigured currencies ({codes}) from these figures.";
     }
 
     private static DateTime? EarlierOf(DateTime? current, DateTime? candidate)

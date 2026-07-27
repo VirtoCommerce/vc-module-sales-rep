@@ -24,5 +24,6 @@ public class CustomerOrderStatisticsPeriodType : ExtendableGraphType<CustomerOrd
 
         Field(x => x.LastOrderDate, nullable: true).Description("Date of the most recent order in the range.");
         Field(x => x.FirstOrderDate, nullable: true).Description("Date of the earliest order in the range; on an unbounded period this is the \"customer since\" date.");
+        Field(x => x.Warning, nullable: true).Description("Non-null when the figures are partial because some orders were in an unconfigured currency and could not be converted; describes what was excluded.");
     }
 }

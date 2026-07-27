@@ -469,6 +469,61 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Statistics_UnconfiguredCurrency_SurfacesWarning_NamingCountAndCurrency()
+    {
+        // #4: records the fold cannot convert (GBP — the harness knows only USD + EUR) are excluded from the totals,
+        // so the figures are partial. The period must carry a non-null 'warning' naming how many records and which
+        // currency were left out, so the client can flag the number as incomplete instead of trusting an understated total.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "usd-1", "org-1", 100m, _feb2026, currency: "USD");
+        SeedOrder(ctx, "gbp-1", "org-1", 500m, _feb2026, currency: "GBP"); // unconfigured → excluded
+        SeedOrder(ctx, "gbp-2", "org-1", 700m, _apr2026, currency: "GBP"); // unconfigured → excluded
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}) { total { amount } count warning }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var ytd = Stats(json).GetProperty("ytd");
+        MoneyAmount(ytd, "total").Should().Be(100m); // only the USD order; the two GBP orders are excluded
+        ytd.GetProperty("count").GetInt32().Should().Be(1);
+
+        var warning = ytd.GetProperty("warning");
+        warning.ValueKind.Should().Be(JsonValueKind.String);
+        warning.GetString().Should().Contain("GBP").And.Contain("2"); // 2 GBP records excluded
+    }
+
+    [Fact]
+    public async Task Statistics_AllCurrenciesConfigured_WarningIsNull()
+    {
+        // The signal is opt-in noise-free: when every record converts (USD + EUR are both configured), the figures are
+        // complete and 'warning' is null — a non-null warning must mean something was genuinely left out.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "usd-1", "org-1", 100m, _feb2026, currency: "USD");
+        SeedOrder(ctx, "eur-1", "org-1", 100m, _feb2026, currency: "EUR");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}) { total { amount } count warning }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var ytd = Stats(json).GetProperty("ytd");
+        MoneyAmount(ytd, "total").Should().Be(225m); // 100 USD + 100 EUR * 1.25 (nothing excluded)
+        ytd.GetProperty("count").GetInt32().Should().Be(2);
+        ytd.GetProperty("warning").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task Statistics_AreCachedWithinTtl_RepeatQueryDoesNotReflectNewOrders()
     {
         using var ctx = SalesRepTestContext.Create();

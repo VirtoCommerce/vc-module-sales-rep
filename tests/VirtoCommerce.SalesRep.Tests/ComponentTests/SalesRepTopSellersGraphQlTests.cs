@@ -298,6 +298,34 @@ public class SalesRepTopSellersGraphQlTests
         json.Should().NotContain("cat-electronics").And.NotContain("cat-apparel");
     }
 
+    [Fact]
+    public async Task SalesRepTopSellers_UnconfiguredCurrency_SurfacesCurrencyOnlyWarning()
+    {
+        // #4, top-seller branch: revenue is folded per product from line-item snapshots, and those groups carry no
+        // record count (only an amount). A product sold in an unconfigured currency (GBP — harness knows USD + EUR)
+        // therefore yields a currency-only warning (no "N records"), and its Revenue is the partial converted amount.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-usd", "org-1", "prodUsd", quantity: 2, price: 10m, currency: "USD"); // revenue 20, convertible
+        SeedProductLine(ctx, "o-gbp", "org-1", "prodGbp", quantity: 5, price: 100m, currency: "GBP"); // unconfigured → excluded
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(currencyCode: \"USD\") { productId units revenue { amount } warning } }",
+            userId: rep.UserId));
+
+        var usd = items.Single(x => x.GetProperty("productId").GetString() == "prodUsd");
+        usd.GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(20m);
+        usd.GetProperty("warning").ValueKind.Should().Be(JsonValueKind.Null); // fully convertible → no warning
+
+        var gbp = items.Single(x => x.GetProperty("productId").GetString() == "prodGbp");
+        gbp.GetProperty("units").GetInt32().Should().Be(5);                 // units still counted from the snapshot
+        gbp.GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(0m); // GBP amount could not be converted
+        var warning = gbp.GetProperty("warning");
+        warning.ValueKind.Should().Be(JsonValueKind.String);
+        warning.GetString().Should().Contain("GBP");
+    }
+
     // ---- helpers ----
 
     private static JsonElement[] TopSellers(string json)
@@ -311,7 +339,8 @@ public class SalesRepTopSellersGraphQlTests
     private static void SeedProductLine(
         SalesRepTestContext ctx, string orderId, string org, string productId,
         int quantity, decimal price, DateTime? createdDate = null,
-        string categoryId = "cat-default", string createdByUserId = null, string imageUrl = null)
+        string categoryId = "cat-default", string createdByUserId = null, string imageUrl = null,
+        string currency = "USD")
     {
         var date = createdDate ?? _date;
 
@@ -325,7 +354,7 @@ public class SalesRepTopSellersGraphQlTests
             CustomerName = "Customer 1",
             StoreId = "B2B-store",
             Status = "New",
-            Currency = "USD",
+            Currency = currency,
             Total = price * quantity,
             IsPrototype = false,
             CreatedDate = date,
@@ -343,7 +372,7 @@ public class SalesRepTopSellersGraphQlTests
             ProductType = "Physical",
             Quantity = quantity,
             Price = price,
-            Currency = "USD",
+            Currency = currency,
             CreatedDate = date,
             ModifiedDate = date,
         });

@@ -174,6 +174,7 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         period.LastOrderDate = folded.LatestDate;
         period.FirstOrderDate = folded.EarliestDate;
         period.CurrencyCode = folded.CurrencyCode;
+        period.Warning = folded.Warning;
         return period;
     }
 

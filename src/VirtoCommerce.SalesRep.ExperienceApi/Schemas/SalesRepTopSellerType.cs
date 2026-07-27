@@ -23,5 +23,7 @@ public class SalesRepTopSellerType : ExtendableGraphType<SalesRepTopSeller>
         Field<NonNullGraphType<MoneyType>>("revenue")
             .Description("Total revenue — sum of quantity × unit price (amount, formatted amount and currency).")
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Revenue));
+
+        Field(x => x.Warning, nullable: true).Description("Non-null when Revenue is partial because some of this product's sales were in an unconfigured currency and could not be converted; describes what was excluded.");
     }
 }
