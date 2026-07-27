@@ -1,21 +1,25 @@
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
+using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
-using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepTopSellerFilterRulesQueryHandler : IQueryHandler<SalesRepTopSellerFilterRulesQuery, IList<SalesRepTopSellerFilterRule>>
+public class SalesRepTopSellerFilterRulesQueryHandler : SalesRepRulesQueryHandlerBase<SalesRepTopSellerFilterRulesQuery, SalesRepTopSellerFilterRule>
 {
     private readonly ISalesRepTopSellerFilterRuleResolver _filterRuleResolver;
 
-    public SalesRepTopSellerFilterRulesQueryHandler(ISalesRepTopSellerFilterRuleResolver filterRuleResolver)
+    public SalesRepTopSellerFilterRulesQueryHandler(
+        ISalesRepRoleResolver roleResolver,
+        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepTopSellerFilterRuleResolver filterRuleResolver)
+        : base(roleResolver, membershipSearchService)
     {
         _filterRuleResolver = filterRuleResolver;
     }
 
-    public virtual Task<IList<SalesRepTopSellerFilterRule>> Handle(SalesRepTopSellerFilterRulesQuery request, CancellationToken cancellationToken)
+    protected override Task<IList<SalesRepTopSellerFilterRule>> GetRulesAsync(SalesRepTopSellerFilterRulesQuery request)
         => _filterRuleResolver.GetRulesAsync(request.StoreId, request.CultureName);
 }

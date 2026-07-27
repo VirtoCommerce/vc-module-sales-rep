@@ -15,4 +15,6 @@ public class CustomerOrderStatisticsPeriod
     public DateTime? FirstOrderDate { get; set; }
 
     public string CurrencyCode { get; set; }
+
+    public string Warning { get; set; }
 }

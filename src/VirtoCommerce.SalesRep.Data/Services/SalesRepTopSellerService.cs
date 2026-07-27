@@ -72,6 +72,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
                 ImageUrl = g.Key.ImageUrl,
                 CategoryId = g.Key.CategoryId,
                 Units = g.Sum(x => x.Quantity),
+                LastOrderedDate = g.Max(x => x.CustomerOrder.CreatedDate),
             })
             .ToListAsync();
 
@@ -166,7 +167,15 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 
         var folded = StatisticsCurrencyConverter.Fold(byCurrency, currencyCode, currencies, _logger);
 
-        var sample = rows[0];
+        // Display fields are per-order line-item snapshots that can vary; pick the latest deterministically (ordinal
+        // tiebreak keeps it stable when order dates tie) rather than an arbitrary GroupBy row.
+        var sample = rows
+            .OrderByDescending(x => x.LastOrderedDate)
+            .ThenBy(x => x.Sku, StringComparer.Ordinal)
+            .ThenBy(x => x.Name, StringComparer.Ordinal)
+            .ThenBy(x => x.ImageUrl, StringComparer.Ordinal)
+            .ThenBy(x => x.CategoryId, StringComparer.Ordinal)
+            .First();
         var result = AbstractTypeFactory<SalesRepTopSeller>.TryCreateInstance();
         result.ProductId = productId;
         result.Units = rows.Sum(x => x.Units);
@@ -176,6 +185,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         result.Sku = sample.Sku;
         result.ImageUrl = sample.ImageUrl;
         result.CategoryId = sample.CategoryId;
+        result.Warning = folded.Warning;
         return result;
     }
 
@@ -189,5 +199,6 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         public string ImageUrl { get; set; }
         public string CategoryId { get; set; }
         public int Units { get; set; }
+        public DateTime LastOrderedDate { get; set; }
     }
 }

@@ -23,12 +23,23 @@ internal static class StatisticsCurrencyConverter
         DateTime? earliestDate = null;
         DateTime? latestDate = null;
 
+        var excludedCount = 0;
+        var excludedCurrencies = new List<string>();
+
         foreach (var group in byCurrency)
         {
             var sourceCurrency = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(group.Currency));
             if (sourceCurrency == null)
             {
                 logger.LogWarning("Skipping {Count} record(s) in unconfigured currency '{Currency}' while computing sales-rep statistics.", group.Count, group.Currency);
+
+                excludedCount += group.Count;
+                var label = string.IsNullOrEmpty(group.Currency) ? "unspecified" : group.Currency;
+                if (!excludedCurrencies.Contains(label, StringComparer.OrdinalIgnoreCase))
+                {
+                    excludedCurrencies.Add(label);
+                }
+
                 continue;
             }
 
@@ -44,7 +55,22 @@ internal static class StatisticsCurrencyConverter
             ? 0m
             : Math.Round(total / count, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
 
-        return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code);
+        return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code, BuildWarning(excludedCount, excludedCurrencies));
+    }
+
+    private static string BuildWarning(int excludedCount, List<string> excludedCurrencies)
+    {
+        if (excludedCurrencies.Count == 0)
+        {
+            return null;
+        }
+
+        var codes = string.Join(", ", excludedCurrencies);
+
+        // Order/cart folds carry real counts; the top-seller fold's groups are revenue-only (count 0), hence two forms.
+        return excludedCount > 0
+            ? $"Excluded {excludedCount} record(s) in unconfigured currencies ({codes}) from these figures."
+            : $"Excluded amounts in unconfigured currencies ({codes}) from these figures.";
     }
 
     private static DateTime? EarlierOf(DateTime? current, DateTime? candidate)

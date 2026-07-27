@@ -83,11 +83,11 @@ The customer organizations the current rep serves, each with the rep's most rece
       }
       # Inline per-row purchase columns — one aggregate query per distinct range for the whole page (no N+1).
       # Defaults to the store's currency (then the platform primary); pass currencyCode to override per column.
-      ytd: orderStatistics(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z") {
+      ytd: orderStatistics(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z") {
         total { amount formattedAmount }
         count
       }
-      lastYear: orderStatistics(from: "2025-01-01T00:00:00Z", to: "2026-01-01T00:00:00Z") {
+      lastYear: orderStatistics(from: "2025-01-01T00:00:00Z", to: "2025-12-31T23:59:59Z") {
         total { amount formattedAmount }
       }
       lastOrder {
@@ -150,7 +150,7 @@ The orders the rep created for their customers, paged, ordered by an optional **
     storeId: "B2B-store"
     filter: "New"
     sort: "recent"
-    period: { from: "2026-05-01T00:00:00Z", to: "2026-06-01T00:00:00Z" }
+    period: { from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z" }
     first: 20
   ) {
     totalCount
@@ -227,13 +227,13 @@ Every `sort` argument accepts an optional X-Order-style **direction suffix** —
 
 #### Order statistics
 
-Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filter` (see above). Both `period` bounds are **inclusive** and compared as UTC instants — the caller sends the time component (and any local→UTC conversion, exactly as the storefront's own orders date filter does); there is no server-side date truncation.
+Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filter` (see above). Both `period` bounds are **inclusive** and compared as UTC instants — the caller sends the time component (and any local→UTC conversion, exactly as the storefront's own orders date filter does); there is no server-side date truncation. Because both bounds are inclusive, the caller defines the exact window — windows may be disjoint, adjacent, or intentionally overlapping (e.g. a sub-period compared against the period that contains it). The examples use inclusive end-of-period bounds (`…T23:59:59Z`) so a `comparison`'s current/previous windows never share an endpoint.
 
 ```graphql
 {
   salesRepCustomerOrderStatistics(organizationId: "7b8c...", currencyCode: "USD", cultureName: "en-US") {
     currencyCode
-    ytd: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z") {
+    ytd: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z") {
       total { amount formattedAmount }
       count
       average { amount formattedAmount }
@@ -243,13 +243,13 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
       firstOrderDate
       lastOrderDate
     }
-    newOrders: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filter: "New") {
+    newOrders: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z", filter: "New") {
       total { amount }
       count
     }
     ytdVsLastYear: comparison(
-      current:  { from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z" }
-      previous: { from: "2025-01-01T00:00:00Z", to: "2026-01-01T00:00:00Z" }
+      current:  { from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z" }
+      previous: { from: "2025-01-01T00:00:00Z", to: "2025-12-31T23:59:59Z" }
     ) {
       totalChange { amount formattedAmount }
       totalChangePercent
@@ -269,7 +269,7 @@ The same shape for carts/projects (dashboard *Active Projects*). `filter` here i
 ```graphql
 {
   salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
-    activeCarts: period(from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z", filter: "active-carts") {
+    activeCarts: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z", filter: "active-carts") {
       count
       total { amount formattedAmount }
       lastCartDate
@@ -288,13 +288,13 @@ Customer counters for the dashboard *My Customers* card — how many customers t
 {
   salesRepCustomerCounts {
     assignedCustomers
-    thisMonth: period(from: "2026-05-01T00:00:00Z", to: "2026-06-01T00:00:00Z") {
+    thisMonth: period(from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z") {
       orderingCustomers
       newCustomers
     }
     monthOverMonth: comparison(
-      current:  { from: "2026-05-01T00:00:00Z", to: "2026-06-01T00:00:00Z" }
-      previous: { from: "2026-04-01T00:00:00Z", to: "2026-05-01T00:00:00Z" }
+      current:  { from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z" }
+      previous: { from: "2026-04-01T00:00:00Z", to: "2026-04-30T23:59:59Z" }
     ) {
       orderingCustomersChange
       orderingCustomersChangePercent
@@ -315,7 +315,7 @@ The rep's top-selling products (dashboard *Top Sellers*, and per-customer when a
   salesRepTopSellers(
     storeId: "B2B-store"
     sort: "by-units"
-    period: { from: "2026-01-01T00:00:00Z", to: "2027-01-01T00:00:00Z" }
+    period: { from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z" }
     take: 5
     cultureName: "en-US"
     # optional: organizationId (scope to one customer); filter: "<category id>" (restrict to a category subtree)

@@ -1,8 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.OrdersModule.Data.Model;
+using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
+using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
@@ -469,6 +474,61 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Statistics_UnconfiguredCurrency_SurfacesWarning_NamingCountAndCurrency()
+    {
+        // #4: records the fold cannot convert (GBP — the harness knows only USD + EUR) are excluded from the totals,
+        // so the figures are partial. The period must carry a non-null 'warning' naming how many records and which
+        // currency were left out, so the client can flag the number as incomplete instead of trusting an understated total.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "usd-1", "org-1", 100m, _feb2026, currency: "USD");
+        SeedOrder(ctx, "gbp-1", "org-1", 500m, _feb2026, currency: "GBP"); // unconfigured → excluded
+        SeedOrder(ctx, "gbp-2", "org-1", 700m, _apr2026, currency: "GBP"); // unconfigured → excluded
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}) { total { amount } count warning }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var ytd = Stats(json).GetProperty("ytd");
+        MoneyAmount(ytd, "total").Should().Be(100m); // only the USD order; the two GBP orders are excluded
+        ytd.GetProperty("count").GetInt32().Should().Be(1);
+
+        var warning = ytd.GetProperty("warning");
+        warning.ValueKind.Should().Be(JsonValueKind.String);
+        warning.GetString().Should().Contain("GBP").And.Contain("2"); // 2 GBP records excluded
+    }
+
+    [Fact]
+    public async Task Statistics_AllCurrenciesConfigured_WarningIsNull()
+    {
+        // The signal is opt-in noise-free: when every record converts (USD + EUR are both configured), the figures are
+        // complete and 'warning' is null — a non-null warning must mean something was genuinely left out.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "usd-1", "org-1", 100m, _feb2026, currency: "USD");
+        SeedOrder(ctx, "eur-1", "org-1", 100m, _feb2026, currency: "EUR");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}) { total { amount } count warning }
+              } }
+              """,
+            userId: rep.UserId);
+
+        var ytd = Stats(json).GetProperty("ytd");
+        MoneyAmount(ytd, "total").Should().Be(225m); // 100 USD + 100 EUR * 1.25 (nothing excluded)
+        ytd.GetProperty("count").GetInt32().Should().Be(2);
+        ytd.GetProperty("warning").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
     public async Task Statistics_AreCachedWithinTtl_RepeatQueryDoesNotReflectNewOrders()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -520,7 +580,69 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         bYtd.GetProperty("count").GetInt32().Should().Be(0);
     }
 
+    [Fact]
+    public async Task Statistics_SharedRangesAcrossPeriodAndComparison_AggregatedOncePerRange()
+    {
+        // No-N+1 property: the period DataLoader batches by (from, to, filter), so a range selected by both a 'period'
+        // field and a 'comparison' bucket is aggregated exactly once. Here ytd and lastYear each appear twice (once as
+        // a period, once inside the comparison) → 2 distinct ranges must trigger exactly 2 aggregations, not 4. A
+        // counting decorator over the real statistics service records every GetStatisticsAsync call to prove it.
+        var probe = new StatisticsCallProbe();
+        using var ctx = SalesRepTestContext.Create(services =>
+            services.AddTransient<ICustomerOrderStatisticsService>(sp =>
+                new CountingCustomerOrderStatisticsService(
+                    ActivatorUtilities.CreateInstance<CustomerOrderStatisticsService>(sp), probe)));
+
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "y1", "org-1", 100m, _feb2026);
+        SeedOrder(ctx, "p1", "org-1", 50m, _mar2025);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerOrderStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd:      period({{Ytd}}) { total { amount } }
+                lastYear: period({{LastYear}}) { total { amount } }
+                ytdVsLastYear: comparison(current: { {{Ytd}} }, previous: { {{LastYear}} }) { totalChange { amount } }
+              } }
+              """,
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // 4 references (2 periods + 2 comparison buckets), 2 distinct ranges → exactly 2 aggregations.
+        probe.Ranges.Should().HaveCount(2);
+        probe.Ranges.Should().OnlyHaveUniqueItems();
+    }
+
     // ---- helpers ----
+
+    /// <summary>Records every GetStatisticsAsync range so a test can assert the per-range batching (no N+1).</summary>
+    private sealed class StatisticsCallProbe
+    {
+        public List<(DateTime? From, DateTime? To)> Ranges { get; } = [];
+    }
+
+    /// <summary>Counting decorator over the real statistics service — forwards every call, recording the range.</summary>
+    private sealed class CountingCustomerOrderStatisticsService : ICustomerOrderStatisticsService
+    {
+        private readonly ICustomerOrderStatisticsService _inner;
+        private readonly StatisticsCallProbe _probe;
+
+        public CountingCustomerOrderStatisticsService(ICustomerOrderStatisticsService inner, StatisticsCallProbe probe)
+        {
+            _inner = inner;
+            _probe = probe;
+        }
+
+        public Task<CustomerOrderStatisticsPeriod> GetStatisticsAsync(CustomerOrderStatisticsCriteria criteria)
+        {
+            _probe.Ranges.Add((criteria.FromDate, criteria.ToDate));
+            return _inner.GetStatisticsAsync(criteria);
+        }
+
+        public Task<IDictionary<string, CustomerOrderStatisticsPeriod>> GetStatisticsByOrganizationAsync(CustomerOrderStatisticsCriteria criteria)
+            => _inner.GetStatisticsByOrganizationAsync(criteria);
+    }
 
     /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>
     private static JsonElement Stats(string json)

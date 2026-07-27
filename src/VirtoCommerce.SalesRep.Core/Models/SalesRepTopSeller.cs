@@ -19,4 +19,6 @@ public class SalesRepTopSeller
     public decimal Revenue { get; set; }
 
     public string CurrencyCode { get; set; }
+
+    public string Warning { get; set; }
 }

@@ -1,8 +1,11 @@
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.PushMessages.Core.Models;
 using VirtoCommerce.SalesRep.Core.Notifications;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
@@ -86,6 +89,33 @@ public class SalesRepCommunicationComponentTests
 
         // Same audience: both channels cover the same number of recipients (each seeded member has one email).
         Email(ctx).Scheduled.Should().HaveCount(pushMessage.MemberIds.Count);
+    }
+
+    [Fact]
+    public async Task SendCommunication_PrimaryContactResolver_DeliversOnlyToPrimaryContact()
+    {
+        // The recipient audience is a DI-selected strategy; the default (and all other tests here) is AllMembers.
+        // A project can register the PrimaryContactRecipientResolver instead — swap it in (plus its dependency) and
+        // assert the message reaches ONLY the organization's primary contact, not every member.
+        using var ctx = SalesRepTestContext.Create(services =>
+        {
+            services.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
+            services.AddTransient<ISalesRepRecipientResolver, PrimaryContactRecipientResolver>();
+        });
+        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "c1"); // c1 is the org's primary contact (its owner)
+        await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; c.FirstName = "Primary"; c.LastName = "Contact"; });
+        await ctx.SeedContactAsync("c2", c => { c.Organizations = ["org-1"]; c.Emails = ["c2@test.com"]; c.FirstName = "Other"; c.LastName = "Member"; });
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: true, email: true), userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":true");
+
+        // Only the primary contact is addressed on both channels — the other member (c2) is excluded, unlike AllMembers.
+        Push(ctx).Saved.Single().MemberIds.Should().Equal("c1");
+        Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).Should().Equal("c1@test.com");
     }
 
     [Fact]

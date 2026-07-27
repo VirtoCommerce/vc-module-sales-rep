@@ -13,4 +13,6 @@ public class CustomerCartStatisticsPeriod
     public DateTime? LastCartDate { get; set; }
 
     public string CurrencyCode { get; set; }
+
+    public string Warning { get; set; }
 }
