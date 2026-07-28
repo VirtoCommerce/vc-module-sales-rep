@@ -21,7 +21,9 @@
     <!-- Override EF Core's transitive SQLitePCLRaw 2.1.11 (SQLite < 3.50.2, CVE-2025-6965) with the patched 3.x
          native bundle. Test-only in-memory DB; not shipped. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
-    <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1039.6" />
+    <!-- TEMP local shim: raised from 3.1039.6 to match the local XCart source (Platform 3.1048). Revert with the
+         other TEMP shims once building against a published XCart alpha on the 3.1039 line. -->
+    <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Core" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Data" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />

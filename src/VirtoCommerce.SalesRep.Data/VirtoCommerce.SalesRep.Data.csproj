@@ -24,10 +24,15 @@
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
     <!-- XCart.Data (same scoped, deliberate .Data exception as Orders.Data/Cart.Data): SalesRepCartSharingService
          subclasses the XCart module's CartSharingService (which lives in .Data) to teach the sharing pipeline the
-         "Customer" scope (VCST-5332) without editing the XCart module. Version matches the module.manifest VirtoCommerce.XCart dependency. -->
-    <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1023.0" />
-    <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1039.6" />
-    <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1039.6" />
+         "Customer" scope (VCST-5332). VCST-5332/F1 adds the write-path guards ValidateSharingSettings +
+         AuthorizeSharingAsync to XCart, so we now build against local XCart source.
+         TEMP local shim: revert to <PackageReference Include="VirtoCommerce.XCart.Data" Version="<new XCart alpha>" />
+         once a new XCart alpha (with the guards) is published. -->
+    <ProjectReference Include="..\..\..\vc-module-x-cart\src\VirtoCommerce.XCart.Data\VirtoCommerce.XCart.Data.csproj" />
+    <!-- TEMP local shim: raised from 3.1039.6 to satisfy the local XCart source (Platform 3.1048). Revert to
+         3.1039.6 once building against a published XCart alpha on the 3.1039 line. -->
+    <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1048.0" />
+    <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1048.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
