@@ -9,8 +9,6 @@ using VirtoCommerce.Xapi.Core.BaseQueries;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-// Mirrors SalesRepQueryBuilder for mutations: centralizes the authentication gate so every Sales Rep command
-// builder just maps its request.
 public abstract class SalesRepCommandBuilder<TCommand, TResult, TCommandGraphType, TResultGraphType>
     : CommandBuilder<TCommand, TResult, TCommandGraphType, TResultGraphType>
     where TCommand : IRequest<TResult>
