@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
 
@@ -22,6 +23,8 @@ public class SalesRepOrder : Entity
 
     public int ItemsCount { get; set; }
 
+    public int ItemsQuantity { get; set; }
+
     public static SalesRepOrder FromOrder(CustomerOrder order)
     {
         var result = AbstractTypeFactory<SalesRepOrder>.TryCreateInstance();
@@ -40,5 +43,6 @@ public class SalesRepOrder : Entity
         Total = order.Total;
         Currency = order.Currency;
         ItemsCount = order.Items?.Count ?? 0;
+        ItemsQuantity = order.Items?.Sum(x => x.Quantity) ?? 0;
     }
 }

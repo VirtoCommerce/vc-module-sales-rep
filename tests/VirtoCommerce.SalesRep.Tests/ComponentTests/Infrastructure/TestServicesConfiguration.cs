@@ -230,10 +230,13 @@ internal static class TestServicesConfiguration
     }
 
     /// <summary>
-    /// In-memory <see cref="IStoreService"/> double: returns a <see cref="Store"/> whose
-    /// <c>Customer.ContactDefaultStatus</c> setting is whatever a test configured for that store id via
-    /// <see cref="ContactDefaultStatusByStore"/>. Only <c>GetAsync</c> (which backs the <c>GetNoCloneAsync</c>
-    /// extension the service calls) is meaningful; the remaining members are inert.
+    /// In-memory <see cref="IStoreService"/> double shared by two features: (1) <c>SalesRepService</c> reads a
+    /// store's <c>Customer.ContactDefaultStatus</c> setting to seed a rep's member status — present only when a
+    /// test configured it for that store id via <see cref="ContactDefaultStatusByStore"/>; and (2) the VCST-5309
+    /// statistics service reads the store's default currency — every store reports <c>EUR</c> (≠ the USD primary)
+    /// so tests can prove the resolver used the store default and not the primary fallback. Returns a store for any
+    /// id with a non-null (possibly empty) settings collection, mirroring the real service. Only <c>GetAsync</c>
+    /// (which backs the <c>GetNoCloneAsync</c> extension the services call) is meaningful; the rest are inert.
     /// </summary>
     internal sealed class TestStoreService : IStoreService
     {
@@ -247,13 +250,18 @@ internal static class TestServicesConfiguration
 
         public Task<IList<Store>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
         {
+            // Return a store for EVERY id (the VCST-5309 statistics tests need every store to report its default
+            // currency + test catalog), carrying both features' fields: EUR/Catalog (statistics) and Email/
+            // TrustedGroups (the email channel's sender + store-access check), plus ContactDefaultStatus when a test
+            // configured it.
             var stores = (ids ?? [])
-                .Where(id => ContactDefaultStatusByStore.ContainsKey(id) || EmailByStore.ContainsKey(id) || TrustedGroupsByStore.ContainsKey(id))
                 .Select(id =>
                 {
                     var store = new Store
                     {
                         Id = id,
+                        DefaultCurrency = "EUR",
+                        Catalog = SalesRepTestContext.TestCatalogId, // the catalog the Top Sellers category filter reads
                         Email = EmailByStore.GetValueOrDefault(id),
                         TrustedGroups = TrustedGroupsByStore.GetValueOrDefault(id) ?? [],
                         Settings = [],

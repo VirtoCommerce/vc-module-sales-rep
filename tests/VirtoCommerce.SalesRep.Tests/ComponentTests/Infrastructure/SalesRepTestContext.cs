@@ -12,6 +12,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.CartModule.Data.Repositories;
+using VirtoCommerce.CatalogModule.Data.Model;
+using VirtoCommerce.CatalogModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.CustomerModule.Data.Handlers;
@@ -19,6 +22,7 @@ using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Security;
@@ -43,33 +47,53 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 /// </summary>
 internal sealed class SalesRepTestContext : IDisposable
 {
+    /// <summary>Catalog id every harness store reports; the seeded Top Sellers categories live under it.</summary>
+    public const string TestCatalogId = "test-catalog";
+
     private readonly SqliteConnection _securityConnection;
     private readonly SqliteConnection _customerConnection;
     private readonly SqliteConnection _orderConnection;
+    private readonly SqliteConnection _cartConnection;
+    private readonly SqliteConnection _catalogConnection;
     private readonly ServiceProvider _provider;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
     private readonly DbContextOptions<CustomerDbContext> _customerOptions;
     private readonly DbContextOptions<OrderDbContext> _orderOptions;
+    private readonly DbContextOptions<CartDbContext> _cartOptions;
+    private readonly DbContextOptions<CatalogDbContext> _catalogOptions;
 
     private SalesRepTestContext(
         SqliteConnection securityConnection,
         SqliteConnection customerConnection,
         SqliteConnection orderConnection,
+        SqliteConnection cartConnection,
+        SqliteConnection catalogConnection,
         ServiceProvider provider,
         DbContextOptions<SecurityDbContext> securityOptions,
         DbContextOptions<CustomerDbContext> customerOptions,
-        DbContextOptions<OrderDbContext> orderOptions)
+        DbContextOptions<OrderDbContext> orderOptions,
+        DbContextOptions<CartDbContext> cartOptions,
+        DbContextOptions<CatalogDbContext> catalogOptions)
     {
         _securityConnection = securityConnection;
         _customerConnection = customerConnection;
         _orderConnection = orderConnection;
+        _cartConnection = cartConnection;
+        _catalogConnection = catalogConnection;
         _provider = provider;
         _securityOptions = securityOptions;
         _customerOptions = customerOptions;
         _orderOptions = orderOptions;
+        _cartOptions = cartOptions;
+        _catalogOptions = catalogOptions;
     }
 
-    public static SalesRepTestContext Create()
+    /// <param name="configureOverrides">
+    /// Optional last-wins registrations applied after the standard slices — a test uses it to shadow a default service
+    /// with a project-override double (e.g. <see cref="OrderFilterRuleOverride.WithCompositeInactiveStatus"/> to
+    /// exercise composite order-status resolution). Omit for the default (real-service) harness.
+    /// </param>
+    public static SalesRepTestContext Create(Action<IServiceCollection> configureOverrides = null)
     {
         // The platform resolves the current user id from these claim types; they are configured at platform
         // startup, so set them here for the GraphQL current-user resolution to work in tests.
@@ -78,19 +102,29 @@ internal sealed class SalesRepTestContext : IDisposable
         var securityConnection = SqliteTestDbContextFactory.CreateConnection();
         var customerConnection = SqliteTestDbContextFactory.CreateConnection();
         var orderConnection = SqliteTestDbContextFactory.CreateConnection();
+        var cartConnection = SqliteTestDbContextFactory.CreateConnection();
+        var catalogConnection = SqliteTestDbContextFactory.CreateConnection();
         var securityOptions = SqliteTestDbContextFactory.CreateOptions<SecurityDbContext>(
             securityConnection,
             builder => builder.ReplaceService<IModelCustomizer, LockoutEndSqliteModelCustomizer>());
         var customerOptions = SqliteTestDbContextFactory.CreateOptions<CustomerDbContext>(customerConnection);
         var orderOptions = SqliteTestDbContextFactory.CreateOptions<OrderDbContext>(orderConnection);
+        var cartOptions = SqliteTestDbContextFactory.CreateOptions<CartDbContext>(cartConnection);
+        var catalogOptions = SqliteTestDbContextFactory.CreateOptions<CatalogDbContext>(catalogConnection);
 
-        var provider = new ServiceCollection()
+        var services = new ServiceCollection()
             .AddSecuritySlice(securityOptions)
             .AddCustomerSlice(customerOptions)
             .AddSalesRepSlice()
             .AddOrderSlice(orderOptions)
-            .AddSalesRepGraphQl()
-            .BuildServiceProvider();
+            .AddCartSlice(cartOptions)
+            .AddCatalogSlice(catalogOptions)
+            .AddSalesRepGraphQl();
+
+        // Per-test last-wins overrides (e.g. a composite order-status resolver), applied after the defaults.
+        configureOverrides?.Invoke(services);
+
+        var provider = services.BuildServiceProvider();
 
         // Subscribe the customer delete-cascade handler to the in-process bus — mirrors the customer module's
         // appBuilder.RegisterEventHandler<UserChangedEvent, DeleteOrganizationMembershipUserChangedEventHandler>().
@@ -103,8 +137,8 @@ internal sealed class SalesRepTestContext : IDisposable
             .Register(KnownDocumentTypes.Member, provider.GetRequiredService<MemberSearchRequestBuilder>);
 
         return new SalesRepTestContext(
-            securityConnection, customerConnection, orderConnection,
-            provider, securityOptions, customerOptions, orderOptions);
+            securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
+            provider, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions);
     }
 
     /// <summary>The real REST controller resolved from DI (the REST tests' entry point).</summary>
@@ -251,6 +285,26 @@ internal sealed class SalesRepTestContext : IDisposable
     }
 
     /// <summary>
+    /// Backdate the rep's assignment date (the membership's creation date) for the given organization. The dashboard
+    /// "new customers" counter counts organizations first assigned within a window, so a test controls the assignment
+    /// date rather than relying on when <see cref="CreateRepAsync"/> happened to run. Uses a direct UPDATE so no audit
+    /// interceptor re-stamps the date.
+    /// </summary>
+    public async Task SetMembershipAssignmentDateAsync(string userId, string organizationId, DateTime assignedDate)
+    {
+        using var db = NewCustomerDbContext();
+        await db.Set<VirtoCommerce.CustomerModule.Data.Model.OrganizationMembershipEntity>()
+            .Where(x => x.UserId == userId && x.OrganizationId == organizationId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.CreatedDate, assignedDate));
+
+        // The membership read path is cached (populated at creation): the search caches id-lists and the CRUD service
+        // caches each hydrated model (with its creation date baked in). The raw UPDATE bypasses both, so expire both
+        // regions or the handler keeps reading the stale assignment date.
+        GenericSearchCachingRegion<OrganizationMembership>.ExpireRegion();
+        GenericCachingRegion<OrganizationMembership>.ExpireRegion();
+    }
+
+    /// <summary>
     /// Create a Sales Rep (a login account + a contact serving the given organizations) through the real
     /// <see cref="SalesRepController"/>, and return the created details.
     /// </summary>
@@ -383,6 +437,82 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <summary>Fresh DbContext on the order DB for seeding/assertions.</summary>
     public OrderDbContext NewOrderDbContext() => new(_orderOptions);
 
+    /// <summary>Fresh DbContext on the cart DB for seeding/assertions.</summary>
+    public CartDbContext NewCartDbContext() => new(_cartOptions);
+
+    /// <summary>Fresh DbContext on the catalog DB for seeding/assertions.</summary>
+    public CatalogDbContext NewCatalogDbContext() => new(_catalogOptions);
+
+    /// <summary>
+    /// Seed catalog categories (under <see cref="TestCatalogId"/>, which every harness store reports as its catalog)
+    /// so the real Top Sellers category filter has a tree to list top-level badges from and expand into a subtree.
+    /// Pass <c>parentId = null</c> for a top-level category; the catalog row is created on first call.
+    /// </summary>
+    public async Task SeedCategoriesAsync(params (string Id, string Name, string ParentId, bool IsActive)[] categories)
+    {
+        var seedDate = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        using var db = NewCatalogDbContext();
+
+        if (!await db.Set<CatalogEntity>().AnyAsync(x => x.Id == TestCatalogId))
+        {
+            db.Add(new CatalogEntity { Id = TestCatalogId, Name = "Test Catalog", DefaultLanguage = "en-US", CreatedDate = seedDate, ModifiedDate = seedDate });
+        }
+
+        foreach (var category in categories)
+        {
+            db.Add(new CategoryEntity
+            {
+                Id = category.Id,
+                Name = category.Name,
+                Code = category.Id,
+                CatalogId = TestCatalogId,
+                ParentCategoryId = category.ParentId,
+                IsActive = category.IsActive,
+                CreatedDate = seedDate,
+                ModifiedDate = seedDate,
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Seed catalog products (<see cref="ItemEntity"/>) under <see cref="TestCatalogId"/>, each in a category, so the
+    /// Top Sellers category filter (option (a): category → product ids via the catalog index, stood in for by the
+    /// harness's repo-backed <c>IProductIndexedSearchService</c>) can resolve which sold products fall in a category
+    /// subtree. Call <see cref="SeedCategoriesAsync"/> first — the products' categories (and the catalog row) must
+    /// already exist.
+    /// </summary>
+    public async Task SeedProductsAsync(params (string Id, string CategoryId)[] products)
+    {
+        var seedDate = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        using var db = NewCatalogDbContext();
+
+        if (!await db.Set<CatalogEntity>().AnyAsync(x => x.Id == TestCatalogId))
+        {
+            db.Add(new CatalogEntity { Id = TestCatalogId, Name = "Test Catalog", DefaultLanguage = "en-US", CreatedDate = seedDate, ModifiedDate = seedDate });
+        }
+
+        foreach (var product in products)
+        {
+            db.Add(new ItemEntity
+            {
+                Id = product.Id,
+                Name = product.Id,
+                Code = product.Id,
+                CatalogId = TestCatalogId,
+                CategoryId = product.CategoryId,
+                IsActive = true,
+                CreatedDate = seedDate,
+                ModifiedDate = seedDate,
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
     /// <summary>Unwraps the value from a controller action result (actions return <c>Ok(value)</c>).</summary>
     public static T Unwrap<T>(ActionResult<T> result)
     {
@@ -395,5 +525,7 @@ internal sealed class SalesRepTestContext : IDisposable
         _securityConnection.Dispose();
         _customerConnection.Dispose();
         _orderConnection.Dispose();
+        _cartConnection.Dispose();
+        _catalogConnection.Dispose();
     }
 }

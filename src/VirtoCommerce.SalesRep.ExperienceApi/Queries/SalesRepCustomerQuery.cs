@@ -19,12 +19,12 @@ public class SalesRepCustomerQuery : Query<SalesRepCustomerDetails>, IHasInclude
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        yield return Argument<NonNullGraphType<StringGraphType>>("organizationId", "Organization (customer) id.");
+        yield return Argument<NonNullGraphType<StringGraphType>>(nameof(OrganizationId), "Organization (customer) id.");
     }
 
     public override void Map(IResolveFieldContext context)
     {
-        OrganizationId = context.GetArgument<string>("organizationId");
+        OrganizationId = context.GetArgument<string>(nameof(OrganizationId));
         UserId = context.GetCurrentUserId();
 
         IncludeFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];

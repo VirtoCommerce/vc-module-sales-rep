@@ -10,7 +10,9 @@ using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -31,6 +33,14 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
+        serviceCollection.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
+
+        serviceCollection.AddTransient<ICustomerCartStatisticsService, CustomerCartStatisticsService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
+
+        serviceCollection.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
+
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
@@ -44,7 +54,9 @@ public class Module : IModule, IHasConfiguration
 
         var settingsRegistrar = serviceProvider.GetRequiredService<ISettingsRegistrar>();
         settingsRegistrar.RegisterSettings(ModuleConstants.Settings.AllSettings, ModuleInfo.Id);
-        settingsRegistrar.RegisterSettingsForType(ModuleConstants.Settings.AllSettings, "Store");
+        // "Store" is nameof(StoreModule's Store entity), inlined as a literal to avoid a StoreModule dependency just
+        // for the type name. Only the public General settings are per-store; the cache TTLs stay module-global.
+        settingsRegistrar.RegisterSettingsForType(ModuleConstants.Settings.General.AllGeneralSettings, "Store");
 
         var permissionsRegistrar = serviceProvider.GetRequiredService<IPermissionsRegistrar>();
         permissionsRegistrar.RegisterPermissions(ModuleInfo.Id, "Sales Rep", ModuleConstants.Security.Permissions.AllPermissions);
@@ -55,6 +67,9 @@ public class Module : IModule, IHasConfiguration
 
         appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
 
+        // Seed the default "Sales Representative" role once (create-if-none). No distributed lock is needed:
+        // PostInitialize runs inside the platform's startup critical section (ExecuteSynchronized(nameof(Startup))),
+        // which already serializes it across instances, so the "two instances both create one" race can't occur.
         using var scope = serviceProvider.CreateScope();
         var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
 #pragma warning disable S4462 // one-shot startup seeding in a sync PostInitialize — the platform's standard pattern

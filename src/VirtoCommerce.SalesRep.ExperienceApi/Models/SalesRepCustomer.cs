@@ -11,16 +11,23 @@ public class SalesRepCustomer
 
     public string OrganizationName { get; set; }
 
+    public string AccountId { get; set; }
+
+    public string AccountType { get; set; }
+
     public string IconUrl { get; set; }
 
     public CoreAddress Address { get; set; }
 
     public string StoreId { get; set; }
 
-    public static SalesRepCustomer FromOrganization(Member organization, string storeId)
+    public string CurrencyCode { get; set; }
+
+    public static SalesRepCustomer FromOrganization(Member organization, string storeId, string currencyCode = null)
     {
         var result = AbstractTypeFactory<SalesRepCustomer>.TryCreateInstance();
         result.MapFrom(organization, storeId);
+        result.CurrencyCode = currencyCode;
         return result;
     }
 
@@ -28,6 +35,8 @@ public class SalesRepCustomer
     {
         OrganizationId = organization.Id;
         OrganizationName = organization.Name;
+        AccountId = organization.OuterId;
+        AccountType = (organization as Organization)?.BusinessCategory;
         IconUrl = organization.IconUrl;
         Address = organization.GetDefaultAddress();
         StoreId = storeId;

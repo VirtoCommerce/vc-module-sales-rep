@@ -58,4 +58,22 @@ public abstract class SalesRepQueryHandlerBase
             .Distinct()
             .ToList();
     }
+
+    protected async Task<IList<string>> GetVisibleOrganizationIdsAsync(string userId, string organizationId)
+    {
+        if (!string.IsNullOrEmpty(organizationId))
+        {
+            var memberships = await GetGrantingMembershipsAsync([userId], [organizationId]);
+            return memberships.Count > 0 ? [organizationId] : [];
+        }
+
+        return await GetServedOrganizationIdsAsync(userId);
+    }
+
+    protected async Task<IList<OrganizationMembership>> GetVisibleGrantingMembershipsAsync(string userId, string organizationId)
+    {
+        return string.IsNullOrEmpty(organizationId)
+            ? await GetGrantingMembershipsAsync(userIds: [userId])
+            : await GetGrantingMembershipsAsync([userId], [organizationId]);
+    }
 }

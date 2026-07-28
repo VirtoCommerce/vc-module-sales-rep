@@ -1,6 +1,6 @@
 # Virto Commerce Sales Rep Module
 
-The Sales Rep module turns selected users into sales representatives who serve a defined set of customer organizations. It provides a back-office application for administrators to create, assign and manage reps, and a storefront GraphQL (X-API) surface that lets a B2B storefront show the reps supporting an organization, the customers a rep serves and their orders.
+The Sales Rep module turns selected users into sales representatives who serve a defined set of customer organizations. It provides a back-office application for administrators to create, assign and manage reps, and a storefront GraphQL (X-API) surface that lets a B2B storefront show the reps supporting an organization, the customers a rep serves, their orders, and dashboard statistics (order purchases, carts/projects and customer counters).
 
 <!-- TODO: add a hero screenshot of the Sales Reps app once available, e.g.
 <img width="1902" alt="Sales Reps admin app" src="https://github.com/user-attachments/assets/..." /> -->
@@ -15,6 +15,12 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Let reps see the customers they serve, each with the rep's latest order for that customer
 * Show a customer information card — organization, primary contact and account type
 * List and filter the orders a rep created for their customers
+* Show dashboard **statistics** for a rep — order purchases, average order value and order counts, with period-over-period comparison, converted to one currency
+* Add cart/project statistics (e.g. *active projects*) and *my-customers* counters (customers who ordered in a period, new customers)
+* Show inline per-customer purchase figures on the customers list (YTD / prior-year totals, order counts, first/last order) via a batched per-row statistics field — no N+1
+* Filter the orders/customers lists and every statistics block by a single, optional, server-defined **filter rule** (aggregated order statuses / cart kinds / customer segments), and order the lists by a server-defined **sort rule** (orders: *recent* / *total*; customers: *my last orders* / *ytd purchases* / *name*; top sellers: *by units* / *by revenue*) — one rule name per axis, with an optional X-Order-style `:asc`/`:desc` suffix to reverse a rule where that's meaningful; both filter and sort are overridable per project
+* Rank a rep's **top-selling products** (dashboard + per-customer) by units or revenue over a period, optionally within a product category
+* Scope the orders list to an optional created-date **period**
 * Send a push notification and/or email to the members of a customer organization
 * Toggle the storefront Sales Rep UI per store
 
@@ -55,15 +61,18 @@ The sales reps supporting the caller's organization:
 
 ---
 
-The customer organizations the current rep serves, each with the rep's most recent order for that customer:
+The customer organizations the current rep serves, each with the rep's most recent order for that customer and inline purchase figures. Supports keyword search and paging, an optional **sort rule** (`sort` — a `salesRepCustomerSortRules` name, optionally with a `:asc`/`:desc` direction suffix; default *my last orders*), and an optional **filter rule** (`filter` — a `salesRepCustomerFilterRules` segment; default *All* = every served customer). Request one or more aliased `orderStatistics(from, to)` blocks per row for the YTD / prior-year purchase columns:
 
 ```graphql
 {
-  salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "name:asc") {
+  # Append `:asc`/`:desc` to the sort rule to flip its natural direction (e.g. "name:desc"); omit the suffix for the rule's default.
+  salesRepCustomers(storeId: "B2B-store", cultureName: "en-US", first: 20, sort: "my-last-orders") {
     totalCount
     items {
       organizationId
       organizationName
+      accountId       # external/display account id (Member.OuterId); null when unset
+      accountType     # business category, e.g. "Garden Center"
       iconUrl
       address {
         line1
@@ -71,6 +80,15 @@ The customer organizations the current rep serves, each with the rep's most rece
         regionName
         postalCode
         countryCode
+      }
+      # Inline per-row purchase columns — one aggregate query per distinct range for the whole page (no N+1).
+      # Defaults to the store's currency (then the platform primary); pass currencyCode to override per column.
+      ytd: orderStatistics(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z") {
+        total { amount formattedAmount }
+        count
+      }
+      lastYear: orderStatistics(from: "2025-01-01T00:00:00Z", to: "2025-12-31T23:59:59Z") {
+        total { amount formattedAmount }
       }
       lastOrder {
         number
@@ -84,7 +102,8 @@ The customer organizations the current rep serves, each with the rep's most rece
             code
           }
         }
-        itemsCount
+        itemsCount      # number of distinct line items
+        itemsQuantity   # total units (sum of line-item quantities)
       }
     }
   }
@@ -123,17 +142,25 @@ A single customer information card:
 
 ---
 
-The orders the rep created for their customers, filterable and paged (add `organizationId` to scope to one customer):
+The orders the rep created for their customers, paged, ordered by an optional **sort rule** (`sort` — a `salesRepOrderSortRules` name; default *recent*, or *total* by order value — biggest first, or `total:asc` for smallest) and filtered by an optional **filter rule** (`filter` — a `salesRepOrderFilterRules` status). Add `organizationId` to scope to one customer, and an optional `period` to scope by created date:
 
 ```graphql
 {
-  salesRepOrders(storeId: "B2B-store", first: 20, sort: "createdDate:desc") {
+  salesRepOrders(
+    storeId: "B2B-store"
+    filter: "New"
+    sort: "recent"
+    period: { from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z" }
+    first: 20
+  ) {
     totalCount
     items {
       id
       number
+      organizationName
       createdDate
       status
+      statusDisplayValue
       total {
         amount
         formattedAmount
@@ -141,8 +168,165 @@ The orders the rep created for their customers, filterable and paged (add `organ
           code
         }
       }
-      itemsCount
+      itemsCount      # number of distinct line items
+      itemsQuantity   # total units (sum of line-item quantities)
     }
+  }
+}
+```
+
+---
+
+#### Filter rules
+
+Lists and statistics blocks are filtered by a single, optional **named filter rule**, not by raw statuses/types. The storefront reads the selectable rules from a discovery query and sends back one rule `name` in the unified `filter` argument; the server resolves it to the underlying filter — order statuses, a cart type/status set, a customer segment, or a product category — and a rule can be a composite (e.g. a business `"inactive"` → `Cancelled` + `Failed`). Omit `filter` for the baseline set (everything the rep may see, minus soft-deleted/prototype); an unrecognized name fails **closed** (no data), never "return everything". Rule sets are overridable per project.
+
+Four rule domains, each with its own discovery query:
+
+```graphql
+{
+  # orders list + order statistics
+  salesRepOrderFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # cart / project statistics
+  salesRepCartFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # customers list + "my customers" counts (customer segments; a single "All" baseline by default)
+  salesRepCustomerFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # top sellers list (category badges; the store catalog's top-level non-hidden categories)
+  salesRepTopSellerFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+}
+```
+
+---
+
+#### Sort rules
+
+The orders, customers and top-sellers lists are ordered by a single, optional **named sort rule** — a *separate axis* from the filter rules above (a filter chooses *which* records, a sort chooses their *order*), so the two are never crossed into one combinatorial list. The storefront reads the selectable orderings from a discovery query and sends back one rule `name` in the built-in `sort` argument (optionally with a `:asc`/`:desc` direction suffix — see below); the server maps it to the actual ordering. Omit `sort` (or send an unknown name) and the domain's **default** ordering applies — a sort only reorders, so unlike a filter it never fails closed. `customerSalesReps` is exempt (a plain list). Rule sets are overridable per project.
+
+```graphql
+{
+  # orders list — default "recent" (newest first, one-way); also "total" (biggest first, "total:asc" for smallest)
+  salesRepOrderSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # customers list — default "my-last-orders"; also "ytd-purchases" and "name"
+  salesRepCustomerSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # top sellers list — default "by-units"; also "by-revenue"
+  salesRepTopSellerSortRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+}
+```
+
+The customers list's `my-last-orders` and `ytd-purchases` orderings are **order-derived** — they can't be expressed as a member column, so the server ranks the served organizations by the rep's own per-organization order aggregate (creator-scoped, the same data-isolation rule) and pages the result; `name` is a plain member-column sort.
+
+Every `sort` argument accepts an optional X-Order-style **direction suffix** — `"<ruleName>:asc"` or `"<ruleName>:desc"`. Omit it for the rule's *natural* direction; add it to reverse a rule **where reversing is meaningful**. On the customers list all three rules are reversible (`name:desc` for Z→A, `ytd-purchases:asc` for smallest-first); on the orders list `total` is reversible (`total:asc` = smallest first) while `recent` is one-way; the top-seller rules are one-way. A direction a rule does **not** support (e.g. `recent:asc`, `by-units:asc`) is **rejected with an error** rather than silently ignored — whereas an unknown *rule name* still falls back to the default ordering (a sort never fails closed on the name, only on an unsupported direction). The customers-list direction applies uniformly to the member-column sort and the order-derived rankings:
+
+```graphql
+{
+  salesRepCustomers(sort: "name:desc") { items { organizationName } }   # names Z→A
+}
+```
+
+---
+
+#### Order statistics
+
+Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filter` (see above). Both `period` bounds are **inclusive** and compared as UTC instants — the caller sends the time component (and any local→UTC conversion, exactly as the storefront's own orders date filter does); there is no server-side date truncation. Because both bounds are inclusive, the caller defines the exact window — windows may be disjoint, adjacent, or intentionally overlapping (e.g. a sub-period compared against the period that contains it). The examples use inclusive end-of-period bounds (`…T23:59:59Z`) so a `comparison`'s current/previous windows never share an endpoint.
+
+```graphql
+{
+  salesRepCustomerOrderStatistics(organizationId: "7b8c...", currencyCode: "USD", cultureName: "en-US") {
+    currencyCode
+    ytd: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z") {
+      total { amount formattedAmount }
+      count
+      average { amount formattedAmount }
+      lastOrderDate
+    }
+    sinceDate: period {   # omit both bounds → all-time; firstOrderDate is the "customer since" date
+      firstOrderDate
+      lastOrderDate
+    }
+    newOrders: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z", filter: "New") {
+      total { amount }
+      count
+    }
+    ytdVsLastYear: comparison(
+      current:  { from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z" }
+      previous: { from: "2025-01-01T00:00:00Z", to: "2025-12-31T23:59:59Z" }
+    ) {
+      totalChange { amount formattedAmount }
+      totalChangePercent
+      countChange
+      countChangePercent
+    }
+  }
+}
+```
+
+---
+
+#### Cart / project statistics
+
+The same shape for carts/projects (dashboard *Active Projects*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` (non-empty carts that are **not** wishlists) — and `count` is the primary metric:
+
+```graphql
+{
+  salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
+    activeCarts: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z", filter: "active-carts") {
+      count
+      total { amount formattedAmount }
+      lastCartDate
+    }
+  }
+}
+```
+
+---
+
+#### My customers
+
+Customer counters for the dashboard *My Customers* card — how many customers the rep serves, how many ordered in a period, and how many are new in it (with optional period-over-period comparison). Each `period`/`comparison` also takes an optional `filter` — a customer segment from `salesRepCustomerFilterRules` (a single *All* baseline by default):
+
+```graphql
+{
+  salesRepCustomerCounts {
+    assignedCustomers
+    thisMonth: period(from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z") {
+      orderingCustomers
+      newCustomers
+    }
+    monthOverMonth: comparison(
+      current:  { from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z" }
+      previous: { from: "2026-04-01T00:00:00Z", to: "2026-04-30T23:59:59Z" }
+    ) {
+      orderingCustomersChange
+      orderingCustomersChangePercent
+      newCustomersChange
+    }
+  }
+}
+```
+
+---
+
+#### Top sellers
+
+The rep's top-selling products (dashboard *Top Sellers*, and per-customer when an `organizationId` is passed). Ranked over an optional `period` by a **sort rule** (`salesRepTopSellerSortRules`; default `by-units`, or `by-revenue`), returning the top `take` (default 5, max 10). An optional category `filter` (a `salesRepTopSellerFilterRules` name — a top-level category) restricts the ranking to that category's subtree. Each row's name/sku/image/category come straight from the order line-item snapshot (no catalog read); `revenue` is Money.
+
+```graphql
+{
+  salesRepTopSellers(
+    storeId: "B2B-store"
+    sort: "by-units"
+    period: { from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z" }
+    take: 5
+    cultureName: "en-US"
+    # optional: organizationId (scope to one customer); filter: "<category id>" (restrict to a category subtree)
+  ) {
+    rank
+    productId
+    name
+    sku
+    imageUrl
+    units
+    revenue { amount formattedAmount currency { code } }
   }
 }
 ```
@@ -193,6 +377,8 @@ Codes are plain strings (see `ModuleConstants.Communication.Warnings`) — not a
 
 Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
 
+All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
+
 ## How it works
 
 A sales rep is not a new entity — the module composes three pieces of existing platform data, so it owns **no database tables** and adds **no EF migrations**:
@@ -218,6 +404,19 @@ graph LR
     O1 -. per-org role .-> R
     O2 -. per-org role .-> R
 ```
+
+### Statistics, filter rules and sort rules
+
+The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. The requested currency is resolved once per query by a shared policy (`ISalesRepCurrencyResolver`, used by every money-bearing query): an explicit `currencyCode` argument if given, else the store's default currency, else the platform primary. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
+
+**Filter rules** are the single, server-owned vocabulary for "which records count". A rule has a stable `name` and resolves to the underlying filter — order statuses, a cart type/status set, or a customer segment — as an overridable mapping (`IFilterRuleResolver`), applied as one optional `filter` argument (omit → the baseline set; unknown name → fail closed). Within a domain the **same resolver drives every reader** — the orders list and the order statistics; the customers list and the "my customers" counts — so a filtered list and its matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
+
+* **Add/recompose rules** — register a replacement resolver (`ISalesRepOrderFilterRuleResolver` / `ISalesRepCartFilterRuleResolver` / `ISalesRepCustomerFilterRuleResolver` / `ISalesRepTopSellerFilterRuleResolver`); the last registration wins. Customer segments ship with a single **All** baseline (passthrough); the seam is there for projects to add real segments.
+* **A rule the standard criteria can't express** (e.g. *"stale, or item-less"* orders, or an *"active"* customer segment) — the resolver applies onto the reader's criteria, and each reader exposes a seam to add the predicate: a `BuildQuery` override on the statistics/counts services, or narrowing the members search (`ObjectIds`) for the customers list. Wire it for every reader in the domain so they stay consistent.
+
+**Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression, e.g. *recent* / *total*; `ISalesRepCustomerSortRuleResolver` maps it to a spec; `ISalesRepTopSellerSortRuleResolver` maps it to the Top Sellers ranking metric). The rule `name` carries an optional X-Order-style `:asc`/`:desc` **direction suffix**, parsed once in `SortRuleResolverBase`: each rule declares its `DefaultDirection` and whether it `SupportsDirection`, so the base applies the default when no (or a garbage) suffix is given, applies a supported suffix, and **throws** on a valid-but-unsupported direction on a recognized rule (e.g. `recent:asc`) — while an unknown *rule name* still falls back to the default. Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed on the name. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
+
+**Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its only catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): it lists the store catalog's top-level non-hidden categories (`ICategorySearchService`), and a selected badge is resolved — through the catalog index (`IProductIndexedSearchService`, the same path the storefront's category pages use, so it works for a virtual store catalog too) — to the rep's own sold products that fall in that category's subtree, which the ranking is then restricted to (bounded by the rep's sold products, so it never enumerates a whole category and the data-isolation rule holds).
 
 ## Administration
 
@@ -260,10 +459,12 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | Module | Why |
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
+| `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics and Top Sellers. |
+| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics. |
 | `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
-| `VirtoCommerce.Orders` | Customer orders (order search + hydration via the Orders module). |
 | `VirtoCommerce.PushMessages` | Storefront push notifications for customer communications. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
+| `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and resolves a selected badge to the rep's sold products in its subtree via the catalog index (`IProductIndexedSearchService`). |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
 ## Documentation
@@ -272,9 +473,10 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 * Pull requests:
   * [#1 — VCST-5293: Sales rep VC-Shell administration UI](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/1)
   * [#2 — VCST-4907 / VCST-5304 / VCST-5308: X-API endpoints for customers and sales reps](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/2)
+  * [VCST-5309: Sales rep dashboard statistics, sort rules & Top Sellers](https://virtocommerce.atlassian.net/browse/VCST-5309)
   * [VCST-5310 / VCST-5331: Push & email messaging to customer members](https://virtocommerce.atlassian.net/browse/VCST-5310)
 
-> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface. The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
+> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 
 ## References
 

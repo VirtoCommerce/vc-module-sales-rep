@@ -1,0 +1,25 @@
+using System.Threading.Tasks;
+using GraphQL;
+using Microsoft.AspNetCore.Authorization;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
+using VirtoCommerce.Xapi.Core.Extensions;
+
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries.Statistics;
+
+public class SalesRepCustomerOrderStatisticsQueryBuilder : SalesRepQueryBuilder<SalesRepCustomerOrderStatisticsQuery, CustomerOrderStatisticsContext, CustomerOrderStatisticsType>
+{
+    protected override string Name => "salesRepCustomerOrderStatistics";
+
+    public SalesRepCustomerOrderStatisticsQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
+    {
+    }
+
+    protected override async Task BeforeMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerOrderStatisticsQuery request)
+    {
+        await base.BeforeMediatorSend(context, request);
+
+        context.CopyArgumentsToUserContext();
+    }
+}

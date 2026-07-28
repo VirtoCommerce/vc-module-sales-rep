@@ -7,6 +7,17 @@ using GraphQL.Introspection;
 using GraphQL.MicrosoftDI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
+using VirtoCommerce.CartModule.Data.Model;
+using VirtoCommerce.CartModule.Data.Repositories;
+using VirtoCommerce.CatalogModule.Core.Model;
+using VirtoCommerce.CatalogModule.Core.Model.Search;
+using VirtoCommerce.CatalogModule.Core.Search;
+using VirtoCommerce.CatalogModule.Core.Services;
+using VirtoCommerce.CatalogModule.Data.Model;
+using VirtoCommerce.CatalogModule.Data.Repositories;
+using VirtoCommerce.CatalogModule.Data.Search;
 using VirtoCommerce.CoreModule.Core.Common;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.NotificationsModule.Core.Model;
@@ -21,7 +32,9 @@ using VirtoCommerce.PushMessages.Core.Models;
 using VirtoCommerce.PushMessages.Core.Services;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -56,6 +69,75 @@ internal static class TestGraphQlConfiguration
         services.AddTransient<ICustomerOrderService, RepositoryBackedCustomerOrderService>();
         services.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
+        // Sales statistics service under test (VCST-5309): the REAL CustomerOrderStatisticsService aggregating
+        // over the same order repository. Its currency data source is a fixed double (USD primary; EUR at 1.25);
+        // the store lookup is the shared TestServicesConfiguration.TestStoreService (every store's default = EUR),
+        // so the conversion/fold math is deterministic and asserted directly.
+        services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
+        services.AddSingleton<ICurrencyService, TestCurrencyService>();
+        services.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
+
+        // "My customers" counts service (VCST dashboard): also aggregates over the same order repository.
+        services.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
+
+        // "Top Sellers" ranking service (VCST-5309): the REAL service aggregating the rep's order line items over
+        // the same order repository (units/revenue per product), so ranking/sort/period/category run end to end.
+        services.AddSingleton<ILogger<SalesRepTopSellerService>>(NullLogger<SalesRepTopSellerService>.Instance);
+        services.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the cart data slice (real CartDbContext/repository on SQLite) and the cart/project statistics stack, so
+    /// component tests can execute the real <c>salesRepCustomerCartStatistics</c> query through the real schema and
+    /// the real <see cref="CustomerCartStatisticsService"/>. The raw-database command (bulk soft-delete / wishlist
+    /// lookup) is stubbed — the statistics path only reads the <c>ShoppingCarts</c> IQueryable.
+    /// </summary>
+    public static IServiceCollection AddCartSlice(this IServiceCollection services, DbContextOptions<CartDbContext> cartDbOptions)
+    {
+        services.AddSingleton(cartDbOptions);
+        services.AddScoped<CartDbContext>();
+        services.AddSingleton<ICartRawDatabaseCommand, StubCartRawDatabaseCommand>();
+        services.AddTransient<ICartRepository, CartRepository>();
+        services.AddSingleton<Func<ICartRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ICartRepository>());
+
+        // The real cart statistics service under test; currency source is the shared TestCurrencyService (USD+EUR).
+        services.AddSingleton<ILogger<CustomerCartStatisticsService>>(NullLogger<CustomerCartStatisticsService>.Instance);
+        services.AddTransient<ICustomerCartStatisticsService, CustomerCartStatisticsService>();
+
+        // The real default cart-kind service (single built-in "active-carts" kind → non-empty, non-Wishlist carts).
+        services.AddTransient<ISalesRepCartFilterRuleResolver, SalesRepCartFilterRuleResolver>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Adds the catalog data slice (real CatalogDbContext/repository on SQLite) and the REAL
+    /// <see cref="CategorySearchService"/>, so the Top Sellers category filter (top-level category badges + category
+    /// resolution) runs through real code. Category hydration goes through a thin repo-backed
+    /// <see cref="ICategoryService"/> double — the real CategoryService needs ~10 cross-module deps and is not the
+    /// code under test, the same justified stand-in as the order-service double. The raw-database command is stubbed
+    /// (the category search only reads the <c>Categories</c> IQueryable and hydrates by id). The catalog indexing
+    /// pipeline can't be stood up here, so <see cref="IProductIndexedSearchService"/> is a repo-backed double that
+    /// resolves "products in the selected category subtree" from the seeded categories + products (see
+    /// <see cref="RepositoryBackedProductIndexedSearchService"/>).
+    /// </summary>
+    public static IServiceCollection AddCatalogSlice(this IServiceCollection services, DbContextOptions<CatalogDbContext> catalogDbOptions)
+    {
+        services.AddSingleton(catalogDbOptions);
+        services.AddScoped<CatalogDbContext>();
+        services.AddSingleton<ICatalogRawDatabaseCommand, StubCatalogRawDatabaseCommand>();
+        services.AddTransient<ICatalogRepository, CatalogRepositoryImpl>();
+        services.AddSingleton<Func<ICatalogRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ICatalogRepository>());
+
+        services.AddTransient<ICategoryService, RepositoryBackedCategoryService>();
+        services.AddTransient<ICategorySearchService, CategorySearchService>();
+
+        // Stand-in for the catalog index (option (a)): resolves a category to the queried product ids that fall in
+        // its subtree, from the seeded catalog categories + products — the answer the real product index gives.
+        services.AddTransient<IProductIndexedSearchService, RepositoryBackedProductIndexedSearchService>();
+
         return services;
     }
 
@@ -74,18 +156,42 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
         services.AddSingleton<ISalesRepCommunicationResponseGroupParser, SalesRepCommunicationResponseGroupParser>();
 
-        // Order statuses. A stub (not the real settings-backed default) stands in as a "project override" so the
-        // tests exercise a composite status ("Inactive" → Cancelled + Failed) — proving the 1:many filter resolution
-        // end to end. The real default SalesRepOrderStatusService is unit-tested separately.
-        services.AddSingleton<ISalesRepOrderStatusService, StubOrderStatusService>();
+        // Shared currency defaulting (requested → store default → platform primary) for the statistics, customers and
+        // top-sellers handlers. Real service — resolves IStoreService (TestServicesConfiguration; every store's
+        // default = EUR) + ICurrencyService (AddOrderSlice; USD primary + EUR).
+        services.AddSingleton<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
+
+        // Order statuses: the REAL default resolver. It reads the store's configured Order.Status dictionary from
+        // ILocalizableSettingService (the StubLocalizableSettingService below supplies a fixed status set) and maps
+        // each configured status to a 1:1 rule. Composite (1:many) grouping is a documented project-override
+        // capability, exercised end to end by the tests that build the harness with a CompositeOrderFilterRuleResolver
+        // override (SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus)).
+        services.AddSingleton<ISalesRepOrderFilterRuleResolver, SalesRepOrderFilterRuleResolver>();
+
+        // Customer segments: the real default resolver (single "All" baseline segment) — proves the shared seam's
+        // passthrough (no filter / "All" → baseline) and fail-closed (any other segment name → no data) behavior on
+        // the customers list + counts.
+        services.AddSingleton<ISalesRepCustomerFilterRuleResolver, SalesRepCustomerFilterRuleResolver>();
+
+        // Orderings (sort options): the real defaults (orders: "recent"; customers: my-last-orders / ytd / name),
+        // so the discovery queries and the order-derived customer sort run end to end through real code.
+        services.AddSingleton<ISalesRepOrderSortRuleResolver, SalesRepOrderSortRuleResolver>();
+        services.AddSingleton<ISalesRepCustomerSortRuleResolver, SalesRepCustomerSortRuleResolver>();
+
+        // Top Sellers: the real sort resolver (by-units/by-revenue) and the REAL category-badge resolver — top-level
+        // categories from the (real) catalog slice; on selection it resolves the rep's sold products in the category
+        // subtree via IProductIndexedSearchService (the repo-backed double from AddCatalogSlice), exercising the
+        // product-restriction + fail-closed paths. Requires AddCatalogSlice.
+        services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
+        services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
         services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
 
-        // MoneyType (SalesRepOrder.total) resolves the order's currency code to a Currency via ICurrencyService;
-        // the seeded orders use USD. GetCurrencyForLanguage throws for an unregistered code, so this must be present.
-        services.AddSingleton<ICurrencyService, StubCurrencyService>();
+        // ICurrencyService (for MoneyType and the statistics conversion) is registered once in AddOrderSlice
+        // (TestCurrencyService: USD primary + EUR, with a rounding policy). No second registration here — a second
+        // AddSingleton would win by last-registration and shadow it, which previously broke the statistics tests.
 
         // Customer-communication mutation (VCST-5310): the REAL default recipient resolver (over the real member
         // search) plus capturing doubles for the two external delivery services (PushMessages / Notifications are
@@ -147,32 +253,39 @@ internal static class TestGraphQlConfiguration
     }
 
     /// <summary>
-    /// Stand-in status service acting as a "project override": a 1:1 status ("New") plus a composite ("Inactive" →
-    /// Cancelled + Failed) so tests can prove the status list and the 1:many filter resolution (incl. multi-select
-    /// union).
+    /// The single fixed currency source for the whole harness: USD primary (rate 1) and EUR at 1.25 — i.e.
+    /// 1 EUR = 1.25 USD, using the same "rate relative to primary" convention as the real Currency table. Serves
+    /// both the statistics conversion/fold and the MoneyType resolvers (<c>SalesRepOrder.total</c> and the
+    /// statistics money fields), so <c>RoundingPolicy</c> is set — <c>Money.Amount</c> calls it and would otherwise
+    /// throw a NullReferenceException.
     /// </summary>
-    private sealed class StubOrderStatusService : ISalesRepOrderStatusService
+    private sealed class TestCurrencyService : ICurrencyService
     {
-        private static readonly IList<SalesRepOrderStatus> _statuses =
-        [
-            SalesRepOrderStatus.Create("New", "New", "New"),
-            SalesRepOrderStatus.Create("Inactive", "Not active", "Cancelled", "Failed"),
-        ];
-
-        public Task<IList<SalesRepOrderStatus>> GetStatusesAsync(string storeId, string cultureName)
-            => Task.FromResult(_statuses);
-
-        public Task<IList<string>> ResolveOrderStatusesAsync(string storeId, IList<string> selectedStatusNames)
+        public Task<IEnumerable<Currency>> GetAllCurrenciesAsync()
         {
-            var selected = new HashSet<string>(selectedStatusNames ?? [], StringComparer.OrdinalIgnoreCase);
-            var result = _statuses
-                .Where(x => selected.Contains(x.Name))
-                .SelectMany(x => x.OrderStatuses)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-
-            return Task.FromResult<IList<string>>(result);
+            IEnumerable<Currency> currencies =
+            [
+                new Currency(Language.InvariantLanguage, "USD", "US Dollar", "$", 1m) { IsPrimary = true, RoundingPolicy = new DefaultMoneyRoundingPolicy() },
+                new Currency(Language.InvariantLanguage, "EUR", "Euro", "€", 1.25m) { RoundingPolicy = new DefaultMoneyRoundingPolicy() },
+            ];
+            return Task.FromResult(currencies);
         }
+
+        public Task SaveChangesAsync(Currency[] currencies) => throw new NotSupportedException();
+
+        public Task DeleteCurrenciesAsync(string[] codes) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Stub cart raw-database command: the statistics path never touches it (it only reads the ShoppingCarts
+    /// IQueryable), so the bulk soft-delete / wishlist-lookup methods throw if ever called.
+    /// </summary>
+    private sealed class StubCartRawDatabaseCommand : ICartRawDatabaseCommand
+    {
+        public Task SoftRemove(CartDbContext dbContext, IList<string> ids) => throw new NotSupportedException();
+
+        public Task<IList<ProductWishlistEntity>> FindWishlistsByProductsAsync(CartDbContext dbContext, string customerId, string organizationId, string storeId, IList<string> productIds)
+            => throw new NotSupportedException();
     }
 
     /// <summary>
@@ -182,11 +295,17 @@ internal static class TestGraphQlConfiguration
     /// </summary>
     private sealed class StubLocalizableSettingService : ILocalizableSettingService
     {
+        /// <summary>The configured Order.Status dictionary the real <see cref="SalesRepOrderFilterRuleResolver"/> reads
+        /// to build its 1:1 status rules — a fixed, representative set covering every status the component tests seed.</summary>
+        private static readonly string[] _orderStatuses = ["New", "Processing", "Completed", "Cancelled", "Failed"];
+
         public Task<string> TranslateAsync(string key, string settingName, string languageCode)
             => Task.FromResult(string.IsNullOrEmpty(key) || string.IsNullOrEmpty(languageCode) ? key : $"{key} ({languageCode})");
 
+        // KeyValue.Key = raw status, Value = localized label. The stub keeps them equal (the label matches the raw
+        // status) — enough for the resolver to expose one rule per configured status.
         public Task<IList<KeyValue>> GetValuesAsync(string settingName, string languageCode)
-            => Task.FromResult<IList<KeyValue>>([]);
+            => Task.FromResult<IList<KeyValue>>(_orderStatuses.Select(s => new KeyValue { Key = s, Value = s }).ToList());
 
         public Task<LocalizableSettingsAndLanguages> GetSettingsAndLanguagesAsync() => throw new NotSupportedException();
         public Task SaveAsync(string settingName, IList<DictionaryItem> items) => throw new NotSupportedException();
@@ -275,23 +394,145 @@ internal static class TestGraphQlConfiguration
     }
 
     /// <summary>
-    /// Stand-in currency service for the schema's MoneyType resolver (<c>SalesRepOrder.total</c>): it resolves the
-    /// order's currency code to a <see cref="Currency"/> via <c>GetAllCurrenciesAsync</c>. The seeded orders use USD,
-    /// so one USD currency is enough — <c>GetCurrencyForLanguage</c> throws for a code it can't find.
+    /// Thin repo-backed <see cref="ICategoryService"/> for the harness: hydrates categories straight from the
+    /// catalog repository (the real <c>CategoryService</c> needs ~10 cross-module deps and is not the code under
+    /// test). Only the read path is exercised — by the real <see cref="CategorySearchService"/> under test; the
+    /// write / code / outer-id methods are not used.
     /// </summary>
-    private sealed class StubCurrencyService : ICurrencyService
+    private sealed class RepositoryBackedCategoryService : ICategoryService
     {
-        // RoundingPolicy is what the real CurrencyService assigns to every currency it returns; Money.Amount calls it,
-        // so it must be set or resolving total.amount throws a NullReferenceException.
-        private static readonly Currency _usd = new(Language.InvariantLanguage, "USD", "US Dollar", "$", 1m)
+        private readonly Func<ICatalogRepository> _repositoryFactory;
+
+        public RepositoryBackedCategoryService(Func<ICatalogRepository> repositoryFactory)
         {
-            RoundingPolicy = new DefaultMoneyRoundingPolicy(),
-        };
+            _repositoryFactory = repositoryFactory;
+        }
 
-        public Task<IEnumerable<Currency>> GetAllCurrenciesAsync() => Task.FromResult<IEnumerable<Currency>>([_usd]);
+        public async Task<IList<Category>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            if (ids == null || ids.Count == 0)
+            {
+                return [];
+            }
 
-        public Task SaveChangesAsync(Currency[] currencies) => throw new NotSupportedException();
+            using var repository = _repositoryFactory();
+            var entities = await repository.GetCategoriesByIdsAsync(ids.ToArray(), responseGroup);
+            return entities.Select(x => x.ToModel(AbstractTypeFactory<Category>.TryCreateInstance())).ToList();
+        }
 
-        public Task DeleteCurrenciesAsync(string[] codes) => throw new NotSupportedException();
+        public Task<IList<Category>> GetByIdsAsync(IList<string> ids, string responseGroup, string catalogId)
+            => GetAsync(ids, responseGroup);
+
+        public Task<IDictionary<string, string>> GetIdsByCodes(string catalogId, IList<string> codes) => throw new NotSupportedException();
+        public Task<IList<Category>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => throw new NotSupportedException();
+        public Task SaveChangesAsync(IList<Category> models) => throw new NotSupportedException();
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
     }
+
+    /// <summary>
+    /// Repo-backed <see cref="IProductIndexedSearchService"/> for the harness — the catalog indexing pipeline can't
+    /// be stood up here, so this reproduces the one answer the Top Sellers category filter needs from the real index:
+    /// "which of these products (<c>ObjectIds</c>) are in the selected category's subtree". It BFS-walks the seeded
+    /// <c>CatalogDbContext</c> categories over <c>ParentCategoryId</c> to build the subtree (root + descendants), then
+    /// keeps the queried products whose seeded catalog-product <c>CategoryId</c> is in it. The category id is the leaf
+    /// segment of the criteria's <c>Outline</c> (the same leaf convention x-catalog uses), so it is agnostic to
+    /// whether the outline is a bare id or catalog-prefixed. Only the read path exercised by the filter is real.
+    /// </summary>
+    private sealed class RepositoryBackedProductIndexedSearchService : IProductIndexedSearchService
+    {
+        private readonly Func<ICatalogRepository> _repositoryFactory;
+
+        public RepositoryBackedProductIndexedSearchService(Func<ICatalogRepository> repositoryFactory)
+        {
+            _repositoryFactory = repositoryFactory;
+        }
+
+        public async Task<ProductIndexedSearchResult> SearchAsync(ProductIndexedSearchCriteria criteria)
+        {
+            var result = AbstractTypeFactory<ProductIndexedSearchResult>.TryCreateInstance();
+            result.Items = [];
+
+            var categoryId = GetLeafCategoryId(criteria.Outline);
+            if (string.IsNullOrEmpty(categoryId) || criteria.ObjectIds.IsNullOrEmpty())
+            {
+                return result;
+            }
+
+            using var repository = _repositoryFactory();
+
+            var categories = await repository.Categories
+                .Where(x => x.CatalogId == criteria.CatalogId)
+                .Select(x => new { x.Id, x.ParentCategoryId })
+                .ToListAsync();
+
+            var childrenByParent = categories
+                .Where(x => !string.IsNullOrEmpty(x.ParentCategoryId))
+                .GroupBy(x => x.ParentCategoryId)
+                .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList(), StringComparer.OrdinalIgnoreCase);
+
+            var subtree = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var queue = new Queue<string>();
+            queue.Enqueue(categoryId);
+            while (queue.Count > 0)
+            {
+                var id = queue.Dequeue();
+                if (!subtree.Add(id))
+                {
+                    continue;
+                }
+
+                if (childrenByParent.TryGetValue(id, out var children))
+                {
+                    foreach (var child in children)
+                    {
+                        queue.Enqueue(child);
+                    }
+                }
+            }
+
+            var objectIds = criteria.ObjectIds.ToArray();
+            var products = await repository.Items
+                .Where(x => objectIds.Contains(x.Id))
+                .Select(x => new { x.Id, x.CategoryId })
+                .ToListAsync();
+
+            var matched = products
+                .Where(x => !string.IsNullOrEmpty(x.CategoryId) && subtree.Contains(x.CategoryId))
+                .Select(x =>
+                {
+                    var product = AbstractTypeFactory<CatalogProduct>.TryCreateInstance();
+                    product.Id = x.Id;
+                    return product;
+                })
+                .ToArray();
+
+            result.Items = matched;
+            result.TotalCount = matched.Length;
+            return result;
+        }
+
+        // outline = bare "categoryId" (this module) or "catalogId/.../categoryId"; the browsed category is the leaf.
+        private static string GetLeafCategoryId(string outline)
+        {
+            var segments = outline?.Split('/', StringSplitOptions.RemoveEmptyEntries);
+            return segments is { Length: > 0 } ? segments[^1] : null;
+        }
+    }
+
+    /// <summary>
+    /// Stub catalog raw-database command: the category search path never touches it (it only reads the Categories
+    /// IQueryable and hydrates by id), so every method throws if ever called.
+    /// </summary>
+    private sealed class StubCatalogRawDatabaseCommand : ICatalogRawDatabaseCommand
+    {
+        public Task<IList<string>> GetAllSeoDuplicatesIdsAsync(CatalogDbContext dbContext) => throw new NotSupportedException();
+        public Task<IList<CategoryHierarchyItem>> GetChildCategoriesAsync(CatalogDbContext dbContext, IList<string> categoryIds) => throw new NotSupportedException();
+        public Task<GenericSearchResult<AssociationEntity>> SearchAssociations(CatalogDbContext dbContext, ProductAssociationSearchCriteria criteria) => throw new NotSupportedException();
+        public Task<IList<CategoryEntity>> SearchCategoriesHierarchyAsync(CatalogDbContext dbContext, string categoryId) => throw new NotSupportedException();
+        public Task RemoveItemsAsync(CatalogDbContext dbContext, IList<string> itemIds) => throw new NotSupportedException();
+        public Task RemoveCategoriesAsync(CatalogDbContext dbContext, IList<string> ids) => throw new NotSupportedException();
+        public Task RemoveCatalogsAsync(CatalogDbContext dbContext, IList<string> ids) => throw new NotSupportedException();
+        public Task RemoveAllPropertyValuesAsync(CatalogDbContext dbContext, PropertyEntity catalogProperty, PropertyEntity categoryProperty, PropertyEntity itemProperty) => throw new NotSupportedException();
+    }
+
 }

@@ -16,7 +16,8 @@ public class SalesRepOrderResponseGroupParser : ISalesRepOrderResponseGroupParse
             result |= CustomerOrderResponseGroup.WithPrices;
         }
 
-        if (includeFields.IncludesField(nameof(SalesRepOrder.ItemsCount)))
+        if (includeFields.IncludesField(nameof(SalesRepOrder.ItemsCount)) ||
+            includeFields.IncludesField(nameof(SalesRepOrder.ItemsQuantity)))
         {
             result |= CustomerOrderResponseGroup.WithItems;
         }

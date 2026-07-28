@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using GraphQL;
 using GraphQL.Types;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -15,6 +16,8 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>,
 
     public string StoreId { get; set; }
 
+    public string Filter { get; set; }
+
     public string CultureName { get; set; }
 
     public IList<string> IncludeFields { get; set; } = [];
@@ -27,6 +30,7 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>,
         }
 
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope each customer's last order to (defaults to all stores).");
+        yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Selected customer-segment name (a salesRepCustomerFilterRules 'name'); narrows to that segment. Omit for all served customers.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for each customer's lastOrder localized fields (statusDisplayValue, total.formattedAmount), e.g. \"en-US\".");
     }
 
@@ -35,6 +39,7 @@ public class SalesRepCustomersQuery : SearchQuery<SalesRepCustomerSearchResult>,
         base.Map(context);
         UserId = context.GetCurrentUserId();
         StoreId = context.GetArgument<string>(nameof(StoreId));
+        Filter = context.GetArgument<string>(SalesRepFilters.ArgumentName);
         CultureName = context.GetArgument<string>(nameof(CultureName));
 
         IncludeFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];

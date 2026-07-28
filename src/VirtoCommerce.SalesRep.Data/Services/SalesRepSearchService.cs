@@ -97,11 +97,15 @@ public class SalesRepSearchService : ISalesRepSearchService
         return BuildRows(criteria, candidateUserIds, usersById, totalCounts, globalRoleUserIds);
     }
 
+    private const string EmailSortColumn = "email";
+    private const string OrganizationsCountSortColumn = "organizationscount";
+    private const string IsLockedSortColumn = "islocked";
+
     private static readonly HashSet<string> _rowBackedSortColumns = new(StringComparer.OrdinalIgnoreCase)
     {
-        "email",
-        "organizationscount",
-        "islocked",
+        EmailSortColumn,
+        OrganizationsCountSortColumn,
+        IsLockedSortColumn,
     };
 
     protected static bool IsMemberBackedSort(IList<SortInfo> sortInfos)
@@ -171,8 +175,8 @@ public class SalesRepSearchService : ISalesRepSearchService
 
         Func<CandidateRow, object> selector = sort?.SortColumn?.ToLowerInvariant() switch
         {
-            "organizationscount" => r => r.OrganizationsCount,
-            "islocked" => r => r.IsLocked,
+            OrganizationsCountSortColumn => r => r.OrganizationsCount,
+            IsLockedSortColumn => r => r.IsLocked,
             _ => r => r.Email,
         };
 

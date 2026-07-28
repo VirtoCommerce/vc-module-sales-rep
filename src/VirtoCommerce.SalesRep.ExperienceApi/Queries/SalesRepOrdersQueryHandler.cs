@@ -16,19 +16,22 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
 {
     private readonly ISalesRepCustomerOrderSearchService _customerOrderSearchService;
     private readonly ISalesRepOrderResponseGroupParser _responseGroupParser;
-    private readonly ISalesRepOrderStatusService _statusService;
+    private readonly ISalesRepOrderFilterRuleResolver _filterRuleResolver;
+    private readonly ISalesRepOrderSortRuleResolver _sortRuleResolver;
 
     public SalesRepOrdersQueryHandler(
         ISalesRepRoleResolver roleResolver,
         IOrganizationMembershipSearchService membershipSearchService,
         ISalesRepCustomerOrderSearchService customerOrderSearchService,
         ISalesRepOrderResponseGroupParser responseGroupParser,
-        ISalesRepOrderStatusService statusService)
+        ISalesRepOrderFilterRuleResolver filterRuleResolver,
+        ISalesRepOrderSortRuleResolver sortRuleResolver)
         : base(roleResolver, membershipSearchService)
     {
         _customerOrderSearchService = customerOrderSearchService;
         _responseGroupParser = responseGroupParser;
-        _statusService = statusService;
+        _filterRuleResolver = filterRuleResolver;
+        _sortRuleResolver = sortRuleResolver;
     }
 
     public virtual async Task<SalesRepOrderSearchResult> Handle(SalesRepOrdersQuery request, CancellationToken cancellationToken)
@@ -40,25 +43,23 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
             return result;
         }
 
-        var organizationIds = await GetVisibleOrganizationIdsAsync(request);
+        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
         if (organizationIds.Count == 0)
         {
             return result;
         }
 
-        IList<string> statuses = null;
-        if (request.Statuses?.Count > 0)
+        var criteria = BuildSearchCriteria(request, organizationIds);
+
+        criteria = await _sortRuleResolver.ApplySortAsync(request.StoreId, request.Sort, criteria);
+
+        var filteredCriteria = await _filterRuleResolver.ApplyListFilterAsync(request.StoreId, request.Filter, criteria);
+        if (filteredCriteria == null)
         {
-            statuses = await _statusService.ResolveOrderStatusesAsync(request.StoreId, request.Statuses);
-            if (statuses.Count == 0)
-            {
-                return result;
-            }
+            return result;
         }
 
-        var criteria = BuildSearchCriteria(request, organizationIds, statuses);
-
-        var searchResult = await _customerOrderSearchService.SearchAsync(criteria);
+        var searchResult = await _customerOrderSearchService.SearchAsync(filteredCriteria);
 
         result.TotalCount = searchResult.TotalCount;
         result.Results = searchResult.Results
@@ -68,7 +69,7 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         return result;
     }
 
-    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, IList<string> organizationIds, IList<string> statuses)
+    protected virtual CustomerOrderSearchCriteria BuildSearchCriteria(SalesRepOrdersQuery request, IList<string> organizationIds)
     {
         var criteria = request.GetSearchCriteria<CustomerOrderSearchCriteria>();
         criteria.OrganizationIds = organizationIds.ToArray();
@@ -76,26 +77,9 @@ public class SalesRepOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandle
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
 
-        if (statuses?.Count > 0)
-        {
-            criteria.Statuses = statuses.ToArray();
-        }
-
-        if (string.IsNullOrEmpty(criteria.Sort))
-        {
-            criteria.Sort = "createdDate:desc";
-        }
+        criteria.StartDate = request.Period?.From;
+        criteria.EndDate = request.Period?.To;
 
         return criteria;
-    }
-
-    protected virtual async Task<IList<string>> GetVisibleOrganizationIdsAsync(SalesRepOrdersQuery request)
-    {
-        if (!string.IsNullOrEmpty(request.OrganizationId))
-        {
-            return await ServesOrganizationAsync(request.UserId, request.OrganizationId) ? [request.OrganizationId] : [];
-        }
-
-        return await GetServedOrganizationIdsAsync(request.UserId);
     }
 }

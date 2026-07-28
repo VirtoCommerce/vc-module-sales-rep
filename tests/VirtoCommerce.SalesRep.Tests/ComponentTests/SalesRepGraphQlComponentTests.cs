@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Data.Model;
@@ -83,6 +84,40 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepCustomers_WithUnrecognizedFilter_ReturnsEmpty()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        // The default customer-segment resolver defines no segments, so any segment name is unrecognized → fail-closed
+        // (no customers), never "all served customers".
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(filter:\"vip\") { totalCount items { organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":0");
+        json.Should().NotContain("org-1").And.NotContain("org-2");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomerFilterRules_DefaultIsAll()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // Default customer segments: a single "All" baseline segment; a project registers its own resolver to add more.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerFilterRules(storeId:\"B2B-store\") { name localizedName } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepCustomerFilterRules\":[{\"name\":\"All\",\"localizedName\":\"All\"}]");
+    }
+
+    [Fact]
     public async Task SalesRepCustomers_WithLastOrder_ReturnsMostRecentOrderPerOrganization()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -134,9 +169,9 @@ public class SalesRepGraphQlComponentTests
         await ctx.SeedOrganizationsAsync("Acme", "Globex", "Initech", "Umbrella");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "Acme", "Globex", "Initech", "Umbrella");
 
-        // Page 1 (name asc): Acme, Globex
+        // Page 1 (the "name" sort rule is ascending): Acme, Globex
         var page1 = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage endCursor } items{ organizationName } } }",
+            "query { salesRepCustomers(first:2, after:\"0\", sort:\"name\") { totalCount pageInfo{ hasNextPage endCursor } items{ organizationName } } }",
             userId: rep.UserId);
         page1.Should().Contain("\"totalCount\":4").And.Contain("\"hasNextPage\":true");
         page1.Should().Contain("Acme").And.Contain("Globex");
@@ -144,7 +179,7 @@ public class SalesRepGraphQlComponentTests
 
         // Page 2 (after:2): Initech, Umbrella — no overlap with page 1
         var page2 = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers(first:2, after:\"2\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ organizationName } } }",
+            "query { salesRepCustomers(first:2, after:\"2\", sort:\"name\") { totalCount pageInfo{ hasNextPage } items{ organizationName } } }",
             userId: rep.UserId);
         page2.Should().Contain("Initech").And.Contain("Umbrella");
         page2.Should().NotContain("Acme").And.NotContain("Globex");
@@ -158,11 +193,11 @@ public class SalesRepGraphQlComponentTests
         keyword.Should().Contain("\"totalCount\":1").And.Contain("Globex");
         keyword.Should().NotContain("Acme");
 
-        // Sort desc: first item must be Umbrella (last alphabetically)
-        var desc = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers(first:1, sort:\"name:desc\") { items{ organizationName } } }",
+        // The "name" sort rule is ascending: with first:1 the top row is Acme (first alphabetically), not Umbrella.
+        var asc = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(first:1, sort:\"name\") { items{ organizationName } } }",
             userId: rep.UserId);
-        desc.Should().Contain("Umbrella").And.NotContain("Acme");
+        asc.Should().Contain("Acme").And.NotContain("Umbrella");
     }
 
     [Fact]
@@ -352,12 +387,15 @@ public class SalesRepGraphQlComponentTests
         // The rep also becomes a contact member of org-1, but the explicit owner must win over the fallback.
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
+        // The customer-detail card selects both fullName and name; the mapping populates name from the contact's
+        // full name (they resolve to the same display value).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName phones } phone } }",
+            "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName name phones } phone } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("owner-1").And.Contain("Olivia Owner");
+        json.Should().Contain("owner-1").And.Contain("\"fullName\":\"Olivia Owner\"");
+        json.Should().Contain("\"name\":\"Olivia Owner\""); // name field resolves (mirrors fullName)
         json.Should().Contain("999-0000");       // phone taken from the primary contact (the "+" is JSON-escaped)
         json.Should().NotContain("Jane Rep");    // the rep is a member but not the primary contact
     }
@@ -441,14 +479,16 @@ public class SalesRepGraphQlComponentTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         // Selecting `address` on the list must hydrate the org's Addresses (field-driven WithAddresses response
-        // group), while iconUrl is a scalar that loads with Default.
+        // group), while iconUrl is a scalar that loads with Default. postalCode + zip are both selected by the My
+        // Customers list; the storefront shows postalCode (zip is a legacy field that resolves but stays null here).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers { items { organizationId iconUrl address { city regionName } } } }",
+            "query { salesRepCustomers { items { organizationId iconUrl address { postalCode zip city regionName } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"iconUrl\":\"https://cdn.test/org-1.png\"");
         json.Should().Contain("\"city\":\"Seattle\"").And.Contain("\"regionName\":\"WA\"");
+        json.Should().Contain("\"postalCode\":\"98101\"").And.Contain("\"zip\":"); // both fields resolve (zip selectable)
     }
 
     [Fact]
@@ -558,6 +598,51 @@ public class SalesRepGraphQlComponentTests
         json.Should().Contain("\"code\":\"USD\"");  // total.currency resolved from the order's currency code
         // Default sort is createdDate:desc — the newest order must appear before the older one.
         json.IndexOf("ORD-NEW", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("ORD-OLD", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_SortByTotal_OrdersByTotalInBothDirections()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Distinct totals; created dates deliberately NOT in total order, so a total sort can't be faked by date.
+        SeedOrder(ctx, id: "small", org: "org-1", number: "ORD-SMALL", createdDate: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc), total: 50m);
+        SeedOrder(ctx, id: "big", org: "org-1", number: "ORD-BIG", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), total: 5000m);
+        SeedOrder(ctx, id: "mid", org: "org-1", number: "ORD-MID", createdDate: new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc), total: 500m);
+
+        // Bare "total" → the rule's natural direction (biggest first).
+        var largest = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"total\") { items { number } } }",
+            userId: rep.UserId);
+        largest.Should().NotContain("\"errors\"");
+        // Largest total first: BIG (5000) → MID (500) → SMALL (50), regardless of created date.
+        largest.IndexOf("ORD-BIG", StringComparison.Ordinal).Should().BeLessThan(largest.IndexOf("ORD-MID", StringComparison.Ordinal));
+        largest.IndexOf("ORD-MID", StringComparison.Ordinal).Should().BeLessThan(largest.IndexOf("ORD-SMALL", StringComparison.Ordinal));
+
+        // "total:asc" reverses the reversible "total" rule to smallest first.
+        var smallest = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"total:asc\") { items { number } } }",
+            userId: rep.UserId);
+        smallest.Should().NotContain("\"errors\"");
+        // Smallest total first: SMALL (50) → MID (500) → BIG (5000).
+        smallest.IndexOf("ORD-SMALL", StringComparison.Ordinal).Should().BeLessThan(smallest.IndexOf("ORD-MID", StringComparison.Ordinal));
+        smallest.IndexOf("ORD-MID", StringComparison.Ordinal).Should().BeLessThan(smallest.IndexOf("ORD-BIG", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_SortByRecentAscending_ReturnsError()
+    {
+        // "recent" is one-way (newest first only): an explicit opposite direction is rejected, not silently ignored.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(organizationId:\"org-1\", sort:\"recent:asc\") { items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().Contain("\"errors\"");
     }
 
     [Fact]
@@ -701,27 +786,50 @@ public class SalesRepGraphQlComponentTests
     // ---- order statuses + status filter (VCST-5308) ----
 
     [Fact]
-    public async Task SalesRepOrderStatuses_ReturnsStatuses()
+    public async Task SalesRepOrderFilterRulees_ReturnsStatuses()
     {
         using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
-        // Caller-agnostic (statuses are store config), but the scoped schema requires authentication.
+        // Rule discovery is sales-rep-only: the caller must hold a granting membership (see the authorization gate).
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { name localizedName } }",
-            userId: "any-authenticated-user");
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name localizedName } }",
+            userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"name\":\"New\"");
+        // The real default resolver maps each configured Order.Status to a 1:1 rule (name == raw status).
+        json.Should().Contain("\"name\":\"New\"")
+            .And.Contain("\"name\":\"Processing\"")
+            .And.Contain("\"name\":\"Cancelled\"")
+            .And.Contain("\"name\":\"Failed\"");
+    }
+
+    [Fact]
+    public async Task SalesRepOrderFilterRules_CompositeOverride_ExposesGroupedStatus()
+    {
+        // A project override (CompositeOrderFilterRuleResolver) adds a composite "Inactive" → { Cancelled, Failed }
+        // rule on top of the real 1:1 statuses; the discovery query must surface it with its localized label.
+        using var ctx = SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name localizedName } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"name\":\"New\"");                                // base 1:1 statuses still present
         json.Should().Contain("\"name\":\"Inactive\"").And.Contain("Not active"); // composite status, localized label
     }
 
     [Fact]
-    public async Task SalesRepOrderStatuses_Anonymous_ReturnsAuthorizationError()
+    public async Task SalesRepOrderFilterRulees_Anonymous_ReturnsAuthorizationError()
     {
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { salesRepOrderStatuses(storeId:\"B2B-store\") { name } }");
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
@@ -730,16 +838,17 @@ public class SalesRepGraphQlComponentTests
     [Fact]
     public async Task SalesRepOrders_FiltersBySelectedStatus_ResolvesComposite()
     {
-        using var ctx = SalesRepTestContext.Create();
+        // A composite "Inactive" → { Cancelled, Failed } rule is a project-override capability of the real resolver.
+        using var ctx = SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
         SeedOrder(ctx, id: "o-failed", org: "org-1", number: "ORD-FAILED", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Failed");
 
-        // "Inactive" is a composite status -> [Cancelled, Failed] (StubOrderStatusService); "New" must be excluded.
+        // "Inactive" is a composite rule -> [Cancelled, Failed]; "New" must be excluded.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"Inactive\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filter:\"Inactive\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -749,42 +858,22 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_FiltersByMultipleStatuses_Union()
+    public async Task SalesRepOrders_FiltersBySelectedStatus_SingleStatus()
     {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.SeedOrganizationsAsync("org-1");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
-        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
-        SeedOrder(ctx, id: "o-processing", org: "org-1", number: "ORD-PROCESSING", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing");
-
-        // Multi-select: "New" (-> [New]) + "Inactive" (-> [Cancelled, Failed]); union excludes Processing.
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"New\",\"Inactive\"]) { totalCount items { number } } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"totalCount\":2");
-        json.Should().Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
-        json.Should().NotContain("ORD-PROCESSING");
-    }
-
-    [Fact]
-    public async Task SalesRepOrders_WithoutStatus_ReturnsAllStatuses()
-    {
+        // Default (real) resolver: each configured status is a 1:1 rule; filtering by one status returns only it.
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
 
-        // No status argument → no status filter → all statuses returned.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\") { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filter:\"Cancelled\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"totalCount\":2").And.Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("ORD-CANCELLED").And.NotContain("ORD-NEW");
     }
 
     [Fact]
@@ -803,7 +892,7 @@ public class SalesRepGraphQlComponentTests
         // underlying order status. The filter must then return nothing — mirroring the reported case where filtering
         // by a status the store doesn't define (e.g. "Failed"/"Inactive") wrongly returned every order.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[\"foo\"]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filter:\"foo\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -913,7 +1002,7 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-b-new", org: "org-b", number: "ORD-B-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomers(sort:\"name:asc\") { items { organizationId lastOrder { number } } } }",
+            "query { salesRepCustomers(sort:\"name\") { items { organizationId lastOrder { number } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
@@ -1130,7 +1219,7 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
-    public async Task SalesRepOrders_EmptyStatusesList_ReturnsAllOrders()
+    public async Task SalesRepOrders_EmptyFilter_ReturnsAllOrders()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
@@ -1138,16 +1227,297 @@ public class SalesRepGraphQlComponentTests
         SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
 
-        // An explicit empty statuses array means "no status filter" (like omitting the argument) — not "match nothing".
+        // An explicit empty filter string means "no filter" (like omitting the argument) — not "match nothing".
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepOrders(organizationId:\"org-1\", statuses:[]) { totalCount items { number } } }",
+            "query { salesRepOrders(organizationId:\"org-1\", filter:\"\") { totalCount items { number } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":2").And.Contain("ORD-NEW").And.Contain("ORD-CANCELLED");
     }
 
-    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, string status = "New", string organizationName = null, string createdByUserId = null)
+    // ---- VCST-5309 Phase 1: units, account fields, "All" segment, orders period, sort rules, inline statistics ----
+
+    [Fact]
+    public async Task SalesRepOrders_ItemsQuantity_SumsLineItemQuantities()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // 2 line items, 3 units each → itemsCount = 2 (lines), itemsQuantity = 6 (units).
+        SeedOrder(ctx, id: "o1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), itemsCount: 2, quantityPerItem: 3);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders { items { number itemsCount itemsQuantity } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"itemsCount\":2");
+        json.Should().Contain("\"itemsQuantity\":6");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_ExposesAccountTypeAndAccountId()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationAsync("org-1", o => { o.BusinessCategory = "Garden Center"; o.OuterId = "ACC-303648"; });
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { organizationId accountType accountId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"accountType\":\"Garden Center\"");
+        json.Should().Contain("\"accountId\":\"ACC-303648\"");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_AllFilter_ReturnsAllServedCustomers()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        // The default customer-segment resolver's single "All" rule is a passthrough — every served customer.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(filter:\"All\") { totalCount items { organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":2");
+        json.Should().Contain("org-1").And.Contain("org-2");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_TotalCountOnly_ReturnsServedCount()
+    {
+        // The "My customers" sidebar badge selects ONLY totalCount (no items) — the count path must resolve without
+        // any item hydration.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2", "org-3");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(storeId:\"B2B-store\") { totalCount } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":3");
+    }
+
+    [Fact]
+    public async Task SalesRepOrders_Period_FiltersByCreatedDate()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "in", org: "org-1", number: "ORD-IN", createdDate: new DateTime(2026, 6, 15, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "out", org: "org-1", number: "ORD-OUT", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(period:{ from:\"2026-06-01T00:00:00Z\", to:\"2026-07-01T00:00:00Z\" }) { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("ORD-IN").And.NotContain("ORD-OUT");
+    }
+
+    [Fact]
+    public async Task SalesRepOrderSortRules_DefaultIsRecent()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderSortRules { name localizedName defaultDirection supportsDirection } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // The two built-in orderings: "recent" (default) and the bidirectional "total".
+        json.Should().Contain("\"name\":\"recent\"").And.Contain("\"name\":\"total\"");
+        // Direction metadata drives the storefront's header-sort toggle: both default desc; "total" reverses, "recent" doesn't.
+        json.Should().Contain("\"defaultDirection\":\"desc\"").And.Contain("\"supportsDirection\":true").And.Contain("\"supportsDirection\":false");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomerSortRules_ExposesDefaultOrderings()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerSortRules { name } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("my-last-orders").And.Contain("ytd-purchases").And.Contain("\"name\":\"name\"");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_SortByMyLastOrders_RanksByRepsMostRecentOrder()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-a", "org-b", "org-c");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-a", "org-b", "org-c");
+        SeedOrder(ctx, id: "a", org: "org-a", number: "ORD-A", createdDate: new DateTime(2026, 2, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "b", org: "org-b", number: "ORD-B", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "c", org: "org-c", number: "ORD-C", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc));
+        // Data-isolation: a foreign rep's newer order in org-a must NOT pull org-a to the top (only the rep's own
+        // orders drive the ranking).
+        SeedOrder(ctx, id: "foreign", org: "org-a", number: "ORD-FOREIGN", createdDate: new DateTime(2026, 12, 1, 0, 0, 0, DateTimeKind.Utc), createdByUserId: "other-rep");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"my-last-orders\") { items { organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Newest rep order first: org-b (Jun) → org-c (Apr) → org-a (Feb; the Dec foreign order is ignored).
+        json.IndexOf("org-b", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-c", StringComparison.Ordinal));
+        json.IndexOf("org-c", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-a", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_SortByYtdPurchases_RanksByThisYearsOrderTotal()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-high", "org-mid", "org-low");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-high", "org-mid", "org-low");
+
+        // "ytd purchases" ranks by this year's order total (biggest first). Seed one current-year order per org with
+        // distinct totals so the ranking is unambiguous regardless of the year the suite runs in.
+        var thisYear = new DateTime(DateTime.UtcNow.Year, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        SeedOrder(ctx, id: "h", org: "org-high", number: "ORD-H", createdDate: thisYear, total: 300m);
+        SeedOrder(ctx, id: "m", org: "org-mid", number: "ORD-M", createdDate: thisYear, total: 200m);
+        SeedOrder(ctx, id: "l", org: "org-low", number: "ORD-L", createdDate: thisYear, total: 100m);
+        // Data-isolation: a foreign rep's large order in the lowest org must NOT lift it (only the rep's own orders count).
+        SeedOrder(ctx, id: "foreign", org: "org-low", number: "ORD-FOREIGN", createdDate: thisYear, total: 10000m, createdByUserId: "other-rep");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"ytd-purchases\") { items { organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Largest YTD total first: org-high (300) → org-mid (200) → org-low (100; the 10000 foreign order is ignored).
+        json.IndexOf("org-high", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-mid", StringComparison.Ordinal));
+        json.IndexOf("org-mid", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-low", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_SortByName_Descending_ReversesOrder()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("Acme", "Globex", "Umbrella");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "Acme", "Globex", "Umbrella");
+
+        // "name:desc" reverses the "name" rule's natural A→Z.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"name:desc\") { items { organizationName } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Z→A: Umbrella → Globex → Acme.
+        json.IndexOf("Umbrella", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("Globex", StringComparison.Ordinal));
+        json.IndexOf("Globex", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("Acme", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_SortByYtdPurchases_Ascending_RanksSmallestFirst()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-high", "org-mid", "org-low");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-high", "org-mid", "org-low");
+        var thisYear = new DateTime(DateTime.UtcNow.Year, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        SeedOrder(ctx, id: "h", org: "org-high", number: "ORD-H", createdDate: thisYear, total: 300m);
+        SeedOrder(ctx, id: "m", org: "org-mid", number: "ORD-M", createdDate: thisYear, total: 200m);
+        SeedOrder(ctx, id: "l", org: "org-low", number: "ORD-L", createdDate: thisYear, total: 100m);
+
+        // "ytd-purchases:asc" flips the rule from its natural biggest-first to smallest-first.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"ytd-purchases:asc\") { items { organizationId } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Smallest YTD total first: org-low (100) → org-mid (200) → org-high (300).
+        json.IndexOf("org-low", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-mid", StringComparison.Ordinal));
+        json.IndexOf("org-mid", StringComparison.Ordinal).Should().BeLessThan(json.IndexOf("org-high", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_OrderStatistics_InlinePerRow_CountsOnlyRepsOwnOrders()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "mine", org: "org-1", number: "ORD-MINE", createdDate: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc));
+        // Data-isolation: a foreign rep's order in the same organization must not be counted in this rep's figures.
+        SeedOrder(ctx, id: "foreign", org: "org-1", number: "ORD-F", createdDate: new DateTime(2026, 3, 2, 0, 0, 0, DateTimeKind.Utc), createdByUserId: "other-rep");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { organizationId orderStatistics(from:\"2026-01-01T00:00:00Z\", to:\"2026-12-31T00:00:00Z\") { count total { amount } } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"count\":1");   // only the rep's own order
+        json.Should().Contain("123.45");        // its total, not doubled by the foreign order
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_OrderStatistics_TwoAliasedRanges_ResolveIndependentlyPerRow()
+    {
+        // The My Customers list selects TWO aliased inline orderStatistics ranges per row (ytd + lastYear), coalesced
+        // by the DataLoader. Each alias must resolve to its own window's figures on the same row.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "y1", org: "org-1", number: "ORD-Y1", createdDate: new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "y2", org: "org-1", number: "ORD-Y2", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "ly", org: "org-1", number: "ORD-LY", createdDate: new DateTime(2025, 6, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            """
+            query { salesRepCustomers { items { organizationId
+              ytd:      orderStatistics(from:"2026-01-01T00:00:00Z", to:"2026-12-31T00:00:00Z") { count total { amount } }
+              lastYear: orderStatistics(from:"2025-01-01T00:00:00Z", to:"2025-12-31T00:00:00Z") { count total { amount } }
+            } } }
+            """,
+            userId: rep.UserId);
+
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
+        var row = root.GetProperty("data").GetProperty("salesRepCustomers").GetProperty("items").EnumerateArray().Single();
+        var ytd = row.GetProperty("ytd");
+        var lastYear = row.GetProperty("lastYear");
+        ytd.GetProperty("count").GetInt32().Should().Be(2);                                    // the two 2026 orders
+        ytd.GetProperty("total").GetProperty("amount").GetDecimal().Should().Be(246.90m);      // 123.45 * 2
+        lastYear.GetProperty("count").GetInt32().Should().Be(1);                               // the single 2025 order
+        lastYear.GetProperty("total").GetProperty("amount").GetDecimal().Should().Be(123.45m);
+    }
+
+    [Fact]
+    public async Task SalesRepCustomerOrderStatistics_Period_ExposesFirstOrderDate()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "first", org: "org-1", number: "ORD-FIRST", createdDate: new DateTime(2024, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+        SeedOrder(ctx, id: "last", org: "org-1", number: "ORD-LAST", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        // An unbounded period's firstOrderDate is the "customer since" value; lastOrderDate its most recent order.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrderStatistics(organizationId:\"org-1\") { lifetime: period { firstOrderDate lastOrderDate } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("2024-05-01"); // firstOrderDate
+        json.Should().Contain("2026-05-01"); // lastOrderDate
+    }
+
+    private static void SeedOrder(SalesRepTestContext ctx, string id, string org, string number, DateTime createdDate, string storeId = "B2B-store", int itemsCount = 0, int quantityPerItem = 1, string status = "New", string organizationName = null, string createdByUserId = null, decimal total = 123.45m)
     {
         using var db = ctx.NewOrderDbContext();
         var order = new CustomerOrderEntity
@@ -1164,7 +1534,7 @@ public class SalesRepGraphQlComponentTests
             StoreId = storeId,
             Status = status,
             Currency = "USD",
-            Total = 123.45m,
+            Total = total,
             IsPrototype = false,
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
@@ -1180,7 +1550,7 @@ public class SalesRepGraphQlComponentTests
                 CatalogId = "catalog-1",
                 Sku = $"SKU-{i}",
                 Name = $"Product {i}",
-                Quantity = 1,
+                Quantity = quantityPerItem,
                 CreatedDate = createdDate,
                 ModifiedDate = createdDate,
             });

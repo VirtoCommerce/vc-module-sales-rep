@@ -7,7 +7,9 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 
 internal static class UserSearchServiceExtensions
 {
-    public static async Task<IList<ApplicationUser>> SearchAllAsync(this IUserSearchService userSearchService, UserSearchCriteria criteria, int pageSize = 50)
+    private const int DefaultPageSize = 50;
+
+    public static async Task<IList<ApplicationUser>> SearchAllAsync(this IUserSearchService userSearchService, UserSearchCriteria criteria, int pageSize = DefaultPageSize)
     {
         List<ApplicationUser> result = [];
         criteria.Skip = 0;

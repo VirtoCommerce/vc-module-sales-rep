@@ -23,7 +23,19 @@ public static class ServiceCollectionExtensions
 
         serviceCollection.AddSingleton<ISalesRepCommunicationResponseGroupParser, SalesRepCommunicationResponseGroupParser>();
 
-        serviceCollection.AddTransient<ISalesRepOrderStatusService, SalesRepOrderStatusService>();
+        serviceCollection.AddTransient<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
+
+        serviceCollection.AddTransient<ISalesRepOrderFilterRuleResolver, SalesRepOrderFilterRuleResolver>();
+
+        serviceCollection.AddTransient<ISalesRepCartFilterRuleResolver, SalesRepCartFilterRuleResolver>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerFilterRuleResolver, SalesRepCustomerFilterRuleResolver>();
+
+        serviceCollection.AddTransient<ISalesRepOrderSortRuleResolver, SalesRepOrderSortRuleResolver>();
+        serviceCollection.AddTransient<ISalesRepCustomerSortRuleResolver, SalesRepCustomerSortRuleResolver>();
+
+        serviceCollection.AddTransient<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
+        serviceCollection.AddTransient<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
         return serviceCollection;
     }
