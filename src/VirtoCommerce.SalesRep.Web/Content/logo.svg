@@ -1,17 +1,36 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="Sales Rep">
+  <title>Sales Rep</title>
   <defs>
-    <linearGradient id="salesRepLogo" x1="10" y1="6" x2="38" y2="44" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#5B8DEF"/>
-      <stop offset="1" stop-color="#2E5BFF"/>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="92%" y2="100%">
+      <stop offset="0%" stop-color="#F87FAC"/>
+      <stop offset="100%" stop-color="#DB3E78"/>
     </linearGradient>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="3.5" flood-color="#7A1A40" flood-opacity="0.30"/>
+    </filter>
+    <clipPath id="av"><circle cx="0" cy="0" r="38"/></clipPath>
   </defs>
-  <g fill="url(#salesRepLogo)">
-    <circle cx="24" cy="17" r="6.5"/>
-    <path d="M11.5 43C11.5 35.4 17.1 31.5 24 31.5C30.9 31.5 36.5 35.4 36.5 43Z"/>
-    <rect x="11.8" y="15" width="4.2" height="7" rx="2.1"/>
-    <rect x="32" y="15" width="4.2" height="7" rx="2.1"/>
-    <circle cx="20.2" cy="27" r="1.8"/>
+
+  <rect width="128" height="128" rx="28" fill="url(#bg)"/>
+
+  <g transform="translate(64,62)" filter="url(#lift)">
+    <!-- person inside the avatar circle (same treatment as Customer) -->
+    <g clip-path="url(#av)">
+      <circle cx="0" cy="-9" r="15" fill="#ffffff"/>
+      <path d="M-30,44 C-30,18 -15,10 0,10 C15,10 30,18 30,44 Z" fill="#ffffff"/>
+    </g>
+    <!-- avatar ring -->
+    <circle cx="0" cy="0" r="42" fill="none" stroke="#ffffff" stroke-width="6"/>
+
+    <!-- operator headset -->
+    <path d="M-16,-9 A 17,16 0 0 1 16,-9" fill="none" stroke="#FFC24D" stroke-width="5" stroke-linecap="round"/>
+    <rect x="-20" y="-16" width="7" height="14" rx="3" fill="#FFC24D"/>
+    <rect x="13"  y="-16" width="7" height="14" rx="3" fill="#FFC24D"/>
+    <path d="M-16,-2 Q -19,9 -4,7" fill="none" stroke="#FFC24D" stroke-width="4" stroke-linecap="round"/>
+    <circle cx="-4" cy="7" r="3.2" fill="#FFC24D"/>
+
+    <!-- assigned/featured-rep star badge (same disc style as Customer) -->
+    <circle cx="31" cy="31" r="16" fill="#ffffff" stroke="#ED6A98" stroke-width="3"/>
+    <polygon fill="#FFC24D" points="31,22 33.12,28.09 39.56,28.22 34.42,32.11 36.29,38.28 31,34.6 25.71,38.28 27.58,32.11 22.44,28.22 28.88,28.09"/>
   </g>
-  <path d="M14.1 17a9.9 9.9 0 0 1 19.8 0" stroke="url(#salesRepLogo)" stroke-width="3" stroke-linecap="round"/>
-  <path d="M14.2 22c0 3.6 1 4.8 5.2 5" stroke="url(#salesRepLogo)" stroke-width="2.4" stroke-linecap="round"/>
 </svg>
