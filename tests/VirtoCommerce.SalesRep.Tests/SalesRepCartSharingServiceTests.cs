@@ -7,6 +7,7 @@ using VirtoCommerce.CartModule.Core.Model;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
+using VirtoCommerce.XCart.Core.Models;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests;
@@ -30,13 +31,24 @@ public class SalesRepCartSharingServiceTests
     // The repository and the write-path collaborators are unused by the synchronous read logic under test.
     private static SalesRepCartSharingService CreateService() => new(cartAggregateRepository: null, roleResolver: null, membershipSearchService: null);
 
-    // Stubs the async "does this rep serve the org" lookup so the write-path guards can be tested without a DB.
+    // Stubs the async "does this rep serve the org" lookup so the write-path (UpdateScopeAsync) can be tested without a DB.
     private sealed class TestSharingService(bool servesOrganization) : SalesRepCartSharingService(null, null, null)
     {
         protected override Task<bool> ServesOrganizationAsync(string userId, string organizationId) => Task.FromResult(servesOrganization);
-
-        public void CallValidateSharingSettings(string scope, string sharedWithId) => ValidateSharingSettings(scope, sharedWithId);
     }
+
+    private static ShoppingCart EmptyCart() => new() { SharingSettings = new List<CartSharingSetting>() };
+
+    private static WishlistScopeContext ScopeContext(string scope, string sharedWithId, string currentUserId, string currentOrganizationId = null) =>
+        new()
+        {
+            Scope = scope,
+            SharingKey = "sharing-key-1",
+            SharedWithId = sharedWithId,
+            CurrentUserId = currentUserId,
+            CustomerName = "Rep Name",
+            CurrentOrganizationId = currentOrganizationId,
+        };
 
     private static ShoppingCart CustomerSharedCart(string ownerUserId, params string[] organizationIds)
     {
@@ -149,72 +161,79 @@ public class SalesRepCartSharingServiceTests
     }
 
     [Fact]
-    public async Task AuthorizeSharingAsync_CustomerScope_RepServesOrganization_Succeeds()
+    public async Task UpdateScopeAsync_CustomerScope_RepServesOrganization_WritesCustomerSetting()
     {
         var service = new TestSharingService(servesOrganization: true);
+        var cart = EmptyCart();
 
-        await service.Invoking(x => x.AuthorizeSharingAsync(ModuleConstants.Sharing.CustomerScope, OrgA, RepUserId))
-            .Should().NotThrowAsync();
+        await service.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgA, RepUserId));
+
+        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
+        setting.SharedWithId.Should().Be(OrgA);
+        setting.Access.Should().Be(CartSharingAccess.Read);
+        cart.CustomerId.Should().Be(RepUserId); // owner stays the rep
     }
 
     [Fact]
-    public async Task AuthorizeSharingAsync_CustomerScope_RepDoesNotServeOrganization_ThrowsForbidden()
+    public async Task UpdateScopeAsync_CustomerScope_RepDoesNotServeOrganization_ThrowsForbidden()
     {
         var service = new TestSharingService(servesOrganization: false);
+        var cart = EmptyCart();
 
         // DATA-ISOLATION INVARIANT: a caller must not publish to an organization they do not serve, even if they
         // otherwise hold the Sales Rep role. This is the server-side gate for F1 (frontend gating is not enough).
-        await service.Invoking(x => x.AuthorizeSharingAsync(ModuleConstants.Sharing.CustomerScope, OrgC, RepUserId))
+        await service.Invoking(x => x.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgC, RepUserId)))
             .Should().ThrowAsync<AuthorizationError>();
+        cart.SharingSettings.Should().BeEmpty(); // nothing persisted
     }
 
     [Fact]
-    public async Task AuthorizeSharingAsync_CustomerScope_AnonymousOrNoTarget_ThrowsForbidden()
+    public async Task UpdateScopeAsync_CustomerScope_AnonymousOrNoTarget_ThrowsForbidden()
     {
         // Even when the org would be served, an unauthenticated caller or a missing target is denied (fails closed).
         var service = new TestSharingService(servesOrganization: true);
 
-        await service.Invoking(x => x.AuthorizeSharingAsync(ModuleConstants.Sharing.CustomerScope, OrgA, currentUserId: null))
+        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgA, currentUserId: null)))
             .Should().ThrowAsync<AuthorizationError>();
-        await service.Invoking(x => x.AuthorizeSharingAsync(ModuleConstants.Sharing.CustomerScope, sharedWithId: null, RepUserId))
+        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext(ModuleConstants.Sharing.CustomerScope, sharedWithId: null, RepUserId)))
             .Should().ThrowAsync<AuthorizationError>();
     }
 
     [Fact]
-    public async Task AuthorizeSharingAsync_NonCustomerScope_DelegatesToBaseNoOp()
+    public async Task UpdateScopeAsync_UnsupportedScope_Throws()
     {
-        // Non-Customer scopes carry no target and need no rep authorization; the base does nothing (structural
-        // rejection of a stray target happens later in ValidateSharingSettings, not here).
+        // A scope neither the base pipeline nor sales-rep recognizes is rejected loudly (ApplyScope returns false).
+        var service = new TestSharingService(servesOrganization: true);
+
+        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext("BogusScope", sharedWithId: null, RepUserId)))
+            .Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task UpdateScopeAsync_OrganizationScope_DelegatesToBase()
+    {
+        // Non-Customer scope: sales-rep defers to the base ApplyScope (serves-org is irrelevant here).
         var service = new TestSharingService(servesOrganization: false);
+        var cart = EmptyCart();
 
-        await service.Invoking(x => x.AuthorizeSharingAsync(CartSharingScope.Organization, sharedWithId: null, CustomerUserId))
-            .Should().NotThrowAsync();
-        await service.Invoking(x => x.AuthorizeSharingAsync(CartSharingScope.Private, sharedWithId: null, currentUserId: null))
-            .Should().NotThrowAsync();
+        await service.UpdateScopeAsync(cart, ScopeContext(CartSharingScope.Organization, sharedWithId: null, RepUserId, currentOrganizationId: OrgA));
+
+        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Scope.Should().Be(CartSharingScope.Organization);
+        setting.SharedWithId.Should().BeNull();
+        cart.OrganizationId.Should().Be(OrgA);
     }
 
     [Fact]
-    public void ValidateSharingSettings_CustomerScope_RequiresTarget()
+    public async Task UpdateScopeAsync_NullScope_IsNoOp()
     {
-        var service = new TestSharingService(servesOrganization: true);
+        // A null scope (e.g. a rename-only edit) neither authorizes nor writes.
+        var service = new TestSharingService(servesOrganization: false);
+        var cart = EmptyCart();
 
-        // A customer share must name exactly one organization.
-        service.Invoking(x => x.CallValidateSharingSettings(ModuleConstants.Sharing.CustomerScope, OrgA)).Should().NotThrow();
-        service.Invoking(x => x.CallValidateSharingSettings(ModuleConstants.Sharing.CustomerScope, sharedWithId: null))
-            .Should().Throw<InvalidOperationException>();
-    }
+        await service.UpdateScopeAsync(cart, ScopeContext(scope: null, sharedWithId: null, RepUserId));
 
-    [Fact]
-    public void ValidateSharingSettings_NonCustomerScope_DelegatesToBase()
-    {
-        var service = new TestSharingService(servesOrganization: true);
-
-        // Built-in scopes are non-targeted: a target is rejected and unknown scopes are rejected; a bare supported
-        // scope is accepted.
-        service.Invoking(x => x.CallValidateSharingSettings(CartSharingScope.Organization, sharedWithId: null)).Should().NotThrow();
-        service.Invoking(x => x.CallValidateSharingSettings(CartSharingScope.Organization, OrgA))
-            .Should().Throw<InvalidOperationException>();
-        service.Invoking(x => x.CallValidateSharingSettings("BogusScope", sharedWithId: null))
-            .Should().Throw<InvalidOperationException>();
+        cart.SharingSettings.Should().BeEmpty();
     }
 }

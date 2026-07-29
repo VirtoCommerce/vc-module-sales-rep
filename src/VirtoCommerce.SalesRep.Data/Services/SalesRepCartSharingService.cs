@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.CartModule.Core.Model;
@@ -8,6 +7,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
+using VirtoCommerce.XCart.Core.Models;
 using VirtoCommerce.XCart.Core.Services;
 using VirtoCommerce.XCart.Data.Services;
 
@@ -79,39 +79,43 @@ public class SalesRepCartSharingService : CartSharingService
         return base.IsAuthorized(cart, currentUserId, currentOrganizationId);
     }
 
-    public override async Task AuthorizeSharingAsync(string scope, string sharedWithId, string currentUserId)
+    public override async Task UpdateScopeAsync(ShoppingCart cart, WishlistScopeContext context)
     {
-        if (ModuleConstants.Sharing.CustomerScope.EqualsIgnoreCase(scope))
-        {
-            // A customer-targeted share is allowed only for a Sales Rep who actually serves the target organization
-            // (same gate as sendCustomerCommunication, so "can share with an org" == "can message that org").
-            if (string.IsNullOrEmpty(currentUserId)
-                || string.IsNullOrEmpty(sharedWithId)
-                || !await ServesOrganizationAsync(currentUserId, sharedWithId))
-            {
-                throw AuthorizationError.Forbidden();
-            }
+        // Authorize the customer-targeted share before the base applies it; every other scope falls through to base.
+        await AuthorizeCustomerShareAsync(context);
 
-            return;
-        }
-
-        await base.AuthorizeSharingAsync(scope, sharedWithId, currentUserId);
+        await base.UpdateScopeAsync(cart, context);
     }
 
-    protected override void ValidateSharingSettings(string scope, string sharedWithId)
+    protected override bool ApplyScope(ShoppingCart cart, WishlistScopeContext context)
     {
-        if (ModuleConstants.Sharing.CustomerScope.EqualsIgnoreCase(scope))
+        if (ModuleConstants.Sharing.CustomerScope.EqualsIgnoreCase(context.Scope))
         {
-            // The Customer scope is targeted: it must name exactly one customer organization.
-            if (string.IsNullOrEmpty(sharedWithId))
-            {
-                throw new InvalidOperationException("Customer sharing requires a target organization.");
-            }
+            // The rep (owner) keeps write via GetSharingAccess; the persisted setting targets one customer
+            // organization, read-only. UpdateScopeAsync has already verified the rep serves that org.
+            EnsureSharingSettings(cart, context.SharingKey, ModuleConstants.Sharing.CustomerScope, CartSharingAccess.Read, context.SharedWithId);
+            SetOwner(cart, context.CurrentUserId, context.CustomerName, null);
+            return true;
+        }
 
+        return base.ApplyScope(cart, context);
+    }
+
+    // A customer-targeted share is allowed only for a Sales Rep who actually serves the target organization
+    // (same gate as sendCustomerCommunication, so "can share with an org" == "can message that org").
+    protected virtual async Task AuthorizeCustomerShareAsync(WishlistScopeContext context)
+    {
+        if (!ModuleConstants.Sharing.CustomerScope.EqualsIgnoreCase(context.Scope))
+        {
             return;
         }
 
-        base.ValidateSharingSettings(scope, sharedWithId);
+        if (string.IsNullOrEmpty(context.CurrentUserId)
+            || string.IsNullOrEmpty(context.SharedWithId)
+            || !await ServesOrganizationAsync(context.CurrentUserId, context.SharedWithId))
+        {
+            throw AuthorizationError.Forbidden();
+        }
     }
 
     protected virtual bool IsCustomerShared(ShoppingCart cart)
