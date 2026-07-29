@@ -22,6 +22,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Rank a rep's **top-selling products** (dashboard + per-customer) by units or revenue over a period, optionally within a product category
 * Scope the orders list to an optional created-date **period**
 * Send a push notification and/or email to the members of a customer organization
+* Publish a shopping list (wishlist) to a customer organization the rep serves — its members open it read-only ("Recommended by your Sales Rep") and add items to their cart, with an optional email/push notification
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -418,6 +419,17 @@ The dashboard numbers are **aggregated in the database**: the module reads the O
 
 **Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its only catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): it lists the store catalog's top-level non-hidden categories (`ICategorySearchService`), and a selected badge is resolved — through the catalog index (`IProductIndexedSearchService`, the same path the storefront's category pages use, so it works for a virtual store catalog too) — to the rep's own sold products that fall in that category's subtree, which the ranking is then restricted to (bounded by the rep's sold products, so it never enumerates a whole category and the data-isolation rule holds).
 
+### Customer wishlist sharing
+
+A sales rep can **publish a shopping list to a customer organization**: the list becomes visible to that organization's members, read-only, so they can review it and add its items to their own cart. This adds a `Customer` sharing scope to the platform's existing wishlist sharing (the Cart Experience API) **without forking it** — the module extends the X-Cart sharing pipeline (`ICartSharingService`) rather than replacing it.
+
+* **One target organization per list.** Sharing goes through the standard X-Cart `createWishlist` / `changeWishlist` mutation with `scope: "Customer"` and `sharedWithId` set to the customer organization id — there is no separate "share" mutation, so saving a list and its sharing is one call. The `/shared-list/{sharingKey}` link is the platform's existing one, and the key is stable across edits.
+* **Read access (data isolation).** The list's owner (the rep) always sees it; a customer member sees it only when their **active organization** matches the target (`sharedWithId`) — a member of any other organization, or an anonymous visitor, is denied. Customers get read-only access (add to cart, not edit); the rep keeps write.
+* **Write authorization.** Setting the `Customer` scope is gated server-side: the caller must be a **Sales Rep who actually serves the target organization** — the same *serves-organization* check `sendCustomerCommunication` uses, so *"can share with an org" == "can message it"*. A non-rep, or a rep targeting an organization they don't serve, is rejected (`Access denied.`); this is not a frontend-only gate.
+* **Notification.** Telling the customer their list is ready reuses the `sendCustomerCommunication` mutation above (the rep's message plus the shared-list link) — no new notification surface.
+
+Implementation-wise the module registers a `SalesRepCartSharingService` (a subclass of X-Cart's `CartSharingService`, last-registration-wins) that teaches the pipeline the `Customer` scope's visibility and write-authorization rules, and a `SalesRepWishlistScopeType` that exposes the new value on the core wishlist schema. The serves-organization gate is a single shared service (`ISalesRepOrganizationAccessService`) used by both the sharing authorization and the query/communication handlers, so *"which organizations does this rep serve"* has one implementation.
+
 ## Administration
 
 The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name, salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
@@ -460,7 +472,8 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
 | `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics and Top Sellers. |
-| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics. |
+| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics; persists the shared-list target (`CartSharingSetting.SharedWithId`). |
+| `VirtoCommerce.XCart` | Wishlist-sharing pipeline (`ICartSharingService`) extended with the `Customer` scope for publishing a list to a customer organization. |
 | `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
 | `VirtoCommerce.PushMessages` | Storefront push notifications for customer communications. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
@@ -475,6 +488,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
   * [#2 — VCST-4907 / VCST-5304 / VCST-5308: X-API endpoints for customers and sales reps](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/2)
   * [VCST-5309: Sales rep dashboard statistics, sort rules & Top Sellers](https://virtocommerce.atlassian.net/browse/VCST-5309)
   * [VCST-5310 / VCST-5331: Push & email messaging to customer members](https://virtocommerce.atlassian.net/browse/VCST-5310)
+  * [VCST-5332: Publish a shopping list to a customer organization](https://virtocommerce.atlassian.net/browse/VCST-5332)
 
 > **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 
