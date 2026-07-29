@@ -21,12 +21,11 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
     private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
 
     public CustomerSalesRepsQueryHandler(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         IUserSearchService userSearchService,
         IMemberSearchService memberSearchService,
         ISalesRepMemberResponseGroupParser responseGroupParser)
-        : base(roleResolver, membershipSearchService)
+        : base(organizationAccessService)
     {
         _userSearchService = userSearchService;
         _memberSearchService = memberSearchService;

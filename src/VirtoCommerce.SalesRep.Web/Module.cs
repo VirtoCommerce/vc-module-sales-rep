@@ -30,6 +30,7 @@ public class Module : IModule, IHasConfiguration
     public void Initialize(IServiceCollection serviceCollection)
     {
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         serviceCollection.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();

@@ -4,7 +4,9 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.CartModule.Core.Model;
+using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
 using VirtoCommerce.XCart.Core.Models;
@@ -28,13 +30,24 @@ public class SalesRepCartSharingServiceTests
     private const string OrgC = "org-c";
     private const string CustomerUserId = "customer-user-1";
 
-    // The repository and the write-path collaborators are unused by the synchronous read logic under test.
-    private static SalesRepCartSharingService CreateService() => new(cartAggregateRepository: null, roleResolver: null, membershipSearchService: null);
+    // The repository and org-access service are unused by the synchronous read logic under test.
+    private static SalesRepCartSharingService CreateService() => new(cartAggregateRepository: null, organizationAccessService: null);
 
-    // Stubs the async "does this rep serve the org" lookup so the write-path (UpdateScopeAsync) can be tested without a DB.
-    private sealed class TestSharingService(bool servesOrganization) : SalesRepCartSharingService(null, null, null)
+    // Drives the write path (UpdateScopeAsync) without a DB by stubbing the "does this rep serve the org" gate.
+    private static SalesRepCartSharingService SharingService(bool servesOrganization) =>
+        new(cartAggregateRepository: null, new FakeOrganizationAccessService(servesOrganization));
+
+    private sealed class FakeOrganizationAccessService(bool servesOrganization) : ISalesRepOrganizationAccessService
     {
-        protected override Task<bool> ServesOrganizationAsync(string userId, string organizationId) => Task.FromResult(servesOrganization);
+        public Task<bool> ServesOrganizationAsync(string userId, string organizationId) => Task.FromResult(servesOrganization);
+
+        public Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(IList<string> userIds = null, IList<string> organizationIds = null) => Task.FromResult<IList<OrganizationMembership>>([]);
+
+        public Task<IList<string>> GetServedOrganizationIdsAsync(string userId) => Task.FromResult<IList<string>>([]);
+
+        public Task<IList<string>> GetVisibleOrganizationIdsAsync(string userId, string organizationId) => Task.FromResult<IList<string>>([]);
+
+        public Task<IList<OrganizationMembership>> GetVisibleGrantingMembershipsAsync(string userId, string organizationId) => Task.FromResult<IList<OrganizationMembership>>([]);
     }
 
     private static ShoppingCart EmptyCart() => new() { SharingSettings = new List<CartSharingSetting>() };
@@ -59,7 +72,7 @@ public class SalesRepCartSharingServiceTests
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Scope = ModuleConstants.Sharing.CustomerScope,
-                Access = ModuleConstants.Sharing.CustomerAccess,
+                Access = CartSharingAccess.Read,
                 SharedWithId = organizationId,
             }).ToList<CartSharingSetting>(),
         };
@@ -163,7 +176,7 @@ public class SalesRepCartSharingServiceTests
     [Fact]
     public async Task UpdateScopeAsync_CustomerScope_RepServesOrganization_WritesCustomerSetting()
     {
-        var service = new TestSharingService(servesOrganization: true);
+        var service = SharingService(servesOrganization: true);
         var cart = EmptyCart();
 
         await service.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgA, RepUserId));
@@ -178,7 +191,7 @@ public class SalesRepCartSharingServiceTests
     [Fact]
     public async Task UpdateScopeAsync_CustomerScope_RepDoesNotServeOrganization_ThrowsForbidden()
     {
-        var service = new TestSharingService(servesOrganization: false);
+        var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
         // DATA-ISOLATION INVARIANT: a caller must not publish to an organization they do not serve, even if they
@@ -192,7 +205,7 @@ public class SalesRepCartSharingServiceTests
     public async Task UpdateScopeAsync_CustomerScope_AnonymousOrNoTarget_ThrowsForbidden()
     {
         // Even when the org would be served, an unauthenticated caller or a missing target is denied (fails closed).
-        var service = new TestSharingService(servesOrganization: true);
+        var service = SharingService(servesOrganization: true);
 
         await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgA, currentUserId: null)))
             .Should().ThrowAsync<AuthorizationError>();
@@ -204,7 +217,7 @@ public class SalesRepCartSharingServiceTests
     public async Task UpdateScopeAsync_UnsupportedScope_Throws()
     {
         // A scope neither the base pipeline nor sales-rep recognizes is rejected loudly (ApplyScope returns false).
-        var service = new TestSharingService(servesOrganization: true);
+        var service = SharingService(servesOrganization: true);
 
         await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext("BogusScope", sharedWithId: null, RepUserId)))
             .Should().ThrowAsync<InvalidOperationException>();
@@ -214,7 +227,7 @@ public class SalesRepCartSharingServiceTests
     public async Task UpdateScopeAsync_OrganizationScope_DelegatesToBase()
     {
         // Non-Customer scope: sales-rep defers to the base ApplyScope (serves-org is irrelevant here).
-        var service = new TestSharingService(servesOrganization: false);
+        var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
         await service.UpdateScopeAsync(cart, ScopeContext(CartSharingScope.Organization, sharedWithId: null, RepUserId, currentOrganizationId: OrgA));
@@ -229,7 +242,7 @@ public class SalesRepCartSharingServiceTests
     public async Task UpdateScopeAsync_NullScope_IsNoOp()
     {
         // A null scope (e.g. a rename-only edit) neither authorizes nor writes.
-        var service = new TestSharingService(servesOrganization: false);
+        var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
         await service.UpdateScopeAsync(cart, ScopeContext(scope: null, sharedWithId: null, RepUserId));

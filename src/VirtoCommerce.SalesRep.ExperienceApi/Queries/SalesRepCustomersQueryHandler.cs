@@ -27,15 +27,14 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
     private readonly ISalesRepCurrencyResolver _currencyResolver;
 
     public SalesRepCustomersQueryHandler(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         IMemberSearchService memberSearchService,
         ISalesRepMemberResponseGroupParser responseGroupParser,
         ISalesRepCustomerFilterRuleResolver filterRuleResolver,
         ISalesRepCustomerSortRuleResolver sortRuleResolver,
         ICustomerOrderStatisticsService statisticsService,
         ISalesRepCurrencyResolver currencyResolver)
-        : base(roleResolver, membershipSearchService)
+        : base(organizationAccessService)
     {
         _memberSearchService = memberSearchService;
         _responseGroupParser = responseGroupParser;

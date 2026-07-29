@@ -31,9 +31,6 @@ public static class ModuleConstants
         // string, and SalesRepCartSharingService teaches the platform this value's visibility rules. The scope also
         // defines the id space of CartSharingSetting.SharedWithId (here: a customer organization id).
         public const string CustomerScope = "Customer";
-
-        // Read-only access granted to the targeted customers (the rep/owner keeps write).
-        public const string CustomerAccess = "Read";
     }
 
     public static class Communication

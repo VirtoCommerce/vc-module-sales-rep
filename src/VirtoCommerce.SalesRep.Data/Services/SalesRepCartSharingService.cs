@@ -1,8 +1,6 @@
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.CartModule.Core.Model;
-using VirtoCommerce.CustomerModule.Core.Model;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -13,28 +11,16 @@ using VirtoCommerce.XCart.Data.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Teaches the XCart sharing pipeline the "Customer" wishlist scope (VCST-5332) without editing XCart: registered
-// last for ICartSharingService so it wins, and delegates every non-Customer scope to the base. The XCart
-// authorization handler already routes shared-wishlist access through ICartSharingService, so overriding this
-// service is enough. The read checks (scope/access/IsAuthorized) are synchronous and read the target organizations
-// off CartSharingSetting, which is always eager-loaded with the cart. The write path adds two guards: a structural
-// one (ValidateSharingSettings, allowing Customer + a target) and an authorization one (AuthorizeSharingAsync, which
-// requires the caller be a Sales Rep who serves the target organization).
-public class SalesRepCartSharingService : CartSharingService
+// Teaches the XCart sharing pipeline the "Customer" wishlist scope (VCST-5332) without editing XCart: registered last
+// for ICartSharingService so it wins, delegating every non-Customer scope to base. Read checks are synchronous (they
+// read the target org off the always-eager-loaded CartSharingSetting). The write path adds one authorization gate: the
+// caller must be a Sales Rep who serves the target org, delegated to ISalesRepOrganizationAccessService (the same gate
+// the query/communication handlers use, so "can share with an org" == "can message it").
+public class SalesRepCartSharingService(
+    ICartAggregateRepository cartAggregateRepository,
+    ISalesRepOrganizationAccessService organizationAccessService)
+    : CartSharingService(cartAggregateRepository)
 {
-    private readonly ISalesRepRoleResolver _roleResolver;
-    private readonly IOrganizationMembershipSearchService _membershipSearchService;
-
-    public SalesRepCartSharingService(
-        ICartAggregateRepository cartAggregateRepository,
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService)
-        : base(cartAggregateRepository)
-    {
-        _roleResolver = roleResolver;
-        _membershipSearchService = membershipSearchService;
-    }
-
     public override string GetSharingScope(ShoppingCart cart)
     {
         return IsCustomerShared(cart) ? ModuleConstants.Sharing.CustomerScope : base.GetSharingScope(cart);
@@ -101,8 +87,6 @@ public class SalesRepCartSharingService : CartSharingService
         return base.ApplyScope(cart, context);
     }
 
-    // A customer-targeted share is allowed only for a Sales Rep who actually serves the target organization
-    // (same gate as sendCustomerCommunication, so "can share with an org" == "can message that org").
     protected virtual async Task AuthorizeCustomerShareAsync(WishlistScopeContext context)
     {
         if (!ModuleConstants.Sharing.CustomerScope.EqualsIgnoreCase(context.Scope))
@@ -112,7 +96,7 @@ public class SalesRepCartSharingService : CartSharingService
 
         if (string.IsNullOrEmpty(context.CurrentUserId)
             || string.IsNullOrEmpty(context.SharedWithId)
-            || !await ServesOrganizationAsync(context.CurrentUserId, context.SharedWithId))
+            || !await organizationAccessService.ServesOrganizationAsync(context.CurrentUserId, context.SharedWithId))
         {
             throw AuthorizationError.Forbidden();
         }
@@ -121,25 +105,5 @@ public class SalesRepCartSharingService : CartSharingService
     protected virtual bool IsCustomerShared(ShoppingCart cart)
     {
         return cart?.SharingSettings?.Any(x => x.Scope == ModuleConstants.Sharing.CustomerScope) == true;
-    }
-
-    // Mirrors SalesRepQueryHandlerBase.ServesOrganizationAsync: the caller must hold an unlocked membership with a
-    // Sales-Rep-granting role in the target organization. Keep the two in sync.
-    protected virtual async Task<bool> ServesOrganizationAsync(string userId, string organizationId)
-    {
-        var grantingRoleIds = await _roleResolver.GetRoleIdsGrantingAccessAsync();
-        if (grantingRoleIds.Count == 0)
-        {
-            return false;
-        }
-
-        var criteria = AbstractTypeFactory<OrganizationMembershipSearchCriteria>.TryCreateInstance();
-        criteria.UserIds = [userId];
-        criteria.OrganizationIds = [organizationId];
-        criteria.RoleIds = grantingRoleIds.ToArray();
-        criteria.OnlyUnlocked = true;
-
-        var memberships = await _membershipSearchService.SearchAllNoCloneAsync(criteria);
-        return memberships.Count > 0;
     }
 }

@@ -12,7 +12,7 @@
     <dependency id="VirtoCommerce.Orders" version="3.1010.0" />
     <dependency id="VirtoCommerce.Store" version="3.1006.0" />
     <dependency id="VirtoCommerce.Cart" version="3.1008.0-alpha.803-vcst-5332-customer-wishlist-sharing-scope" />
-    <dependency id="VirtoCommerce.XCart" version="3.1029.0-alpha.269-vcst-5332-customer-wishlist-sharing-scope" />
+    <dependency id="VirtoCommerce.XCart" version="3.1029.0-alpha.270-vcst-5332-customer-wishlist-sharing-scope" />
     <dependency id="VirtoCommerce.Catalog" version="3.1032.0" />
     <dependency id="VirtoCommerce.Notifications" version="3.1009.0" />
     <dependency id="VirtoCommerce.PushMessages" version="3.1004.0" />

@@ -21,7 +21,7 @@
     <!-- XCart.Core: the "Customer" wishlist-sharing scope (VCST-5332). ICartSharingService + ICartAggregateRepository
          load/persist the shared list; WishlistScopeType/SharingSettingType are extended to expose the new scope.
          Version matches the SalesRep.Data XCart reference and the module.manifest VirtoCommerce.XCart dependency. -->
-    <PackageReference Include="VirtoCommerce.XCart.Core" Version="3.1029.0-alpha.269-vcst-5332-customer-wishlist-sharing-scope" />
+    <PackageReference Include="VirtoCommerce.XCart.Core" Version="3.1029.0-alpha.270-vcst-5332-customer-wishlist-sharing-scope" />
     <!-- CustomerModule.Core, OrdersModule.Core and NotificationsModule.Core flow transitively from SalesRep.Core (ProjectReference below). -->
   </ItemGroup>
   <ItemGroup>
