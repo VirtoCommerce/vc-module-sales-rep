@@ -58,9 +58,22 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
     {
         using var repository = _orderRepositoryFactory();
 
-        // Unit price rides in the group key and revenue (price × units) is summed in memory below, NOT in SQL: Price
-        // is a Postgres `money` column and EF renders `price * quantity` as `money * money`, which Postgres rejects.
-        var aggregates = await BuildQuery(repository, criteria)
+        var query = BuildQuery(repository, criteria);
+        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+
+        // The ranking runs in the database and only the winners come back: a rep who has sold 100k distinct products
+        // would otherwise materialize a row per product (times price/snapshot variants) just to keep the top few.
+        var rankedProductIds = await GetRankedProductIdsAsync(query, criteria, currencies);
+        if (rankedProductIds.Count == 0)
+        {
+            return [];
+        }
+
+        // Unit price rides in the group key and revenue (price × units) is summed in memory below rather than in SQL,
+        // so the figures keep going through the shared currency fold (rounding + unconfigured-currency warning). Rows
+        // are bounded by the handful of ranked products, whatever the catalog size.
+        var aggregates = await query
+            .Where(x => rankedProductIds.Contains(x.ProductId))
             .GroupBy(x => new { x.ProductId, x.Currency, x.Price, x.Name, x.Sku, x.ImageUrl, x.CategoryId })
             .Select(g => new ProductPriceAggregate
             {
@@ -81,8 +94,6 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             return [];
         }
 
-        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
-
         var products = aggregates
             .GroupBy(x => x.ProductId)
             .Select(g => BuildTopSeller(g.Key, g.ToList(), criteria.CurrencyCode, currencies))
@@ -99,6 +110,80 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         }
 
         return top;
+    }
+
+    /// <summary>
+    /// Picks the products worth loading in full, so the expensive projection below only ever sees a handful of rows.
+    /// <para>
+    /// Units are currency-neutral, so that ranking is ordered and limited entirely by the database. Revenue is not:
+    /// amounts have to be converted before they can be compared, and no single LINQ expression computes
+    /// <c>price × quantity</c> on every provider — the money column needs an explicit decimal cast on PostgreSQL, which
+    /// SQLite (the component tests' provider) cannot translate. So the revenue ranking keeps the arithmetic in memory,
+    /// but over the narrowest possible rows: three scalars per (product, currency, unit price), with none of the
+    /// display strings that dominate the row size.
+    /// </para>
+    /// </summary>
+    protected virtual async Task<IList<string>> GetRankedProductIdsAsync(
+        IQueryable<LineItemEntity> query,
+        SalesRepTopSellerCriteria criteria,
+        IReadOnlyCollection<Currency> currencies)
+    {
+        // A wider slice than the caller asked for: the figures are rounded to the target currency by the fold, so two
+        // products within a rounding step of each other could swap around the cut-off. The final order is decided on
+        // the folded figures by the caller.
+        var take = criteria.Take * 2;
+
+        if (criteria.SortBy != SalesRepTopSellerSortBy.Revenue)
+        {
+            return await query
+                .GroupBy(x => x.ProductId)
+                .Select(g => new { ProductId = g.Key, Units = g.Sum(x => x.Quantity) })
+                .OrderByDescending(x => x.Units)
+                .ThenBy(x => x.ProductId)
+                .Select(x => x.ProductId)
+                .Take(take)
+                .ToListAsync();
+        }
+
+        var priceGroups = await query
+            .GroupBy(x => new { x.ProductId, x.Currency, x.Price })
+            .Select(g => new
+            {
+                g.Key.ProductId,
+                g.Key.Currency,
+                g.Key.Price,
+                Units = g.Sum(x => x.Quantity),
+            })
+            .ToListAsync();
+
+        return priceGroups
+            .GroupBy(x => x.ProductId)
+            .Select(g => new
+            {
+                ProductId = g.Key,
+                // An amount in a currency the platform doesn't know can't be converted, so it scales to zero — the same
+                // exclusion the fold applies (and reports as a warning); its units still count.
+                Revenue = g.Sum(x => x.Price * x.Units * GetConversionRate(x.Currency, criteria.CurrencyCode, currencies)),
+                Units = g.Sum(x => x.Units),
+            })
+            .OrderByDescending(x => x.Revenue)
+            .ThenByDescending(x => x.Units)
+            .ThenBy(x => x.ProductId)
+            .Select(x => x.ProductId)
+            .Take(take)
+            .ToList();
+    }
+
+    /// <summary>Rate that brings an amount into the target currency, matching <c>Money.ConvertTo</c>; zero when the
+    /// source currency isn't configured (unconvertible, excluded from revenue).</summary>
+    private static decimal GetConversionRate(string sourceCurrencyCode, string targetCurrencyCode, IReadOnlyCollection<Currency> currencies)
+    {
+        var source = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(sourceCurrencyCode));
+        var target = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(targetCurrencyCode));
+
+        return source == null || target == null || target.ExchangeRate == 0
+            ? 0m
+            : source.ExchangeRate / target.ExchangeRate;
     }
 
     public virtual async Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepTopSellerCriteria criteria)
