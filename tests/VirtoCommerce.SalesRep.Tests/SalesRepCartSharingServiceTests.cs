@@ -249,4 +249,77 @@ public class SalesRepCartSharingServiceTests
 
         cart.SharingSettings.Should().BeEmpty();
     }
+
+    // Edits of an ALREADY-shared list. The cases above all start from an empty cart, so they only cover creating the
+    // first setting; these pin the two invariants that matter when a share is changed: the sharing key (the
+    // /shared-list/{key} link) survives every transition, and a customer target never outlives the Customer scope.
+
+    [Fact]
+    public async Task UpdateScopeAsync_CustomerScope_Retarget_KeepsSharingKeyAndReplacesTarget()
+    {
+        var service = SharingService(servesOrganization: true);
+        var cart = CustomerSharedCart(RepUserId, OrgA);
+        var originalKey = cart.SharingSettings.Single().Id;
+
+        await service.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgB, RepUserId));
+
+        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Id.Should().Be(originalKey); // the existing link keeps working...
+        setting.SharedWithId.Should().Be(OrgB); // ...and now resolves for the new customer only
+        setting.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
+        setting.Access.Should().Be(CartSharingAccess.Read);
+    }
+
+    [Theory]
+    [InlineData(CartSharingScope.Private)]
+    [InlineData(CartSharingScope.Organization)]
+    [InlineData(CartSharingScope.AnyoneAnonymous)]
+    public async Task UpdateScopeAsync_LeavingCustomerScope_ClearsTargetAndKeepsSharingKey(string scope)
+    {
+        // DATA-ISOLATION INVARIANT: a stale target must not survive, or re-sharing later could silently expose the
+        // list to an organization the owner never picked again.
+        var service = SharingService(servesOrganization: true);
+        var cart = CustomerSharedCart(RepUserId, OrgA);
+        var originalKey = cart.SharingSettings.Single().Id;
+
+        await service.UpdateScopeAsync(cart, ScopeContext(scope, sharedWithId: null, RepUserId, currentOrganizationId: OrgB));
+
+        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Id.Should().Be(originalKey);
+        setting.Scope.Should().Be(scope);
+        setting.SharedWithId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateScopeAsync_NullScope_PreservesExistingCustomerShare()
+    {
+        // A rename-only edit submits no scope. The storefront modal always submits one, but API callers do not, and
+        // dropping the share here would silently unshare the list.
+        var service = SharingService(servesOrganization: false);
+        var cart = CustomerSharedCart(RepUserId, OrgA);
+        var originalKey = cart.SharingSettings.Single().Id;
+
+        await service.UpdateScopeAsync(cart, ScopeContext(scope: null, sharedWithId: OrgB, RepUserId));
+
+        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Id.Should().Be(originalKey);
+        setting.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
+        setting.SharedWithId.Should().Be(OrgA); // not retargeted to OrgB either
+    }
+
+    [Fact]
+    public async Task UpdateScopeAsync_BuiltInScope_IgnoresStraySharedWithId()
+    {
+        // A target is meaningful only for the Customer scope. On a built-in scope it is dropped rather than rejected,
+        // which is what keeps wishlists saveable when the Sales Rep module is not installed.
+        var service = SharingService(servesOrganization: true);
+        var cart = EmptyCart();
+
+        await service.UpdateScopeAsync(cart, ScopeContext(CartSharingScope.Organization, OrgA, RepUserId, currentOrganizationId: OrgB));
+
+        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Scope.Should().Be(CartSharingScope.Organization);
+        setting.SharedWithId.Should().BeNull();
+        cart.OrganizationId.Should().Be(OrgB); // owner org comes from the caller's context, not from the stray target
+    }
 }
