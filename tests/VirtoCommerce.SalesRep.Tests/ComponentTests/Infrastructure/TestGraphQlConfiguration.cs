@@ -69,6 +69,10 @@ internal static class TestGraphQlConfiguration
         services.AddTransient<ICustomerOrderService, RepositoryBackedCustomerOrderService>();
         services.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
+        // The REAL status-vocabulary service: the order-status filter rules are the statuses the seeded orders
+        // actually use, read as a DISTINCT over the same order repository.
+        services.AddTransient<ISalesRepOrderStatusService, SalesRepOrderStatusService>();
+
         // Sales statistics service under test (VCST-5309): the REAL CustomerOrderStatisticsService aggregating
         // over the same order repository. Its currency data source is a fixed double (USD primary; EUR at 1.25);
         // the store lookup is the shared TestServicesConfiguration.TestStoreService (every store's default = EUR),
@@ -161,11 +165,11 @@ internal static class TestGraphQlConfiguration
         // default = EUR) + ICurrencyService (AddOrderSlice; USD primary + EUR).
         services.AddSingleton<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
 
-        // Order statuses: the REAL default resolver. It reads the store's configured Order.Status dictionary from
-        // ILocalizableSettingService (the StubLocalizableSettingService below supplies a fixed status set) and maps
-        // each configured status to a 1:1 rule. Composite (1:many) grouping is a documented project-override
-        // capability, exercised end to end by the tests that build the harness with a CompositeOrderFilterRuleResolver
-        // override (SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus)).
+        // Order statuses: the REAL default resolver. It maps each status the store's orders actually use
+        // (ISalesRepOrderStatusService over the seeded orders) to a 1:1 rule, labeled from the configured Order.Status
+        // dictionary (the StubLocalizableSettingService below supplies a fixed status set). Composite (1:many) grouping
+        // is a documented project-override capability, exercised end to end by the tests that build the harness with a
+        // CompositeOrderFilterRuleResolver override (SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus)).
         services.AddSingleton<ISalesRepOrderFilterRuleResolver, SalesRepOrderFilterRuleResolver>();
 
         // Customer segments: the real default resolver (single "All" baseline segment) — proves the shared seam's
@@ -431,8 +435,9 @@ internal static class TestGraphQlConfiguration
 
     /// <summary>
     /// Repo-backed <see cref="IProductIndexedSearchService"/> for the harness — the catalog indexing pipeline can't
-    /// be stood up here, so this reproduces the one answer the Top Sellers category filter needs from the real index:
-    /// "which of these products (<c>ObjectIds</c>) are in the selected category's subtree". It BFS-walks the seeded
+    /// be stood up here, so this reproduces the two answers the Top Sellers category filter needs from the real index:
+    /// "which of these products (<c>ObjectIds</c>) are in the selected category's subtree" and, with no
+    /// <c>ObjectIds</c>, "does the category's subtree hold any product at all" (the badge list). It BFS-walks the seeded
     /// <c>CatalogDbContext</c> categories over <c>ParentCategoryId</c> to build the subtree (root + descendants), then
     /// keeps the queried products whose seeded catalog-product <c>CategoryId</c> is in it. The category id is the leaf
     /// segment of the criteria's <c>Outline</c> (the same leaf convention x-catalog uses), so it is agnostic to
@@ -453,7 +458,7 @@ internal static class TestGraphQlConfiguration
             result.Items = [];
 
             var categoryId = GetLeafCategoryId(criteria.Outline);
-            if (string.IsNullOrEmpty(categoryId) || criteria.ObjectIds.IsNullOrEmpty())
+            if (string.IsNullOrEmpty(categoryId))
             {
                 return result;
             }
@@ -490,9 +495,16 @@ internal static class TestGraphQlConfiguration
                 }
             }
 
-            var objectIds = criteria.ObjectIds.ToArray();
-            var products = await repository.Items
-                .Where(x => objectIds.Contains(x.Id))
+            // No ObjectIds = the "does this category hold any product at all?" probe the category badges use; with
+            // ObjectIds it is the "which of these sold products are in the subtree?" question the filter asks.
+            var objectIds = criteria.ObjectIds?.ToArray();
+            var productsQuery = repository.Items.Where(x => x.CatalogId == criteria.CatalogId);
+            if (objectIds != null)
+            {
+                productsQuery = productsQuery.Where(x => objectIds.Contains(x.Id));
+            }
+
+            var products = await productsQuery
                 .Select(x => new { x.Id, x.CategoryId })
                 .ToListAsync();
 

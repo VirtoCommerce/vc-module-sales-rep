@@ -17,7 +17,7 @@ public class SalesRepTopSellerFilterRulesQuery : Query<IList<SalesRepTopSellerFi
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        yield return Argument<StringGraphType>(nameof(StoreId), "Store whose catalog's top-level categories are returned.");
+        yield return Argument<StringGraphType>(nameof(StoreId), "Store whose catalog's non-empty top-level categories are returned.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for localized category labels (\"en-US\").");
     }
 

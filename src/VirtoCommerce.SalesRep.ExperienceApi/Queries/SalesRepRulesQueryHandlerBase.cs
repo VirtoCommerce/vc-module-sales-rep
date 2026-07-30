@@ -33,8 +33,10 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
             return [];
         }
 
-        return await GetRulesAsync(request);
+        return await GetRulesAsync(request, organizationIds);
     }
 
-    protected abstract Task<IList<TRule>> GetRulesAsync(TQuery request);
+    /// <param name="organizationIds">The organizations the caller serves — the scope a data-derived rule set must be
+    /// built within, so it only offers rules the caller's own lists can return records for.</param>
+    protected abstract Task<IList<TRule>> GetRulesAsync(TQuery request, IList<string> organizationIds);
 }

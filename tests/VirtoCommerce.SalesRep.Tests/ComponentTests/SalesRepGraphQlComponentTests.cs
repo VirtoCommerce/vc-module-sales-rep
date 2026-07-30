@@ -791,6 +791,9 @@ public class SalesRepGraphQlComponentTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-processing", org: "org-1", number: "ORD-PROCESSING", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing");
+        SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
 
         // Rule discovery is sales-rep-only: the caller must hold a granting membership (see the authorization gate).
         var json = await ctx.ExecuteGraphQlAsync(
@@ -798,11 +801,94 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        // The real default resolver maps each configured Order.Status to a 1:1 rule (name == raw status).
+        // The real default resolver maps each status the store's orders use to a 1:1 rule (name == raw status).
         json.Should().Contain("\"name\":\"New\"")
             .And.Contain("\"name\":\"Processing\"")
-            .And.Contain("\"name\":\"Cancelled\"")
-            .And.Contain("\"name\":\"Failed\"");
+            .And.Contain("\"name\":\"Cancelled\"");
+        // "Failed" is in the configured Order.Status dictionary but no seeded order uses it → not offered.
+        json.Should().NotContain("\"name\":\"Failed\"");
+    }
+
+    [Fact]
+    public async Task SalesRepOrderFilterRulees_OnlyStatusesTheRepsOwnOrdersUse()
+    {
+        // The offered statuses must come from the same orders the list searches — the rep's served organizations AND
+        // the orders the rep created. A status that only exists on someone else's order, or in an organization the rep
+        // does not serve, would render a chip that shows "no orders match this filter".
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-unserved");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-mine", org: "org-1", number: "ORD-MINE", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-other-rep", org: "org-1", number: "ORD-OTHER-REP", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing", createdByUserId: "other-rep");
+        SeedOrder(ctx, id: "o-unserved", org: "org-unserved", number: "ORD-UNSERVED", createdDate: new DateTime(2026, 4, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"name\":\"New\"");
+        json.Should().NotContain("\"name\":\"Processing\"").And.NotContain("\"name\":\"Cancelled\"");
+    }
+
+    [Fact]
+    public async Task SalesRepOrderFilterRulees_OrganizationId_ScopesToThatCustomer()
+    {
+        // The customer page knows the organization, so the chips must reflect that customer's orders only.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+        SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-2", org: "org-2", number: "ORD-2", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "Processing");
+
+        var scoped = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\", organizationId:\"org-2\") { name } }",
+            userId: rep.UserId);
+
+        scoped.Should().NotContain("\"errors\"");
+        scoped.Should().Contain("\"name\":\"Processing\"").And.NotContain("\"name\":\"New\"");
+
+        // Omitting it keeps the rep-wide vocabulary (the dashboard case).
+        var all = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name } }",
+            userId: rep.UserId);
+
+        all.Should().Contain("\"name\":\"New\"").And.Contain("\"name\":\"Processing\"");
+
+        // An organization the rep does not serve narrows to nothing, like the list does.
+        var unserved = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\", organizationId:\"org-outsider\") { name } }",
+            userId: rep.UserId);
+
+        unserved.Should().NotContain("\"errors\"");
+        unserved.Should().NotContain("\"name\":");
+    }
+
+    [Fact]
+    public async Task SalesRepOrderFilterRulees_OffersStatusesMissingFromTheDictionary()
+    {
+        // The vocabulary is read from the orders themselves, so a status that arrived with an order from outside the
+        // platform (an ERP/3rd-party sync) is filterable without touching the Order.Status dictionary first.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-erp", org: "org-1", number: "ORD-ERP", createdDate: new DateTime(2026, 5, 1, 0, 0, 0, DateTimeKind.Utc), status: "AwaitingErp");
+
+        var rules = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name localizedName } }",
+            userId: rep.UserId);
+
+        rules.Should().NotContain("\"errors\"");
+        rules.Should().Contain("\"name\":\"AwaitingErp\"").And.Contain("\"localizedName\":\"AwaitingErp\"");
+
+        // ...and selecting it filters the list, like any other status rule.
+        var orders = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders(storeId:\"B2B-store\", filter:\"AwaitingErp\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        orders.Should().NotContain("\"errors\"");
+        orders.Should().Contain("\"totalCount\":1").And.Contain("ORD-ERP").And.NotContain("ORD-NEW");
     }
 
     [Fact]
@@ -813,6 +899,7 @@ public class SalesRepGraphQlComponentTests
         using var ctx = SalesRepTestContext.Create(OrderFilterRuleOverride.WithCompositeInactiveStatus);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-new", org: "org-1", number: "ORD-NEW", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "New");
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name localizedName } }",

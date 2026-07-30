@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -11,7 +12,7 @@ public class SalesRepCustomerFilterRuleResolver : ISalesRepCustomerFilterRuleRes
 {
     public const string AllRuleName = "All";
 
-    public virtual Task<IList<SalesRepCustomerFilterRule>> GetRulesAsync(string storeId, string cultureName)
+    public virtual Task<IList<SalesRepCustomerFilterRule>> GetRulesAsync(SalesRepFilterRuleContext context)
         => Task.FromResult<IList<SalesRepCustomerFilterRule>>([SalesRepCustomerFilterRule.Create(AllRuleName, AllRuleName)]);
 
     public virtual Task<MembersSearchCriteria> ApplyListFilterAsync(string storeId, string filter, MembersSearchCriteria criteria)

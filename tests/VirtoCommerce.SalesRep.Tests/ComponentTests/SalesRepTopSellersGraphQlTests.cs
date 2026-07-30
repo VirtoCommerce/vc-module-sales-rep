@@ -265,6 +265,8 @@ public class SalesRepTopSellersGraphQlTests
             ("cat-printers", "Printers", "cat-electronics", true), // nested → not a badge
             ("cat-apparel", "Apparel", null, true),
             ("cat-hidden", "Hidden", null, false));                // inactive → not a badge
+        // Electronics is populated only through its nested Printers category — a badge counts the whole subtree.
+        await ctx.SeedProductsAsync(("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"), ("prodHidden", "cat-hidden"));
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
@@ -278,6 +280,29 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellerFilterRules_OmitsCategoriesWithoutProducts()
+    {
+        // A top-level category whose subtree holds no product could only ever produce an empty Top Sellers list, so
+        // it is not offered as a badge.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-printers", "Printers", "cat-electronics", true),
+            ("cat-empty", "Empty", null, true));
+        await ctx.SeedProductsAsync(("prodPrinter", "cat-printers"));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellerFilterRules(storeId: \"B2B-store\") { name } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("cat-electronics");   // populated via its nested category
+        json.Should().NotContain("cat-empty");
+    }
+
+    [Fact]
     public async Task SalesRepTopSellerFilterRules_NonRepCaller_ReturnsEmpty()
     {
         // Authorization: rule discovery is sales-rep-only. Even with a rep and categories fully set up, a merely-
@@ -287,6 +312,7 @@ public class SalesRepTopSellersGraphQlTests
         await ctx.SeedCategoriesAsync(
             ("cat-electronics", "Electronics", null, true),
             ("cat-apparel", "Apparel", null, true));
+        await ctx.SeedProductsAsync(("prodTv", "cat-electronics"), ("prodShirt", "cat-apparel"));
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 

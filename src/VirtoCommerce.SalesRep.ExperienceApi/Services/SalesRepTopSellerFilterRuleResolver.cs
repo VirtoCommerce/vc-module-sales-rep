@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -35,17 +36,43 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
         _topSellerService = topSellerService;
     }
 
-    public override async Task<IList<SalesRepTopSellerFilterRule>> GetRulesAsync(string storeId, string cultureName)
+    /// <summary>
+    /// One rule per top-level category of the store's catalog that actually contains products — a category whose
+    /// subtree has no product would only ever yield an empty Top Sellers list, so it is not offered as a badge.
+    /// </summary>
+    public override async Task<IList<SalesRepTopSellerFilterRule>> GetRulesAsync(SalesRepFilterRuleContext context)
     {
-        var catalogId = await GetStoreCatalogIdAsync(storeId);
-        var categories = await GetCatalogCategoriesAsync(catalogId);
+        var catalogId = await GetStoreCatalogIdAsync(context.StoreId);
+        var topLevelCategories = await GetTopLevelCategoriesAsync(catalogId);
 
-        return categories
-            .Where(x => IsTopLevel(x) && x.IsActive != false)
-            .OrderBy(x => x.Priority)
-            .ThenBy(x => x.Name)
-            .Select(x => SalesRepTopSellerFilterRule.Create(x.Id, x.Name))
-            .ToList();
+        var rules = new List<SalesRepTopSellerFilterRule>(topLevelCategories.Count);
+
+        foreach (var category in topLevelCategories)
+        {
+            if (await HasProductsAsync(catalogId, category.Id))
+            {
+                rules.Add(SalesRepTopSellerFilterRule.Create(category.Id, category.Name));
+            }
+        }
+
+        return rules;
+    }
+
+    /// <summary>
+    /// Whether the category's subtree holds at least one product, asked of the catalog index exactly the way
+    /// <see cref="ApplyListFilterAsync"/> asks it (same outline convention), so a badge is offered if and only if
+    /// selecting it can match products. <c>Take = 0</c> keeps it a count-only request.
+    /// </summary>
+    protected virtual async Task<bool> HasProductsAsync(string catalogId, string categoryId)
+    {
+        var searchCriteria = AbstractTypeFactory<ProductIndexedSearchCriteria>.TryCreateInstance();
+        searchCriteria.CatalogId = catalogId;
+        searchCriteria.Outline = categoryId;
+        searchCriteria.Take = 0;
+
+        var result = await _productIndexedSearchService.SearchAsync(searchCriteria);
+
+        return result.TotalCount > 0;
     }
 
     public virtual async Task<SalesRepTopSellerCriteria> ApplyListFilterAsync(string storeId, string filter, SalesRepTopSellerCriteria criteria)
@@ -55,14 +82,17 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
             return criteria;
         }
 
-        var rule = await ResolveNamedRuleAsync(storeId, filter);
-        if (rule == null)
+        var catalogId = await GetStoreCatalogIdAsync(storeId);
+        if (string.IsNullOrEmpty(catalogId))
         {
             return null;
         }
 
-        var catalogId = await GetStoreCatalogIdAsync(storeId);
-        if (string.IsNullOrEmpty(catalogId))
+        // Resolution deliberately looks at every top-level category, not only the non-empty ones GetRulesAsync offers:
+        // an empty category yields an empty list anyway, and skipping the per-category index probes keeps applying a
+        // filter a single search.
+        var category = await ResolveCategoryAsync(catalogId, filter);
+        if (category == null)
         {
             return null;
         }
@@ -76,7 +106,7 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
 
         var searchCriteria = AbstractTypeFactory<ProductIndexedSearchCriteria>.TryCreateInstance();
         searchCriteria.CatalogId = catalogId;
-        searchCriteria.Outline = rule.Name;
+        searchCriteria.Outline = category.Id;
         searchCriteria.ObjectIds = candidateProductIds.ToArray();
         searchCriteria.Take = candidateProductIds.Count;
 
@@ -84,6 +114,23 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
 
         criteria.ProductIds = result.Items?.Select(x => x.Id).ToList() ?? [];
         return criteria;
+    }
+
+    protected virtual async Task<Category> ResolveCategoryAsync(string catalogId, string filter)
+    {
+        var categories = await GetTopLevelCategoriesAsync(catalogId);
+        return categories.FirstOrDefault(x => string.Equals(x.Id, filter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    protected virtual async Task<IList<Category>> GetTopLevelCategoriesAsync(string catalogId)
+    {
+        var categories = await GetCatalogCategoriesAsync(catalogId);
+
+        return categories
+            .Where(x => IsTopLevel(x) && x.IsActive != false)
+            .OrderBy(x => x.Priority)
+            .ThenBy(x => x.Name)
+            .ToList();
     }
 
     private async Task<string> GetStoreCatalogIdAsync(string storeId)
