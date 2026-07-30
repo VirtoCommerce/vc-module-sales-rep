@@ -12,7 +12,9 @@ using Microsoft.Extensions.Logging.Abstractions;
 using VirtoCommerce.CartModule.Data.Model;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Core.Model;
+using VirtoCommerce.CatalogModule.Core.Extensions;
 using VirtoCommerce.CatalogModule.Core.Model.Search;
+using VirtoCommerce.CatalogModule.Core.Outlines;
 using VirtoCommerce.CatalogModule.Core.Search;
 using VirtoCommerce.CatalogModule.Core.Services;
 using VirtoCommerce.CatalogModule.Data.Model;
@@ -121,11 +123,9 @@ internal static class TestGraphQlConfiguration
     /// <see cref="CategorySearchService"/>, so the Top Sellers category filter (top-level category badges + category
     /// resolution) runs through real code. Category hydration goes through a thin repo-backed
     /// <see cref="ICategoryService"/> double — the real CategoryService needs ~10 cross-module deps and is not the
-    /// code under test, the same justified stand-in as the order-service double. The raw-database command is stubbed
-    /// (the category search only reads the <c>Categories</c> IQueryable and hydrates by id). The catalog indexing
-    /// pipeline can't be stood up here, so <see cref="IProductIndexedSearchService"/> is a repo-backed double that
-    /// resolves "products in the selected category subtree" from the seeded categories + products (see
-    /// <see cref="RepositoryBackedProductIndexedSearchService"/>).
+    /// code under test, the same justified stand-in as the order-service double (it also synthesizes the category
+    /// outlines the real service computes, which the category filter maps to a top-level badge). The raw-database
+    /// command is stubbed (the category search only reads the <c>Categories</c> IQueryable and hydrates by id).
     /// </summary>
     public static IServiceCollection AddCatalogSlice(this IServiceCollection services, DbContextOptions<CatalogDbContext> catalogDbOptions)
     {
@@ -137,10 +137,6 @@ internal static class TestGraphQlConfiguration
 
         services.AddTransient<ICategoryService, RepositoryBackedCategoryService>();
         services.AddTransient<ICategorySearchService, CategorySearchService>();
-
-        // Stand-in for the catalog index (option (a)): resolves a category to the queried product ids that fall in
-        // its subtree, from the seeded catalog categories + products — the answer the real product index gives.
-        services.AddTransient<IProductIndexedSearchService, RepositoryBackedProductIndexedSearchService>();
 
         return services;
     }
@@ -182,10 +178,9 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISalesRepOrderSortRuleResolver, SalesRepOrderSortRuleResolver>();
         services.AddSingleton<ISalesRepCustomerSortRuleResolver, SalesRepCustomerSortRuleResolver>();
 
-        // Top Sellers: the real sort resolver (by-units/by-revenue) and the REAL category-badge resolver — top-level
-        // categories from the (real) catalog slice; on selection it resolves the rep's sold products in the category
-        // subtree via IProductIndexedSearchService (the repo-backed double from AddCatalogSlice), exercising the
-        // product-restriction + fail-closed paths. Requires AddCatalogSlice.
+        // Top Sellers: the real sort resolver (by-units/by-revenue) and the REAL category-badge resolver — the badges
+        // are the top-level categories the seeded sales fall into, mapped through the categories' outlines, and a
+        // selected badge narrows the ranking to that subtree's categories. Requires AddCatalogSlice.
         services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
@@ -400,8 +395,8 @@ internal static class TestGraphQlConfiguration
     /// <summary>
     /// Thin repo-backed <see cref="ICategoryService"/> for the harness: hydrates categories straight from the
     /// catalog repository (the real <c>CategoryService</c> needs ~10 cross-module deps and is not the code under
-    /// test). Only the read path is exercised — by the real <see cref="CategorySearchService"/> under test; the
-    /// write / code / outer-id methods are not used.
+    /// test). Only the read path is exercised — by the real <see cref="CategorySearchService"/> under test and by the
+    /// Top Sellers category filter, which reads <c>Outlines</c>; the write / code / outer-id methods are not used.
     /// </summary>
     private sealed class RepositoryBackedCategoryService : ICategoryService
     {
@@ -424,111 +419,60 @@ internal static class TestGraphQlConfiguration
             return entities.Select(x => x.ToModel(AbstractTypeFactory<Category>.TryCreateInstance())).ToList();
         }
 
-        public Task<IList<Category>> GetByIdsAsync(IList<string> ids, string responseGroup, string catalogId)
-            => GetAsync(ids, responseGroup);
+        public async Task<IList<Category>> GetByIdsAsync(IList<string> ids, string responseGroup, string catalogId)
+        {
+            var categories = await GetAsync(ids, responseGroup);
+
+            await AddOutlinesAsync(categories);
+
+            return catalogId == null
+                ? categories
+                : categories
+                    .Select(x =>
+                    {
+                        x.Outlines = x.Outlines.Where(o => o.Items.ContainsCatalog(catalogId)).ToList();
+                        return x;
+                    })
+                    .ToList();
+        }
+
+        /// <summary>
+        /// The real service computes outlines (including the virtual-catalog paths the storefront browses by); the
+        /// repository does not. Synthesize the physical one — <c>catalog/ancestor/…/category</c> — by walking
+        /// <c>ParentCategoryId</c>, which is the shape the Top Sellers category filter maps to a top-level badge.
+        /// </summary>
+        private async Task AddOutlinesAsync(IList<Category> categories)
+        {
+            if (categories.Count == 0)
+            {
+                return;
+            }
+
+            using var repository = _repositoryFactory();
+            var all = await repository.Categories
+                .Select(x => new { x.Id, x.ParentCategoryId, x.CatalogId })
+                .ToListAsync();
+            var byId = all.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+            foreach (var category in categories)
+            {
+                var path = new List<OutlineItem>();
+
+                for (var current = byId.GetValueOrDefault(category.Id); current != null; current = string.IsNullOrEmpty(current.ParentCategoryId) ? null : byId.GetValueOrDefault(current.ParentCategoryId))
+                {
+                    path.Insert(0, new OutlineItem { Id = current.Id, SeoObjectType = "Category" });
+                }
+
+                path.Insert(0, new OutlineItem { Id = category.CatalogId, SeoObjectType = "Catalog" });
+
+                category.Outlines = [new Outline { Items = path }];
+            }
+        }
 
         public Task<IDictionary<string, string>> GetIdsByCodes(string catalogId, IList<string> codes) => throw new NotSupportedException();
         public Task<IList<Category>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => throw new NotSupportedException();
         public Task SaveChangesAsync(IList<Category> models) => throw new NotSupportedException();
         public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
-    }
-
-    /// <summary>
-    /// Repo-backed <see cref="IProductIndexedSearchService"/> for the harness — the catalog indexing pipeline can't
-    /// be stood up here, so this reproduces the two answers the Top Sellers category filter needs from the real index:
-    /// "which of these products (<c>ObjectIds</c>) are in the selected category's subtree" and, with no
-    /// <c>ObjectIds</c>, "does the category's subtree hold any product at all" (the badge list). It BFS-walks the seeded
-    /// <c>CatalogDbContext</c> categories over <c>ParentCategoryId</c> to build the subtree (root + descendants), then
-    /// keeps the queried products whose seeded catalog-product <c>CategoryId</c> is in it. The category id is the leaf
-    /// segment of the criteria's <c>Outline</c> (the same leaf convention x-catalog uses), so it is agnostic to
-    /// whether the outline is a bare id or catalog-prefixed. Only the read path exercised by the filter is real.
-    /// </summary>
-    private sealed class RepositoryBackedProductIndexedSearchService : IProductIndexedSearchService
-    {
-        private readonly Func<ICatalogRepository> _repositoryFactory;
-
-        public RepositoryBackedProductIndexedSearchService(Func<ICatalogRepository> repositoryFactory)
-        {
-            _repositoryFactory = repositoryFactory;
-        }
-
-        public async Task<ProductIndexedSearchResult> SearchAsync(ProductIndexedSearchCriteria criteria)
-        {
-            var result = AbstractTypeFactory<ProductIndexedSearchResult>.TryCreateInstance();
-            result.Items = [];
-
-            var categoryId = GetLeafCategoryId(criteria.Outline);
-            if (string.IsNullOrEmpty(categoryId))
-            {
-                return result;
-            }
-
-            using var repository = _repositoryFactory();
-
-            var categories = await repository.Categories
-                .Where(x => x.CatalogId == criteria.CatalogId)
-                .Select(x => new { x.Id, x.ParentCategoryId })
-                .ToListAsync();
-
-            var childrenByParent = categories
-                .Where(x => !string.IsNullOrEmpty(x.ParentCategoryId))
-                .GroupBy(x => x.ParentCategoryId)
-                .ToDictionary(g => g.Key, g => g.Select(x => x.Id).ToList(), StringComparer.OrdinalIgnoreCase);
-
-            var subtree = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            var queue = new Queue<string>();
-            queue.Enqueue(categoryId);
-            while (queue.Count > 0)
-            {
-                var id = queue.Dequeue();
-                if (!subtree.Add(id))
-                {
-                    continue;
-                }
-
-                if (childrenByParent.TryGetValue(id, out var children))
-                {
-                    foreach (var child in children)
-                    {
-                        queue.Enqueue(child);
-                    }
-                }
-            }
-
-            // No ObjectIds = the "does this category hold any product at all?" probe the category badges use; with
-            // ObjectIds it is the "which of these sold products are in the subtree?" question the filter asks.
-            var objectIds = criteria.ObjectIds?.ToArray();
-            var productsQuery = repository.Items.Where(x => x.CatalogId == criteria.CatalogId);
-            if (objectIds != null)
-            {
-                productsQuery = productsQuery.Where(x => objectIds.Contains(x.Id));
-            }
-
-            var products = await productsQuery
-                .Select(x => new { x.Id, x.CategoryId })
-                .ToListAsync();
-
-            var matched = products
-                .Where(x => !string.IsNullOrEmpty(x.CategoryId) && subtree.Contains(x.CategoryId))
-                .Select(x =>
-                {
-                    var product = AbstractTypeFactory<CatalogProduct>.TryCreateInstance();
-                    product.Id = x.Id;
-                    return product;
-                })
-                .ToArray();
-
-            result.Items = matched;
-            result.TotalCount = matched.Length;
-            return result;
-        }
-
-        // outline = bare "categoryId" (this module) or "catalogId/.../categoryId"; the browsed category is the leaf.
-        private static string GetLeafCategoryId(string outline)
-        {
-            var segments = outline?.Split('/', StringSplitOptions.RemoveEmptyEntries);
-            return segments is { Length: > 0 } ? segments[^1] : null;
-        }
     }
 
     /// <summary>

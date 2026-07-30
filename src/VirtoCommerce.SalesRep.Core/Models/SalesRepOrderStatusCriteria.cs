@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using VirtoCommerce.Platform.Core.Common;
 
@@ -10,4 +11,8 @@ public class SalesRepOrderStatusCriteria : ValueObject
     public string CustomerId { get; set; }
 
     public string StoreId { get; set; }
+
+    public DateTime? FromDate { get; set; }
+
+    public DateTime? ToDate { get; set; }
 }

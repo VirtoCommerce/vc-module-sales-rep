@@ -87,6 +87,16 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
             query = query.Where(x => x.StoreId == criteria.StoreId);
         }
 
+        if (criteria.FromDate != null)
+        {
+            query = query.Where(x => x.CreatedDate >= criteria.FromDate.Value);
+        }
+
+        if (criteria.ToDate != null)
+        {
+            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
+        }
+
         return query;
     }
 }

@@ -865,6 +865,41 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepOrderFilterRulees_Period_ScopesToStatusesUsedInThatWindow()
+    {
+        // The chips must match the list the caller is looking at: with a period selected, a status only older orders
+        // carry is not offered (clicking it would return nothing).
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, id: "o-in", org: "org-1", number: "ORD-IN", createdDate: new DateTime(2026, 6, 15, 0, 0, 0, DateTimeKind.Utc), status: "New");
+        SeedOrder(ctx, id: "o-out", org: "org-1", number: "ORD-OUT", createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+
+        const string period = "period: { from: \"2026-06-01T00:00:00Z\", to: \"2026-07-01T00:00:00Z\" }";
+
+        var scoped = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepOrderFilterRules(storeId:\"B2B-store\", {period}) {{ name }} }}",
+            userId: rep.UserId);
+
+        scoped.Should().NotContain("\"errors\"");
+        scoped.Should().Contain("\"name\":\"New\"").And.NotContain("\"name\":\"Cancelled\"");
+
+        // The offered status does return rows for that same period.
+        var orders = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepOrders(storeId:\"B2B-store\", filter:\"New\", {period}) {{ totalCount items {{ number }} }} }}",
+            userId: rep.UserId);
+
+        orders.Should().Contain("\"totalCount\":1").And.Contain("ORD-IN");
+
+        // Without a period both statuses are offered (all dates).
+        var allDates = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrderFilterRules(storeId:\"B2B-store\") { name } }",
+            userId: rep.UserId);
+
+        allDates.Should().Contain("\"name\":\"New\"").And.Contain("\"name\":\"Cancelled\"");
+    }
+
+    [Fact]
     public async Task SalesRepOrderFilterRulees_OffersStatusesMissingFromTheDictionary()
     {
         // The vocabulary is read from the orders themselves, so a status that arrived with an order from outside the

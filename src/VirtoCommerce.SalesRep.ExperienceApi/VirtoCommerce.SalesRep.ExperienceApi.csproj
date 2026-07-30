@@ -12,9 +12,9 @@
          built-in "active-carts" kind (non-empty carts that exclude the Wishlist type). Version matches the module.manifest VirtoCommerce.Cart dependency. -->
     <PackageReference Include="VirtoCommerce.CartModule.Core" Version="3.1006.0" />
     <!-- CatalogModule.Core: the default SalesRepTopSellerFilterRuleResolver lists the store catalog's top-level
-         categories (ICategorySearchService) as the Top Sellers badges and, on selection, resolves the category to
-         the rep's sold products in its subtree via the catalog index (IProductIndexedSearchService).
-         Version matches the module.manifest VirtoCommerce.Catalog dependency. -->
+         categories (ICategorySearchService) as the Top Sellers badges and maps the categories the rep sold in to their
+         top-level ancestor through each category's outline for that catalog (ICategoryService, WithOutlines), which is
+         what makes a virtual store catalog work. Version matches the module.manifest VirtoCommerce.Catalog dependency. -->
     <PackageReference Include="VirtoCommerce.CatalogModule.Core" Version="3.1032.0" />
     <!-- PushMessages.Core: the mutation saves a PushMessage (Sent) to deliver the in-store push. -->
     <PackageReference Include="VirtoCommerce.PushMessages.Core" Version="3.1004.0" />

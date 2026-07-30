@@ -101,7 +101,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         return top;
     }
 
-    public virtual async Task<IList<string>> GetSoldProductIdsAsync(SalesRepTopSellerCriteria criteria)
+    public virtual async Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepTopSellerCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
@@ -112,18 +112,24 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
 
         return await StatisticsCache.GetOrCreateAsync(
             _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.TopSellerCacheExpiration,
-            GetType(), nameof(GetSoldProductIdsAsync), criteria.GetCacheKey(),
-            () => ComputeSoldProductIdsAsync(criteria));
+            GetType(), nameof(GetSoldCategoryIdsAsync), criteria.GetCacheKey(),
+            () => ComputeSoldCategoryIdsAsync(criteria));
     }
 
-    private async Task<IList<string>> ComputeSoldProductIdsAsync(SalesRepTopSellerCriteria criteria)
+    private async Task<IList<string>> ComputeSoldCategoryIdsAsync(SalesRepTopSellerCriteria criteria)
     {
         using var repository = _orderRepositoryFactory();
 
-        return await BuildQuery(repository, criteria)
-            .Select(x => x.ProductId)
+        var categoryIds = await BuildQuery(repository, criteria)
+            .Select(x => x.CategoryId)
             .Distinct()
             .ToListAsync();
+
+        // A product filed directly under a catalog root has no category, so its line items carry none — they belong to
+        // no top-level category either way.
+        return categoryIds
+            .Where(x => !string.IsNullOrEmpty(x))
+            .ToList();
     }
 
     protected virtual IQueryable<LineItemEntity> BuildQuery(IOrderRepository repository, SalesRepTopSellerCriteria criteria)

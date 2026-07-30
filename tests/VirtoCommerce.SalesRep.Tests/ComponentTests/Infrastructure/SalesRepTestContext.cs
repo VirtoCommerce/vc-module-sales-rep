@@ -478,11 +478,10 @@ internal sealed class SalesRepTestContext : IDisposable
     }
 
     /// <summary>
-    /// Seed catalog products (<see cref="ItemEntity"/>) under <see cref="TestCatalogId"/>, each in a category, so the
-    /// Top Sellers category filter (option (a): category → product ids via the catalog index, stood in for by the
-    /// harness's repo-backed <c>IProductIndexedSearchService</c>) can resolve which sold products fall in a category
-    /// subtree. Call <see cref="SeedCategoriesAsync"/> first — the products' categories (and the catalog row) must
-    /// already exist.
+    /// Seed catalog products (<see cref="ItemEntity"/>) under <see cref="TestCatalogId"/>, each in a category, so a
+    /// test's sales have a realistic catalog behind them. The Top Sellers category filter itself keys on the order line
+    /// items' own category snapshot, so it does not depend on these rows. Call <see cref="SeedCategoriesAsync"/> first
+    /// — the products' categories (and the catalog row) must already exist.
     /// </summary>
     public async Task SeedProductsAsync(params (string Id, string CategoryId)[] products)
     {

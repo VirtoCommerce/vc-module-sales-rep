@@ -32,7 +32,8 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
             return criteria;
         }
 
-        var context = SalesRepFilterRuleContext.Create(storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId);
+        var context = SalesRepFilterRuleContext.Create(
+            storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId, criteria.FromDate, criteria.ToDate);
 
         var kind = await ResolveNamedRuleAsync(context, filter);
 

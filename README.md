@@ -185,22 +185,44 @@ Four rule domains, each with its own discovery query:
 
 ```graphql
 {
-  # orders list + order statistics (add organizationId on a customer page — see the scoping note below)
-  salesRepOrderFilterRules(storeId: "B2B-store", cultureName: "en-US", organizationId: "org-1") { name localizedName }
+  # orders list + order statistics (pass the list's own organizationId / period — see the scoping note below)
+  salesRepOrderFilterRules(
+    storeId: "B2B-store"
+    cultureName: "en-US"
+    organizationId: "org-1"
+    period: { from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z" }
+  ) { name localizedName }
   # cart / project statistics
   salesRepCartFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
   # customers list + "my customers" counts (customer segments; a single "All" baseline by default)
   salesRepCustomerFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
-  # top sellers list (category badges; the store catalog's top-level non-hidden categories that hold products)
-  salesRepTopSellerFilterRules(storeId: "B2B-store", cultureName: "en-US") { name localizedName }
+  # top sellers list (category badges; the top-level categories the rep actually sold into — same scoping args)
+  salesRepTopSellerFilterRules(
+    storeId: "B2B-store"
+    cultureName: "en-US"
+    organizationId: "org-1"
+    period: { from: "2026-05-01T00:00:00Z", to: "2026-05-31T23:59:59Z" }
+  ) { name localizedName }
 }
 ```
 
 Both default rule sets are derived from the data, so a rule is offered only when selecting it can return something:
 
 - **Order statuses** are the statuses the caller's own orders **actually use** (a `DISTINCT` over `CustomerOrder`, cached for `SalesRep.Statistics.OrderCacheExpirationMinutes`, the order-statistics TTL), not the configured `Order.Status` dictionary. A status that arrives with an order from outside the platform — an ERP/3rd-party sync — is therefore filterable immediately; a status none of those orders carry is not offered at all. The dictionary still supplies the curated ordering and the localized labels; statuses missing from it follow, alphabetically, labeled with the raw status. Override `ISalesRepOrderStatusService` to change what counts as the in-use vocabulary.
-  - **Scope matters here**: the vocabulary is read within the *same scope the list will search* — the rep's served organizations and the orders the rep created — so it never offers a status whose orders belong to another rep or to an organization the caller doesn't serve. On a single-customer page pass `organizationId` (the same one the list uses) to narrow it to that customer; omit it for the dashboard. Resolution of a selected rule uses that same scope (taken from the reader's own criteria), so what was offered is exactly what resolves. Filter rules receive it as a `SalesRepFilterRuleContext` — store, culture, organizations, and the rep as creator — which is also what a project override gets.
-- **Top-seller category badges** are the catalog's top-level active categories whose **subtree holds at least one product** (asked of the catalog index, count-only) — an empty category is skipped instead of rendering a badge that can only ever produce an empty list. Selecting a category still resolves against every top-level category, so applying a filter stays a single index search.
+- **Top-seller category badges** are the top-level active categories the caller **actually sold into**, resolved *category-first*: `DISTINCT OrderLineItem.CategoryId` over the sales in scope (`ISalesRepTopSellerService.GetSoldCategoryIdsAsync`, cached), then each of those categories mapped to its top-level ancestor via its **outline for the store's catalog** (`ICategoryService` with `WithOutlines`) — which is what makes it work for a *virtual* store catalog, where a linked physical category carries an outline like `store-catalog/top-level/category`. Selecting a badge sets `CategoryIds` on the ranking criteria, so the filter is a plain database predicate.
+  - This is deliberately keyed on **categories, not products**: cardinality is bounded by the catalog structure (tens to hundreds), never by how many products have ever been sold, and no product-id list is carried into a search. A line item with no category (a product filed directly under a catalog root) belongs to no top-level category and is simply not represented — the same outcome either way.
+  - The category comes from the **line item's own snapshot**, taken when the order was placed — the same value `SalesRepTopSeller.categoryId` exposes per row — so the filter agrees with what the list displays even if a product is re-categorized later.
+
+**Scope is the point of both.** A data-derived vocabulary is built within the *same scope the list will search*, so a selectable rule can never come back empty:
+
+| Scope dimension | Where it comes from | Effect |
+|---|---|---|
+| Served organizations | membership (the authorization gate already resolves them) | never offers rules backed by another rep's or an unserved organization's records |
+| One customer | `organizationId` argument — pass the same one the list uses | on a customer page the vocabulary is that customer's |
+| Creator | the calling rep | matches the lists, which only show what the rep created |
+| Period | `period` argument — pass the same one the list uses | with a window selected, only statuses/categories present in it are offered |
+
+Resolvers receive all of it as a `SalesRepFilterRuleContext`, which is also what a project override gets. On the **apply** path the context is rebuilt from the reader's own criteria, so what was offered is exactly what resolves. Because the vocabulary shifts with the scope, a storefront that keeps a selection must drop it when it stops being offered (the theme's rule-chips component does this once the refetch settles) — otherwise a filter stays applied with no chip showing it.
 
 ---
 
@@ -415,14 +437,14 @@ graph LR
 
 The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. The requested currency is resolved once per query by a shared policy (`ISalesRepCurrencyResolver`, used by every money-bearing query): an explicit `currencyCode` argument if given, else the store's default currency, else the platform primary. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
 
-**Filter rules** are the single, server-owned vocabulary for "which records count". A rule has a stable `name` and resolves to the underlying filter — order statuses, a cart type/status set, or a customer segment — as an overridable mapping (`IFilterRuleResolver`), applied as one optional `filter` argument (omit → the baseline set; unknown name → fail closed). The two data-derived rule sets only offer rules with data behind them: order statuses come from a `DISTINCT` over the orders **in the caller's scope** (`ISalesRepOrderStatusService`, cached) — the rep's served organizations, their own created orders, and one customer when the storefront passes `organizationId` — so an ERP-introduced status shows up, an unused status does not, and a chip never resolves to an empty list; the top-seller category badges skip top-level categories whose subtree holds no product. Resolvers get that scope as a `SalesRepFilterRuleContext` (built from the query on the discovery path and from the reader's criteria on the apply path), so discovery and resolution always agree. Within a domain the **same resolver drives every reader** — the orders list and the order statistics; the customers list and the "my customers" counts — so a filtered list and its matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
+**Filter rules** are the single, server-owned vocabulary for "which records count". A rule has a stable `name` and resolves to the underlying filter — order statuses, a cart type/status set, or a customer segment — as an overridable mapping (`IFilterRuleResolver`), applied as one optional `filter` argument (omit → the baseline set; unknown name → fail closed). The two data-derived rule sets only offer rules with data behind them, read **in the caller's scope** — served organizations, own created orders, plus the `organizationId` and `period` the storefront's list is using: order statuses come from a `DISTINCT` over those orders (`ISalesRepOrderStatusService`, cached), so an ERP-introduced status shows up and an unused one doesn't; the top-seller badges are the categories that scope's sales actually fall into. Resolvers get the scope as a `SalesRepFilterRuleContext` (built from the query on the discovery path and from the reader's criteria on the apply path), so discovery and resolution always agree and a selectable rule never yields an empty list. Within a domain the **same resolver drives every reader** — the orders list and the order statistics; the customers list and the "my customers" counts — so a filtered list and its matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
 
 * **Add/recompose rules** — register a replacement resolver (`ISalesRepOrderFilterRuleResolver` / `ISalesRepCartFilterRuleResolver` / `ISalesRepCustomerFilterRuleResolver` / `ISalesRepTopSellerFilterRuleResolver`); the last registration wins. Customer segments ship with a single **All** baseline (passthrough); the seam is there for projects to add real segments.
 * **A rule the standard criteria can't express** (e.g. *"stale, or item-less"* orders, or an *"active"* customer segment) — the resolver applies onto the reader's criteria, and each reader exposes a seam to add the predicate: a `BuildQuery` override on the statistics/counts services, or narrowing the members search (`ObjectIds`) for the customers list. Wire it for every reader in the domain so they stay consistent.
 
 **Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression, e.g. *recent* / *total*; `ISalesRepCustomerSortRuleResolver` maps it to a spec; `ISalesRepTopSellerSortRuleResolver` maps it to the Top Sellers ranking metric). The rule `name` carries an optional X-Order-style `:asc`/`:desc` **direction suffix**, parsed once in `SortRuleResolverBase`: each rule declares its `DefaultDirection` and whether it `SupportsDirection`, so the base applies the default when no (or a garbage) suffix is given, applies a supported suffix, and **throws** on a valid-but-unsupported direction on a recognized rule (e.g. `recent:asc`) — while an unknown *rule name* still falls back to the default. Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed on the name. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
 
-**Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its only catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): it lists the store catalog's top-level non-hidden categories (`ICategorySearchService`) that hold at least one product (one count-only index probe per category), and a selected badge is resolved — through the catalog index (`IProductIndexedSearchService`, the same path the storefront's category pages use, so it works for a virtual store catalog too) — to the rep's own sold products that fall in that category's subtree, which the ranking is then restricted to (bounded by the rep's sold products, so it never enumerates a whole category and the data-isolation rule holds).
+**Top Sellers** is an *orders-only* ranking, **aggregated in the database** like the statistics above: it groups the rep's own order line items by product with `SUM` (units = Σ quantity, revenue = Σ price × quantity) straight from the Orders store — returning one row per product/currency instead of loading raw line items — then folds a currency mix to the requested currency in memory. A line item is a self-contained snapshot (name / sku / image / category are denormalized on it), so the ranking and the row display need no catalog read. Its only catalog touch is the category badges (`ISalesRepTopSellerFilterRuleResolver`): it lists the store catalog's top-level non-hidden categories (`ICategorySearchService`) the rep actually sold into — one cached `DISTINCT CategoryId` over the rep's line items, then those categories' outlines for the store catalog (`ICategoryService`) map each to its top-level ancestor — and a selected badge narrows the ranking to the sold categories under it (`CategoryIds` on the criteria — a plain database predicate). Keying on categories rather than products keeps the work proportional to the catalog structure however many products the rep has sold, and the data-isolation rule holds because every category comes from the rep's own line items.
 
 ## Administration
 
@@ -470,7 +492,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
 | `VirtoCommerce.PushMessages` | Storefront push notifications for customer communications. |
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
-| `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and resolves a selected badge to the rep's sold products in its subtree via the catalog index (`IProductIndexedSearchService`). |
+| `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and maps the categories the rep sold in to their top-level ancestor through the categories' outlines (`ICategoryService`, `WithOutlines`), which also covers a virtual store catalog. |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 
 ## Documentation

@@ -59,9 +59,10 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
 
     public virtual async Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, string filter, CustomerOrderSearchCriteria criteria)
     {
-        // The reader's own criteria carry the scope the rules must be resolved in (the same organizations and creator
-        // the list is about to be searched with).
-        var context = SalesRepFilterRuleContext.Create(storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId);
+        // The reader's own criteria carry the scope the rules must be resolved in (the same organizations, creator and
+        // date window the list is about to be searched with).
+        var context = SalesRepFilterRuleContext.Create(
+            storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId, criteria.StartDate, criteria.EndDate);
 
         var statuses = await ResolveStatusesAsync(context, filter);
         if (statuses == null)
@@ -79,7 +80,8 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
 
     public virtual async Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerOrderStatisticsCriteria criteria)
     {
-        var context = SalesRepFilterRuleContext.Create(storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId);
+        var context = SalesRepFilterRuleContext.Create(
+            storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId, criteria.FromDate, criteria.ToDate);
 
         var statuses = await ResolveStatusesAsync(context, filter);
         if (statuses == null)
@@ -113,6 +115,8 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
         criteria.OrganizationIds = context.OrganizationIds;
         criteria.CustomerId = context.CustomerId;
         criteria.StoreId = context.StoreId;
+        criteria.FromDate = context.FromDate;
+        criteria.ToDate = context.ToDate;
         return criteria;
     }
 }
