@@ -23,7 +23,7 @@ public class SalesRepCustomerCountsQueryHandler : SalesRepQueryHandlerBase, IQue
             return null;
         }
 
-        var memberships = await GetVisibleGrantingMembershipsAsync(request.UserId, request.OrganizationId);
+        var memberships = await OrganizationAccessService.GetVisibleGrantingMembershipsAsync(request.UserId, request.OrganizationId);
         if (memberships.Count == 0)
         {
             return null;

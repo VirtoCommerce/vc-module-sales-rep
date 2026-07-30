@@ -41,7 +41,7 @@ public class CustomerSalesRepsQueryHandler : SalesRepQueryHandlerBase, IQueryHan
             return result;
         }
 
-        var memberships = await GetGrantingMembershipsAsync(organizationIds: [request.OrganizationId]);
+        var memberships = await OrganizationAccessService.GetGrantingMembershipsAsync(organizationIds: [request.OrganizationId]);
 
         var userIds = memberships
             .Select(m => m.UserId)

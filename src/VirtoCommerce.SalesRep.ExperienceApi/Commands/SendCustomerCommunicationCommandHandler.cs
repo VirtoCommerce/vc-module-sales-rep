@@ -64,7 +64,7 @@ public class SendCustomerCommunicationCommandHandler
     {
         ValidateRequest(request);
 
-        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        if (!await OrganizationAccessService.ServesOrganizationAsync(request.UserId, request.OrganizationId))
         {
             throw AuthorizationError.Forbidden();
         }

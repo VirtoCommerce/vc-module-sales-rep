@@ -50,7 +50,7 @@ public class SalesRepCartSharingServiceTests
         public Task<IList<OrganizationMembership>> GetVisibleGrantingMembershipsAsync(string userId, string organizationId) => Task.FromResult<IList<OrganizationMembership>>([]);
     }
 
-    private static ShoppingCart EmptyCart() => new() { SharingSettings = new List<CartSharingSetting>() };
+    private static ShoppingCart EmptyCart() => new() { SharingSettings = [] };
 
     private static WishlistScopeContext ScopeContext(string scope, string sharedWithId, string currentUserId, string currentOrganizationId = null) =>
         new()
@@ -74,7 +74,7 @@ public class SalesRepCartSharingServiceTests
                 Scope = ModuleConstants.Sharing.CustomerScope,
                 Access = CartSharingAccess.Read,
                 SharedWithId = organizationId,
-            }).ToList<CartSharingSetting>(),
+            }).ToList(),
         };
     }
 

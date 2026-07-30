@@ -39,7 +39,7 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
             return null;
         }
 
-        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        if (!await OrganizationAccessService.ServesOrganizationAsync(request.UserId, request.OrganizationId))
         {
             return null;
         }

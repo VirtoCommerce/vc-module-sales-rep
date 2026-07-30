@@ -25,7 +25,7 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
 
         // Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list, never the
         // vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog categories.
-        var organizationIds = await GetServedOrganizationIdsAsync(request.UserId);
+        var organizationIds = await OrganizationAccessService.GetServedOrganizationIdsAsync(request.UserId);
         if (organizationIds.Count == 0)
         {
             return [];

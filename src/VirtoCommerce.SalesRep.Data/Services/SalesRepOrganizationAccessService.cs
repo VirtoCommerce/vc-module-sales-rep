@@ -37,26 +37,20 @@ public class SalesRepOrganizationAccessService(
         return memberships.Count > 0;
     }
 
-    public virtual async Task<IList<string>> GetServedOrganizationIdsAsync(string userId)
+    public virtual Task<IList<string>> GetServedOrganizationIdsAsync(string userId)
     {
-        var memberships = await GetGrantingMembershipsAsync(userIds: [userId]);
+        return GetVisibleOrganizationIdsAsync(userId, organizationId: null);
+    }
+
+    public virtual async Task<IList<string>> GetVisibleOrganizationIdsAsync(string userId, string organizationId)
+    {
+        var memberships = await GetVisibleGrantingMembershipsAsync(userId, organizationId);
 
         return memberships
             .Select(x => x.OrganizationId)
             .Where(x => !string.IsNullOrEmpty(x))
             .Distinct()
             .ToList();
-    }
-
-    public virtual async Task<IList<string>> GetVisibleOrganizationIdsAsync(string userId, string organizationId)
-    {
-        if (!string.IsNullOrEmpty(organizationId))
-        {
-            var memberships = await GetGrantingMembershipsAsync([userId], [organizationId]);
-            return memberships.Count > 0 ? [organizationId] : [];
-        }
-
-        return await GetServedOrganizationIdsAsync(userId);
     }
 
     public virtual async Task<IList<OrganizationMembership>> GetVisibleGrantingMembershipsAsync(string userId, string organizationId)
