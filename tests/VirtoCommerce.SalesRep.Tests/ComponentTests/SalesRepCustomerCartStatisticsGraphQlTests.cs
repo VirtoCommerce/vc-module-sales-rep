@@ -179,10 +179,13 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        // Cart.LineItemsCount counts non-gift lines and is denormalized, so it can read 0 while line items exist
-        // (a gift-only cart, or a row written outside the platform). Quantities must still come from the items.
+        // Cart.LineItemsCount is denormalized AND counts non-gift lines only, so it reads 0 in two different
+        // situations: legitimately for a promo-gift-only cart, and staler-than-reality for a row written outside
+        // the platform (SQL seed / import). Quantities must come from the line items in both.
+        SeedCart(ctx, "gift-only", "org-1", 0m, _feb2026, lineItemsCount: 0);
+        SeedCartItem(ctx, "gift-only", "gift-line", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, isGift: true);
         SeedCart(ctx, "stale", "org-1", 100m, _feb2026, lineItemsCount: 0);
-        SeedCartItem(ctx, "stale", "stale-item", quantity: 6, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "stale", "stale-line", quantity: 6, selectedForCheckout: true, modifiedDate: _feb2026);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
@@ -193,7 +196,8 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
 
         var active = Stats(json).GetProperty("active");
         active.GetProperty("count").GetInt32().Should().Be(0);                // cart-level figures keep the guard
-        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(6); // item figures do not
+        // Item figures do not — and a gift line counts like any other (to exclude gifts, filter IsGift in BuildItemQuery).
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(8); // 2 (gift) + 6 (stale counter)
     }
 
     [Fact]
@@ -258,6 +262,29 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Cart_ItemQuantities_ExcludeItemsTouchedBeforeTheRange()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "c1", "org-1", 100m, _feb2026); // created inside the range
+        SeedCartItem(ctx, "c1", "untouched-line", quantity: 5, selectedForCheckout: true, modifiedDate: _mar2025);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}, filter: "active-carts") { count selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        // The mirror image of Cart_ItemQuantities_BoundedByLineItemModifiedDate: here the CART falls inside the
+        // range but its only line was last touched a year earlier, so the cart counts and its items do not.
+        var ytd = Stats(json).GetProperty("ytd");
+        ytd.GetProperty("count").GetInt32().Should().Be(1);
+        ytd.GetProperty("selectedItemQuantity").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
     public async Task Cart_ItemQuantities_BoundedByLineItemModifiedDate()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -304,6 +331,59 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Cart_ItemQuantities_SumAcrossCurrencies()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "c-eur", "org-1", 100m, _feb2026, currency: "EUR");
+        SeedCartItem(ctx, "c-eur", "eur-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCart(ctx, "c-usd", "org-1", 100m, _feb2026, currency: "USD");
+        SeedCartItem(ctx, "c-usd", "usd-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { count total { amount } selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        // Quantities are unit counts: summed straight across currencies, no conversion — while the money figures
+        // are folded into the requested currency.
+        var active = Stats(json).GetProperty("active");
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(5); // 2 (EUR) + 3 (USD)
+        active.GetProperty("count").GetInt32().Should().Be(2);
+        MoneyAmount(active, "total").Should().Be(225m);                       // 100 USD + 100 EUR * 1.25
+    }
+
+    [Fact]
+    public async Task Cart_ItemQuantities_IncludeUnconfiguredCurrencyCarts_UnlikeMoneyFigures()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "c-usd", "org-1", 100m, _feb2026, currency: "USD");
+        SeedCartItem(ctx, "c-usd", "usd-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCart(ctx, "c-gbp", "org-1", 999m, _feb2026, currency: "GBP"); // not a configured currency
+        SeedCartItem(ctx, "c-gbp", "gbp-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { count total { amount } selectedItemQuantity warning } } }
+              """,
+            userId: rep.UserId);
+
+        // An unconvertible cart drops out of the money figures (and out of count, with a warning), but its items
+        // still count — a quantity needs no exchange rate, so excluding them would only understate the metric.
+        var active = Stats(json).GetProperty("active");
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(5); // 3 (USD) + 2 (GBP)
+        active.GetProperty("count").GetInt32().Should().Be(1);
+        MoneyAmount(active, "total").Should().Be(100m);
+        active.GetProperty("warning").GetString().Should().Contain("GBP");
+    }
+
+    [Fact]
     public async Task Cart_ExcludesDeletedCarts()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -311,17 +391,20 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedCart(ctx, "live", "org-1", 100m, _feb2026);
         SeedCart(ctx, "dead", "org-1", 999m, _feb2026, isDeleted: true);
+        SeedCartItem(ctx, "live", "live-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "dead", "dead-item", quantity: 7, selectedForCheckout: true, modifiedDate: _feb2026);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count selectedItemQuantity } } }
               """,
             userId: rep.UserId);
 
         var active = Stats(json).GetProperty("active");
         MoneyAmount(active, "total").Should().Be(100m); // the deleted 999 never counts
         active.GetProperty("count").GetInt32().Should().Be(1);
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2); // nor do a deleted cart's items
     }
 
     [Fact]
@@ -353,17 +436,20 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedCart(ctx, "b2b", "org-1", 100m, _feb2026, storeId: "B2B-store");
         SeedCart(ctx, "other", "org-1", 500m, _feb2026, storeId: "OtherStore");
+        SeedCartItem(ctx, "b2b", "b2b-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "other", "other-item", quantity: 7, selectedForCheckout: true, modifiedDate: _feb2026);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", storeId: "B2B-store", currencyCode: "USD") {
-                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count selectedItemQuantity } } }
               """,
             userId: rep.UserId);
 
         var active = Stats(json).GetProperty("active");
         MoneyAmount(active, "total").Should().Be(100m);
         active.GetProperty("count").GetInt32().Should().Be(1);
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2); // the other store's items stay out
     }
 
     [Fact]
@@ -414,19 +500,25 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedCart(ctx, "mine", "org-1", 100m, _feb2026);                                       // created by the rep
         SeedCart(ctx, "foreign", "org-1", 999m, _feb2026, createdByUserId: "another-rep-user"); // same served org, ANOTHER rep
+        SeedCartItem(ctx, "mine", "mine-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "foreign", "foreign-selected", quantity: 7, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "foreign", "foreign-parked", quantity: 4, selectedForCheckout: false, modifiedDate: _feb2026);
 
         // Data-isolation invariant: a rep sees only carts they created — a foreign rep's cart in the same served
-        // organization must never contribute.
+        // organization must never contribute, to the item quantities just as much as to the money figures.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
+                active: period({{Ytd}}, filter: "active-carts") {
+                  total { amount } count selectedItemQuantity unselectedItemQuantity } } }
               """,
             userId: rep.UserId);
 
         var active = Stats(json).GetProperty("active");
         MoneyAmount(active, "total").Should().Be(100m); // only the rep's own cart; the foreign 999 excluded
         active.GetProperty("count").GetInt32().Should().Be(1);
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2);   // not 9 — the foreign 7 must not leak
+        active.GetProperty("unselectedItemQuantity").GetInt32().Should().Be(0); // nor the foreign parked 4
     }
 
     [Fact]
@@ -518,7 +610,8 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     }
 
     private static void SeedCartItem(
-        SalesRepTestContext ctx, string cartId, string id, int quantity, bool selectedForCheckout, DateTime modifiedDate)
+        SalesRepTestContext ctx, string cartId, string id, int quantity, bool selectedForCheckout, DateTime modifiedDate,
+        bool isGift = false)
     {
         using var db = ctx.NewCartDbContext();
         db.Add(new LineItemEntity
@@ -532,6 +625,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             Currency = "USD",
             Quantity = quantity,
             SelectedForCheckout = selectedForCheckout,
+            IsGift = isGift,
             CreatedDate = modifiedDate,
             ModifiedDate = modifiedDate,
         });
