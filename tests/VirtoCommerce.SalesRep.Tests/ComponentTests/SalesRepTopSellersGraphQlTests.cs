@@ -63,6 +63,35 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_EqualMetric_OrdersByProductIdOnly()
+    {
+        // Each sort ranks by its own metric alone: products that tie on units are NOT re-ordered by revenue (nor the
+        // other way round). Ranking that way would need the other metric for every product the rep ever sold, which is
+        // the whole-table load this ranking exists to avoid — and with equal units there is no sense in which the
+        // higher-revenue product "sold more". The product id then breaks the tie, purely so the same call always
+        // returns the same order.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-a", "org-1", "prodA", quantity: 5, price: 5m);   // 5 units, revenue 25
+        SeedProductLine(ctx, "o-b", "org-1", "prodB", quantity: 5, price: 20m);  // 5 units, revenue 100
+
+        var byUnits = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(sort: \"by-units\") { productId units revenue { amount } } }",
+            userId: rep.UserId));
+
+        byUnits.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodA", "prodB");
+        byUnits[0].GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(25m);
+
+        // Revenue differs here, so the revenue sort ranks on it and puts prodB first.
+        var byRevenue = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(sort: \"by-revenue\") { productId } }",
+            userId: rep.UserId));
+
+        byRevenue.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodB", "prodA");
+    }
+
+    [Fact]
     public async Task SalesRepTopSellers_SortByRevenue_ConvertsCurrenciesBeforeRanking()
     {
         // The revenue ranking picks its candidates on CONVERTED amounts before the fold produces the displayed figures,

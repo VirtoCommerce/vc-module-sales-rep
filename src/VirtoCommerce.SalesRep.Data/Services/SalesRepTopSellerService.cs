@@ -99,11 +99,18 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             .Select(g => BuildTopSeller(g.Key, g.ToList(), criteria.CurrencyCode, currencies))
             .ToList();
 
-        var ordered = criteria.SortBy == SalesRepTopSellerSortBy.Revenue
-            ? products.OrderByDescending(x => x.Revenue).ThenByDescending(x => x.Units).ThenBy(x => x.ProductId)
-            : products.OrderByDescending(x => x.Units).ThenByDescending(x => x.Revenue).ThenBy(x => x.ProductId);
+        // The ranking was already decided (and limited) by GetRankedProductIdsAsync; this pass only hydrated the
+        // display data, so keep that order instead of re-sorting on the folded figures. Re-sorting here is what made
+        // the two passes disagree: rounding, or a different tiebreak, could promote a product the ranking pass had
+        // deliberately left out of the slice. Take() stays as a guard for an override that returns more ids.
+        var rankByProductId = rankedProductIds
+            .Select((productId, index) => (productId, index))
+            .ToDictionary(x => x.productId, x => x.index, StringComparer.Ordinal);
 
-        var top = ordered.Take(criteria.Take).ToList();
+        var top = products
+            .OrderBy(x => rankByProductId.TryGetValue(x.ProductId, out var index) ? index : int.MaxValue)
+            .Take(criteria.Take)
+            .ToList();
         for (var i = 0; i < top.Count; i++)
         {
             top[i].Rank = i + 1;
@@ -113,7 +120,10 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
     }
 
     /// <summary>
-    /// Picks the products worth loading in full, so the expensive projection below only ever sees a handful of rows.
+    /// Ranks the products and returns the winners' ids — this is the single place the order is decided, so the caller
+    /// hydrates and renders in exactly this order. Each sort is ranked by its own metric alone; the product id only
+    /// breaks ties, so that equal-metric rows come back in the same order on every call (stable output, stable cache)
+    /// rather than in whatever order the database happens to produce.
     /// <para>
     /// Units are currency-neutral, so that ranking is ordered and limited entirely by the database. Revenue is not:
     /// amounts have to be converted before they can be compared, and no single LINQ expression computes
@@ -128,11 +138,6 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         SalesRepTopSellerCriteria criteria,
         IReadOnlyCollection<Currency> currencies)
     {
-        // A wider slice than the caller asked for: the figures are rounded to the target currency by the fold, so two
-        // products within a rounding step of each other could swap around the cut-off. The final order is decided on
-        // the folded figures by the caller.
-        var take = criteria.Take * 2;
-
         if (criteria.SortBy != SalesRepTopSellerSortBy.Revenue)
         {
             return await query
@@ -141,7 +146,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
                 .OrderByDescending(x => x.Units)
                 .ThenBy(x => x.ProductId)
                 .Select(x => x.ProductId)
-                .Take(take)
+                .Take(criteria.Take)
                 .ToListAsync();
         }
 
@@ -175,10 +180,9 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
                 Units = g.Sum(x => x.Units),
             })
             .OrderByDescending(x => x.Revenue)
-            .ThenByDescending(x => x.Units)
             .ThenBy(x => x.ProductId)
             .Select(x => x.ProductId)
-            .Take(take)
+            .Take(criteria.Take)
             .ToList();
     }
 
