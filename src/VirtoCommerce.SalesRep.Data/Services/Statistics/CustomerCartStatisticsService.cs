@@ -89,20 +89,16 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .ToListAsync();
     }
 
-    // Line item quantities describe what is in the carts right now, so the range bounds the item's own modified
-    // date (when it was last added/changed) rather than the cart's created date: a cart opened months ago still
-    // contributes the items touched inside the range. The cart set still comes from BuildQuery — with the dates
-    // cleared — so an override that narrows that seam narrows the item metrics too.
+    // The range bounds the item's own modified date, not the cart's created date, so a cart opened months ago still
+    // contributes the items touched inside it. Cart scope still comes from BuildQuery — with the cart-level-only
+    // predicates cleared — so an override of that seam narrows the item metrics too.
     protected virtual IQueryable<LineItemEntity> BuildItemQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var itemCriteria = criteria.CloneTyped();
         itemCriteria.FromDate = null;
         itemCriteria.ToDate = null;
-
-        // An empty cart joins no line items, so emptiness needs no explicit check here — and the cart-level guard
-        // would actively mislead: LineItemsCount is denormalized and counts non-gift lines only, so a gift-only or
-        // stale-counter cart would silently drop its items. Summing every line matches the storefront cart's own
-        // "itemsQuantity".
+        // An empty cart joins no line items anyway, and LineItemsCount is denormalized over non-gift lines only —
+        // gating on it would drop a gift-only or stale-counter cart's items.
         itemCriteria.OnlyNonEmpty = false;
 
         var query = BuildQuery(repository, itemCriteria).SelectMany(x => x.Items);
