@@ -174,6 +174,29 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Cart_ItemQuantities_ReadTheLineItems_NotTheDenormalizedCount()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Cart.LineItemsCount counts non-gift lines and is denormalized, so it can read 0 while line items exist
+        // (a gift-only cart, or a row written outside the platform). Quantities must still come from the items.
+        SeedCart(ctx, "stale", "org-1", 100m, _feb2026, lineItemsCount: 0);
+        SeedCartItem(ctx, "stale", "stale-item", quantity: 6, selectedForCheckout: true, modifiedDate: _feb2026);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { count selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        var active = Stats(json).GetProperty("active");
+        active.GetProperty("count").GetInt32().Should().Be(0);                // cart-level figures keep the guard
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(6); // item figures do not
+    }
+
+    [Fact]
     public async Task Cart_BuildQueryOverride_NarrowsItemQuantitiesToo()
     {
         // A subclass narrowing the cart set through the BuildQuery seam must narrow BOTH metric families: the item

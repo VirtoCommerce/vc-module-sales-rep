@@ -95,11 +95,17 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
     // cleared — so an override that narrows that seam narrows the item metrics too.
     protected virtual IQueryable<LineItemEntity> BuildItemQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
-        var undatedCriteria = criteria.CloneTyped();
-        undatedCriteria.FromDate = null;
-        undatedCriteria.ToDate = null;
+        var itemCriteria = criteria.CloneTyped();
+        itemCriteria.FromDate = null;
+        itemCriteria.ToDate = null;
 
-        var query = BuildQuery(repository, undatedCriteria).SelectMany(x => x.Items);
+        // An empty cart joins no line items, so emptiness needs no explicit check here — and the cart-level guard
+        // would actively mislead: LineItemsCount is denormalized and counts non-gift lines only, so a gift-only or
+        // stale-counter cart would silently drop its items. Summing every line matches the storefront cart's own
+        // "itemsQuantity".
+        itemCriteria.OnlyNonEmpty = false;
+
+        var query = BuildQuery(repository, itemCriteria).SelectMany(x => x.Items);
 
         if (criteria.FromDate != null)
         {
