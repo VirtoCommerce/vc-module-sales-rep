@@ -13,5 +13,5 @@ public interface ISalesRepTopSellerService
     /// is what the category filter is built on rather than the sold products: its cardinality is bounded by the catalog
     /// structure, not by the number of products ever sold.
     /// </summary>
-    Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepSoldCategoryCriteria criteria);
+    Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepScopeCriteria criteria);
 }

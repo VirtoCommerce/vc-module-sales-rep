@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Filters;
 
 /// <summary>
-/// What a filter-rule resolver knows about the caller when it builds or resolves its rules: the store and culture for
-/// labels, plus the data scope the rules will be applied within — the rep's served organizations (narrowed to one when
-/// a single customer is being viewed), the rep themself as the creator of the records, and the selected period. A
-/// data-derived rule set (e.g. the order statuses actually in use, or the categories actually sold into) must be built
-/// within that same scope, or it offers rules the caller's list returns nothing for.
+/// What a filter-rule resolver knows about the caller: store and culture for the labels, plus the scope the rules will
+/// be applied within (organizations served — one when a customer page is being viewed, the rep as record creator, the
+/// selected period). A data-derived rule set has to be built in that same scope, or it offers rules the caller's list
+/// returns nothing for.
 /// </summary>
 public class SalesRepFilterRuleContext
 {
@@ -42,4 +42,8 @@ public class SalesRepFilterRuleContext
         result.ToDate = toDate;
         return result;
     }
+
+    /// <summary>The scope alone, for the lookups that derive a vocabulary from the data.</summary>
+    public virtual SalesRepScopeCriteria ToScopeCriteria()
+        => SalesRepScopeCriteria.Create(OrganizationIds, CustomerId, StoreId, FromDate, ToDate);
 }

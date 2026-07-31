@@ -31,26 +31,26 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
         _settingsManager = settingsManager;
     }
 
-    public virtual async Task<IList<string>> GetUsedStatusesAsync(SalesRepOrderStatusCriteria criteria)
+    public virtual async Task<IList<string>> GetUsedStatusesAsync(SalesRepScopeCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        // No served organization = nothing in scope. Falling back to a store-wide vocabulary here would offer statuses
-        // the caller has no orders for (and leak which statuses other reps' orders use).
+        // No served organization = nothing in scope. A store-wide fallback would offer statuses the caller has no
+        // orders for (and leak which statuses other reps' orders use).
         if (criteria.OrganizationIds.IsNullOrEmpty())
         {
             return [];
         }
 
-        // A DISTINCT over the scoped orders is too heavy to run per request, and the vocabulary changes only when a
-        // status is used for the first time — so it rides the order-statistics TTL (same source, same staleness).
+        // The DISTINCT is too heavy to run per request and the vocabulary only changes when a status is first used, so
+        // it rides the order-statistics TTL.
         return await StatisticsCache.GetOrCreateAsync(
             _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration,
             GetType(), nameof(GetUsedStatusesAsync), criteria.GetCacheKey(),
             () => ComputeUsedStatusesAsync(criteria));
     }
 
-    protected virtual async Task<IList<string>> ComputeUsedStatusesAsync(SalesRepOrderStatusCriteria criteria)
+    private async Task<IList<string>> ComputeUsedStatusesAsync(SalesRepScopeCriteria criteria)
     {
         using var repository = _orderRepositoryFactory();
 
@@ -64,39 +64,12 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
             .ToList();
     }
 
-    protected virtual IQueryable<CustomerOrderEntity> BuildQuery(IOrderRepository repository, SalesRepOrderStatusCriteria criteria)
+    protected virtual IQueryable<CustomerOrderEntity> BuildQuery(IOrderRepository repository, SalesRepScopeCriteria criteria)
     {
-        // The same scope the orders list applies (CustomerOrderSearchService excludes prototypes; the sales-rep
-        // handlers add the served organizations and the rep as the creator), so every offered status has at least one
-        // listed order behind it. Cancelled orders are NOT excluded — the list shows them, so "Cancelled" is a
+        // The scope the orders list searches, cancelled orders included: the list shows them, so "Cancelled" is a
         // legitimate filter.
-        var query = repository.CustomerOrders.Where(x => !x.IsPrototype);
-
-        if (!criteria.OrganizationIds.IsNullOrEmpty())
-        {
-            query = query.Where(x => criteria.OrganizationIds.Contains(x.OrganizationId));
-        }
-
-        if (!string.IsNullOrEmpty(criteria.CustomerId))
-        {
-            query = query.Where(x => x.CustomerId == criteria.CustomerId);
-        }
-
-        if (!string.IsNullOrEmpty(criteria.StoreId))
-        {
-            query = query.Where(x => x.StoreId == criteria.StoreId);
-        }
-
-        if (criteria.FromDate != null)
-        {
-            query = query.Where(x => x.CreatedDate >= criteria.FromDate.Value);
-        }
-
-        if (criteria.ToDate != null)
-        {
-            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
-        }
-
-        return query;
+        return repository.CustomerOrders
+            .ApplyRepScope(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId, includeCancelled: true)
+            .ApplyPeriod(criteria.FromDate, criteria.ToDate);
     }
 }

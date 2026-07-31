@@ -12,10 +12,10 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// <summary>
 /// End-to-end component tests for the <c>salesRepTopSellers</c> X-API query (dashboard + customer "Top Sellers"):
 /// seed real order line items into in-memory SQLite and assert the ranking (units / revenue), period scoping, the
-/// category filter (real <c>CategorySearchService</c> + real filter resolver over a real catalog slice: the sold
-/// line items' categories are mapped to a top-level badge through the categories' outlines, and a selected badge
-/// narrows the ranking to that subtree's categories), the take cap and the data-isolation invariant. No mocks — the
-/// real aggregation, sort and category-filter services run.
+/// category filter (real <c>CategorySearchService</c> + real filter resolver over a real catalog slice: the line
+/// items' own categories are mapped to a top-level badge through the categories' outlines, and a selected badge narrows
+/// the ranking to that subtree's categories), the take cap and the data-isolation invariant. No mocks — the real
+/// aggregation, sort and category-filter services run.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepTopSellersGraphQlTests
@@ -94,11 +94,9 @@ public class SalesRepTopSellersGraphQlTests
     [Fact]
     public async Task SalesRepTopSellers_SortByRevenue_ConvertsCurrenciesBeforeRanking()
     {
-        // The revenue ranking picks its candidates on CONVERTED amounts before the fold produces the displayed figures,
-        // so the conversion has to run in the right direction there: with the rate inverted the true leader scores too
-        // low, drops out of the candidate slice, and never reaches the fold at all. `take: 1` is what makes the slice
-        // bite — with every product in the slice, the fold would re-rank them correctly and hide the bug.
-        // Harness rates: USD primary (1), EUR 1.25 — i.e. 1 EUR = 1.25 USD.
+        // The revenue ranking orders on CONVERTED amounts, so the conversion has to run in the right direction: with
+        // the rate inverted, the true leader ranks below the nominally larger USD product. `take: 1` keeps the assertion
+        // on the leader alone. Harness rates: USD primary (1), EUR 1.25 — i.e. 1 EUR = 1.25 USD.
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
@@ -154,9 +152,6 @@ public class SalesRepTopSellersGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 5, price: 10m, categoryId: "cat-printers"); // nested under electronics
         SeedProductLine(ctx, "o-s", "org-1", "prodShirt", quantity: 8, price: 10m, categoryId: "cat-apparel");
-        // Catalog products so the sales have a realistic catalog behind them; the filter itself maps the line items'
-        // own category snapshot to a top-level badge.
-        await ctx.SeedProductsAsync(("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"));
 
         // Filtering by the top-level "electronics" must catch the product filed under the nested "printers".
         var items = TopSellers(await ctx.ExecuteGraphQlAsync(
@@ -181,8 +176,6 @@ public class SalesRepTopSellersGraphQlTests
         SeedProductLine(ctx, "o-l", "org-1", "prodLaser", quantity: 5, price: 10m, categoryId: "cat-laser");     // 2 levels deep
         SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 4, price: 10m, categoryId: "cat-printers"); // 1 level deep
         SeedProductLine(ctx, "o-s", "org-1", "prodShirt", quantity: 8, price: 10m, categoryId: "cat-apparel");    // outside the subtree
-        // Catalog products so the sales have a realistic catalog behind them (the filter reads the line items' categories).
-        await ctx.SeedProductsAsync(("prodLaser", "cat-laser"), ("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"));
 
         // Filtering by the top-level "electronics" must catch descendants at ANY depth (printers AND laser
         // printers), but not the sibling apparel — every sold category whose outline starts with electronics counts.
@@ -328,7 +321,6 @@ public class SalesRepTopSellersGraphQlTests
             ("cat-printers", "Printers", "cat-electronics", true), // nested → not a badge
             ("cat-apparel", "Apparel", null, true),
             ("cat-hidden", "Hidden", null, false));                // inactive → not a badge
-        await ctx.SeedProductsAsync(("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"), ("prodHidden", "cat-hidden"));
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         // Electronics is sold into only through its nested Printers category — a badge counts the whole subtree.
@@ -355,7 +347,6 @@ public class SalesRepTopSellersGraphQlTests
             ("cat-electronics", "Electronics", null, true),
             ("cat-printers", "Printers", "cat-electronics", true),
             ("cat-unsold", "Unsold", null, true));
-        await ctx.SeedProductsAsync(("prodPrinter", "cat-printers"), ("prodUnsold", "cat-unsold"));
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 5, price: 10m, categoryId: "cat-printers");
@@ -378,7 +369,6 @@ public class SalesRepTopSellersGraphQlTests
         await ctx.SeedCategoriesAsync(
             ("cat-electronics", "Electronics", null, true),
             ("cat-apparel", "Apparel", null, true));
-        await ctx.SeedProductsAsync(("prodTv", "cat-electronics"), ("prodShirt", "cat-apparel"));
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedProductLine(ctx, "o-in", "org-1", "prodTv", quantity: 5, price: 10m, categoryId: "cat-electronics",
@@ -420,7 +410,6 @@ public class SalesRepTopSellersGraphQlTests
         await ctx.SeedCategoriesAsync(
             ("cat-electronics", "Electronics", null, true),
             ("cat-apparel", "Apparel", null, true));
-        await ctx.SeedProductsAsync(("prodTv", "cat-electronics"), ("prodShirt", "cat-apparel"));
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedProductLine(ctx, "o-tv", "org-1", "prodTv", quantity: 1, price: 10m, categoryId: "cat-electronics");

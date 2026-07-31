@@ -69,9 +69,9 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             return [];
         }
 
-        // Unit price rides in the group key and revenue (price × units) is summed in memory below rather than in SQL,
-        // so the figures keep going through the shared currency fold (rounding + unconfigured-currency warning). Rows
-        // are bounded by the handful of ranked products, whatever the catalog size.
+        // Unit price rides in the group key and revenue (price × units) is summed in memory rather than in SQL, so the
+        // figures keep going through the shared currency fold (rounding + unconfigured-currency warning). Rows are
+        // bounded by the ranked products, whatever the catalog size.
         var aggregates = await query
             .Where(x => rankedProductIds.Contains(x.ProductId))
             .GroupBy(x => new { x.ProductId, x.Currency, x.Price, x.Name, x.Sku, x.ImageUrl, x.CategoryId })
@@ -89,28 +89,17 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             })
             .ToListAsync();
 
-        if (aggregates.Count == 0)
-        {
-            return [];
-        }
-
-        var products = aggregates
+        var productsById = aggregates
             .GroupBy(x => x.ProductId)
-            .Select(g => BuildTopSeller(g.Key, g.ToList(), criteria.CurrencyCode, currencies))
+            .ToDictionary(g => g.Key, g => BuildTopSeller(g.Key, g.ToList(), criteria.CurrencyCode, currencies), StringComparer.Ordinal);
+
+        // GetRankedProductIdsAsync already decided the order; re-sorting here on the folded figures is what let the two
+        // passes disagree.
+        var top = rankedProductIds
+            .Select(productsById.GetValueOrDefault)
+            .Where(x => x != null)
             .ToList();
 
-        // The ranking was already decided (and limited) by GetRankedProductIdsAsync; this pass only hydrated the
-        // display data, so keep that order instead of re-sorting on the folded figures. Re-sorting here is what made
-        // the two passes disagree: rounding, or a different tiebreak, could promote a product the ranking pass had
-        // deliberately left out of the slice. Take() stays as a guard for an override that returns more ids.
-        var rankByProductId = rankedProductIds
-            .Select((productId, index) => (productId, index))
-            .ToDictionary(x => x.productId, x => x.index, StringComparer.Ordinal);
-
-        var top = products
-            .OrderBy(x => rankByProductId.TryGetValue(x.ProductId, out var index) ? index : int.MaxValue)
-            .Take(criteria.Take)
-            .ToList();
         for (var i = 0; i < top.Count; i++)
         {
             top[i].Rank = i + 1;
@@ -120,18 +109,11 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
     }
 
     /// <summary>
-    /// Ranks the products and returns the winners' ids — this is the single place the order is decided, so the caller
-    /// hydrates and renders in exactly this order. Each sort is ranked by its own metric alone; the product id only
-    /// breaks ties, so that equal-metric rows come back in the same order on every call (stable output, stable cache)
-    /// rather than in whatever order the database happens to produce.
-    /// <para>
-    /// Units are currency-neutral, so that ranking is ordered and limited entirely by the database. Revenue is not:
-    /// amounts have to be converted before they can be compared, and no single LINQ expression computes
-    /// <c>price × quantity</c> on every provider — the money column needs an explicit decimal cast on PostgreSQL, which
-    /// SQLite (the component tests' provider) cannot translate. So the revenue ranking keeps the arithmetic in memory,
-    /// but over the narrowest possible rows: three scalars per (product, currency, unit price), with none of the
-    /// display strings that dominate the row size.
-    /// </para>
+    /// The single place the order is decided: the caller hydrates and renders in exactly this order. Each sort ranks on
+    /// its own metric alone, with the product id breaking ties so equal-metric rows come back the same way every call.
+    /// Units rank entirely in the database; revenue can't, because no single LINQ expression multiplies the money column
+    /// on every provider (PostgreSQL needs a decimal cast that SQLite won't translate), so it ranks in memory over the
+    /// narrowest rows — three scalars per (product, currency, unit price), no display strings.
     /// </summary>
     protected virtual async Task<IList<string>> GetRankedProductIdsAsync(
         IQueryable<LineItemEntity> query,
@@ -161,23 +143,20 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             })
             .ToListAsync();
 
-        // Resolved once per currency in scope rather than per row: the rates are constant for the whole ranking, and
-        // this runs over every (product, currency, unit price) group. Distinct() with the same comparer the dictionary
-        // uses keeps the keys unique.
+        // Resolved once per currency, not per row: the rates are constant and this runs over every
+        // (product, currency, unit price) group. An unconfigured currency rates to zero — the same exclusion the fold
+        // applies (and reports as a warning); its units still count.
         var rates = priceGroups
             .Select(x => x.Currency ?? string.Empty)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x => x, x => GetConversionRate(x, criteria.CurrencyCode, currencies), StringComparer.OrdinalIgnoreCase);
+            .DistinctIgnoreCase()
+            .ToDictionary(x => x, x => StatisticsCurrencyConverter.GetRate(x, criteria.CurrencyCode, currencies), StringComparer.OrdinalIgnoreCase);
 
         return priceGroups
             .GroupBy(x => x.ProductId)
             .Select(g => new
             {
                 ProductId = g.Key,
-                // An amount in a currency the platform doesn't know can't be converted, so it scales to zero — the same
-                // exclusion the fold applies (and reports as a warning); its units still count.
                 Revenue = g.Sum(x => x.Price * x.Units * rates[x.Currency ?? string.Empty]),
-                Units = g.Sum(x => x.Units),
             })
             .OrderByDescending(x => x.Revenue)
             .ThenBy(x => x.ProductId)
@@ -186,19 +165,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             .ToList();
     }
 
-    /// <summary>Rate that brings an amount into the target currency, matching <c>Money.ConvertTo</c>; zero when the
-    /// source currency isn't configured (unconvertible, excluded from revenue).</summary>
-    private static decimal GetConversionRate(string sourceCurrencyCode, string targetCurrencyCode, IReadOnlyCollection<Currency> currencies)
-    {
-        var source = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(sourceCurrencyCode));
-        var target = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(targetCurrencyCode));
-
-        return source == null || target == null || target.ExchangeRate == 0
-            ? 0m
-            : source.ExchangeRate / target.ExchangeRate;
-    }
-
-    public virtual async Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepSoldCategoryCriteria criteria)
+    public virtual async Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepScopeCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
@@ -213,7 +180,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             () => ComputeSoldCategoryIdsAsync(criteria));
     }
 
-    private async Task<IList<string>> ComputeSoldCategoryIdsAsync(SalesRepSoldCategoryCriteria criteria)
+    private async Task<IList<string>> ComputeSoldCategoryIdsAsync(SalesRepScopeCriteria criteria)
     {
         using var repository = _orderRepositoryFactory();
 
@@ -238,35 +205,13 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             query = query.Where(x => criteria.CategoryIds.Contains(x.CategoryId));
         }
 
-        if (criteria.ProductIds != null)
-        {
-            query = query.Where(x => criteria.ProductIds.Contains(x.ProductId));
-        }
-
-        return ApplyPeriod(query, criteria.FromDate, criteria.ToDate);
+        return query.ApplyPeriod(criteria.FromDate, criteria.ToDate);
     }
 
-    protected virtual IQueryable<LineItemEntity> BuildQuery(IOrderRepository repository, SalesRepSoldCategoryCriteria criteria)
-    {
-        var query = repository.LineItems.ApplyRepScope(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId);
-
-        return ApplyPeriod(query, criteria.FromDate, criteria.ToDate);
-    }
-
-    private static IQueryable<LineItemEntity> ApplyPeriod(IQueryable<LineItemEntity> query, DateTime? fromDate, DateTime? toDate)
-    {
-        if (fromDate != null)
-        {
-            query = query.Where(x => x.CustomerOrder.CreatedDate >= fromDate.Value);
-        }
-
-        if (toDate != null)
-        {
-            query = query.Where(x => x.CustomerOrder.CreatedDate <= toDate.Value);
-        }
-
-        return query;
-    }
+    protected virtual IQueryable<LineItemEntity> BuildQuery(IOrderRepository repository, SalesRepScopeCriteria criteria)
+        => repository.LineItems
+            .ApplyRepScope(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId)
+            .ApplyPeriod(criteria.FromDate, criteria.ToDate);
 
     private SalesRepTopSeller BuildTopSeller(string productId, IList<ProductPriceAggregate> rows, string currencyCode, IReadOnlyCollection<Currency> currencies)
     {

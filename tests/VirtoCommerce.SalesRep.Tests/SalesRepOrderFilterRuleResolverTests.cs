@@ -205,9 +205,9 @@ public class SalesRepOrderFilterRuleResolverTests
         public FakeOrderStatusService(string[] statuses) => _statuses = statuses;
 
         /// <summary>The scope it was last asked for — the resolver must pass the caller's scope through, not a store-wide one.</summary>
-        public SalesRepOrderStatusCriteria LastCriteria { get; private set; }
+        public SalesRepScopeCriteria LastCriteria { get; private set; }
 
-        public Task<IList<string>> GetUsedStatusesAsync(SalesRepOrderStatusCriteria criteria)
+        public Task<IList<string>> GetUsedStatusesAsync(SalesRepScopeCriteria criteria)
         {
             LastCriteria = criteria;
             return Task.FromResult<IList<string>>(_statuses.ToList());

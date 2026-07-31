@@ -49,15 +49,14 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
     {
         var catalogId = await GetStoreCatalogIdAsync(context.StoreId);
 
-        var soldCategoriesByTopLevel = await GetSoldCategoriesByTopLevelAsync(catalogId, BuildSoldCategoriesCriteria(context));
-        if (soldCategoriesByTopLevel.Count == 0)
-        {
-            return [];
-        }
+        // Independent reads (orders store / catalog), so they overlap instead of adding up.
+        var soldCategoriesTask = GetSoldCategoriesByTopLevelAsync(catalogId, context.ToScopeCriteria());
+        var topLevelCategoriesTask = GetTopLevelCategoriesAsync(catalogId);
+        await Task.WhenAll(soldCategoriesTask, topLevelCategoriesTask);
 
-        var topLevelCategories = await GetTopLevelCategoriesAsync(catalogId);
+        var soldCategoriesByTopLevel = await soldCategoriesTask;
 
-        return topLevelCategories
+        return (await topLevelCategoriesTask)
             .Where(x => soldCategoriesByTopLevel.ContainsKey(x.Id))
             .Select(x => SalesRepTopSellerFilterRule.Create(x.Id, x.Name))
             .ToList();
@@ -76,21 +75,19 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
             return null;
         }
 
-        // Resolution deliberately looks at every top-level category, not only the sold-into ones GetRulesAsync offers:
-        // a category with no sales in this window resolves to an empty category set, which the ranking reads as "no
-        // rows" anyway.
-        var category = await ResolveCategoryAsync(catalogId, filter);
-        if (category == null)
+        // Any top-level category resolves, not only the sold-into ones GetRulesAsync offers: one with no sales in this
+        // window resolves to an empty category set, which the ranking reads as "no rows" anyway.
+        if (!await IsTopLevelCategoryAsync(catalogId, filter))
         {
             return null;
         }
 
-        // The ranking filters line items by their own category snapshot (SalesRepTopSellerService.BuildQuery), so the
-        // whole subtree collapses to the categories the caller actually sold in — no product-id list to carry, and the
-        // work stays proportional to the catalog structure rather than to the number of products ever sold.
-        var soldCategoriesByTopLevel = await GetSoldCategoriesByTopLevelAsync(catalogId, BuildSoldCategoriesCriteria(criteria));
+        // Scope taken from the reader's criteria, so this hits the same cached lookup the discovery call populated.
+        var soldCategoriesByTopLevel = await GetSoldCategoriesByTopLevelAsync(
+            catalogId,
+            SalesRepScopeCriteria.Create(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId, criteria.FromDate, criteria.ToDate));
 
-        criteria.CategoryIds = soldCategoriesByTopLevel.TryGetValue(category.Id, out var categoryIds)
+        criteria.CategoryIds = soldCategoriesByTopLevel.TryGetValue(filter, out var categoryIds)
             ? categoryIds
             : [];
 
@@ -103,41 +100,30 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
     /// category linked into it carries an outline like <c>store-catalog/top-level/category</c>. Categories outside the
     /// store's catalog (no such outline) are left out.
     /// </summary>
-    protected virtual async Task<IDictionary<string, IList<string>>> GetSoldCategoriesByTopLevelAsync(string catalogId, SalesRepSoldCategoryCriteria criteria)
+    protected virtual async Task<IDictionary<string, IList<string>>> GetSoldCategoriesByTopLevelAsync(string catalogId, SalesRepScopeCriteria criteria)
     {
-        var result = new Dictionary<string, IList<string>>(StringComparer.OrdinalIgnoreCase);
-
         if (string.IsNullOrEmpty(catalogId))
         {
-            return result;
+            return new Dictionary<string, IList<string>>();
         }
 
         var soldCategoryIds = await _topSellerService.GetSoldCategoryIdsAsync(criteria);
         if (soldCategoryIds.Count == 0)
         {
-            return result;
+            return new Dictionary<string, IList<string>>();
         }
 
         var categories = await _categoryService.GetByIdsAsync(soldCategoryIds, nameof(CategoryResponseGroup.WithOutlines), catalogId);
 
-        foreach (var category in categories)
-        {
-            var topLevelId = GetTopLevelCategoryId(category, catalogId);
-            if (string.IsNullOrEmpty(topLevelId))
-            {
-                continue;
-            }
-
-            if (!result.TryGetValue(topLevelId, out var categoryIds))
-            {
-                categoryIds = [];
-                result[topLevelId] = categoryIds;
-            }
-
-            categoryIds.Add(category.Id);
-        }
-
-        return result;
+        return categories
+            .Select(x => new { CategoryId = x.Id, TopLevelId = GetTopLevelCategoryId(x, catalogId) })
+            .Where(x => !string.IsNullOrEmpty(x.TopLevelId))
+            .GroupBy(x => x.TopLevelId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                // Ordered so the same badge always yields the same criteria — the ranking is cached on them.
+                g => (IList<string>)g.Select(x => x.CategoryId).OrderBy(x => x, StringComparer.Ordinal).ToList(),
+                StringComparer.OrdinalIgnoreCase);
     }
 
     protected virtual string GetTopLevelCategoryId(Category category, string catalogId)
@@ -152,34 +138,10 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
         return outline.Items?.FirstOrDefault(x => !x.IsCatalog())?.Id;
     }
 
-    protected virtual SalesRepSoldCategoryCriteria BuildSoldCategoriesCriteria(SalesRepFilterRuleContext context)
-        => BuildSoldCategoriesCriteria(context.OrganizationIds, context.CustomerId, context.StoreId, context.FromDate, context.ToDate);
-
-    /// <summary>Same scope, taken from the reader's criteria — so discovering the badges and applying one hit the same
-    /// cached lookup instead of two keys holding identical data.</summary>
-    protected virtual SalesRepSoldCategoryCriteria BuildSoldCategoriesCriteria(SalesRepTopSellerCriteria criteria)
-        => BuildSoldCategoriesCriteria(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId, criteria.FromDate, criteria.ToDate);
-
-    private static SalesRepSoldCategoryCriteria BuildSoldCategoriesCriteria(
-        IList<string> organizationIds,
-        string customerId,
-        string storeId,
-        DateTime? fromDate,
-        DateTime? toDate)
-    {
-        var criteria = AbstractTypeFactory<SalesRepSoldCategoryCriteria>.TryCreateInstance();
-        criteria.OrganizationIds = organizationIds;
-        criteria.CustomerId = customerId;
-        criteria.StoreId = storeId;
-        criteria.FromDate = fromDate;
-        criteria.ToDate = toDate;
-        return criteria;
-    }
-
-    protected virtual async Task<Category> ResolveCategoryAsync(string catalogId, string filter)
+    protected virtual async Task<bool> IsTopLevelCategoryAsync(string catalogId, string categoryId)
     {
         var categories = await GetTopLevelCategoriesAsync(catalogId);
-        return categories.FirstOrDefault(x => string.Equals(x.Id, filter, StringComparison.OrdinalIgnoreCase));
+        return categories.Any(x => x.Id.EqualsIgnoreCase(categoryId));
     }
 
     protected virtual async Task<IList<Category>> GetTopLevelCategoriesAsync(string catalogId)

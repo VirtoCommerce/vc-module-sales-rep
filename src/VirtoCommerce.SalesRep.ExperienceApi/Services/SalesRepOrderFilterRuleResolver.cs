@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -35,7 +34,7 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
     /// </summary>
     public override async Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(SalesRepFilterRuleContext context)
     {
-        var usedStatuses = await _orderStatusService.GetUsedStatusesAsync(BuildStatusCriteria(context));
+        var usedStatuses = await _orderStatusService.GetUsedStatusesAsync(context.ToScopeCriteria());
         if (usedStatuses.Count == 0)
         {
             return [];
@@ -43,18 +42,17 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
 
         var used = usedStatuses.ToHashSet(StringComparer.OrdinalIgnoreCase);
         var configured = await _localizableSettingService.GetValuesAsync(OrderSettings.OrderStatus.Name, context.CultureName);
-        var configuredStatuses = configured.Select(x => x.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        var rules = configured
+        var configuredRules = configured
             .Where(x => used.Contains(x.Key))
             .Select(x => SalesRepOrderFilterRule.Create(x.Key, x.Value, x.Key));
 
         var unconfiguredRules = usedStatuses
-            .Where(x => !configuredStatuses.Contains(x))
+            .Except(configured.Select(x => x.Key), StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
             .Select(x => SalesRepOrderFilterRule.Create(x, x, x));
 
-        return rules.Concat(unconfiguredRules).ToList();
+        return configuredRules.Concat(unconfiguredRules).ToList();
     }
 
     public virtual async Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, string filter, CustomerOrderSearchCriteria criteria)
@@ -107,16 +105,5 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
         var rule = await ResolveNamedRuleAsync(context, filter);
 
         return rule?.OrderStatuses;
-    }
-
-    protected virtual SalesRepOrderStatusCriteria BuildStatusCriteria(SalesRepFilterRuleContext context)
-    {
-        var criteria = AbstractTypeFactory<SalesRepOrderStatusCriteria>.TryCreateInstance();
-        criteria.OrganizationIds = context.OrganizationIds;
-        criteria.CustomerId = context.CustomerId;
-        criteria.StoreId = context.StoreId;
-        criteria.FromDate = context.FromDate;
-        criteria.ToDate = context.ToDate;
-        return criteria;
     }
 }

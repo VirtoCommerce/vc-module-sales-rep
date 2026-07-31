@@ -425,15 +425,15 @@ internal static class TestGraphQlConfiguration
 
             await AddOutlinesAsync(categories);
 
-            return catalogId == null
-                ? categories
-                : categories
-                    .Select(x =>
-                    {
-                        x.Outlines = x.Outlines.Where(o => o.Items.ContainsCatalog(catalogId)).ToList();
-                        return x;
-                    })
-                    .ToList();
+            if (catalogId != null)
+            {
+                foreach (var category in categories)
+                {
+                    category.Outlines = category.Outlines.GetOutlinesForCatalog(catalogId).ToList();
+                }
+            }
+
+            return categories;
         }
 
         /// <summary>
@@ -449,21 +449,21 @@ internal static class TestGraphQlConfiguration
             }
 
             using var repository = _repositoryFactory();
-            var all = await repository.Categories
-                .Select(x => new { x.Id, x.ParentCategoryId, x.CatalogId })
-                .ToListAsync();
-            var byId = all.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+            var parentByCategoryId = await repository.Categories
+                .ToDictionaryAsync(x => x.Id, x => x.ParentCategoryId);
 
             foreach (var category in categories)
             {
                 var path = new List<OutlineItem>();
+                var current = category.Id;
 
-                for (var current = byId.GetValueOrDefault(category.Id); current != null; current = string.IsNullOrEmpty(current.ParentCategoryId) ? null : byId.GetValueOrDefault(current.ParentCategoryId))
+                while (!string.IsNullOrEmpty(current))
                 {
-                    path.Insert(0, new OutlineItem { Id = current.Id, SeoObjectType = "Category" });
+                    path.Insert(0, new OutlineItem { Id = current, SeoObjectType = SeoExtensions.SeoCategory });
+                    current = parentByCategoryId.GetValueOrDefault(current);
                 }
 
-                path.Insert(0, new OutlineItem { Id = category.CatalogId, SeoObjectType = "Catalog" });
+                path.Insert(0, new OutlineItem { Id = category.CatalogId, SeoObjectType = SeoExtensions.SeoCatalog });
 
                 category.Outlines = [new Outline { Items = path }];
             }

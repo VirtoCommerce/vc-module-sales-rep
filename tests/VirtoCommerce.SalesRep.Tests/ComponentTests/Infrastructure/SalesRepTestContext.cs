@@ -477,41 +477,6 @@ internal sealed class SalesRepTestContext : IDisposable
         await db.SaveChangesAsync();
     }
 
-    /// <summary>
-    /// Seed catalog products (<see cref="ItemEntity"/>) under <see cref="TestCatalogId"/>, each in a category, so a
-    /// test's sales have a realistic catalog behind them. The Top Sellers category filter itself keys on the order line
-    /// items' own category snapshot, so it does not depend on these rows. Call <see cref="SeedCategoriesAsync"/> first
-    /// — the products' categories (and the catalog row) must already exist.
-    /// </summary>
-    public async Task SeedProductsAsync(params (string Id, string CategoryId)[] products)
-    {
-        var seedDate = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-        using var db = NewCatalogDbContext();
-
-        if (!await db.Set<CatalogEntity>().AnyAsync(x => x.Id == TestCatalogId))
-        {
-            db.Add(new CatalogEntity { Id = TestCatalogId, Name = "Test Catalog", DefaultLanguage = "en-US", CreatedDate = seedDate, ModifiedDate = seedDate });
-        }
-
-        foreach (var product in products)
-        {
-            db.Add(new ItemEntity
-            {
-                Id = product.Id,
-                Name = product.Id,
-                Code = product.Id,
-                CatalogId = TestCatalogId,
-                CategoryId = product.CategoryId,
-                IsActive = true,
-                CreatedDate = seedDate,
-                ModifiedDate = seedDate,
-            });
-        }
-
-        await db.SaveChangesAsync();
-    }
-
     /// <summary>Unwraps the value from a controller action result (actions return <c>Ok(value)</c>).</summary>
     public static T Unwrap<T>(ActionResult<T> result)
     {
