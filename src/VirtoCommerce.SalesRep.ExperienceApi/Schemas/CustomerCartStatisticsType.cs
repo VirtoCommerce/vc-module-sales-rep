@@ -37,7 +37,7 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             .Description("Cart statistics for a single date range. Omit both bounds for lifetime.")
             .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the cart created date (null = no lower bound).")
             .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the cart created date (null = no upper bound).")
-            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); counts only carts matching that rule's type/status/contents filter. Omit for every cart.")
+            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); counts only carts matching that rule's name/type/status/contents filter. Omit for every cart row, wishlists and other lists included.")
             .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);

@@ -50,14 +50,20 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 
     private async Task<CustomerCartStatisticsPeriod> ComputeStatisticsAsync(CustomerCartStatisticsCriteria criteria)
     {
-        var byCurrency = await AggregateByCurrencyAsync(criteria);
-        return await ConvertAndFoldAsync(byCurrency, criteria);
-    }
-
-    private async Task<IList<PerCurrencyAggregate>> AggregateByCurrencyAsync(CustomerCartStatisticsCriteria criteria)
-    {
         using var repository = _cartRepositoryFactory();
 
+        var byCurrency = await AggregateByCurrencyAsync(repository, criteria);
+        var itemQuantities = await AggregateItemQuantitiesAsync(repository, criteria);
+
+        var period = await ConvertAndFoldAsync(byCurrency, criteria);
+        period.SelectedItemQuantity = itemQuantities.Where(x => x.SelectedForCheckout).Sum(x => x.Quantity);
+        period.UnselectedItemQuantity = itemQuantities.Where(x => !x.SelectedForCheckout).Sum(x => x.Quantity);
+
+        return period;
+    }
+
+    private async Task<IList<PerCurrencyAggregate>> AggregateByCurrencyAsync(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    {
         return await BuildQuery(repository, criteria)
             .GroupBy(x => x.Currency)
             .Select(g => new PerCurrencyAggregate
@@ -70,7 +76,58 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .ToListAsync();
     }
 
+    private async Task<IList<ItemQuantityAggregate>> AggregateItemQuantitiesAsync(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    {
+        // At most two rows (selected / not selected), so quantities need no currency folding — they are unit counts.
+        return await BuildItemQuery(repository, criteria)
+            .GroupBy(x => x.SelectedForCheckout)
+            .Select(g => new ItemQuantityAggregate
+            {
+                SelectedForCheckout = g.Key,
+                Quantity = g.Sum(x => x.Quantity),
+            })
+            .ToListAsync();
+    }
+
     protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    {
+        var query = BuildScopeQuery(repository, criteria);
+
+        if (criteria.FromDate != null)
+        {
+            query = query.Where(x => x.CreatedDate >= criteria.FromDate.Value);
+        }
+
+        if (criteria.ToDate != null)
+        {
+            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
+        }
+
+        return query;
+    }
+
+    // Line item quantities describe what is in the carts right now, so the range bounds the item's own modified
+    // date (when it was last added/changed) rather than the cart's created date: a cart opened months ago still
+    // contributes the items touched inside the range.
+    protected virtual IQueryable<LineItemEntity> BuildItemQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    {
+        var query = BuildScopeQuery(repository, criteria).SelectMany(x => x.Items);
+
+        if (criteria.FromDate != null)
+        {
+            query = query.Where(x => (x.ModifiedDate ?? x.CreatedDate) >= criteria.FromDate.Value);
+        }
+
+        if (criteria.ToDate != null)
+        {
+            query = query.Where(x => (x.ModifiedDate ?? x.CreatedDate) <= criteria.ToDate.Value);
+        }
+
+        return query;
+    }
+
+    // Everything but the date range, shared by the cart-level and the item-level aggregations.
+    protected virtual IQueryable<ShoppingCartEntity> BuildScopeQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var query = repository.ShoppingCarts.Where(x => !x.IsDeleted);
 
@@ -87,6 +144,11 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         if (!string.IsNullOrEmpty(criteria.StoreId))
         {
             query = query.Where(x => x.StoreId == criteria.StoreId);
+        }
+
+        if (!criteria.Names.IsNullOrEmpty())
+        {
+            query = query.Where(x => criteria.Names.Contains(x.Name));
         }
 
         if (!criteria.Types.IsNullOrEmpty())
@@ -107,16 +169,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         if (criteria.OnlyNonEmpty)
         {
             query = query.Where(x => x.LineItemsCount > 0);
-        }
-
-        if (criteria.FromDate != null)
-        {
-            query = query.Where(x => x.CreatedDate >= criteria.FromDate.Value);
-        }
-
-        if (criteria.ToDate != null)
-        {
-            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
         }
 
         return query;
@@ -152,5 +204,11 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         public decimal Total { get; set; }
         public int Count { get; set; }
         public DateTime LastCartDate { get; set; }
+    }
+
+    private sealed class ItemQuantityAggregate
+    {
+        public bool SelectedForCheckout { get; set; }
+        public int Quantity { get; set; }
     }
 }

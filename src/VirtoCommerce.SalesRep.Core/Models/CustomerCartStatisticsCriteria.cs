@@ -14,6 +14,8 @@ public class CustomerCartStatisticsCriteria : ValueObject
 
     public string CurrencyCode { get; set; }
 
+    public IList<string> Names { get; set; }
+
     public IList<string> Types { get; set; }
 
     public IList<string> ExcludeTypes { get; set; }

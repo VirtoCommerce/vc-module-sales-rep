@@ -264,19 +264,28 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
 
 #### Cart / project statistics
 
-The same shape for carts/projects (dashboard *Active Projects*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` (non-empty carts that are **not** wishlists) — and `count` is the primary metric:
+The same shape for carts/projects (dashboard *Active carts*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` — non-empty carts named `"default"` (the storefront cart) that are **not** wishlists. The name matters: wishlists, saved-for-later and other lists are `Cart` rows too, carrying their own list names.
+
+`selectedItemQuantity` is the primary metric (summed quantity of the lines the customer selected for checkout), `unselectedItemQuantity` the parked remainder:
 
 ```graphql
 {
   salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
-    activeCarts: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z", filter: "active-carts") {
+    activeCarts: period(filter: "active-carts") {          # omit both bounds → what is in the carts right now
+      selectedItemQuantity
+      unselectedItemQuantity
       count
       total { amount formattedAmount }
       lastCartDate
     }
+    itemsThisWeek: period(from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z", filter: "active-carts") {
+      selectedItemQuantity
+    }
   }
 }
 ```
+
+⚠️ The two metric families read **different dates** inside one `period`: `count`/`total`/`average`/`lastCartDate` are bounded by the **cart's created date**, while `selectedItemQuantity`/`unselectedItemQuantity` are bounded by each **line item's modified date** — so a cart opened months ago still reports the items touched inside the range (that is what makes `itemsThisWeek` above "this week's items", not "this week's carts").
 
 ---
 

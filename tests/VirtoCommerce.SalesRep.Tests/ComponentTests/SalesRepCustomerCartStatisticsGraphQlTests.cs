@@ -14,7 +14,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// in-memory SQLite, execute real GraphQL through the real scoped schema / MediatR handler / the real
 /// <c>CustomerCartStatisticsService</c>, and assert the aggregated, currency-converted numbers. Money fields are
 /// MoneyType, so numeric values are asserted via <c>{ amount }</c>. The default cart-kind service maps the built-in
-/// "active-carts" kind to <b>non-empty</b> (LineItemsCount &gt; 0), <b>non-Wishlist</b> carts.
+/// "active-carts" kind to <b>non-empty</b> (LineItemsCount &gt; 0), <b>non-Wishlist</b> carts named
+/// <b>"default"</b> (the storefront cart; wishlists and saved-for-later lists are Cart rows too).
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepCustomerCartStatisticsGraphQlTests
@@ -110,6 +111,82 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var active = Stats(json).GetProperty("active");
         MoneyAmount(active, "total").Should().Be(100m); // the wishlist (project) is not an active cart
         active.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cart_ExcludesListsByCartName()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "cart", "org-1", 100m, _feb2026);                             // the storefront cart ("default")
+        SeedCart(ctx, "later", "org-1", 999m, _feb2026,                             // a saved-for-later list → excluded
+            type: ModuleConstants.CartType.SavedForLater, name: "Saved for later");
+        SeedCartItem(ctx, "cart", "cart-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "later", "later-item", quantity: 5, selectedForCheckout: true, modifiedDate: _feb2026);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        var active = Stats(json).GetProperty("active");
+        MoneyAmount(active, "total").Should().Be(100m);
+        active.GetProperty("count").GetInt32().Should().Be(1);
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2); // the list's 5 never counts
+    }
+
+    [Fact]
+    public async Task Cart_ItemQuantities_SplitBySelectedForCheckout()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "c1", "org-1", 100m, _feb2026);
+        SeedCart(ctx, "c2", "org-1", 200m, _apr2026);
+        SeedCartItem(ctx, "c1", "c1-selected", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "c1", "c1-parked", quantity: 4, selectedForCheckout: false, modifiedDate: _feb2026);
+        SeedCartItem(ctx, "c2", "c2-selected", quantity: 3, selectedForCheckout: true, modifiedDate: _apr2026);
+        SeedCart(ctx, "wish", "org-1", 500m, _feb2026, type: Wishlist);
+        SeedCartItem(ctx, "wish", "wish-item", quantity: 9, selectedForCheckout: true, modifiedDate: _feb2026);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { count selectedItemQuantity unselectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        var active = Stats(json).GetProperty("active");
+        active.GetProperty("count").GetInt32().Should().Be(2);
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(5);   // 2 + 3, across both carts
+        active.GetProperty("unselectedItemQuantity").GetInt32().Should().Be(4); // the parked line only
+    }
+
+    [Fact]
+    public async Task Cart_ItemQuantities_BoundedByLineItemModifiedDate()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "old", "org-1", 100m, _mar2025); // cart opened last year
+        SeedCartItem(ctx, "old", "touched-now", quantity: 7, selectedForCheckout: true, modifiedDate: _apr2026);
+        SeedCartItem(ctx, "old", "untouched", quantity: 9, selectedForCheckout: true, modifiedDate: _mar2025);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                ytd: period({{Ytd}}, filter: "active-carts") { count selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        // Cart-level figures follow the CART's created date (last year → out of the window); item quantities follow
+        // each LINE ITEM's modified date, so only the line touched this year contributes.
+        var ytd = Stats(json).GetProperty("ytd");
+        ytd.GetProperty("count").GetInt32().Should().Be(0);
+        ytd.GetProperty("selectedItemQuantity").GetInt32().Should().Be(7);
     }
 
     [Fact]
@@ -320,13 +397,14 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     private static void SeedCart(
         SalesRepTestContext ctx, string id, string org, decimal total, DateTime createdDate,
         string type = null, string status = null, string currency = "USD", string storeId = "B2B-store",
-        bool isDeleted = false, string createdByUserId = null, int lineItemsCount = 1)
+        bool isDeleted = false, string createdByUserId = null, int lineItemsCount = 1,
+        string name = ModuleConstants.DefaultCartName)
     {
         using var db = ctx.NewCartDbContext();
         db.Add(new ShoppingCartEntity
         {
             Id = id,
-            Name = id,
+            Name = name,
             CheckoutId = id, // [Required] on ShoppingCartEntity
             OrganizationId = org,
             // A rep builds a cart for the customer, so the cart's CustomerId is the rep's user id; default the
@@ -343,6 +421,27 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             LineItemsCount = lineItemsCount,
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
+        });
+        db.SaveChanges();
+    }
+
+    private static void SeedCartItem(
+        SalesRepTestContext ctx, string cartId, string id, int quantity, bool selectedForCheckout, DateTime modifiedDate)
+    {
+        using var db = ctx.NewCartDbContext();
+        db.Add(new LineItemEntity
+        {
+            Id = id,
+            ShoppingCartId = cartId,
+            ProductId = id,
+            CatalogId = "catalog-1",
+            Sku = id,
+            Name = id,
+            Currency = "USD",
+            Quantity = quantity,
+            SelectedForCheckout = selectedForCheckout,
+            CreatedDate = modifiedDate,
+            ModifiedDate = modifiedDate,
         });
         db.SaveChanges();
     }

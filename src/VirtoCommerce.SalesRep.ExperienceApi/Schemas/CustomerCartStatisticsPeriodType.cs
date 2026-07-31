@@ -16,7 +16,13 @@ public class CustomerCartStatisticsPeriodType : ExtendableGraphType<CustomerCart
             .Description("Sum of cart totals in the range (amount, formatted amount and currency).")
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Total));
 
-        Field(x => x.Count, nullable: false).Description("Number of carts in the range (the primary widget metric, e.g. 'Active Projects').");
+        Field(x => x.Count, nullable: false).Description("Number of carts in the range.");
+
+        Field(x => x.SelectedItemQuantity, nullable: false)
+            .Description("Summed quantity of the line items selected for checkout (the primary widget metric, e.g. 'Active carts · items'). Unlike the cart figures, the range bounds each LINE ITEM's modified date, so a cart created earlier still contributes the items touched inside the range.");
+
+        Field(x => x.UnselectedItemQuantity, nullable: false)
+            .Description("Summed quantity of the line items NOT selected for checkout, over the same line-item modified-date range as 'selectedItemQuantity'.");
 
         Field<NonNullGraphType<MoneyType>>("average")
             .Description("Average cart value in the range (amount, formatted amount and currency).")
