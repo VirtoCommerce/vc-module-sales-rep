@@ -22,5 +22,9 @@ public class CustomerCartStatisticsComparisonType : ExtendableGraphType<Customer
             .Description("Current average minus previous average (amount, formatted amount and currency).")
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.AverageChange));
         Field(x => x.AverageChangePercent, nullable: true).Description("Percentage change of average; null when the previous average is zero.");
+        Field(x => x.SelectedItemQuantityChange, nullable: false).Description("Current selected-for-checkout quantity minus the previous one (e.g. this week's items against the lifetime figure).");
+        Field(x => x.SelectedItemQuantityChangePercent, nullable: true).Description("Percentage change of the selected-for-checkout quantity; null when the previous quantity is zero.");
+        Field(x => x.UnselectedItemQuantityChange, nullable: false).Description("Current not-selected-for-checkout quantity minus the previous one.");
+        Field(x => x.UnselectedItemQuantityChangePercent, nullable: true).Description("Percentage change of the not-selected-for-checkout quantity; null when the previous quantity is zero.");
     }
 }

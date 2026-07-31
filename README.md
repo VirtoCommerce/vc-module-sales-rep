@@ -264,7 +264,7 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
 
 #### Cart / project statistics
 
-The same shape for carts/projects (dashboard *Active carts*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` — non-empty carts named `"default"` (the storefront cart) that are **not** wishlists. The name matters: wishlists, saved-for-later and other lists are `Cart` rows too, carrying their own list names.
+The same shape for carts/projects (dashboard *Active carts*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` — non-empty carts **named `"default"`**, i.e. the storefront cart. That is an *include*-list, not an exclude-list: wishlists, saved-for-later and any cart kind a custom project introduces are `Cart` rows too, but they carry their own list names, so a new kind stays out of the metrics without a code change here.
 
 `selectedItemQuantity` is the primary metric (summed quantity of the lines the customer selected for checkout), `unselectedItemQuantity` the parked remainder:
 
@@ -280,6 +280,15 @@ The same shape for carts/projects (dashboard *Active carts*). `filter` here is a
     }
     itemsThisWeek: period(from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z", filter: "active-carts") {
       selectedItemQuantity
+    }
+    weekVsAll: comparison(                                   # e.g. this week's items against the lifetime figure
+      current:  { from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z" }
+      previous: { from: "2019-01-01T00:00:00Z", to: "2026-08-02T23:59:59Z" }
+      filter: "active-carts"
+    ) {
+      selectedItemQuantityChange
+      selectedItemQuantityChangePercent
+      unselectedItemQuantityChange
     }
   }
 }

@@ -114,6 +114,10 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
         result.CountChangePercent = StatisticsFieldHelper.Percent(previous.Count, current.Count);
         result.AverageChange = current.Average - previous.Average;
         result.AverageChangePercent = StatisticsFieldHelper.Percent(previous.Average, current.Average);
+        result.SelectedItemQuantityChange = current.SelectedItemQuantity - previous.SelectedItemQuantity;
+        result.SelectedItemQuantityChangePercent = StatisticsFieldHelper.Percent(previous.SelectedItemQuantity, current.SelectedItemQuantity);
+        result.UnselectedItemQuantityChange = current.UnselectedItemQuantity - previous.UnselectedItemQuantity;
+        result.UnselectedItemQuantityChangePercent = StatisticsFieldHelper.Percent(previous.UnselectedItemQuantity, current.UnselectedItemQuantity);
 
         return result;
     }

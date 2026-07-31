@@ -15,10 +15,12 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
     {
         IList<SalesRepCartFilterRule> kinds =
         [
+            // Include-list, not an exclude-list: only the storefront cart ("default") counts. Wishlists,
+            // saved-for-later and any cart kind a custom project adds later carry their own list names, so a new
+            // type needs no change here — whereas an exclude-list would silently let it into the metrics.
             SalesRepCartFilterRule.Create(
                 ActiveCartsKind,
                 "Active carts",
-                excludeTypes: [ModuleConstants.CartType.Wishlist],
                 onlyNonEmpty: true,
                 names: [ModuleConstants.DefaultCartName]),
         ];

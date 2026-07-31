@@ -89,29 +89,17 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .ToListAsync();
     }
 
-    protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
-    {
-        var query = BuildScopeQuery(repository, criteria);
-
-        if (criteria.FromDate != null)
-        {
-            query = query.Where(x => x.CreatedDate >= criteria.FromDate.Value);
-        }
-
-        if (criteria.ToDate != null)
-        {
-            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
-        }
-
-        return query;
-    }
-
     // Line item quantities describe what is in the carts right now, so the range bounds the item's own modified
     // date (when it was last added/changed) rather than the cart's created date: a cart opened months ago still
-    // contributes the items touched inside the range.
+    // contributes the items touched inside the range. The cart set still comes from BuildQuery — with the dates
+    // cleared — so an override that narrows that seam narrows the item metrics too.
     protected virtual IQueryable<LineItemEntity> BuildItemQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
-        var query = BuildScopeQuery(repository, criteria).SelectMany(x => x.Items);
+        var undatedCriteria = criteria.CloneTyped();
+        undatedCriteria.FromDate = null;
+        undatedCriteria.ToDate = null;
+
+        var query = BuildQuery(repository, undatedCriteria).SelectMany(x => x.Items);
 
         if (criteria.FromDate != null)
         {
@@ -126,8 +114,7 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return query;
     }
 
-    // Everything but the date range, shared by the cart-level and the item-level aggregations.
-    protected virtual IQueryable<ShoppingCartEntity> BuildScopeQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var query = repository.ShoppingCarts.Where(x => !x.IsDeleted);
 
@@ -169,6 +156,16 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         if (criteria.OnlyNonEmpty)
         {
             query = query.Where(x => x.LineItemsCount > 0);
+        }
+
+        if (criteria.FromDate != null)
+        {
+            query = query.Where(x => x.CreatedDate >= criteria.FromDate.Value);
+        }
+
+        if (criteria.ToDate != null)
+        {
+            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
         }
 
         return query;
