@@ -29,7 +29,7 @@ public class PrimaryContactRecipientResolver : ISalesRepRecipientResolver
 
         var organization = (await _memberService.GetByIdsAsync(
                 [organizationId],
-                MemberResponseGroup.Default.ToString(),
+                nameof(MemberResponseGroup.Default),
                 [nameof(Organization)]))
             .OfType<Organization>()
             .FirstOrDefault();

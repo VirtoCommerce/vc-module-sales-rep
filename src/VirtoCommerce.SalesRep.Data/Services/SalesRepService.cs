@@ -67,7 +67,7 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<SalesRepDetails> LoadSalesRepAsync(string id)
     {
-        if (await _memberService.GetByIdAsync(id, MemberResponseGroup.Full.ToString()) is not Contact contact)
+        if (await _memberService.GetByIdAsync(id, nameof(MemberResponseGroup.Full)) is not Contact contact)
         {
             return null;
         }
@@ -170,7 +170,7 @@ public class SalesRepService : ISalesRepService
 
         var contact = isNew
             ? AbstractTypeFactory<Contact>.TryCreateInstance()
-            : await _memberService.GetByIdAsync(salesRep.Id, MemberResponseGroup.Full.ToString()) as Contact
+            : await _memberService.GetByIdAsync(salesRep.Id, nameof(MemberResponseGroup.Full)) as Contact
               ?? throw new InvalidOperationException($"Sales Rep '{salesRep.Id}' not found");
 
         var defaultContactStatus = string.IsNullOrEmpty(salesRep.Status)

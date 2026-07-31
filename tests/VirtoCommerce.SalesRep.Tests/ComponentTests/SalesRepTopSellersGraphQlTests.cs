@@ -63,6 +63,40 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_SortByRevenue_ConvertsCurrenciesBeforeRanking()
+    {
+        // The revenue ranking picks its candidates on CONVERTED amounts before the fold produces the displayed figures,
+        // so the conversion has to run in the right direction there: with the rate inverted the true leader scores too
+        // low, drops out of the candidate slice, and never reaches the fold at all. `take: 1` is what makes the slice
+        // bite — with every product in the slice, the fold would re-rank them correctly and hide the bug.
+        // Harness rates: USD primary (1), EUR 1.25 — i.e. 1 EUR = 1.25 USD.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-eur", "org-1", "prodEur", quantity: 1, price: 100m, currency: "EUR");  // 125 USD / 100 EUR
+        SeedProductLine(ctx, "o-usd-a", "org-1", "prodUsdA", quantity: 1, price: 110m, currency: "USD"); // 110 USD /  88 EUR
+        SeedProductLine(ctx, "o-usd-b", "org-1", "prodUsdB", quantity: 1, price: 105m, currency: "USD");
+        SeedProductLine(ctx, "o-usd-c", "org-1", "prodUsdC", quantity: 1, price: 95m, currency: "USD");
+
+        // In USD the EUR product leads on its converted 125, ahead of the nominally larger 110.
+        var inUsd = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(currencyCode: \"USD\", sort: \"by-revenue\", take: 1) { productId revenue { amount } } }",
+            userId: rep.UserId));
+
+        inUsd.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodEur");
+        inUsd[0].GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(125m);
+
+        // ...and the other way round: in EUR it leads on its own 100, ahead of the converted 88 — an inverted rate
+        // would flip exactly one of these two assertions.
+        var inEur = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(currencyCode: \"EUR\", sort: \"by-revenue\", take: 1) { productId revenue { amount } } }",
+            userId: rep.UserId));
+
+        inEur.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodEur");
+        inEur[0].GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(100m);
+    }
+
+    [Fact]
     public async Task SalesRepTopSellers_Period_ScopesByCreatedDate()
     {
         using var ctx = SalesRepTestContext.Create();

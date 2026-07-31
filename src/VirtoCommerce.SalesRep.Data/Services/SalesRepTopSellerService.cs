@@ -156,6 +156,14 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             })
             .ToListAsync();
 
+        // Resolved once per currency in scope rather than per row: the rates are constant for the whole ranking, and
+        // this runs over every (product, currency, unit price) group. Distinct() with the same comparer the dictionary
+        // uses keeps the keys unique.
+        var rates = priceGroups
+            .Select(x => x.Currency ?? string.Empty)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x, x => GetConversionRate(x, criteria.CurrencyCode, currencies), StringComparer.OrdinalIgnoreCase);
+
         return priceGroups
             .GroupBy(x => x.ProductId)
             .Select(g => new
@@ -163,7 +171,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
                 ProductId = g.Key,
                 // An amount in a currency the platform doesn't know can't be converted, so it scales to zero — the same
                 // exclusion the fold applies (and reports as a warning); its units still count.
-                Revenue = g.Sum(x => x.Price * x.Units * GetConversionRate(x.Currency, criteria.CurrencyCode, currencies)),
+                Revenue = g.Sum(x => x.Price * x.Units * rates[x.Currency ?? string.Empty]),
                 Units = g.Sum(x => x.Units),
             })
             .OrderByDescending(x => x.Revenue)
@@ -186,7 +194,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             : source.ExchangeRate / target.ExchangeRate;
     }
 
-    public virtual async Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepTopSellerCriteria criteria)
+    public virtual async Task<IList<string>> GetSoldCategoryIdsAsync(SalesRepSoldCategoryCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
@@ -201,7 +209,7 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             () => ComputeSoldCategoryIdsAsync(criteria));
     }
 
-    private async Task<IList<string>> ComputeSoldCategoryIdsAsync(SalesRepTopSellerCriteria criteria)
+    private async Task<IList<string>> ComputeSoldCategoryIdsAsync(SalesRepSoldCategoryCriteria criteria)
     {
         using var repository = _orderRepositoryFactory();
 
@@ -231,14 +239,26 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
             query = query.Where(x => criteria.ProductIds.Contains(x.ProductId));
         }
 
-        if (criteria.FromDate != null)
+        return ApplyPeriod(query, criteria.FromDate, criteria.ToDate);
+    }
+
+    protected virtual IQueryable<LineItemEntity> BuildQuery(IOrderRepository repository, SalesRepSoldCategoryCriteria criteria)
+    {
+        var query = repository.LineItems.ApplyRepScope(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId);
+
+        return ApplyPeriod(query, criteria.FromDate, criteria.ToDate);
+    }
+
+    private static IQueryable<LineItemEntity> ApplyPeriod(IQueryable<LineItemEntity> query, DateTime? fromDate, DateTime? toDate)
+    {
+        if (fromDate != null)
         {
-            query = query.Where(x => x.CustomerOrder.CreatedDate >= criteria.FromDate.Value);
+            query = query.Where(x => x.CustomerOrder.CreatedDate >= fromDate.Value);
         }
 
-        if (criteria.ToDate != null)
+        if (toDate != null)
         {
-            query = query.Where(x => x.CustomerOrder.CreatedDate <= criteria.ToDate.Value);
+            query = query.Where(x => x.CustomerOrder.CreatedDate <= toDate.Value);
         }
 
         return query;

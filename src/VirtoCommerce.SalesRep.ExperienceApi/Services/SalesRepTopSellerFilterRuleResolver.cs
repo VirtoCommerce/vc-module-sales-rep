@@ -88,7 +88,7 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
         // The ranking filters line items by their own category snapshot (SalesRepTopSellerService.BuildQuery), so the
         // whole subtree collapses to the categories the caller actually sold in — no product-id list to carry, and the
         // work stays proportional to the catalog structure rather than to the number of products ever sold.
-        var soldCategoriesByTopLevel = await GetSoldCategoriesByTopLevelAsync(catalogId, criteria);
+        var soldCategoriesByTopLevel = await GetSoldCategoriesByTopLevelAsync(catalogId, BuildSoldCategoriesCriteria(criteria));
 
         criteria.CategoryIds = soldCategoriesByTopLevel.TryGetValue(category.Id, out var categoryIds)
             ? categoryIds
@@ -103,7 +103,7 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
     /// category linked into it carries an outline like <c>store-catalog/top-level/category</c>. Categories outside the
     /// store's catalog (no such outline) are left out.
     /// </summary>
-    protected virtual async Task<IDictionary<string, IList<string>>> GetSoldCategoriesByTopLevelAsync(string catalogId, SalesRepTopSellerCriteria criteria)
+    protected virtual async Task<IDictionary<string, IList<string>>> GetSoldCategoriesByTopLevelAsync(string catalogId, SalesRepSoldCategoryCriteria criteria)
     {
         var result = new Dictionary<string, IList<string>>(StringComparer.OrdinalIgnoreCase);
 
@@ -152,14 +152,27 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
         return outline.Items?.FirstOrDefault(x => !x.IsCatalog())?.Id;
     }
 
-    protected virtual SalesRepTopSellerCriteria BuildSoldCategoriesCriteria(SalesRepFilterRuleContext context)
+    protected virtual SalesRepSoldCategoryCriteria BuildSoldCategoriesCriteria(SalesRepFilterRuleContext context)
+        => BuildSoldCategoriesCriteria(context.OrganizationIds, context.CustomerId, context.StoreId, context.FromDate, context.ToDate);
+
+    /// <summary>Same scope, taken from the reader's criteria — so discovering the badges and applying one hit the same
+    /// cached lookup instead of two keys holding identical data.</summary>
+    protected virtual SalesRepSoldCategoryCriteria BuildSoldCategoriesCriteria(SalesRepTopSellerCriteria criteria)
+        => BuildSoldCategoriesCriteria(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId, criteria.FromDate, criteria.ToDate);
+
+    private static SalesRepSoldCategoryCriteria BuildSoldCategoriesCriteria(
+        IList<string> organizationIds,
+        string customerId,
+        string storeId,
+        DateTime? fromDate,
+        DateTime? toDate)
     {
-        var criteria = AbstractTypeFactory<SalesRepTopSellerCriteria>.TryCreateInstance();
-        criteria.OrganizationIds = context.OrganizationIds;
-        criteria.CustomerId = context.CustomerId;
-        criteria.StoreId = context.StoreId;
-        criteria.FromDate = context.FromDate;
-        criteria.ToDate = context.ToDate;
+        var criteria = AbstractTypeFactory<SalesRepSoldCategoryCriteria>.TryCreateInstance();
+        criteria.OrganizationIds = organizationIds;
+        criteria.CustomerId = customerId;
+        criteria.StoreId = storeId;
+        criteria.FromDate = fromDate;
+        criteria.ToDate = toDate;
         return criteria;
     }
 

@@ -123,7 +123,7 @@ public class SalesRepSearchService : ISalesRepSearchService
         memberCriteria.ObjectIds = rowsByMemberId.Keys.ToArray();
         memberCriteria.Keyword = criteria.Keyword;
         memberCriteria.RootMembersOnly = false;
-        memberCriteria.ResponseGroup = MemberResponseGroup.WithEmails.ToString();
+        memberCriteria.ResponseGroup = nameof(MemberResponseGroup.WithEmails);
         memberCriteria.Sort = BuildMemberSort(criteria.SortInfos);
         memberCriteria.Skip = criteria.Skip;
         memberCriteria.Take = take;
@@ -149,7 +149,7 @@ public class SalesRepSearchService : ISalesRepSearchService
             matchedCriteria.ObjectIds = rows.Select(r => r.MemberId).ToArray();
             matchedCriteria.Keyword = criteria.Keyword;
             matchedCriteria.RootMembersOnly = false;
-            matchedCriteria.ResponseGroup = MemberResponseGroup.WithEmails.ToString();
+            matchedCriteria.ResponseGroup = nameof(MemberResponseGroup.WithEmails);
             matchedCriteria.Take = rows.Count;
             var matched = await _memberSearchService.SearchMembersAsync(matchedCriteria);
             keywordMatches = matched.Results.ToDictionary(m => m.Id, m => m);
@@ -206,7 +206,7 @@ public class SalesRepSearchService : ISalesRepSearchService
 
         var membersById = known ?? (await _memberService.GetByIdsAsync(
             pageRows.Select(r => r.MemberId).ToArray(),
-            MemberResponseGroup.WithEmails.ToString())).ToDictionary(m => m.Id, m => m);
+            nameof(MemberResponseGroup.WithEmails))).ToDictionary(m => m.Id, m => m);
 
         return pageRows.Select(r =>
         {
