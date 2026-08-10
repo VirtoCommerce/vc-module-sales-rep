@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -12,10 +11,9 @@ public class SalesRepCustomerSortRulesQueryHandler : SalesRepRulesQueryHandlerBa
     private readonly ISalesRepCustomerSortRuleResolver _sortRuleResolver;
 
     public SalesRepCustomerSortRulesQueryHandler(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepCustomerSortRuleResolver sortRuleResolver)
-        : base(roleResolver, membershipSearchService)
+        : base(organizationAccessService)
     {
         _sortRuleResolver = sortRuleResolver;
     }

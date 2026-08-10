@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using FluentAssertions;
 using GraphQL;
 using GraphQL.Types;
 using Microsoft.AspNetCore.Identity;
@@ -426,6 +428,15 @@ internal sealed class SalesRepTestContext : IDisposable
         });
 
         return serializer.Serialize(result);
+    }
+
+    /// <summary>The requested field of a GraphQL response's <c>data</c> node, after asserting the response carries no errors.</summary>
+    public static JsonElement Node(string json, string field)
+    {
+        using var doc = JsonDocument.Parse(json);
+        var root = doc.RootElement;
+        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
+        return root.GetProperty("data").GetProperty(field).Clone();
     }
 
     /// <summary>Fresh DbContext on the customer DB for assertions (avoids tracking conflicts).</summary>

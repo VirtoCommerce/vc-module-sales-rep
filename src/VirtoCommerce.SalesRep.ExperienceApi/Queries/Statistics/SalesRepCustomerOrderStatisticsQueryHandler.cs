@@ -1,4 +1,3 @@
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -9,10 +8,9 @@ public class SalesRepCustomerOrderStatisticsQueryHandler
     : SalesRepStatisticsQueryHandlerBase<SalesRepCustomerOrderStatisticsQuery, CustomerOrderStatisticsContext>
 {
     public SalesRepCustomerOrderStatisticsQueryHandler(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepCurrencyResolver currencyResolver)
-        : base(roleResolver, membershipSearchService, currencyResolver)
+        : base(organizationAccessService, currencyResolver)
     {
     }
 }

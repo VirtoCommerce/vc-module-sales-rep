@@ -21,7 +21,9 @@
     <!-- Override EF Core's transitive SQLitePCLRaw 2.1.11 (SQLite < 3.50.2, CVE-2025-6965) with the patched 3.x
          native bundle. Test-only in-memory DB; not shipped. -->
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
-    <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1039.6" />
+    <!-- Platform 3.1048: matches the VirtoCommerce.XCart platform line (pulled transitively via
+         CustomerModule.Data / SalesRep.Data). -->
+    <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Core" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Data" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
@@ -29,7 +31,7 @@
          Customer/Order search + event services). The module under test references only their .Core. -->
     <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
-    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1006.0" />
+    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0" />
     <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1032.0" />
     <!-- Store .Core only: the harness registers a lightweight in-memory IStoreService double (TestStoreService)
          so the real SalesRepService can read the store's ContactDefaultStatus. No Store .Data/DbContext needed. -->

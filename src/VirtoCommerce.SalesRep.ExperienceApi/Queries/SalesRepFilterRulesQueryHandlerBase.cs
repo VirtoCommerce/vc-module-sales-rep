@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.Xapi.Core.BaseQueries;
@@ -16,10 +15,8 @@ public abstract class SalesRepFilterRulesQueryHandlerBase<TQuery, TRule> : Sales
     where TQuery : Query<IList<TRule>>, ISalesRepRulesQuery
     where TRule : class, INamedFilterRule
 {
-    protected SalesRepFilterRulesQueryHandlerBase(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService)
-        : base(roleResolver, membershipSearchService)
+    protected SalesRepFilterRulesQueryHandlerBase(ISalesRepOrganizationAccessService organizationAccessService)
+        : base(organizationAccessService)
     {
     }
 

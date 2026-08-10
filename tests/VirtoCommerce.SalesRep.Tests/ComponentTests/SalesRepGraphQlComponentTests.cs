@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Data.Model;
@@ -1608,10 +1607,7 @@ public class SalesRepGraphQlComponentTests
             """,
             userId: rep.UserId);
 
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        var row = root.GetProperty("data").GetProperty("salesRepCustomers").GetProperty("items").EnumerateArray().Single();
+        var row = SalesRepTestContext.Node(json, "salesRepCustomers").GetProperty("items").EnumerateArray().Single();
         var ytd = row.GetProperty("ytd");
         var lastYear = row.GetProperty("lastYear");
         ytd.GetProperty("count").GetInt32().Should().Be(2);                                    // the two 2026 orders

@@ -1,4 +1,3 @@
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -11,10 +10,9 @@ public class SalesRepCustomerFilterRulesQueryHandler : SalesRepFilterRulesQueryH
     private readonly ISalesRepCustomerFilterRuleResolver _filterRuleResolver;
 
     public SalesRepCustomerFilterRulesQueryHandler(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepCustomerFilterRuleResolver filterRuleResolver)
-        : base(roleResolver, membershipSearchService)
+        : base(organizationAccessService)
     {
         _filterRuleResolver = filterRuleResolver;
     }

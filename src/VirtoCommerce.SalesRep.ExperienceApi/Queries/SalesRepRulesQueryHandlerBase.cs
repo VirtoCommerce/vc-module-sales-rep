@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -12,9 +11,8 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
     where TQuery : Query<IList<TRule>>, ISalesRepRulesQuery
 {
     protected SalesRepRulesQueryHandlerBase(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService)
-        : base(roleResolver, membershipSearchService)
+        ISalesRepOrganizationAccessService organizationAccessService)
+        : base(organizationAccessService)
     {
     }
 
@@ -28,7 +26,7 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
         // Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list, never the
         // vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog categories.
         // Narrowed to one customer when the query asks for it, by the same membership lookup the lists use.
-        var organizationIds = await GetVisibleOrganizationIdsAsync(
+        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(
             request.UserId,
             (request as ISalesRepScopedRulesQuery)?.OrganizationId);
         if (organizationIds.Count == 0)

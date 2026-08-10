@@ -1,6 +1,5 @@
 using System.Threading;
 using System.Threading.Tasks;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -17,10 +16,9 @@ public abstract class SalesRepStatisticsQueryHandlerBase<TQuery, TContext> : Sal
     private readonly ISalesRepCurrencyResolver _currencyResolver;
 
     protected SalesRepStatisticsQueryHandlerBase(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepCurrencyResolver currencyResolver)
-        : base(roleResolver, membershipSearchService)
+        : base(organizationAccessService)
     {
         _currencyResolver = currencyResolver;
     }
@@ -32,7 +30,7 @@ public abstract class SalesRepStatisticsQueryHandlerBase<TQuery, TContext> : Sal
             return null;
         }
 
-        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
+        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
         if (organizationIds.Count == 0)
         {
             return null;

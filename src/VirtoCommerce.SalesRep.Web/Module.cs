@@ -15,7 +15,10 @@ using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
+using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
+using VirtoCommerce.XCart.Core.Schemas;
+using VirtoCommerce.XCart.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Web;
 
@@ -27,6 +30,7 @@ public class Module : IModule, IHasConfiguration
     public void Initialize(IServiceCollection serviceCollection)
     {
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         serviceCollection.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();
@@ -45,7 +49,15 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
+        serviceCollection.AddTransient<ILayoutService, LayoutService>();
+
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
+
+        // VCST-5332: teach the XCart sharing pipeline the "Customer" wishlist scope. Registered after XCart
+        // (SalesRep depends on it), so this override wins for ICartSharingService; the enum override lets the
+        // new scope value serialize on the core /graphql wishlist schema.
+        serviceCollection.AddTransient<ICartSharingService, SalesRepCartSharingService>();
+        serviceCollection.OverrideGraphType<WishlistScopeType, SalesRepWishlistScopeType>();
 
         serviceCollection.AddSalesRepExperienceApi();
     }

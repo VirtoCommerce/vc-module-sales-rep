@@ -453,12 +453,7 @@ public class SalesRepTopSellersGraphQlTests
     // ---- helpers ----
 
     private static JsonElement[] TopSellers(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty("salesRepTopSellers").EnumerateArray().Select(x => x.Clone()).ToArray();
-    }
+        => SalesRepTestContext.Node(json, "salesRepTopSellers").EnumerateArray().ToArray();
 
     private static void SeedProductLine(
         SalesRepTestContext ctx, string orderId, string org, string productId,
