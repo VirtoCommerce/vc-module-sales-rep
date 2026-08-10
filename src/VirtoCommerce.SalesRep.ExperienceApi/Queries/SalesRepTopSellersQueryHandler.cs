@@ -44,6 +44,12 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
             return [];
         }
 
+        // Asking for no rows is a valid request that reads no orders, not a request for the default page.
+        if (request.Take <= 0)
+        {
+            return [];
+        }
+
         var currencyCode = await _currencyResolver.ResolveCurrencyCodeAsync(request.CurrencyCode, request.StoreId);
 
         var criteria = AbstractTypeFactory<SalesRepTopSellerCriteria>.TryCreateInstance();
@@ -53,7 +59,7 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         criteria.CurrencyCode = currencyCode;
         criteria.FromDate = request.Period?.From;
         criteria.ToDate = request.Period?.To;
-        criteria.Take = Math.Clamp(request.Take, 1, SalesRepTopSellersQuery.MaxTake);
+        criteria.Take = Math.Min(request.Take, SalesRepTopSellersQuery.MaxTake);
 
         criteria = await _sortRuleResolver.ApplySortAsync(request.StoreId, request.Sort, criteria);
 

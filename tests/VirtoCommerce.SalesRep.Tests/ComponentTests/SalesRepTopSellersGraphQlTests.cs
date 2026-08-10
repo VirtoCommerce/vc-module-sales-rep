@@ -221,6 +221,28 @@ public class SalesRepTopSellersGraphQlTests
         items.Should().HaveCount(10); // take is clamped to the 10 max
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-2)]
+    [InlineData(int.MinValue)]
+    public async Task SalesRepTopSellers_NonPositiveTake_ReturnsNoRows(int take)
+    {
+        // A page of zero or fewer rows reads no orders at all, and must not fall back to the default page size. The
+        // magnitude is deliberately NOT reinterpreted the way GraphQL.NET treats a connection's `first`, which keeps
+        // int.MinValue an ordinary empty result instead of an overflow.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-a", "org-1", "prodA", quantity: 10, price: 5m);
+        SeedProductLine(ctx, "o-b", "org-1", "prodB", quantity: 3, price: 20m);
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepTopSellers(take: {take}) {{ productId }} }}",
+            userId: rep.UserId));
+
+        items.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task SalesRepTopSellers_ExposesProductNameSkuAndImageUrl()
     {
