@@ -23,7 +23,7 @@ public class SalesRepLayoutGraphQlTests
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        var rep = await ctx.CreateRepAsync("Bob", "Rep", "jane@test.com", "org-1");
 
         var saveJson = await ctx.ExecuteGraphQlAsync(SaveMutation("dashboard"), userId: rep.UserId);
         saveJson.Should().NotContain("\"errors\"");

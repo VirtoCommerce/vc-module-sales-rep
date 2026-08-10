@@ -12,7 +12,6 @@
     <Content Remove="dist\**" />
     <EmbeddedResource Remove="dist\**" />
     <None Remove="dist\**" />
-    <!-- App/ is a standalone Vite project (built separately to Content/vc-sales-rep); keep it out of the C# build. -->
     <Compile Remove="App\**" />
     <Content Remove="App\**" />
     <EmbeddedResource Remove="App\**" />
@@ -24,7 +23,6 @@
     </Content>
   </ItemGroup>
   <ItemGroup>
-    <!-- WithTemplatesFromPath (default email templates for SalesRepMessageEmailNotification). -->
     <PackageReference Include="VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem" Version="3.1009.0" />
   </ItemGroup>
   <ItemGroup>
