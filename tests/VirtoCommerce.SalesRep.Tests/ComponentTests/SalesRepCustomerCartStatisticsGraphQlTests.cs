@@ -307,12 +307,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     // ---- helpers ----
 
     private static JsonElement Stats(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty("salesRepCustomerCartStatistics").Clone();
-    }
+        => SalesRepTestContext.Node(json, "salesRepCustomerCartStatistics");
 
     private static decimal MoneyAmount(JsonElement parent, string field)
         => parent.GetProperty(field).GetProperty("amount").GetDecimal();

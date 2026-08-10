@@ -251,12 +251,7 @@ public class SalesRepLayoutGraphQlTests
 
     /// <summary>The <c>data.salesRepLayout</c> node, after asserting the response carries no errors.</summary>
     private static JsonElement Data(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty("salesRepLayout").Clone();
-    }
+        => SalesRepTestContext.Node(json, "salesRepLayout");
 
     /// <summary>The <c>value</c> of a block setting by key (fails if the key is absent).</summary>
     private static JsonElement SettingValue(JsonElement block, string key)

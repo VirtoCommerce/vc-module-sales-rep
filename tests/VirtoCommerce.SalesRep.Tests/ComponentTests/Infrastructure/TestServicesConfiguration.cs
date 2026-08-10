@@ -168,6 +168,7 @@ internal static class TestServicesConfiguration
     public static IServiceCollection AddSalesRepSlice(this IServiceCollection services)
     {
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        services.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         services.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();
