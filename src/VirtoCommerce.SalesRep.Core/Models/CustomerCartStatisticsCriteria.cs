@@ -22,8 +22,6 @@ public class CustomerCartStatisticsCriteria : ValueObject
 
     public IList<string> Statuses { get; set; }
 
-    // Cart-level-only predicates: they gate the cart figures, and BuildItemQuery clears them so the line item
-    // quantities can carry their own date target. Clear any further cart-only predicate added here as well.
     public bool OnlyNonEmpty { get; set; }
 
     public DateTime? FromDate { get; set; }

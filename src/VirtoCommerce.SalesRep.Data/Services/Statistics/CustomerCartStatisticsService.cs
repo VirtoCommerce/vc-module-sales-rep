@@ -78,7 +78,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 
     private async Task<IList<ItemQuantityAggregate>> AggregateItemQuantitiesAsync(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
-        // At most two rows (selected / not selected), so quantities need no currency folding — they are unit counts.
         return await BuildItemQuery(repository, criteria)
             .GroupBy(x => x.SelectedForCheckout)
             .Select(g => new ItemQuantityAggregate
@@ -89,16 +88,11 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .ToListAsync();
     }
 
-    // The range bounds the item's own modified date, not the cart's created date, so a cart opened months ago still
-    // contributes the items touched inside it. Cart scope still comes from BuildQuery — with the cart-level-only
-    // predicates cleared — so an override of that seam narrows the item metrics too.
     protected virtual IQueryable<LineItemEntity> BuildItemQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var itemCriteria = criteria.CloneTyped();
         itemCriteria.FromDate = null;
         itemCriteria.ToDate = null;
-        // An empty cart joins no line items anyway, and LineItemsCount is denormalized over non-gift lines only —
-        // gating on it would drop a gift-only or stale-counter cart's items.
         itemCriteria.OnlyNonEmpty = false;
 
         var query = BuildQuery(repository, itemCriteria).SelectMany(x => x.Items);

@@ -10,8 +10,6 @@ public class SalesRepCartFilterRule : INamedFilterRule
 
     public string LocalizedName { get; set; }
 
-    // Cart names the rule accepts — the storefront cart is named "default"; wishlists and saved-for-later
-    // lists are Cart rows too, carrying their own list names.
     public IList<string> Names { get; set; } = [];
 
     public IList<string> Types { get; set; } = [];
