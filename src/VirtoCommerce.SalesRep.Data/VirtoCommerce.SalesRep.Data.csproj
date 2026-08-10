@@ -18,7 +18,7 @@
     <!-- CartModule.Data (same scoped, deliberate .Data exception as Orders.Data): cart/project statistics read the
          Cart EF store (ICartRepository) directly to run DB-side SUM/COUNT/MAX instead of loading carts into memory.
          Version matches the module.manifest VirtoCommerce.Cart dependency. -->
-    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0-alpha.803-vcst-5332-customer-wishlist-sharing-scope" />
+    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0" />
     <!-- StoreModule.Core: reads the store's Customer.ContactDefaultStatus setting (via IStoreService) to seed a
          new Sales Rep's member status. Version matches the module.manifest VirtoCommerce.Store dependency. -->
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
@@ -26,8 +26,8 @@
          subclasses the XCart module's CartSharingService (which lives in .Data) to teach the sharing pipeline the
          "Customer" scope (VCST-5332) by overriding UpdateScopeAsync + ApplyScope. Version matches the
          module.manifest VirtoCommerce.XCart dependency. -->
-    <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1029.0-alpha.270-vcst-5332-customer-wishlist-sharing-scope" />
-    <!-- Platform 3.1048: matches the VirtoCommerce.XCart alpha's platform line (XCart uses a 3.1048-only API, so it
+    <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1029.0" />
+    <!-- Platform 3.1048: matches the VirtoCommerce.XCart platform line (XCart uses a 3.1048-only API, so it
          cannot be built on 3.1039) and the module.manifest platformVersion. -->
     <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1048.0" />
