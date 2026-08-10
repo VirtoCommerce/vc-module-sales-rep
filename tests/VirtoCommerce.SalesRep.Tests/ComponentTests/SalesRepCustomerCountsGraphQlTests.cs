@@ -211,12 +211,7 @@ public class SalesRepCustomerCountsGraphQlTests
     // ---- helpers ----
 
     private static JsonElement Stats(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty("salesRepCustomerCounts").Clone();
-    }
+        => SalesRepTestContext.Node(json, "salesRepCustomerCounts");
 
     private static void SeedOrder(
         SalesRepTestContext ctx, string id, string org, DateTime createdDate,

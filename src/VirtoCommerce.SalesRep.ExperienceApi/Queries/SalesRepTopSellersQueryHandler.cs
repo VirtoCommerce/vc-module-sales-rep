@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -19,13 +18,12 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
     private readonly ISalesRepCurrencyResolver _currencyResolver;
 
     public SalesRepTopSellersQueryHandler(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepTopSellerService topSellerService,
         ISalesRepTopSellerSortRuleResolver sortRuleResolver,
         ISalesRepTopSellerFilterRuleResolver filterRuleResolver,
         ISalesRepCurrencyResolver currencyResolver)
-        : base(roleResolver, membershipSearchService)
+        : base(organizationAccessService)
     {
         _topSellerService = topSellerService;
         _sortRuleResolver = sortRuleResolver;
@@ -40,7 +38,7 @@ public class SalesRepTopSellersQueryHandler : SalesRepQueryHandlerBase, IQueryHa
             return [];
         }
 
-        var organizationIds = await GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
+        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
         if (organizationIds.Count == 0)
         {
             return [];

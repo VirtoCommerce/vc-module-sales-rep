@@ -646,12 +646,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
 
     /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>
     private static JsonElement Stats(string json)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty("salesRepCustomerOrderStatistics").Clone();
-    }
+        => SalesRepTestContext.Node(json, "salesRepCustomerOrderStatistics");
 
     /// <summary>Reads the numeric <c>amount</c> of a MoneyType money field (e.g. total / average / totalChange).</summary>
     private static decimal MoneyAmount(JsonElement parent, string field)
