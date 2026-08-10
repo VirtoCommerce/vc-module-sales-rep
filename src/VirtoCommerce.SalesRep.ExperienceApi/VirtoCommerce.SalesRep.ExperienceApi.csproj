@@ -8,9 +8,9 @@
     <!-- StoreModule.Core (IStoreService): the store's default currency in SalesRepCustomerOrderStatisticsQueryHandler,
          and the store's sender address for the email channel. Otherwise only transitive via Xapi.Core. -->
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
-    <!-- CartModule.Core: the default SalesRepCartFilterRuleResolver uses ModuleConstants.DefaultCartName to map the
-         built-in "active-carts" kind (non-empty carts named "default", i.e. the storefront cart). Version matches the module.manifest VirtoCommerce.Cart dependency. -->
-    <PackageReference Include="VirtoCommerce.CartModule.Core" Version="3.1006.0" />
+    <!-- CartModule.Core: the default SalesRepCartFilterRuleResolver uses ModuleConstants.CartType.Wishlist to map the
+         built-in "active-carts" kind (non-empty carts that exclude the Wishlist type). Version matches the module.manifest VirtoCommerce.Cart dependency. -->
+    <PackageReference Include="VirtoCommerce.CartModule.Core" Version="3.1008.0" />
     <!-- CatalogModule.Core: the default SalesRepTopSellerFilterRuleResolver lists the store catalog's top-level
          categories (ICategorySearchService) as the Top Sellers badges and, on selection, resolves the category to
          the rep's sold products in its subtree via the catalog index (IProductIndexedSearchService).
@@ -18,6 +18,10 @@
     <PackageReference Include="VirtoCommerce.CatalogModule.Core" Version="3.1032.0" />
     <!-- PushMessages.Core: the mutation saves a PushMessage (Sent) to deliver the in-store push. -->
     <PackageReference Include="VirtoCommerce.PushMessages.Core" Version="3.1004.0" />
+    <!-- XCart.Core: the "Customer" wishlist-sharing scope (VCST-5332). ICartSharingService + ICartAggregateRepository
+         load/persist the shared list; WishlistScopeType is extended to expose the new scope.
+         Version matches the SalesRep.Data XCart reference and the module.manifest VirtoCommerce.XCart dependency. -->
+    <PackageReference Include="VirtoCommerce.XCart.Core" Version="3.1029.0" />
     <!-- CustomerModule.Core, OrdersModule.Core and NotificationsModule.Core flow transitively from SalesRep.Core (ProjectReference below). -->
   </ItemGroup>
   <ItemGroup>

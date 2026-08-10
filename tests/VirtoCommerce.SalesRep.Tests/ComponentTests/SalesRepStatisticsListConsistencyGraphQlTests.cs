@@ -1,5 +1,4 @@
 using System;
-using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Data.Model;
@@ -54,20 +53,12 @@ public class SalesRepStatisticsListConsistencyGraphQlTests
               """,
             userId: rep.UserId);
 
-        var listTotal = Node(listJson, "salesRepOrders").GetProperty("totalCount").GetInt32();
-        var statsCount = Node(statsJson, "salesRepCustomerOrderStatistics").GetProperty("p").GetProperty("count").GetInt32();
+        var listTotal = SalesRepTestContext.Node(listJson, "salesRepOrders").GetProperty("totalCount").GetInt32();
+        var statsCount = SalesRepTestContext.Node(statsJson, "salesRepCustomerOrderStatistics").GetProperty("p").GetProperty("count").GetInt32();
 
         listTotal.Should().Be(expected);
         statsCount.Should().Be(expected);
         statsCount.Should().Be(listTotal, "the list and statistics must agree for the same resolved status filter");
-    }
-
-    private static JsonElement Node(string json, string field)
-    {
-        using var doc = JsonDocument.Parse(json);
-        var root = doc.RootElement;
-        root.TryGetProperty("errors", out _).Should().BeFalse("GraphQL response should carry no errors: {0}", json);
-        return root.GetProperty("data").GetProperty(field).Clone();
     }
 
     private static void SeedOrder(SalesRepTestContext ctx, string id, string org, DateTime createdDate, string status)

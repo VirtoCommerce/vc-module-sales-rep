@@ -7,7 +7,6 @@ using GraphQL;
 using MediatR;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.CustomerModule.Core.Model;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.NotificationsModule.Core.Extensions;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -40,8 +39,7 @@ public class SendCustomerCommunicationCommandHandler
     private readonly ILogger<SendCustomerCommunicationCommandHandler> _logger;
 
     public SendCustomerCommunicationCommandHandler(
-        ISalesRepRoleResolver roleResolver,
-        IOrganizationMembershipSearchService membershipSearchService,
+        ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepRecipientResolver recipientResolver,
         ISalesRepCommunicationResponseGroupParser responseGroupParser,
         IPushMessageService pushMessageService,
@@ -50,7 +48,7 @@ public class SendCustomerCommunicationCommandHandler
         IStoreService storeService,
         IUserSearchService userSearchService,
         ILogger<SendCustomerCommunicationCommandHandler> logger)
-        : base(roleResolver, membershipSearchService)
+        : base(organizationAccessService)
     {
         _recipientResolver = recipientResolver;
         _responseGroupParser = responseGroupParser;
@@ -66,7 +64,7 @@ public class SendCustomerCommunicationCommandHandler
     {
         ValidateRequest(request);
 
-        if (!await ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        if (!await OrganizationAccessService.ServesOrganizationAsync(request.UserId, request.OrganizationId))
         {
             throw AuthorizationError.Forbidden();
         }
