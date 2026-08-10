@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -57,51 +58,55 @@ public class SalesRepOrderFilterRuleResolver : FilterRuleResolverBase<SalesRepOr
 
     public virtual async Task<CustomerOrderSearchCriteria> ApplyListFilterAsync(string storeId, string filter, CustomerOrderSearchCriteria criteria)
     {
+        if (string.IsNullOrEmpty(filter))
+        {
+            return criteria;
+        }
+
         // The reader's own criteria carry the scope the rules must be resolved in (the same organizations, creator and
         // date window the list is about to be searched with).
         var context = SalesRepFilterRuleContext.Create(
             storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId, criteria.StartDate, criteria.EndDate);
 
         var statuses = await ResolveStatusesAsync(context, filter);
-        if (statuses == null)
+        if (statuses.IsNullOrEmpty())
         {
             return null;
         }
 
-        if (statuses.Count > 0)
-        {
-            criteria.Statuses = statuses.ToArray();
-        }
+        criteria.Statuses = statuses.ToArray();
 
         return criteria;
     }
 
     public virtual async Task<CustomerOrderStatisticsCriteria> ApplyStatisticsFilterAsync(string storeId, string filter, CustomerOrderStatisticsCriteria criteria)
     {
+        if (string.IsNullOrEmpty(filter))
+        {
+            return criteria;
+        }
+
         var context = SalesRepFilterRuleContext.Create(
             storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId, criteria.FromDate, criteria.ToDate);
 
         var statuses = await ResolveStatusesAsync(context, filter);
-        if (statuses == null)
+        if (statuses.IsNullOrEmpty())
         {
             return null;
         }
 
-        if (statuses.Count > 0)
-        {
-            criteria.Statuses = statuses;
-        }
+        criteria.Statuses = statuses;
 
         return criteria;
     }
 
+    /// <summary>
+    /// The statuses a selected rule stands for, or null when the name is not one of the rules offered in this scope.
+    /// Callers treat "resolved to no statuses" the same as "unknown rule": a filter that matches nothing must never
+    /// fall through to an unfiltered read.
+    /// </summary>
     protected virtual async Task<IList<string>> ResolveStatusesAsync(SalesRepFilterRuleContext context, string filter)
     {
-        if (string.IsNullOrEmpty(filter))
-        {
-            return [];
-        }
-
         var rule = await ResolveNamedRuleAsync(context, filter);
 
         return rule?.OrderStatuses;

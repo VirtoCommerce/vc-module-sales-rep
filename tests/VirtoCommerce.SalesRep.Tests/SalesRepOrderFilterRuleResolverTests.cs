@@ -8,6 +8,7 @@ using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using Xunit;
 
@@ -179,6 +180,60 @@ public class SalesRepOrderFilterRuleResolverTests
         var noFilter = await service.ApplyStatisticsFilterAsync(StoreId, null, StatisticsCriteria());
         noFilter.Should().NotBeNull();
         noFilter.Statuses.Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public async Task Resolve_NoFilter_ReadsEveryStatus(string filter)
+    {
+        // The storefront's "All" tab sends no filter name at all. That has to stay an unconstrained read over every
+        // status in scope, and must never be mistaken for a rule that resolved to no statuses (which fails closed).
+        var service = CreateService(["New", "Processing", "Cancelled"]);
+
+        var listCriteria = await service.ApplyListFilterAsync(
+            StoreId, filter, new CustomerOrderSearchCriteria { OrganizationIds = ["org-1"], CustomerId = "rep-1" });
+        var statsCriteria = await service.ApplyStatisticsFilterAsync(StoreId, filter, StatisticsCriteria());
+
+        listCriteria.Should().NotBeNull();
+        listCriteria.Statuses.Should().BeNullOrEmpty();
+        statsCriteria.Should().NotBeNull();
+        statsCriteria.Statuses.Should().BeNullOrEmpty();
+    }
+
+    [Fact]
+    public async Task Resolve_RuleWithNoStatuses_FailsClosed()
+    {
+        // A rule that resolves to no statuses means "nothing matches", not "no filter". The default resolver only ever
+        // builds 1:1 rules, so this is reachable through an override — e.g. a grouped rule whose member statuses are
+        // all absent from the caller's scope. Both readers must return nothing rather than the unfiltered set.
+        var service = new EmptyStatusRuleResolver(new FakeLocalizableSettingService(["New"]), new FakeOrderStatusService(["New"]));
+
+        var listCriteria = await service.ApplyListFilterAsync(
+            StoreId, EmptyStatusRuleResolver.GroupedRuleName, new CustomerOrderSearchCriteria { OrganizationIds = ["org-1"], CustomerId = "rep-1" });
+        var statsCriteria = await service.ApplyStatisticsFilterAsync(StoreId, EmptyStatusRuleResolver.GroupedRuleName, StatisticsCriteria());
+
+        listCriteria.Should().BeNull();
+        statsCriteria.Should().BeNull();
+    }
+
+    /// <summary>Stands in for a customization that adds a grouped rule which resolves to no statuses in this scope.</summary>
+    private sealed class EmptyStatusRuleResolver : SalesRepOrderFilterRuleResolver
+    {
+        public const string GroupedRuleName = "Open";
+
+        public EmptyStatusRuleResolver(ILocalizableSettingService localizableSettingService, ISalesRepOrderStatusService orderStatusService)
+            : base(localizableSettingService, orderStatusService)
+        {
+        }
+
+        public override async Task<IList<SalesRepOrderFilterRule>> GetRulesAsync(SalesRepFilterRuleContext context)
+        {
+            var rules = await base.GetRulesAsync(context);
+            rules.Add(SalesRepOrderFilterRule.Create(GroupedRuleName, GroupedRuleName));
+
+            return rules;
+        }
     }
 
     /// <summary>Returns the given statuses as the Order.Status dictionary (Key = raw status, Value = label).</summary>

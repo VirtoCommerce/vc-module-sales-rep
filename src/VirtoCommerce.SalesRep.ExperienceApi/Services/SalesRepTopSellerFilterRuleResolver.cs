@@ -75,21 +75,20 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
             return null;
         }
 
-        // Any top-level category resolves, not only the sold-into ones GetRulesAsync offers: one with no sales in this
-        // window resolves to an empty category set, which the ranking reads as "no rows" anyway.
-        if (!await IsTopLevelCategoryAsync(catalogId, filter))
-        {
-            return null;
-        }
-
         // Scope taken from the reader's criteria, so this hits the same cached lookup the discovery call populated.
         var soldCategoriesByTopLevel = await GetSoldCategoriesByTopLevelAsync(
             catalogId,
             SalesRepScopeCriteria.Create(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId, criteria.FromDate, criteria.ToDate));
 
-        criteria.CategoryIds = soldCategoriesByTopLevel.TryGetValue(filter, out var categoryIds)
-            ? categoryIds
-            : [];
+        // Resolved against the badges GetRulesAsync offers, not merely against the catalog: a category the caller has
+        // no sales in filters to nothing. Leaving it to an empty category set would read as "no category constraint"
+        // downstream and answer the request with the unfiltered ranking.
+        if (!soldCategoriesByTopLevel.TryGetValue(filter, out var categoryIds))
+        {
+            return null;
+        }
+
+        criteria.CategoryIds = categoryIds;
 
         return criteria;
     }
@@ -136,12 +135,6 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
         // Outline is catalog/top-level/…/category; the first non-catalog item is the top-level category (which is the
         // category itself when it sits directly under the catalog).
         return outline.Items?.FirstOrDefault(x => !x.IsCatalog())?.Id;
-    }
-
-    protected virtual async Task<bool> IsTopLevelCategoryAsync(string catalogId, string categoryId)
-    {
-        var categories = await GetTopLevelCategoriesAsync(catalogId);
-        return categories.Any(x => x.Id.EqualsIgnoreCase(categoryId));
     }
 
     protected virtual async Task<IList<Category>> GetTopLevelCategoriesAsync(string catalogId)

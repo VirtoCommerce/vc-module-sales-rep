@@ -204,6 +204,59 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_CategoryWithNoSales_FailsClosed()
+    {
+        // A real top-level category of the store's catalog that the caller never sold into is not offered as a badge,
+        // and applying it anyway must filter to nothing. Falling back to an unfiltered ranking would answer "show me
+        // Unsold" with every product the rep ever sold.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-unsold", "Unsold", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-a", "org-1", "prodA", quantity: 5, price: 10m, categoryId: "cat-electronics");
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-unsold\") { productId } }",
+            userId: rep.UserId));
+
+        items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SalesRepTopSellers_CategorySoldOnlyOutsideThePeriod_FailsClosed()
+    {
+        // Same rule under a period: the badge is offered for the lifetime view but not for this window, so applying it
+        // to the window filters to nothing rather than falling back to the window's unfiltered ranking.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-apparel", "Apparel", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-in", "org-1", "prodTv", quantity: 5, price: 10m, categoryId: "cat-electronics",
+            createdDate: new DateTime(2026, 6, 15, 0, 0, 0, DateTimeKind.Utc));
+        SeedProductLine(ctx, "o-out", "org-1", "prodShirt", quantity: 9, price: 10m, categoryId: "cat-apparel",
+            createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        const string period = "period: { from: \"2026-06-01T00:00:00Z\", to: \"2026-07-01T00:00:00Z\" }";
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-apparel\", {period}) {{ productId }} }}",
+            userId: rep.UserId));
+
+        items.Should().BeEmpty();
+
+        // ...while the same badge still resolves over the lifetime view, where the sale does fall in scope.
+        var lifetime = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-apparel\") { productId } }",
+            userId: rep.UserId));
+
+        lifetime.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodShirt");
+    }
+
+    [Fact]
     public async Task SalesRepTopSellers_Take_ClampedToMax10()
     {
         using var ctx = SalesRepTestContext.Create();
