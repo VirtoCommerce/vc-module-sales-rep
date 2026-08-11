@@ -11,7 +11,7 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
 {
     public const string ActiveCartsKind = "active-carts";
 
-    public override Task<IList<SalesRepCartFilterRule>> GetRulesAsync(string storeId, string cultureName)
+    public override Task<IList<SalesRepCartFilterRule>> GetRulesAsync(SalesRepFilterRuleContext context)
     {
         IList<SalesRepCartFilterRule> kinds =
         [
@@ -32,7 +32,10 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
             return criteria;
         }
 
-        var kind = await ResolveNamedRuleAsync(storeId, filter);
+        var context = SalesRepFilterRuleContext.Create(
+            storeId, cultureName: null, criteria.OrganizationIds, criteria.CustomerId, criteria.FromDate, criteria.ToDate);
+
+        var kind = await ResolveNamedRuleAsync(context, filter);
 
         if (kind == null)
         {

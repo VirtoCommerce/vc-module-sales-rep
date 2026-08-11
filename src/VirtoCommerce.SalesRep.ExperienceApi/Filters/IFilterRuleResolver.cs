@@ -6,5 +6,5 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Filters;
 public interface IFilterRuleResolver<TRule>
     where TRule : INamedFilterRule
 {
-    Task<IList<TRule>> GetRulesAsync(string storeId, string cultureName);
+    Task<IList<TRule>> GetRulesAsync(SalesRepFilterRuleContext context);
 }

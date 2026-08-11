@@ -12,9 +12,9 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// <summary>
 /// End-to-end component tests for the <c>salesRepTopSellers</c> X-API query (dashboard + customer "Top Sellers"):
 /// seed real order line items into in-memory SQLite and assert the ranking (units / revenue), period scoping, the
-/// category filter (real <c>CategorySearchService</c> + real filter resolver over a real catalog slice; category →
-/// product ids resolved by the repo-backed <c>IProductIndexedSearchService</c> stand-in, restricting the ranking to
-/// products in the selected subtree), the take cap and the data-isolation invariant. No mocks — the real
+/// category filter (real <c>CategorySearchService</c> + real filter resolver over a real catalog slice: the line
+/// items' own categories are mapped to a top-level badge through the categories' outlines, and a selected badge narrows
+/// the ranking to that subtree's categories), the take cap and the data-isolation invariant. No mocks — the real
 /// aggregation, sort and category-filter services run.
 /// </summary>
 [Trait("Category", "Component")]
@@ -63,6 +63,67 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_EqualMetric_OrdersByProductIdOnly()
+    {
+        // Each sort ranks by its own metric alone: products that tie on units are NOT re-ordered by revenue (nor the
+        // other way round). Ranking that way would need the other metric for every product the rep ever sold, which is
+        // the whole-table load this ranking exists to avoid — and with equal units there is no sense in which the
+        // higher-revenue product "sold more". The product id then breaks the tie, purely so the same call always
+        // returns the same order.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-a", "org-1", "prodA", quantity: 5, price: 5m);   // 5 units, revenue 25
+        SeedProductLine(ctx, "o-b", "org-1", "prodB", quantity: 5, price: 20m);  // 5 units, revenue 100
+
+        var byUnits = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(sort: \"by-units\") { productId units revenue { amount } } }",
+            userId: rep.UserId));
+
+        byUnits.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodA", "prodB");
+        byUnits[0].GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(25m);
+
+        // Revenue differs here, so the revenue sort ranks on it and puts prodB first.
+        var byRevenue = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(sort: \"by-revenue\") { productId } }",
+            userId: rep.UserId));
+
+        byRevenue.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodB", "prodA");
+    }
+
+    [Fact]
+    public async Task SalesRepTopSellers_SortByRevenue_ConvertsCurrenciesBeforeRanking()
+    {
+        // The revenue ranking orders on CONVERTED amounts, so the conversion has to run in the right direction: with
+        // the rate inverted, the true leader ranks below the nominally larger USD product. `take: 1` keeps the assertion
+        // on the leader alone. Harness rates: USD primary (1), EUR 1.25 — i.e. 1 EUR = 1.25 USD.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-eur", "org-1", "prodEur", quantity: 1, price: 100m, currency: "EUR");  // 125 USD / 100 EUR
+        SeedProductLine(ctx, "o-usd-a", "org-1", "prodUsdA", quantity: 1, price: 110m, currency: "USD"); // 110 USD /  88 EUR
+        SeedProductLine(ctx, "o-usd-b", "org-1", "prodUsdB", quantity: 1, price: 105m, currency: "USD");
+        SeedProductLine(ctx, "o-usd-c", "org-1", "prodUsdC", quantity: 1, price: 95m, currency: "USD");
+
+        // In USD the EUR product leads on its converted 125, ahead of the nominally larger 110.
+        var inUsd = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(currencyCode: \"USD\", sort: \"by-revenue\", take: 1) { productId revenue { amount } } }",
+            userId: rep.UserId));
+
+        inUsd.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodEur");
+        inUsd[0].GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(125m);
+
+        // ...and the other way round: in EUR it leads on its own 100, ahead of the converted 88 — an inverted rate
+        // would flip exactly one of these two assertions.
+        var inEur = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(currencyCode: \"EUR\", sort: \"by-revenue\", take: 1) { productId revenue { amount } } }",
+            userId: rep.UserId));
+
+        inEur.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodEur");
+        inEur[0].GetProperty("revenue").GetProperty("amount").GetDecimal().Should().Be(100m);
+    }
+
+    [Fact]
     public async Task SalesRepTopSellers_Period_ScopesByCreatedDate()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -91,9 +152,6 @@ public class SalesRepTopSellersGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 5, price: 10m, categoryId: "cat-printers"); // nested under electronics
         SeedProductLine(ctx, "o-s", "org-1", "prodShirt", quantity: 8, price: 10m, categoryId: "cat-apparel");
-        // Catalog products (with their real category) so the index-backed filter can resolve subtree membership —
-        // the line-item CategoryId is not what the (option (a)) filter matches on.
-        await ctx.SeedProductsAsync(("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"));
 
         // Filtering by the top-level "electronics" must catch the product filed under the nested "printers".
         var items = TopSellers(await ctx.ExecuteGraphQlAsync(
@@ -118,11 +176,9 @@ public class SalesRepTopSellersGraphQlTests
         SeedProductLine(ctx, "o-l", "org-1", "prodLaser", quantity: 5, price: 10m, categoryId: "cat-laser");     // 2 levels deep
         SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 4, price: 10m, categoryId: "cat-printers"); // 1 level deep
         SeedProductLine(ctx, "o-s", "org-1", "prodShirt", quantity: 8, price: 10m, categoryId: "cat-apparel");    // outside the subtree
-        // Catalog products (with their real category) so the index-backed filter resolves the full recursive subtree.
-        await ctx.SeedProductsAsync(("prodLaser", "cat-laser"), ("prodPrinter", "cat-printers"), ("prodShirt", "cat-apparel"));
 
         // Filtering by the top-level "electronics" must catch descendants at ANY depth (printers AND laser
-        // printers), but not the sibling apparel — the filter resolves to the whole recursive subtree of ids.
+        // printers), but not the sibling apparel — every sold category whose outline starts with electronics counts.
         var items = TopSellers(await ctx.ExecuteGraphQlAsync(
             "query { salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-electronics\") { productId } }",
             userId: rep.UserId));
@@ -148,6 +204,59 @@ public class SalesRepTopSellersGraphQlTests
     }
 
     [Fact]
+    public async Task SalesRepTopSellers_CategoryWithNoSales_FailsClosed()
+    {
+        // A real top-level category of the store's catalog that the caller never sold into is not offered as a badge,
+        // and applying it anyway must filter to nothing. Falling back to an unfiltered ranking would answer "show me
+        // Unsold" with every product the rep ever sold.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-unsold", "Unsold", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-a", "org-1", "prodA", quantity: 5, price: 10m, categoryId: "cat-electronics");
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-unsold\") { productId } }",
+            userId: rep.UserId));
+
+        items.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SalesRepTopSellers_CategorySoldOnlyOutsideThePeriod_FailsClosed()
+    {
+        // Same rule under a period: the badge is offered for the lifetime view but not for this window, so applying it
+        // to the window filters to nothing rather than falling back to the window's unfiltered ranking.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-apparel", "Apparel", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-in", "org-1", "prodTv", quantity: 5, price: 10m, categoryId: "cat-electronics",
+            createdDate: new DateTime(2026, 6, 15, 0, 0, 0, DateTimeKind.Utc));
+        SeedProductLine(ctx, "o-out", "org-1", "prodShirt", quantity: 9, price: 10m, categoryId: "cat-apparel",
+            createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        const string period = "period: { from: \"2026-06-01T00:00:00Z\", to: \"2026-07-01T00:00:00Z\" }";
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-apparel\", {period}) {{ productId }} }}",
+            userId: rep.UserId));
+
+        items.Should().BeEmpty();
+
+        // ...while the same badge still resolves over the lifetime view, where the sale does fall in scope.
+        var lifetime = TopSellers(await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-apparel\") { productId } }",
+            userId: rep.UserId));
+
+        lifetime.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodShirt");
+    }
+
+    [Fact]
     public async Task SalesRepTopSellers_Take_ClampedToMax10()
     {
         using var ctx = SalesRepTestContext.Create();
@@ -163,6 +272,28 @@ public class SalesRepTopSellersGraphQlTests
             userId: rep.UserId));
 
         items.Should().HaveCount(10); // take is clamped to the 10 max
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-2)]
+    [InlineData(int.MinValue)]
+    public async Task SalesRepTopSellers_NonPositiveTake_ReturnsNoRows(int take)
+    {
+        // A page of zero or fewer rows reads no orders at all, and must not fall back to the default page size. The
+        // magnitude is deliberately NOT reinterpreted the way GraphQL.NET treats a connection's `first`, which keeps
+        // int.MinValue an ordinary empty result instead of an overflow.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-a", "org-1", "prodA", quantity: 10, price: 5m);
+        SeedProductLine(ctx, "o-b", "org-1", "prodB", quantity: 3, price: 20m);
+
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepTopSellers(take: {take}) {{ productId }} }}",
+            userId: rep.UserId));
+
+        items.Should().BeEmpty();
     }
 
     [Fact]
@@ -267,6 +398,10 @@ public class SalesRepTopSellersGraphQlTests
             ("cat-hidden", "Hidden", null, false));                // inactive → not a badge
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Electronics is sold into only through its nested Printers category — a badge counts the whole subtree.
+        SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 5, price: 10m, categoryId: "cat-printers");
+        SeedProductLine(ctx, "o-s", "org-1", "prodShirt", quantity: 8, price: 10m, categoryId: "cat-apparel");
+        SeedProductLine(ctx, "o-h", "org-1", "prodHidden", quantity: 2, price: 10m, categoryId: "cat-hidden");
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepTopSellerFilterRules(storeId: \"B2B-store\") { name localizedName } }",
@@ -275,6 +410,69 @@ public class SalesRepTopSellersGraphQlTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("cat-electronics").And.Contain("cat-apparel");
         json.Should().NotContain("cat-printers").And.NotContain("cat-hidden");
+    }
+
+    [Fact]
+    public async Task SalesRepTopSellerFilterRules_OmitsCategoriesTheRepNeverSoldInto()
+    {
+        // A top-level category the rep has no sales in could only ever produce an empty Top Sellers list, so it is not
+        // offered as a badge — even when the catalog has products filed under it.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-printers", "Printers", "cat-electronics", true),
+            ("cat-unsold", "Unsold", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-p", "org-1", "prodPrinter", quantity: 5, price: 10m, categoryId: "cat-printers");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellerFilterRules(storeId: \"B2B-store\") { name } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("cat-electronics");  // sold into via its nested category
+        json.Should().NotContain("cat-unsold");    // has a catalog product, but no sales
+    }
+
+    [Fact]
+    public async Task SalesRepTopSellerFilterRules_OmitsCategoriesWithNoSalesInThePeriod()
+    {
+        // The badges must match the list the caller is looking at: with a period selected, a category sold into only
+        // outside that window is not offered (clicking it would return nothing).
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedCategoriesAsync(
+            ("cat-electronics", "Electronics", null, true),
+            ("cat-apparel", "Apparel", null, true));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-in", "org-1", "prodTv", quantity: 5, price: 10m, categoryId: "cat-electronics",
+            createdDate: new DateTime(2026, 6, 15, 0, 0, 0, DateTimeKind.Utc));
+        SeedProductLine(ctx, "o-out", "org-1", "prodShirt", quantity: 9, price: 10m, categoryId: "cat-apparel",
+            createdDate: new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
+
+        const string period = "period: { from: \"2026-06-01T00:00:00Z\", to: \"2026-07-01T00:00:00Z\" }";
+
+        var scoped = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepTopSellerFilterRules(storeId: \"B2B-store\", {period}) {{ name }} }}",
+            userId: rep.UserId);
+
+        scoped.Should().NotContain("\"errors\"");
+        scoped.Should().Contain("cat-electronics").And.NotContain("cat-apparel");
+
+        // ...and the badge that is offered does return rows for that same period.
+        var items = TopSellers(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepTopSellers(storeId: \"B2B-store\", filter: \"cat-electronics\", {period}) {{ productId }} }}",
+            userId: rep.UserId));
+
+        items.Select(x => x.GetProperty("productId").GetString()).Should().Equal("prodTv");
+
+        // Without a period both categories are offered (lifetime sales).
+        var lifetime = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepTopSellerFilterRules(storeId: \"B2B-store\") { name } }",
+            userId: rep.UserId);
+
+        lifetime.Should().Contain("cat-electronics").And.Contain("cat-apparel");
     }
 
     [Fact]
@@ -289,6 +487,7 @@ public class SalesRepTopSellersGraphQlTests
             ("cat-apparel", "Apparel", null, true));
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedProductLine(ctx, "o-tv", "org-1", "prodTv", quantity: 1, price: 10m, categoryId: "cat-electronics");
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepTopSellerFilterRules(storeId: \"B2B-store\") { name } }",

@@ -18,6 +18,6 @@ public class SalesRepOrderSortRulesQueryHandler : SalesRepRulesQueryHandlerBase<
         _sortRuleResolver = sortRuleResolver;
     }
 
-    protected override Task<IList<SalesRepOrderSortRule>> GetRulesAsync(SalesRepOrderSortRulesQuery request)
+    protected override Task<IList<SalesRepOrderSortRule>> GetRulesAsync(SalesRepOrderSortRulesQuery request, IList<string> organizationIds)
         => _sortRuleResolver.GetRulesAsync(request.StoreId, request.CultureName);
 }

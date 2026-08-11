@@ -25,14 +25,19 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
 
         // Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list, never the
         // vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog categories.
-        var organizationIds = await OrganizationAccessService.GetServedOrganizationIdsAsync(request.UserId);
+        // Narrowed to one customer when the query asks for it, by the same membership lookup the lists use.
+        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(
+            request.UserId,
+            (request as ISalesRepScopedRulesQuery)?.OrganizationId);
         if (organizationIds.Count == 0)
         {
             return [];
         }
 
-        return await GetRulesAsync(request);
+        return await GetRulesAsync(request, organizationIds);
     }
 
-    protected abstract Task<IList<TRule>> GetRulesAsync(TQuery request);
+    /// <param name="organizationIds">The organizations the caller serves — the scope a data-derived rule set must be
+    /// built within, so it only offers rules the caller's own lists can return records for.</param>
+    protected abstract Task<IList<TRule>> GetRulesAsync(TQuery request, IList<string> organizationIds);
 }
