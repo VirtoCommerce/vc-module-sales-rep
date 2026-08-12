@@ -41,7 +41,7 @@ public class SalesRepTopSellersQuery : Query<IList<SalesRepTopSeller>>
         yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Selected category badge (a salesRepTopSellerFilterRules 'name'); restricts to that category's subtree. Omit for all categories.");
         yield return Argument<StringGraphType>(nameof(Sort), "Selected ordering (a salesRepTopSellerSortRules 'name'); defaults to by-units.");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional created-date range to aggregate over (omit for lifetime).");
-        yield return Argument<IntGraphType>(nameof(Take), $"How many top products to return (default {DefaultTake}, max {MaxTake}).");
+        yield return Argument<IntGraphType>(nameof(Take), $"How many top products to return (default {DefaultTake}, max {MaxTake}; zero or less returns none).");
         yield return Argument<StringGraphType>(nameof(CurrencyCode), "Currency to convert revenue to (defaults to the store's default currency).");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the revenue formatted amount (\"en-US\").");
     }

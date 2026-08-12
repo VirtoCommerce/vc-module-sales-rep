@@ -16,8 +16,6 @@ public class SalesRepTopSellerCriteria : ValueObject
 
     public IList<string> CategoryIds { get; set; }
 
-    public IList<string> ProductIds { get; set; }
-
     public DateTime? FromDate { get; set; }
 
     public DateTime? ToDate { get; set; }

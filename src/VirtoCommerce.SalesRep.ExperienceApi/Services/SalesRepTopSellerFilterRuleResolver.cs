@@ -1,9 +1,13 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using VirtoCommerce.CatalogModule.Core.Extensions;
 using VirtoCommerce.CatalogModule.Core.Model;
 using VirtoCommerce.CatalogModule.Core.Model.Search;
+using VirtoCommerce.CatalogModule.Core.Outlines;
 using VirtoCommerce.CatalogModule.Core.Search;
+using VirtoCommerce.CatalogModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -20,30 +24,40 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
 
     private readonly IStoreService _storeService;
     private readonly ICategorySearchService _categorySearchService;
-    private readonly IProductIndexedSearchService _productIndexedSearchService;
+    private readonly ICategoryService _categoryService;
     private readonly ISalesRepTopSellerService _topSellerService;
 
     public SalesRepTopSellerFilterRuleResolver(
         IStoreService storeService,
         ICategorySearchService categorySearchService,
-        IProductIndexedSearchService productIndexedSearchService,
+        ICategoryService categoryService,
         ISalesRepTopSellerService topSellerService)
     {
         _storeService = storeService;
         _categorySearchService = categorySearchService;
-        _productIndexedSearchService = productIndexedSearchService;
+        _categoryService = categoryService;
         _topSellerService = topSellerService;
     }
 
-    public override async Task<IList<SalesRepTopSellerFilterRule>> GetRulesAsync(string storeId, string cultureName)
+    /// <summary>
+    /// One rule per top-level category of the store's catalog the caller actually sold into — within their scope
+    /// (served organizations, own created orders) and the selected period, i.e. exactly the records the Top Sellers list
+    /// ranks. A category with products but no sales in that window is not offered, so selecting a badge can never
+    /// produce an empty list.
+    /// </summary>
+    public override async Task<IList<SalesRepTopSellerFilterRule>> GetRulesAsync(SalesRepFilterRuleContext context)
     {
-        var catalogId = await GetStoreCatalogIdAsync(storeId);
-        var categories = await GetCatalogCategoriesAsync(catalogId);
+        var catalogId = await GetStoreCatalogIdAsync(context.StoreId);
 
-        return categories
-            .Where(x => IsTopLevel(x) && x.IsActive != false)
-            .OrderBy(x => x.Priority)
-            .ThenBy(x => x.Name)
+        // Independent reads (orders store / catalog), so they overlap instead of adding up.
+        var soldCategoriesTask = GetSoldCategoriesByTopLevelAsync(catalogId, context.ToScopeCriteria());
+        var topLevelCategoriesTask = GetTopLevelCategoriesAsync(catalogId);
+        await Task.WhenAll(soldCategoriesTask, topLevelCategoriesTask);
+
+        var soldCategoriesByTopLevel = await soldCategoriesTask;
+
+        return (await topLevelCategoriesTask)
+            .Where(x => soldCategoriesByTopLevel.ContainsKey(x.Id))
             .Select(x => SalesRepTopSellerFilterRule.Create(x.Id, x.Name))
             .ToList();
     }
@@ -55,35 +69,83 @@ public class SalesRepTopSellerFilterRuleResolver : FilterRuleResolverBase<SalesR
             return criteria;
         }
 
-        var rule = await ResolveNamedRuleAsync(storeId, filter);
-        if (rule == null)
-        {
-            return null;
-        }
-
         var catalogId = await GetStoreCatalogIdAsync(storeId);
         if (string.IsNullOrEmpty(catalogId))
         {
             return null;
         }
 
-        var candidateProductIds = await _topSellerService.GetSoldProductIdsAsync(criteria);
-        if (candidateProductIds.Count == 0)
+        // Scope taken from the reader's criteria, so this hits the same cached lookup the discovery call populated.
+        var soldCategoriesByTopLevel = await GetSoldCategoriesByTopLevelAsync(
+            catalogId,
+            SalesRepScopeCriteria.Create(criteria.OrganizationIds, criteria.CustomerId, criteria.StoreId, criteria.FromDate, criteria.ToDate));
+
+        // Resolved against the badges GetRulesAsync offers, not merely against the catalog: a category the caller has
+        // no sales in filters to nothing. Leaving it to an empty category set would read as "no category constraint"
+        // downstream and answer the request with the unfiltered ranking.
+        if (!soldCategoriesByTopLevel.TryGetValue(filter, out var categoryIds))
         {
-            criteria.ProductIds = [];
-            return criteria;
+            return null;
         }
 
-        var searchCriteria = AbstractTypeFactory<ProductIndexedSearchCriteria>.TryCreateInstance();
-        searchCriteria.CatalogId = catalogId;
-        searchCriteria.Outline = rule.Name;
-        searchCriteria.ObjectIds = candidateProductIds.ToArray();
-        searchCriteria.Take = candidateProductIds.Count;
+        criteria.CategoryIds = categoryIds;
 
-        var result = await _productIndexedSearchService.SearchAsync(searchCriteria);
-
-        criteria.ProductIds = result.Items?.Select(x => x.Id).ToList() ?? [];
         return criteria;
+    }
+
+    /// <summary>
+    /// Groups the categories the caller sold in by the top-level category they sit under in the store's catalog, using
+    /// each category's outline for that catalog — which is what makes this work for a virtual store catalog: a physical
+    /// category linked into it carries an outline like <c>store-catalog/top-level/category</c>. Categories outside the
+    /// store's catalog (no such outline) are left out.
+    /// </summary>
+    protected virtual async Task<IDictionary<string, IList<string>>> GetSoldCategoriesByTopLevelAsync(string catalogId, SalesRepScopeCriteria criteria)
+    {
+        if (string.IsNullOrEmpty(catalogId))
+        {
+            return new Dictionary<string, IList<string>>();
+        }
+
+        var soldCategoryIds = await _topSellerService.GetSoldCategoryIdsAsync(criteria);
+        if (soldCategoryIds.Count == 0)
+        {
+            return new Dictionary<string, IList<string>>();
+        }
+
+        var categories = await _categoryService.GetByIdsAsync(soldCategoryIds, nameof(CategoryResponseGroup.WithOutlines), catalogId);
+
+        return categories
+            .Select(x => new { CategoryId = x.Id, TopLevelId = GetTopLevelCategoryId(x, catalogId) })
+            .Where(x => !string.IsNullOrEmpty(x.TopLevelId))
+            .GroupBy(x => x.TopLevelId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                g => g.Key,
+                // Ordered so the same badge always yields the same criteria — the ranking is cached on them.
+                g => (IList<string>)g.Select(x => x.CategoryId).OrderBy(x => x, StringComparer.Ordinal).ToList(),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    protected virtual string GetTopLevelCategoryId(Category category, string catalogId)
+    {
+        if (!category.Outlines.TryGetOutlineForCatalog(catalogId, out var outline))
+        {
+            return null;
+        }
+
+        // Outline is catalog/top-level/…/category; the first non-catalog item is the top-level category (which is the
+        // category itself when it sits directly under the catalog).
+        return outline.Items?.FirstOrDefault(x => !x.IsCatalog())?.Id;
+    }
+
+    protected virtual async Task<IList<Category>> GetTopLevelCategoriesAsync(string catalogId)
+    {
+        var categories = await GetCatalogCategoriesAsync(catalogId);
+
+        return categories
+            .Where(x => IsTopLevel(x) && x.IsActive != false)
+            .OrderBy(x => x.Priority)
+            .ThenBy(x => x.Name)
+            .ToList();
     }
 
     private async Task<string> GetStoreCatalogIdAsync(string storeId)

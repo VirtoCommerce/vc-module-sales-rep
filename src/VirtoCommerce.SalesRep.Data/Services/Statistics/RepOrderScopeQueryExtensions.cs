@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using VirtoCommerce.OrdersModule.Data.Model;
@@ -7,13 +8,18 @@ namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 internal static class RepOrderScopeQueryExtensions
 {
+    /// <param name="includeCancelled">Cancelled orders are out of scope for the statistics, but the orders list shows
+    /// them — so the vocabulary derived from that list has to see them too.</param>
     public static IQueryable<CustomerOrderEntity> ApplyRepScope(
         this IQueryable<CustomerOrderEntity> query,
         IList<string> organizationIds,
         string customerId,
-        string storeId)
+        string storeId,
+        bool includeCancelled = false)
     {
-        query = query.Where(x => !x.IsPrototype && !x.IsCancelled);
+        query = includeCancelled
+            ? query.Where(x => !x.IsPrototype)
+            : query.Where(x => !x.IsPrototype && !x.IsCancelled);
 
         if (!organizationIds.IsNullOrEmpty())
         {
@@ -56,6 +62,36 @@ internal static class RepOrderScopeQueryExtensions
         if (!string.IsNullOrEmpty(storeId))
         {
             query = query.Where(x => x.CustomerOrder.StoreId == storeId);
+        }
+
+        return query;
+    }
+
+    public static IQueryable<CustomerOrderEntity> ApplyPeriod(this IQueryable<CustomerOrderEntity> query, DateTime? fromDate, DateTime? toDate)
+    {
+        if (fromDate != null)
+        {
+            query = query.Where(x => x.CreatedDate >= fromDate.Value);
+        }
+
+        if (toDate != null)
+        {
+            query = query.Where(x => x.CreatedDate <= toDate.Value);
+        }
+
+        return query;
+    }
+
+    public static IQueryable<LineItemEntity> ApplyPeriod(this IQueryable<LineItemEntity> query, DateTime? fromDate, DateTime? toDate)
+    {
+        if (fromDate != null)
+        {
+            query = query.Where(x => x.CustomerOrder.CreatedDate >= fromDate.Value);
+        }
+
+        if (toDate != null)
+        {
+            query = query.Where(x => x.CustomerOrder.CreatedDate <= toDate.Value);
         }
 
         return query;
