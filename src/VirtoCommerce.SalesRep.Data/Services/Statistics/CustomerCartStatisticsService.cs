@@ -67,23 +67,63 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 
         if (criteria.IncludeCartFigures)
         {
-            await FoldCartFiguresAsync(period, await AggregateCartFigureRowsAsync(itemQuery), criteria);
+            await AddCartFiguresAsync(period, itemQuery, criteria);
         }
 
         return period;
     }
 
-    // Prices are carried out unmultiplied and multiplied in memory: PostgreSQL has no money * money operator, and
-    // the decimal cast that fixes it is not translated by SQLite.
-    private static async Task<IList<CartFigureRow>> AggregateCartFigureRowsAsync(IQueryable<LineItemEntity> itemQuery)
+    private async Task AddCartFiguresAsync(
+        CustomerCartStatisticsPeriod period,
+        IQueryable<LineItemEntity> itemQuery,
+        CustomerCartStatisticsCriteria criteria)
     {
-        return await itemQuery
-            .Where(x => x.SelectedForCheckout && !x.IsGift)
-            .GroupBy(x => new { x.Currency, x.ShoppingCartId, x.ListPrice, x.DiscountAmount })
-            .Select(g => new CartFigureRow
+        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+        var contributingLines = itemQuery.Where(x => x.SelectedForCheckout && !x.IsGift);
+
+        var priceGroups = await AggregatePriceGroupsAsync(contributingLines);
+
+        // Resolved once per currency, not per row. An unconfigured currency rates to zero — the same exclusion the
+        // fold applies (and reports as a warning), so the cart count must skip those currencies too.
+        var rates = priceGroups
+            .Select(x => x.Currency ?? string.Empty)
+            .DistinctIgnoreCase()
+            .ToDictionary(x => x, x => StatisticsCurrencyConverter.GetRate(x, criteria.CurrencyCode, currencies), StringComparer.OrdinalIgnoreCase);
+
+        var convertibleCurrencies = rates.Where(x => x.Value != 0m).Select(x => x.Key).ToArray();
+
+        var byCurrency = priceGroups
+            .GroupBy(x => x.Currency)
+            .Select(g => new CurrencyStatisticAggregate
+            {
+                Currency = g.Key,
+                Total = g.Sum(x => (x.ListPrice - x.DiscountAmount) * x.Quantity),
+            });
+
+        var folded = StatisticsCurrencyConverter.Fold(
+            byCurrency, criteria.CurrencyCode, currencies, _logger,
+            await CountContributingCartsAsync(contributingLines, convertibleCurrencies));
+
+        period.Total = folded.Total;
+        period.Count = folded.Count;
+        period.Average = folded.Average;
+        period.CurrencyCode = folded.CurrencyCode;
+        period.Warning = folded.Warning;
+    }
+
+    /// <summary>
+    /// One row per (currency, unit price, line discount) — the cart is deliberately NOT in the key, so the row count
+    /// is bounded by the distinct prices rather than by the line items. The price is carried out unmultiplied because
+    /// no LINQ expression multiplies the money column on every provider (PostgreSQL has no money * money operator and
+    /// the decimal cast that fixes it is not translated by SQLite), the same reason top-seller revenue ranks in memory.
+    /// </summary>
+    private static async Task<IList<PriceGroup>> AggregatePriceGroupsAsync(IQueryable<LineItemEntity> contributingLines)
+    {
+        return await contributingLines
+            .GroupBy(x => new { x.Currency, x.ListPrice, x.DiscountAmount })
+            .Select(g => new PriceGroup
             {
                 Currency = g.Key.Currency,
-                CartId = g.Key.ShoppingCartId,
                 ListPrice = g.Key.ListPrice,
                 DiscountAmount = g.Key.DiscountAmount,
                 Quantity = g.Sum(x => x.Quantity < 1 ? 1 : x.Quantity),
@@ -91,29 +131,22 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .ToListAsync();
     }
 
-    private async Task FoldCartFiguresAsync(
-        CustomerCartStatisticsPeriod period,
-        IEnumerable<CartFigureRow> rows,
-        CustomerCartStatisticsCriteria criteria)
+    /// <summary>
+    /// Counted across the convertible currencies at once, not summed per currency: a cart holding lines in two
+    /// currencies is still one cart.
+    /// </summary>
+    private static async Task<int> CountContributingCartsAsync(IQueryable<LineItemEntity> contributingLines, string[] convertibleCurrencies)
     {
-        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+        if (convertibleCurrencies.Length == 0)
+        {
+            return 0;
+        }
 
-        var byCurrency = rows
-            .GroupBy(x => x.Currency)
-            .Select(g => new CurrencyStatisticAggregate
-            {
-                Currency = g.Key,
-                Total = g.Sum(x => (x.ListPrice - x.DiscountAmount) * x.Quantity),
-                Count = g.Select(x => x.CartId).Distinct().Count(),
-            });
-
-        var folded = StatisticsCurrencyConverter.Fold(byCurrency, criteria.CurrencyCode, currencies, _logger);
-
-        period.Total = folded.Total;
-        period.Count = folded.Count;
-        period.Average = folded.Average;
-        period.CurrencyCode = folded.CurrencyCode;
-        period.Warning = folded.Warning;
+        return await contributingLines
+            .Where(x => convertibleCurrencies.Contains(x.Currency))
+            .Select(x => x.ShoppingCartId)
+            .Distinct()
+            .CountAsync();
     }
 
     protected virtual IQueryable<LineItemEntity> BuildItemQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
@@ -175,10 +208,9 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return query;
     }
 
-    private sealed class CartFigureRow
+    private sealed class PriceGroup
     {
         public string Currency { get; set; }
-        public string CartId { get; set; }
         public decimal ListPrice { get; set; }
         public decimal DiscountAmount { get; set; }
         public int Quantity { get; set; }

@@ -514,6 +514,59 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     }
 
     [Fact]
+    public async Task Cart_MixedCurrencyCart_CountsOnce()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // ONE cart, two currencies — the platform models this (a line carries its own currency and the calculator
+        // builds a CartTotal per currency), so the per-currency money fold must not turn it into two carts.
+        SeedCart(ctx, "mixed", "org-1", 0m, _feb2026, currency: "USD");
+        SeedCartItem(ctx, "mixed", "usd-line", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "USD");
+        SeedCartItem(ctx, "mixed", "eur-line", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "EUR");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") {
+                  count total { amount } average { amount } selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        var active = Stats(json).GetProperty("active");
+        active.GetProperty("count").GetInt32().Should().Be(1);          // one cart, not one per currency
+        MoneyAmount(active, "total").Should().Be(225m);                 // 100 USD + 100 EUR * 1.25
+        MoneyAmount(active, "average").Should().Be(225m);               // total / 1, not / 2
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2);
+    }
+
+    [Fact]
+    public async Task Cart_MixedCurrencyCart_WithUnconvertibleLine_StillCountsOnce()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "mixed", "org-1", 0m, _feb2026, currency: "USD");
+        SeedCartItem(ctx, "mixed", "usd-line", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 30m, currency: "USD");
+        SeedCartItem(ctx, "mixed", "gbp-line", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 999m, currency: "GBP");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") {
+                  count total { amount } selectedItemQuantity warning } } }
+              """,
+            userId: rep.UserId);
+
+        // The unconvertible line drops out of the money, but the cart still has a convertible one, so it counts once.
+        var active = Stats(json).GetProperty("active");
+        active.GetProperty("count").GetInt32().Should().Be(1);
+        MoneyAmount(active, "total").Should().Be(60m);
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(3); // 2 (USD) + 1 (GBP)
+        active.GetProperty("warning").GetString().Should().Contain("GBP");
+    }
+
+    [Fact]
     public async Task Cart_UnconfiguredCurrency_DropsOutOfTheMoneyFiguresOnly()
     {
         using var ctx = SalesRepTestContext.Create();

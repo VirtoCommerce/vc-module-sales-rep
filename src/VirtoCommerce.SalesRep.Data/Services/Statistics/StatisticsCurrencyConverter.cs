@@ -9,11 +9,16 @@ namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 internal static class StatisticsCurrencyConverter
 {
+    /// <param name="countOverride">
+    /// Replaces the summed per-currency counts (and drives the average) for callers whose population cannot be counted
+    /// per currency — e.g. distinct carts, where one cart may hold lines in several currencies.
+    /// </param>
     public static FoldedStatistics Fold(
         IEnumerable<CurrencyStatisticAggregate> byCurrency,
         string targetCurrencyCode,
         IReadOnlyCollection<Currency> currencies,
-        ILogger logger)
+        ILogger logger,
+        int? countOverride = null)
     {
         var targetCurrency = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(targetCurrencyCode))
             ?? throw new InvalidOperationException($"Currency '{targetCurrencyCode}' is not configured; cannot convert sales-rep statistics.");
@@ -50,12 +55,13 @@ internal static class StatisticsCurrencyConverter
             latestDate = LaterOf(latestDate, group.LatestDate);
         }
 
+        var effectiveCount = countOverride ?? count;
         var roundedTotal = Math.Round(total, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
-        var average = count == 0
+        var average = effectiveCount == 0
             ? 0m
-            : Math.Round(total / count, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
+            : Math.Round(total / effectiveCount, targetCurrency.DecimalDigits, MidpointRounding.AwayFromZero);
 
-        return new FoldedStatistics(roundedTotal, count, average, earliestDate, latestDate, targetCurrency.Code, BuildWarning(excludedCount, excludedCurrencies));
+        return new FoldedStatistics(roundedTotal, effectiveCount, average, earliestDate, latestDate, targetCurrency.Code, BuildWarning(excludedCount, excludedCurrencies));
     }
 
     /// <summary>
