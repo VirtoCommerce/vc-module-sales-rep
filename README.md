@@ -293,9 +293,7 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
 
 #### Cart / project statistics
 
-The same shape for carts/projects (dashboard *Active carts*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` — non-empty carts **named `"default"`**, i.e. the storefront cart. That is an *include*-list, not an exclude-list: wishlists, saved-for-later and any cart kind a custom project introduces are `Cart` rows too, but they carry their own list names, so a new kind stays out of the metrics without a code change here.
-
-`selectedItemQuantity` is the primary metric (summed quantity of the lines the customer selected for checkout), `unselectedItemQuantity` the parked remainder:
+Cart/project figures for the dashboard *Active carts* card. **Every figure is aggregated from the `CartLineItem` rows** — the carts only scope them. `selectedItemQuantity` is the primary metric (summed quantity of the lines the customer selected for checkout), `unselectedItemQuantity` the parked remainder; `count` / `total` / `average` are the cart-level figures on top. `filter` is a cart *kind*; the built-in default is `"active-carts"` — carts **named `"default"`**, i.e. the storefront cart. That is an *include*-list, not an exclude-list: wishlists, saved-for-later and any cart kind a custom project introduces are `Cart` rows too, but they carry their own list names, so a new kind stays out of the metrics without a code change here.
 
 ```graphql
 {
@@ -303,27 +301,34 @@ The same shape for carts/projects (dashboard *Active carts*). `filter` here is a
     activeCarts: period(filter: "active-carts") {          # omit both bounds → what is in the carts right now
       selectedItemQuantity
       unselectedItemQuantity
-      count
-      total { amount formattedAmount }
-      lastCartDate
+      count                                                # distinct carts contributing to total
+      total { amount formattedAmount }                     # goods subtotal of the lines picked for checkout
+      average { amount }                                   # total / count
     }
     itemsThisWeek: period(from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z", filter: "active-carts") {
       selectedItemQuantity
     }
-    weekVsAll: comparison(                                   # e.g. this week's items against the lifetime figure
+    weekVsAll: comparison(                                 # e.g. this week's items against the lifetime figure
       current:  { from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z" }
       previous: { from: "2019-01-01T00:00:00Z", to: "2026-08-02T23:59:59Z" }
       filter: "active-carts"
     ) {
       selectedItemQuantityChange
       selectedItemQuantityChangePercent
-      unselectedItemQuantityChange
+      totalChange { amount }
     }
   }
 }
 ```
 
-⚠️ The two metric families read **different dates** inside one `period`: `count`/`total`/`average`/`lastCartDate` are bounded by the **cart's created date**, while `selectedItemQuantity`/`unselectedItemQuantity` are bounded by each **line item's modified date** — so a cart opened months ago still reports the items touched inside the range (that is what makes `itemsThisWeek` above "this week's items", not "this week's carts").
+⚠️ The range bounds each **line item's modified date**, never the cart's own dates — so a cart opened months ago still reports the items touched inside the range (that is what makes `itemsThisWeek` above "this week's items", not "this week's carts"). For the same reason a cart holding no line items is inert whatever its denormalized `Cart.LineItemsCount` says.
+
+Two things to know about the money figures:
+
+- **`count` / `total` / `average` are aggregated only when selected.** They need a second scan, so the resolver reads the selection (field *names*, so aliases, fragments and `@skip`/`@include` are all honoured) and skips them otherwise — a quantities-only selection is a single grouped scan. A `comparison` counts as asking for them when it selects `countChange` / `totalChange` / `averageChange` (or a percent of those), since a money delta needs the money on both sides. The flag rides on the criteria, hence on the cache key and on the request's DataLoader bucket key, so a lean result can never be served to a request that wants the money — two selections over one range simply become two buckets when their flags differ.
+- **`total` is the goods subtotal, not the cart's grand total**: list price less line discount, over the lines selected for checkout with gifts excluded (mirroring `DefaultShoppingCartTotalsCalculator`), a sub-unit quantity billed as one. Shipping, taxes, fees and cart-level discounts are *not* included — they do not live on `CartLineItem`. `count` is the carts behind that sum, so `average` is exactly `total ÷ count`; a cart whose lines are all parked reports quantities but does not count. And since it reads the persisted line prices, which the platform only refreshes on a full-cart operation, a cart built by light add-to-cart calls can still report `0`.
+
+> 🛠 When extending this: the money is multiplied **in memory**, over one row per (currency, cart, unit price, line discount). PostgreSQL maps the price columns to `money`, which has no `money * money` operator, and the decimal cast that fixes it is not translated by SQLite — so no LINQ expression can multiply a price by a quantity on every provider. Same constraint the top-seller revenue ranking works around.
 
 ---
 
