@@ -73,15 +73,8 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return period;
     }
 
-    /// <summary>
-    /// The rows the money figures are folded from: the lines that make up a cart's goods subtotal, grouped down to
-    /// one row per (currency, cart, unit price, line discount) so a single scan yields the SUM, the COUNT DISTINCT
-    /// and the AVG. Line population mirrors <c>DefaultShoppingCartTotalsCalculator</c>: picked for checkout, gifts
-    /// excluded, a sub-unit quantity billed as one. The price is carried out unmultiplied on purpose — no single
-    /// LINQ expression multiplies the money column on every provider (PostgreSQL has no <c>money * money</c>
-    /// operator and needs a decimal cast SQLite will not translate), the same reason the top-seller ranking
-    /// multiplies in memory.
-    /// </summary>
+    // Prices are carried out unmultiplied and multiplied in memory: PostgreSQL has no money * money operator, and
+    // the decimal cast that fixes it is not translated by SQLite.
     private static async Task<IList<CartFigureRow>> AggregateCartFigureRowsAsync(IQueryable<LineItemEntity> itemQuery)
     {
         return await itemQuery
@@ -105,8 +98,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
     {
         var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
 
-        // Grouping by the line's own currency is what lets the money fold; a cart holding lines in two currencies
-        // therefore contributes to two groups and counts once in each.
         var byCurrency = rows
             .GroupBy(x => x.Currency)
             .Select(g => new CurrencyStatisticAggregate
@@ -142,11 +133,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return query;
     }
 
-    /// <summary>
-    /// The cart set the figures are summed over. Scope only, never dates — the range bounds the line items
-    /// (<see cref="BuildItemQuery"/>), so a cart opened months ago still reports the items touched inside it.
-    /// No emptiness guard either: a cart with no line items contributes no rows.
-    /// </summary>
     protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var query = repository.ShoppingCarts.Where(x => !x.IsDeleted);

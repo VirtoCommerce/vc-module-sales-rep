@@ -37,9 +37,9 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
         Field<CustomerCartStatisticsPeriodType>("period")
             .Description("Cart figures for a single date range. Omit both bounds for what is in the carts right now.")
-            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on each line item's modified date (null = no lower bound); the carts' own dates are never filtered.")
-            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on each line item's modified date (null = no upper bound); the carts' own dates are never filtered.")
-            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); aggregates only the line items of carts matching that rule's name/type/status filter. Omit for every cart row, wishlists and other lists included.")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on each line item's modified date; the carts' own dates are never filtered.")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on each line item's modified date; the carts' own dates are never filtered.")
+            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"). Omit for every cart row, wishlists and other lists included.")
             .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
@@ -50,7 +50,7 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             });
 
         Field<CustomerCartStatisticsComparisonType>("comparison")
-            .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket a 'period' selection already asked for on the same terms is not aggregated again.")
+            .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket another selection already asked for is not aggregated again.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.CurrentArgument, "The later period.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.PreviousArgument, "The baseline period to compare against.")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name applied to both periods (see 'period.filter').")
@@ -60,13 +60,12 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                 var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
 
-                // A money delta needs the money on BOTH sides, so the flag goes to both loads.
                 var withCartFigures = RequestsCartFigures(context, CustomerCartStatisticsComparisonType.CartFigureFields);
 
                 var loader = GetPeriodLoader(context);
 
-                // Queue both loads before chaining so they land in the same batch (one dispatch); a range another
-                // selection already asked for with the same cart-figure flag is then aggregated only once.
+                // Queue both loads before chaining so they land in the same batch (one dispatch); a range shared
+                // with a 'period' selection is then aggregated only once.
                 var currentResult = loader.LoadAsync((current.From, current.To, filterKey, withCartFigures));
                 var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey, withCartFigures));
 
@@ -75,11 +74,6 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             });
     }
 
-    /// <summary>
-    /// Whether this selection asks for a cart-level figure, so the aggregation can skip the second scan and the
-    /// currency conversion when only the item quantities are wanted. Reads the selected field NAMES, so aliases,
-    /// fragments and @skip/@include are all honoured.
-    /// </summary>
     private static bool RequestsCartFigures(IResolveFieldContext context, string[] cartFigureFields)
     {
         var selectedFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
@@ -112,10 +106,8 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
         var loaderKey = $"{nameof(CustomerCartStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
 
-        // Per-request batch loader: keyed on the shared context, with the range in the batch key, so each distinct
-        // range is aggregated only once per request however many aliases select it (no N+1). The cart-figure flag is
-        // part of that key too — otherwise two aliases over the same range but different selections would collide
-        // and a quantities-only result could answer the one that asked for the money.
+        // Per-request batch loader shared by 'period' and 'comparison': keyed on the shared context, with the range
+        // and the cart-figure flag in the batch key, so each distinct bucket is aggregated only once (no N+1).
         return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filter, bool WithCartFigures), CustomerCartStatisticsPeriod>(
             loaderKey,
             async buckets =>
