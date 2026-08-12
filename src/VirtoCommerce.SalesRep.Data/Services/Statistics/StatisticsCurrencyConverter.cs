@@ -79,21 +79,6 @@ internal static class StatisticsCurrencyConverter
             : new Money(1m, source).ConvertTo(target).InternalAmount;
     }
 
-    /// <summary>
-    /// Rate that brings an amount from one currency into another, zero when either is unconfigured (unconvertible, and
-    /// excluded from the figures by <see cref="Fold"/>). Same primitive the fold converts with, so a ranking built on
-    /// it cannot disagree with the amounts the fold reports.
-    /// </summary>
-    public static decimal GetRate(string sourceCurrencyCode, string targetCurrencyCode, IReadOnlyCollection<Currency> currencies)
-    {
-        var source = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(sourceCurrencyCode));
-        var target = currencies.FirstOrDefault(x => x.Code.EqualsIgnoreCase(targetCurrencyCode));
-
-        return source == null || target == null
-            ? 0m
-            : new Money(1m, source).ConvertTo(target).InternalAmount;
-    }
-
     private static string BuildWarning(int excludedCount, List<string> excludedCurrencies)
     {
         if (excludedCurrencies.Count == 0)
