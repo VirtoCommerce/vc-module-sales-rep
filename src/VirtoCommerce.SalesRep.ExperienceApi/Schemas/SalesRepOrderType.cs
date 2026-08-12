@@ -61,7 +61,7 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
                     {
                         var organizations = await memberService.GetByIdsAsync(
                             organizationIds.ToArray(),
-                            MemberResponseGroup.Default.ToString(),
+                            nameof(MemberResponseGroup.Default),
                             [nameof(Organization)]);
 
                         return organizations.ToDictionary(x => x.Id, x => x.Name, StringComparer.OrdinalIgnoreCase);

@@ -37,6 +37,8 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepCustomerOrderSearchService, SalesRepCustomerOrderSearchService>();
 
+        serviceCollection.AddTransient<ISalesRepOrderStatusService, SalesRepOrderStatusService>();
+
         serviceCollection.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
 
         serviceCollection.AddTransient<ICustomerCartStatisticsService, CustomerCartStatisticsService>();

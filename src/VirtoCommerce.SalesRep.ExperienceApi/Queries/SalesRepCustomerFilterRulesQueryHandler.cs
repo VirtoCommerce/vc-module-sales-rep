@@ -1,12 +1,11 @@
-using System.Collections.Generic;
-using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomerFilterRulesQueryHandler : SalesRepRulesQueryHandlerBase<SalesRepCustomerFilterRulesQuery, SalesRepCustomerFilterRule>
+public class SalesRepCustomerFilterRulesQueryHandler : SalesRepFilterRulesQueryHandlerBase<SalesRepCustomerFilterRulesQuery, SalesRepCustomerFilterRule>
 {
     private readonly ISalesRepCustomerFilterRuleResolver _filterRuleResolver;
 
@@ -18,6 +17,5 @@ public class SalesRepCustomerFilterRulesQueryHandler : SalesRepRulesQueryHandler
         _filterRuleResolver = filterRuleResolver;
     }
 
-    protected override Task<IList<SalesRepCustomerFilterRule>> GetRulesAsync(SalesRepCustomerFilterRulesQuery request)
-        => _filterRuleResolver.GetRulesAsync(request.StoreId, request.CultureName);
+    protected override IFilterRuleResolver<SalesRepCustomerFilterRule> FilterRuleResolver => _filterRuleResolver;
 }
