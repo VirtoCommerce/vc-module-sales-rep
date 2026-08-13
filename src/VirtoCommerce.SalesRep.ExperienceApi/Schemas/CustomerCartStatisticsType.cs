@@ -63,7 +63,6 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                 var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
 
-                // A money delta needs the money on both sides, so the group goes to both loads.
                 var responseGroup = _responseGroupParser.GetResponseGroup(SelectedFields(context));
 
                 var loader = GetPeriodLoader(context);

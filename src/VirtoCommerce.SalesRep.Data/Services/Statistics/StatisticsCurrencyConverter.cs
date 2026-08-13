@@ -9,10 +9,6 @@ namespace VirtoCommerce.SalesRep.Data.Services.Statistics;
 
 internal static class StatisticsCurrencyConverter
 {
-    /// <param name="countOverride">
-    /// Replaces the summed per-currency counts (and drives the average) for callers whose population cannot be counted
-    /// per currency — e.g. distinct carts, where one cart may hold lines in several currencies.
-    /// </param>
     public static FoldedStatistics Fold(
         IEnumerable<CurrencyStatisticAggregate> byCurrency,
         string targetCurrencyCode,

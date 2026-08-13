@@ -8,8 +8,6 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 public class SalesRepCartStatisticsResponseGroupParser : ISalesRepCartStatisticsResponseGroupParser
 {
-    // A period's field names and a comparison's are disjoint ("count" vs "countChange"), and IncludesField
-    // compares whole path segments, so one table covers both selections without knowing which type it reads.
     private static readonly string[] _itemQuantityFields =
     [
         nameof(CustomerCartStatisticsPeriod.SelectedItemQuantity),

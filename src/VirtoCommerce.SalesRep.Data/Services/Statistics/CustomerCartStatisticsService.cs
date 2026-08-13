@@ -91,8 +91,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 
         var priceGroups = await AggregatePriceGroupsAsync(contributingLines);
 
-        // Resolved once per currency, not per row. An unconfigured currency rates to zero — the same exclusion the
-        // fold applies (and reports as a warning), so the cart count must skip those currencies too.
         var rates = priceGroups
             .Select(x => x.Currency ?? string.Empty)
             .DistinctIgnoreCase()
@@ -119,12 +117,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         period.Warning = folded.Warning;
     }
 
-    /// <summary>
-    /// One row per (currency, unit price, line discount) — the cart is deliberately NOT in the key, so the row count
-    /// is bounded by the distinct prices rather than by the line items. The price is carried out unmultiplied because
-    /// no LINQ expression multiplies the money column on every provider (PostgreSQL has no money * money operator and
-    /// the decimal cast that fixes it is not translated by SQLite), the same reason top-seller revenue ranks in memory.
-    /// </summary>
     private static async Task<IList<PriceGroup>> AggregatePriceGroupsAsync(IQueryable<LineItemEntity> contributingLines)
     {
         return await contributingLines
@@ -139,10 +131,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .ToListAsync();
     }
 
-    /// <summary>
-    /// Counted across the convertible currencies at once, not summed per currency: a cart holding lines in two
-    /// currencies is still one cart.
-    /// </summary>
     private static async Task<int> CountContributingCartsAsync(IQueryable<LineItemEntity> contributingLines, string[] convertibleCurrencies)
     {
         if (convertibleCurrencies.Length == 0)
