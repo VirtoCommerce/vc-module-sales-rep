@@ -195,13 +195,14 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         SeedCart(ctx, "c1", "org-1", 0m, _feb2026);
         SeedCartItem(ctx, "c1", "c1-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 25m);
 
-        // Three selections over the SAME range: quantities only (the lean aggregate), the money, and the money
-        // behind aliases. All three share a DataLoader bucket unless the cart-figure flag is part of its key — if it
-        // is not, the lean result answers the others and the money reads 0.
+        // Four selections over the SAME range, each resolving to a different response group: quantities only, money
+        // only, both, and both behind aliases. They share a DataLoader bucket unless the response group is part of
+        // its key — if it is not, whichever ran first answers the rest and the missing family reads 0.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
                 itemsOnly: period({{Ytd}}, filter: "active-carts") { selectedItemQuantity }
+                moneyOnly: period({{Ytd}}, filter: "active-carts") { count total { amount } }
                 withMoney: period({{Ytd}}, filter: "active-carts") { selectedItemQuantity count total { amount } }
                 aliased:   period({{Ytd}}, filter: "active-carts") { qty: selectedItemQuantity c: count t: total { amount } }
               } }
@@ -211,12 +212,17 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var stats = Stats(json);
         stats.GetProperty("itemsOnly").GetProperty("selectedItemQuantity").GetInt32().Should().Be(2);
 
+        // Money without any quantity field: the quantities scan is skipped, the money still has to be right.
+        var moneyOnly = stats.GetProperty("moneyOnly");
+        moneyOnly.GetProperty("count").GetInt32().Should().Be(1);
+        MoneyAmount(moneyOnly, "total").Should().Be(50m);
+
         var withMoney = stats.GetProperty("withMoney");
         withMoney.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2);
         withMoney.GetProperty("count").GetInt32().Should().Be(1);
         MoneyAmount(withMoney, "total").Should().Be(50m);
 
-        // Selection detection reads field NAMES, so an alias must not hide the money from the aggregator.
+        // Selection detection reads field NAMES, so an alias must not hide either family from the aggregator.
         var aliased = stats.GetProperty("aliased");
         aliased.GetProperty("qty").GetInt32().Should().Be(2);
         aliased.GetProperty("c").GetInt32().Should().Be(1);

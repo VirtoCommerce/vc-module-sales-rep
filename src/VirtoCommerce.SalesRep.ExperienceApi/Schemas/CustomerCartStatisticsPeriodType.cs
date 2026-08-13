@@ -8,6 +8,8 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
 public class CustomerCartStatisticsPeriodType : ExtendableGraphType<CustomerCartStatisticsPeriod>
 {
+    public static readonly string[] ItemQuantityFields = ["selectedItemQuantity", "unselectedItemQuantity"];
+
     public static readonly string[] CartFigureFields = ["count", "total", "average", "warning"];
 
     public CustomerCartStatisticsPeriodType(ICurrencyService currencyService)

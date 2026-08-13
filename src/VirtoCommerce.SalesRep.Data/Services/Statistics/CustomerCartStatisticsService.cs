@@ -57,6 +57,21 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         var period = AbstractTypeFactory<CustomerCartStatisticsPeriod>.TryCreateInstance();
         period.CurrencyCode = criteria.CurrencyCode;
 
+        if (criteria.ResponseGroup.HasFlag(CartStatisticsResponseGroup.ItemQuantities))
+        {
+            await AddItemQuantitiesAsync(period, itemQuery);
+        }
+
+        if (criteria.ResponseGroup.HasFlag(CartStatisticsResponseGroup.CartFigures))
+        {
+            await AddCartFiguresAsync(period, itemQuery, criteria);
+        }
+
+        return period;
+    }
+
+    private static async Task AddItemQuantitiesAsync(CustomerCartStatisticsPeriod period, IQueryable<LineItemEntity> itemQuery)
+    {
         var quantities = await itemQuery
             .GroupBy(x => x.SelectedForCheckout)
             .Select(g => new { SelectedForCheckout = g.Key, Quantity = g.Sum(x => x.Quantity) })
@@ -64,13 +79,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
 
         period.SelectedItemQuantity = quantities.Where(x => x.SelectedForCheckout).Sum(x => x.Quantity);
         period.UnselectedItemQuantity = quantities.Where(x => !x.SelectedForCheckout).Sum(x => x.Quantity);
-
-        if (criteria.IncludeCartFigures)
-        {
-            await AddCartFiguresAsync(period, itemQuery, criteria);
-        }
-
-        return period;
     }
 
     private async Task AddCartFiguresAsync(

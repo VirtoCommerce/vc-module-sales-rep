@@ -44,9 +44,12 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             {
                 var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
                 var to = context.GetArgument<DateTime?>(StatisticsFieldHelper.ToArgument);
-                var withCartFigures = RequestsCartFigures(context, CustomerCartStatisticsPeriodType.CartFigureFields);
+                var responseGroup = GetResponseGroup(context,
+                    CustomerCartStatisticsPeriodType.ItemQuantityFields,
+                    CustomerCartStatisticsPeriodType.CartFigureFields);
+
                 return GetPeriodLoader(context)
-                    .LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context), withCartFigures));
+                    .LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context), responseGroup));
             });
 
         Field<CustomerCartStatisticsComparisonType>("comparison")
@@ -60,25 +63,38 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                 var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
 
-                var withCartFigures = RequestsCartFigures(context, CustomerCartStatisticsComparisonType.CartFigureFields);
+                var responseGroup = GetResponseGroup(context,
+                    CustomerCartStatisticsComparisonType.ItemQuantityFields,
+                    CustomerCartStatisticsComparisonType.CartFigureFields);
 
                 var loader = GetPeriodLoader(context);
 
                 // Queue both loads before chaining so they land in the same batch (one dispatch); a range shared
                 // with a 'period' selection is then aggregated only once.
-                var currentResult = loader.LoadAsync((current.From, current.To, filterKey, withCartFigures));
-                var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey, withCartFigures));
+                var currentResult = loader.LoadAsync((current.From, current.To, filterKey, responseGroup));
+                var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey, responseGroup));
 
                 return currentResult.Then(currentPeriod =>
                     previousResult.Then(previousPeriod => BuildComparison(currentPeriod, previousPeriod)));
             });
     }
 
-    private static bool RequestsCartFigures(IResolveFieldContext context, string[] cartFigureFields)
+    private static CartStatisticsResponseGroup GetResponseGroup(IResolveFieldContext context, string[] itemQuantityFields, string[] cartFigureFields)
     {
         var selectedFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
+        var responseGroup = CartStatisticsResponseGroup.None;
 
-        return cartFigureFields.Any(selectedFields.IncludesField);
+        if (itemQuantityFields.Any(selectedFields.IncludesField))
+        {
+            responseGroup |= CartStatisticsResponseGroup.ItemQuantities;
+        }
+
+        if (cartFigureFields.Any(selectedFields.IncludesField))
+        {
+            responseGroup |= CartStatisticsResponseGroup.CartFigures;
+        }
+
+        return responseGroup;
     }
 
     private static CustomerCartStatisticsComparison BuildComparison(CustomerCartStatisticsPeriod current, CustomerCartStatisticsPeriod previous)
@@ -100,15 +116,15 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
         return result;
     }
 
-    private IDataLoader<(DateTime? From, DateTime? To, string Filter, bool WithCartFigures), CustomerCartStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
+    private IDataLoader<(DateTime? From, DateTime? To, string Filter, CartStatisticsResponseGroup ResponseGroup), CustomerCartStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
     {
         var statisticsContext = (CustomerCartStatisticsContext)context.Source;
 
         var loaderKey = $"{nameof(CustomerCartStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
 
         // Per-request batch loader shared by 'period' and 'comparison': keyed on the shared context, with the range
-        // and the cart-figure flag in the batch key, so each distinct bucket is aggregated only once (no N+1).
-        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filter, bool WithCartFigures), CustomerCartStatisticsPeriod>(
+        // and the response group in the batch key, so each distinct bucket is aggregated only once (no N+1).
+        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filter, CartStatisticsResponseGroup ResponseGroup), CustomerCartStatisticsPeriod>(
             loaderKey,
             async buckets =>
             {
@@ -121,7 +137,7 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                     criteria.CurrencyCode = statisticsContext.CurrencyCode;
                     criteria.FromDate = bucket.From;
                     criteria.ToDate = bucket.To;
-                    criteria.IncludeCartFigures = bucket.WithCartFigures;
+                    criteria.ResponseGroup = bucket.ResponseGroup;
 
                     var filtered = await _filterRuleResolver.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
 
