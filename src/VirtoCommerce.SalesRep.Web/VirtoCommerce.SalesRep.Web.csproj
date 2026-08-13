@@ -27,6 +27,9 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Data.MySql\VirtoCommerce.SalesRep.Data.MySql.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Data.PostgreSql\VirtoCommerce.SalesRep.Data.PostgreSql.csproj" />
+    <ProjectReference Include="..\VirtoCommerce.SalesRep.Data.SqlServer\VirtoCommerce.SalesRep.Data.SqlServer.csproj" />
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
     <ProjectReference Include="..\VirtoCommerce.SalesRep.ExperienceApi\VirtoCommerce.SalesRep.ExperienceApi.csproj" />
   </ItemGroup>

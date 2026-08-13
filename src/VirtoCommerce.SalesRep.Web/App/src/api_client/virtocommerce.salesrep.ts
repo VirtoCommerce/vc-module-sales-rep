@@ -68,7 +68,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Search Sales Reps (union of global-role and per-organization reps).
      * @param body (optional) 
      * @return OK
      */
@@ -120,7 +119,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Roles selectable for a Sales Rep (those granting "sales-rep:access"); seeds a default if none.
      * @return OK
      */
     getRoles(): Promise<SalesRepRole[]> {
@@ -167,7 +165,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Reference data (countries, currencies, languages) for the Sales Rep admin dropdowns.
      * @return OK
      */
     getDictionaries(): Promise<SalesRepDictionaries> {
@@ -214,7 +211,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Get a Sales Rep aggregate by contact member id.
      * @return OK
      */
     get(id: string): Promise<SalesRepDetails> {
@@ -264,7 +260,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Create a new Sales Rep (contact + account + organization memberships).
      * @param body (optional) 
      * @return OK
      */
@@ -316,7 +311,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Update an existing Sales Rep.
      * @param body (optional) 
      * @return OK
      */
@@ -368,7 +362,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Delete Sales Reps by contact member ids (cascades to the security account).
      * @param ids (optional) 
      * @return OK
      */
@@ -417,7 +410,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Block (lock out) the rep's account.
      * @return OK
      */
     block(id: string): Promise<void> {
@@ -464,7 +456,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Unblock the rep's account.
      * @return OK
      */
     unblock(id: string): Promise<void> {
@@ -511,7 +502,6 @@ export class SalesRepClient extends AuthApiBase {
     }
 
     /**
-     * Set a new password for the rep's account.
      * @param body (optional) 
      * @return OK
      */
@@ -563,6 +553,385 @@ export class SalesRepClient extends AuthApiBase {
     }
 }
 
+export class SalesRepDocumentsClient extends AuthApiBase {
+    private http: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> };
+    private baseUrl: string;
+
+    constructor(baseUrl?: string, http?: { fetch(url: RequestInfo, init?: RequestInit): Promise<Response> }) {
+        super();
+        this.http = http ? http : window as any;
+        this.baseUrl = this.getBaseUrl("", baseUrl);
+    }
+
+    /**
+     * @param file (optional) 
+     * @param category (optional) 
+     * @param summary (optional) 
+     * @param pageCount (optional) 
+     * @param previewUrl (optional) 
+     * @return OK
+     */
+    upload(file?: FileParameter | undefined, category?: string | undefined, summary?: string | undefined, pageCount?: number | undefined, previewUrl?: string | undefined): Promise<SalesRepDocument> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = new FormData();
+        if (file === null || file === undefined)
+            throw new globalThis.Error("The parameter 'file' cannot be null.");
+        else
+            content_.append("file", file.data, file.fileName ? file.fileName : "file");
+        if (category === null || category === undefined)
+            throw new globalThis.Error("The parameter 'category' cannot be null.");
+        else
+            content_.append("category", category.toString());
+        if (summary === null || summary === undefined)
+            throw new globalThis.Error("The parameter 'summary' cannot be null.");
+        else
+            content_.append("summary", summary.toString());
+        if (pageCount === null || pageCount === undefined)
+            throw new globalThis.Error("The parameter 'pageCount' cannot be null.");
+        else
+            content_.append("pageCount", pageCount.toString());
+        if (previewUrl === null || previewUrl === undefined)
+            throw new globalThis.Error("The parameter 'previewUrl' cannot be null.");
+        else
+            content_.append("previewUrl", previewUrl.toString());
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processUpload(_response);
+        });
+    }
+
+    protected processUpload(response: Response): Promise<SalesRepDocument> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDocument>(null as any);
+    }
+
+    /**
+     * @param ids (optional) 
+     * @return OK
+     */
+    delete(ids?: string[] | undefined): Promise<void> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents?";
+        if (ids === null)
+            throw new globalThis.Error("The parameter 'ids' cannot be null.");
+        else if (ids !== undefined)
+            ids && ids.forEach(item => { url_ += "ids=" + encodeURIComponent("" + item) + "&"; });
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "DELETE",
+            headers: {
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processDelete(_response);
+        });
+    }
+
+    protected processDelete(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * @param body (optional) 
+     * @return OK
+     */
+    search(body?: SalesRepDocumentSearchCriteria | undefined): Promise<SalesRepDocumentSearchResult> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/search";
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json-patch+json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processSearch(_response);
+        });
+    }
+
+    protected processSearch(response: Response): Promise<SalesRepDocumentSearchResult> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocumentSearchResult;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDocumentSearchResult>(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    getCategories(): Promise<SalesRepDocumentCategory[]> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/categories";
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processGetCategories(_response);
+        });
+    }
+
+    protected processGetCategories(response: Response): Promise<SalesRepDocumentCategory[]> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocumentCategory[];
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDocumentCategory[]>(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    download(id: string): Promise<void> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/{id}";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            headers: {
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processDownload(_response);
+        });
+    }
+
+    protected processDownload(response: Response): Promise<void> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            return;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<void>(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    getInfo(id: string): Promise<SalesRepDocument> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/{id}/info";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "GET",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processGetInfo(_response);
+        });
+    }
+
+    protected processGetInfo(response: Response): Promise<SalesRepDocument> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDocument>(null as any);
+    }
+
+    /**
+     * @param body (optional) 
+     * @return OK
+     */
+    updateMetadata(id: string, body?: SalesRepDocumentMetadata | undefined): Promise<SalesRepDocument> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/{id}/metadata";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        const content_ = JSON.stringify(body);
+
+        let options_: RequestInit = {
+            body: content_,
+            method: "PUT",
+            headers: {
+                "Content-Type": "application/json-patch+json",
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processUpdateMetadata(_response);
+        });
+    }
+
+    protected processUpdateMetadata(response: Response): Promise<SalesRepDocument> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDocument>(null as any);
+    }
+}
+
 export enum AddressType {
     Undefined = "Undefined",
     Billing = "Billing",
@@ -596,8 +965,18 @@ export interface CustomerAddress {
     description?: string | undefined;
 }
 
-export interface SalesRepDetails {
+export interface SalesRepCountry {
     id?: string | undefined;
+    name?: string | undefined;
+}
+
+export interface SalesRepCurrency {
+    code?: string | undefined;
+    name?: string | undefined;
+    symbol?: string | undefined;
+}
+
+export interface SalesRepDetails {
     userId?: string | undefined;
     userName?: string | undefined;
     salutation?: string | undefined;
@@ -622,6 +1001,7 @@ export interface SalesRepDetails {
     roleId?: string | undefined;
     roleName?: string | undefined;
     organizations?: SalesRepOrganization[] | undefined;
+    id?: string | undefined;
 }
 
 export interface SalesRepDictionaries {
@@ -630,15 +1010,56 @@ export interface SalesRepDictionaries {
     languages?: string[] | undefined;
 }
 
-export interface SalesRepCountry {
-    id?: string | undefined;
+export interface SalesRepDocument {
     name?: string | undefined;
+    category?: string | undefined;
+    contentType?: string | undefined;
+    size?: number;
+    url?: string | undefined;
+    summary?: string | undefined;
+    pageCount?: number | undefined;
+    previewUrl?: string | undefined;
+    createdDate?: Date;
+    modifiedDate?: Date | undefined;
+    createdBy?: string | undefined;
+    modifiedBy?: string | undefined;
+    id?: string | undefined;
 }
 
-export interface SalesRepCurrency {
-    code?: string | undefined;
+export interface SalesRepDocumentCategory {
     name?: string | undefined;
-    symbol?: string | undefined;
+    count?: number;
+}
+
+export interface SalesRepDocumentMetadata {
+    summary?: string | undefined;
+    pageCount?: number | undefined;
+    previewUrl?: string | undefined;
+    createdDate?: Date;
+    modifiedDate?: Date | undefined;
+    createdBy?: string | undefined;
+    modifiedBy?: string | undefined;
+    id?: string | undefined;
+}
+
+export interface SalesRepDocumentSearchCriteria {
+    category?: string | undefined;
+    responseGroup?: string | undefined;
+    objectType?: string | undefined;
+    objectTypes?: string[] | undefined;
+    objectIds?: string[] | undefined;
+    keyword?: string | undefined;
+    searchPhrase?: string | undefined;
+    languageCode?: string | undefined;
+    sort?: string | undefined;
+    readonly sortInfos?: SortInfo[] | undefined;
+    skip?: number;
+    take?: number;
+}
+
+export interface SalesRepDocumentSearchResult {
+    totalCount?: number;
+    results?: SalesRepDocument[] | undefined;
 }
 
 export interface SalesRepListItem {
@@ -699,6 +1120,11 @@ export enum SortDirection {
 export interface SortInfo {
     sortColumn?: string | undefined;
     sortDirection?: SortDirection;
+}
+
+export interface FileParameter {
+    data: any;
+    fileName: string;
 }
 
 export class ApiException extends Error {

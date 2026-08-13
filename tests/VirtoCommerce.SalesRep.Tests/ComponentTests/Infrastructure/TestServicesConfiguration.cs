@@ -4,6 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentValidation;
+using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.AssetsModule.Core.Services;
+using VirtoCommerce.AssetsModule.Data.Repositories;
+using VirtoCommerce.AssetsModule.Data.Services;
 using VirtoCommerce.CoreModule.Core.Currency;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
@@ -11,6 +15,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using VirtoCommerce.Platform.Core.GenericCrud;
+using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.CustomerModule.Core.Services.Indexed;
@@ -164,10 +170,45 @@ internal static class TestServicesConfiguration
         return services;
     }
 
-    /// <summary>The module under test: real SalesRep services + the REST controller (ported from Module.Initialize).</summary>
-    public static IServiceCollection AddSalesRepSlice(this IServiceCollection services)
+    /// <summary>
+    /// Assets domain on SQLite: the REAL AssetEntry CRUD/search services + repository (the documents library's
+    /// listing backbone), plus the real platform file-extension validator. Only the binary storage is a double —
+    /// <see cref="InMemoryBlobStorageProvider"/> (registered as both provider and URL resolver) so tests can
+    /// assert blob existence without a file system.
+    /// </summary>
+    public static IServiceCollection AddAssetsSlice(this IServiceCollection services, DbContextOptions<AssetsDbContext> assetsDbOptions)
     {
+        services.AddSingleton(assetsDbOptions);
+        services.AddScoped<AssetsDbContext>();
+        services.AddTransient<IAssetsRepository, AssetsRepository>();
+        services.AddSingleton<Func<IAssetsRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<IAssetsRepository>());
+
+        services.Configure<CrudOptions>(_ => { });
+        services.AddTransient<IAssetEntryService, AssetEntryService>();
+        services.AddTransient<IAssetEntrySearchService, AssetEntrySearchService>();
+        services.AddTransient<IFileExtensionService, FileExtensionService>();
+
+        services.AddSingleton<InMemoryBlobStorageProvider>();
+        services.AddSingleton<IBlobStorageProvider>(sp => sp.GetRequiredService<InMemoryBlobStorageProvider>());
+        services.AddSingleton<IBlobUrlResolver>(sp => sp.GetRequiredService<InMemoryBlobStorageProvider>());
+
+        return services;
+    }
+
+    /// <summary>The module under test: real SalesRep services + the REST controller (ported from Module.Initialize).</summary>
+    public static IServiceCollection AddSalesRepSlice(this IServiceCollection services, DbContextOptions<SalesRepDbContext> salesRepDbOptions)
+    {
+        services.AddSingleton(salesRepDbOptions);
+        services.AddScoped<SalesRepDbContext>();
+        services.AddTransient<ISalesRepRepository, SalesRepRepository>();
+        services.AddSingleton<Func<ISalesRepRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
+
+        services.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
+        services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
+        services.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
+
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        services.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         services.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
@@ -224,7 +265,9 @@ internal static class TestServicesConfiguration
             var setting = new ObjectSettingEntry
             {
                 Name = name,
-                AllowedValues = name == PlatformConstants.Settings.General.Languages.Name ? ["en-US", "de-DE"] : null,
+                // Non-null AllowedValues everywhere: FileExtensionService unions the white/blacklist settings'
+                // AllowedValues without a null guard.
+                AllowedValues = name == PlatformConstants.Settings.General.Languages.Name ? ["en-US", "de-DE"] : [],
             };
             return Task.FromResult(setting);
         }

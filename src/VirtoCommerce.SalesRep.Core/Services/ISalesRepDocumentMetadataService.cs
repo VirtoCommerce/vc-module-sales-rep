@@ -1,0 +1,14 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using VirtoCommerce.SalesRep.Core.Models;
+
+namespace VirtoCommerce.SalesRep.Core.Services;
+
+public interface ISalesRepDocumentMetadataService
+{
+    Task<IList<SalesRepDocumentMetadata>> GetByIdsAsync(IList<string> ids);
+
+    Task SaveAsync(IList<SalesRepDocumentMetadata> metadata);
+
+    Task DeleteAsync(IList<string> ids);
+}

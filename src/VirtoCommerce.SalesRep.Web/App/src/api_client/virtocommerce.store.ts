@@ -902,6 +902,9 @@ export interface Store {
     url?: string | undefined;
     /** Store storefront https url */
     secureUrl?: string | undefined;
+    /** Base URL used to build public asset (image) URLs for this store in the Experience API responses.
+Overrides the global Assets PublicUrl. When empty, the global/admin default is used. */
+    assetPublicUrl?: string | undefined;
     /** Primary store contact email can be used for store event notifications and for feed back */
     email?: string | undefined;
     adminEmail?: string | undefined;

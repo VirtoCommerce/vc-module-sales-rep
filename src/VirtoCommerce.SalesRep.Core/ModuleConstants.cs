@@ -6,21 +6,31 @@ namespace VirtoCommerce.SalesRep.Core;
 
 public static class ModuleConstants
 {
+    // Shared documents library discriminator (VCST-5730): the assets root folder, AssetEntry.Group and
+    // File.Scope all carry this value — it is what routes generic file surfaces to the module's authorization.
+    public const string DocumentsScope = "sales-rep-documents";
+
     public static class Security
     {
         public static class Permissions
         {
             public const string Access = "sales-rep:access";
+            public const string DocumentsRead = "sales-rep-documents:read";
+            public const string DocumentsWrite = "sales-rep-documents:write";
 
             public static string[] AllPermissions { get; } =
             [
                 Access,
+                DocumentsRead,
+                DocumentsWrite,
             ];
         }
 
         public static class Roles
         {
             public const string SalesRepRoleName = "Sales Representative";
+            public const string AdvancedSalesRepRoleName = "Advanced Sales Representative";
+            public const string DocumentsManagerRoleName = "Sales Rep Documents Manager";
         }
     }
 
@@ -31,6 +41,11 @@ public static class ModuleConstants
         // string, and SalesRepCartSharingService teaches the platform this value's visibility rules. The scope also
         // defines the id space of CartSharingSetting.SharedWithId (here: a customer organization id).
         public const string CustomerScope = "Customer";
+    }
+
+    public static class Documents
+    {
+        public const long MaxFileSize = 50 * 1024 * 1024;
     }
 
     public static class Communication
@@ -108,6 +123,14 @@ public static class ModuleConstants
                 DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
+            public static SettingDescriptor DocumentsCacheExpiration { get; } = new()
+            {
+                Name = "SalesRep.Documents.CacheExpirationMinutes",
+                GroupName = "Sales Rep|Documents",
+                ValueType = SettingValueType.Integer,
+                DefaultValue = DefaultCacheLifetimeMinutes,
+            };
+
             public static IEnumerable<SettingDescriptor> AllCachingSettings
             {
                 get
@@ -116,6 +139,7 @@ public static class ModuleConstants
                     yield return CartStatisticsCacheExpiration;
                     yield return CustomerCountsCacheExpiration;
                     yield return TopSellerCacheExpiration;
+                    yield return DocumentsCacheExpiration;
                 }
             }
         }

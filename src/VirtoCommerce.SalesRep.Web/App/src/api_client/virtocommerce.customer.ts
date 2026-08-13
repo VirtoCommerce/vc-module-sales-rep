@@ -3192,6 +3192,7 @@ export interface MembersSearchCriteria {
     deepSearch?: boolean;
     rootMembersOnly?: boolean | undefined;
     outerIds?: string[] | undefined;
+    excludedObjectIds?: string[] | undefined;
     responseGroup?: string | undefined;
     objectType?: string | undefined;
     objectTypes?: string[] | undefined;
@@ -3228,6 +3229,7 @@ export interface Organization {
     businessCategory?: string | undefined;
     ownerId?: string | undefined;
     parentId?: string | undefined;
+    roles?: OrganizationRole[] | undefined;
     readonly objectType?: string | undefined;
     name?: string | undefined;
     memberType?: string | undefined;
@@ -3276,6 +3278,12 @@ export interface OrganizationMembershipRole {
 
 export interface OrganizationMembershipSearchCriteria {
     userId?: string | undefined;
+    userIds?: string[] | undefined;
+    organizationId?: string | undefined;
+    organizationIds?: string[] | undefined;
+    roleIds?: string[] | undefined;
+    onlyLocked?: boolean;
+    onlyUnlocked?: boolean;
     responseGroup?: string | undefined;
     objectType?: string | undefined;
     objectTypes?: string[] | undefined;
@@ -3292,6 +3300,13 @@ export interface OrganizationMembershipSearchCriteria {
 export interface OrganizationMembershipSearchResult {
     totalCount?: number;
     results?: OrganizationMembership[] | undefined;
+}
+
+export interface OrganizationRole {
+    organizationId?: string | undefined;
+    roleId?: string | undefined;
+    roleName?: string | undefined;
+    id?: string | undefined;
 }
 
 export interface OrganizationSearchResult {
