@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.FileExperienceApi.Core.Authorization;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Settings;
@@ -66,6 +67,7 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         serviceCollection.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
+        serviceCollection.AddSingleton<IProtectedStaticPathsSource, SalesRepDocumentsProtectedPathsSource>();
 
         // Routes the generic file surfaces (GET /api/files/{id}, deleteFile) for the documents scope to the
         // module's fail-closed handler; the dedicated REST endpoints run the same requirement.
