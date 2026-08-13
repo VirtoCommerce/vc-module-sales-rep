@@ -23,6 +23,8 @@ public static class ServiceCollectionExtensions
 
         serviceCollection.AddSingleton<ISalesRepCommunicationResponseGroupParser, SalesRepCommunicationResponseGroupParser>();
 
+        serviceCollection.AddSingleton<ISalesRepCartStatisticsResponseGroupParser, SalesRepCartStatisticsResponseGroupParser>();
+
         serviceCollection.AddTransient<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
 
         serviceCollection.AddTransient<ISalesRepOrderFilterRuleResolver, SalesRepOrderFilterRuleResolver>();

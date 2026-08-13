@@ -8,19 +8,6 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
 public class CustomerCartStatisticsComparisonType : ExtendableGraphType<CustomerCartStatisticsComparison>
 {
-    public static readonly string[] ItemQuantityFields =
-    [
-        "selectedItemQuantityChange", "selectedItemQuantityChangePercent",
-        "unselectedItemQuantityChange", "unselectedItemQuantityChangePercent",
-    ];
-
-    public static readonly string[] CartFigureFields =
-    [
-        "totalChange", "totalChangePercent",
-        "countChange", "countChangePercent",
-        "averageChange", "averageChangePercent",
-    ];
-
     public CustomerCartStatisticsComparisonType(ICurrencyService currencyService)
     {
         Name = "CustomerCartStatisticsComparison";

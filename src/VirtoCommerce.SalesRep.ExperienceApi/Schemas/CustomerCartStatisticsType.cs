@@ -7,7 +7,6 @@ using GraphQL.Types;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
-using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -21,15 +20,18 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
     private readonly ICustomerCartStatisticsService _statisticsService;
     private readonly ISalesRepCartFilterRuleResolver _filterRuleResolver;
+    private readonly ISalesRepCartStatisticsResponseGroupParser _responseGroupParser;
 
     public CustomerCartStatisticsType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
         ICustomerCartStatisticsService statisticsService,
-        ISalesRepCartFilterRuleResolver filterRuleResolver)
+        ISalesRepCartFilterRuleResolver filterRuleResolver,
+        ISalesRepCartStatisticsResponseGroupParser responseGroupParser)
     {
         _dataLoaderContextAccessor = dataLoaderContextAccessor;
         _statisticsService = statisticsService;
         _filterRuleResolver = filterRuleResolver;
+        _responseGroupParser = responseGroupParser;
 
         Name = "CustomerCartStatistics";
 
@@ -44,9 +46,7 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             {
                 var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
                 var to = context.GetArgument<DateTime?>(StatisticsFieldHelper.ToArgument);
-                var responseGroup = GetResponseGroup(context,
-                    CustomerCartStatisticsPeriodType.ItemQuantityFields,
-                    CustomerCartStatisticsPeriodType.CartFigureFields);
+                var responseGroup = _responseGroupParser.GetResponseGroup(SelectedFields(context));
 
                 return GetPeriodLoader(context)
                     .LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context), responseGroup));
@@ -63,9 +63,8 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                 var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
 
-                var responseGroup = GetResponseGroup(context,
-                    CustomerCartStatisticsComparisonType.ItemQuantityFields,
-                    CustomerCartStatisticsComparisonType.CartFigureFields);
+                // A money delta needs the money on both sides, so the group goes to both loads.
+                var responseGroup = _responseGroupParser.GetResponseGroup(SelectedFields(context));
 
                 var loader = GetPeriodLoader(context);
 
@@ -79,23 +78,8 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
             });
     }
 
-    private static CartStatisticsResponseGroup GetResponseGroup(IResolveFieldContext context, string[] itemQuantityFields, string[] cartFigureFields)
-    {
-        var selectedFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
-        var responseGroup = CartStatisticsResponseGroup.None;
-
-        if (itemQuantityFields.Any(selectedFields.IncludesField))
-        {
-            responseGroup |= CartStatisticsResponseGroup.ItemQuantities;
-        }
-
-        if (cartFigureFields.Any(selectedFields.IncludesField))
-        {
-            responseGroup |= CartStatisticsResponseGroup.CartFigures;
-        }
-
-        return responseGroup;
-    }
+    private static string[] SelectedFields(IResolveFieldContext context)
+        => context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
 
     private static CustomerCartStatisticsComparison BuildComparison(CustomerCartStatisticsPeriod current, CustomerCartStatisticsPeriod previous)
     {

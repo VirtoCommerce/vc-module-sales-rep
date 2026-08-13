@@ -155,6 +155,7 @@ internal static class TestGraphQlConfiguration
         // Field-selection → member response group, injected into the customer list/details + customerSalesReps handlers.
         services.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
         services.AddSingleton<ISalesRepCommunicationResponseGroupParser, SalesRepCommunicationResponseGroupParser>();
+        services.AddSingleton<ISalesRepCartStatisticsResponseGroupParser, SalesRepCartStatisticsResponseGroupParser>();
 
         // Shared currency defaulting (requested → store default → platform primary) for the statistics, customers and
         // top-sellers handlers. Real service — resolves IStoreService (TestServicesConfiguration; every store's
