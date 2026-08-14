@@ -44,6 +44,20 @@
         >
           {{ readableSize((data as SalesRepDocument).size) }}
         </template>
+        <!-- Sorting stays on the raw file name field; the cell shows the display name with a pin marker. -->
+        <template
+          v-else-if="col.id === 'name'"
+          #body="{ data }"
+        >
+          <div class="tw-flex tw-flex-row tw-items-center tw-gap-1.5 tw-min-w-0">
+            <VcIcon
+              v-if="(data as SalesRepDocument).isPinned"
+              icon="lucide-pin"
+              class="tw-shrink-0 tw-text-[color:var(--primary-500)]"
+            />
+            <span class="tw-truncate">{{ (data as SalesRepDocument).displayName }}</span>
+          </div>
+        </template>
       </VcColumn>
     </VcDataTable>
   </VcBlade>
@@ -54,7 +68,7 @@ import { computed, ref, onMounted, watch } from "vue";
 import { useDataTableSort, useDataTablePagination, useBlade, readableSize } from "@vc-shell/framework";
 import { useSalesRepDocumentsUI, useSalesRepDocuments } from "../composables";
 import { SalesRepDocument } from "../../../api_client/virtocommerce.salesrep";
-import { VcBlade, VcDataTable, VcColumn, type SelectFilterConfig } from "@vc-shell/framework/ui";
+import { VcBlade, VcDataTable, VcColumn, VcIcon, type SelectFilterConfig } from "@vc-shell/framework/ui";
 
 const { param, exposeToChildren } = useBlade();
 

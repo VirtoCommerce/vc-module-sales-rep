@@ -16,6 +16,9 @@ namespace VirtoCommerce.SalesRep.Data.SqlServer.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    Name = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    Category = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    IsPinned = table.Column<bool>(type: "bit", nullable: false),
                     Summary = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: true),
                     PageCount = table.Column<int>(type: "int", nullable: true),
                     PreviewUrl = table.Column<string>(type: "nvarchar(2083)", maxLength: 2083, nullable: true),

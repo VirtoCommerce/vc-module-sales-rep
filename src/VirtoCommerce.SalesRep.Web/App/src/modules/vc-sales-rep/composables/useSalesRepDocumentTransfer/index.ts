@@ -5,10 +5,16 @@ import { SalesRepDocumentsClient, SalesRepDocument } from "../../../../api_clien
 export const DOCUMENT_FILE_EXTENSIONS =
   ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.png,.jpg,.jpeg,.gif,.webp";
 
+// Mirrors the backend ModuleConstants.Documents.CategoryMaxLength — the server rejects longer categories with 400.
+export const CATEGORY_MAX_LENGTH = 32;
+
 export interface DocumentUploadArgs {
   file: File;
   category: string;
+  name?: string;
   summary?: string;
+  pageCount?: number;
+  previewUrl?: string;
 }
 
 // File transfer endpoints are called with a hand-built fetch instead of the generated SalesRepDocumentsClient:
@@ -33,8 +39,17 @@ export default () => {
       const formData = new FormData();
       formData.append("file", args.file, args.file.name);
       formData.append("category", args.category);
+      if (args.name) {
+        formData.append("name", args.name);
+      }
       if (args.summary) {
         formData.append("summary", args.summary);
+      }
+      if (args.pageCount != null) {
+        formData.append("pageCount", String(args.pageCount));
+      }
+      if (args.previewUrl) {
+        formData.append("previewUrl", args.previewUrl);
       }
 
       const response = await fetch("/api/sales-rep/documents", {

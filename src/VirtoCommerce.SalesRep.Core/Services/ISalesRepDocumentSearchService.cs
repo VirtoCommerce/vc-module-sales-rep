@@ -8,5 +8,6 @@ public interface ISalesRepDocumentSearchService
 {
     Task<SalesRepDocumentSearchResult> SearchAsync(SalesRepDocumentSearchCriteria criteria);
 
-    Task<IList<SalesRepDocumentCategory>> GetCategoriesAsync();
+    // Counts are computed over the keyword-filtered set; zero-count categories are omitted.
+    Task<IList<SalesRepDocumentCategory>> GetCategoriesAsync(string keyword = null);
 }

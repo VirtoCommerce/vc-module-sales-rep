@@ -873,6 +873,7 @@ export enum SettingValueType {
     SecureString = "SecureString",
     Json = "Json",
     PositiveInteger = "PositiveInteger",
+    Cron = "Cron",
 }
 
 export enum SortDirection {

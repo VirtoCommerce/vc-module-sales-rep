@@ -20,6 +20,7 @@ public class SalesRepDocumentsQueryHandler : IQueryHandler<SalesRepDocumentsQuer
         // No sort argument → empty criteria.Sort → the search service's createdDate:desc default.
         var criteria = request.GetSearchCriteria<SalesRepDocumentSearchCriteria>();
         criteria.Category = request.Category;
+        criteria.IsPinned = request.Pinned;
 
         return _documentSearchService.SearchAsync(criteria);
     }

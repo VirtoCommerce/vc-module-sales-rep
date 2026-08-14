@@ -11,7 +11,9 @@ public class SalesRepDocumentType : ExtendableGraphType<SalesRepDocument>
 
         Field(x => x.Id, nullable: false).Description("Document id.");
         Field(x => x.Name, nullable: false).Description("Original file name (also the download file name).");
-        Field(x => x.Category, nullable: true).Description("Category — the first-level subfolder of the shared library.");
+        Field(x => x.DisplayName, nullable: true).Description("Display name — the metadata name when set, otherwise the file name.");
+        Field(x => x.Category, nullable: true).Description("Category from the document metadata — a salesRepDocumentCategories 'name'.");
+        Field(x => x.IsPinned, nullable: false).Description("Whether this is the single pinned document of the library.");
         Field(x => x.ContentType, nullable: true).Description("MIME content type of the file.");
         Field(x => x.Size, nullable: false).Description("File size in bytes.");
         Field(x => x.CreatedDate, nullable: false).Description("Upload date (the default sort key, newest first).");

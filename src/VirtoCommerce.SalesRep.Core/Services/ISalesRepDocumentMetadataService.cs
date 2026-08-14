@@ -10,5 +10,7 @@ public interface ISalesRepDocumentMetadataService
 
     Task SaveAsync(IList<SalesRepDocumentMetadata> metadata);
 
+    Task SetPinnedAsync(string id, bool isPinned);
+
     Task DeleteAsync(IList<string> ids);
 }

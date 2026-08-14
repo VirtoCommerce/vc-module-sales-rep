@@ -18,6 +18,6 @@ public class SalesRepDocumentCategoriesQueryHandler : IQueryHandler<SalesRepDocu
 
     public virtual Task<IList<SalesRepDocumentCategory>> Handle(SalesRepDocumentCategoriesQuery request, CancellationToken cancellationToken)
     {
-        return _documentSearchService.GetCategoriesAsync();
+        return _documentSearchService.GetCategoriesAsync(request.Keyword);
     }
 }

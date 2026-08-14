@@ -38,31 +38,64 @@
         </VcCard>
 
         <!-- Category & metadata -->
-        <VcCard :header="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.BLOCKS.DETAILS')">
+        <VcCard>
+          <!-- Hint lives in the header itself; single-file-only fields (display name, pages,
+               preview) disable themselves for batches. -->
+          <template #header>
+            <span>{{ $t("VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.BLOCKS.DETAILS") }}</span>
+            <span class="tw-ml-2 tw-text-xs tw-font-normal tw-text-[color:var(--neutrals-500)]">
+              {{ $t("VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.BLOCKS.DETAILS_HINT") }}
+            </span>
+          </template>
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
-            <VcSelect
-              v-model="selectedCategory"
-              :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.CATEGORY')"
-              :placeholder="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.CATEGORY_PLACEHOLDER')"
-              :options="categoryOptions"
-              option-value="id"
-              option-label="title"
-              :disabled="!!newCategory"
-              clearable
-            />
+            <div class="tw-flex tw-flex-row tw-gap-4">
+              <VcSelect
+                v-model="selectedCategory"
+                class="tw-flex-1"
+                :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.CATEGORY')"
+                :placeholder="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.CATEGORY_PLACEHOLDER')"
+                :options="categoryOptions"
+                option-value="id"
+                option-label="title"
+                :disabled="!!newCategory"
+                clearable
+              />
+              <VcInput
+                v-model="newCategory"
+                class="tw-flex-1"
+                :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.NEW_CATEGORY')"
+                :placeholder="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.NEW_CATEGORY_PLACEHOLDER')"
+                :hint="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.NEW_CATEGORY_HINT')"
+                :maxlength="CATEGORY_MAX_LENGTH"
+              />
+            </div>
             <VcInput
-              v-model="newCategory"
-              :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.NEW_CATEGORY')"
-              :placeholder="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.NEW_CATEGORY_PLACEHOLDER')"
-              :hint="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.NEW_CATEGORY_HINT')"
-              :max-length="128"
+              v-model="displayName"
+              :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.DISPLAY_NAME')"
+              :placeholder="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.DISPLAY_NAME_PLACEHOLDER')"
+              :disabled="pendingFiles.length !== 1"
             />
             <VcTextarea
               v-model="summary"
               style="--textarea-height: 60px"
               :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.SUMMARY')"
-              :hint="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.SUMMARY_HINT')"
             />
+            <!-- Per-file values, like the display name: meaningless for a batch upload. -->
+            <div class="tw-flex tw-flex-row tw-gap-4">
+              <VcInput
+                v-model="pageCount"
+                type="number"
+                class="tw-w-1/3"
+                :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.PAGE_COUNT')"
+                :disabled="pendingFiles.length !== 1"
+              />
+              <VcInput
+                v-model="previewUrl"
+                class="tw-flex-1"
+                :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.PREVIEW_URL')"
+                :disabled="pendingFiles.length !== 1"
+              />
+            </div>
           </div>
         </VcCard>
       </VcForm>
@@ -74,7 +107,12 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { IBladeToolbar, useBlade, useLoading, readableSize } from "@vc-shell/framework";
-import { useSalesRepDocuments, useSalesRepDocumentTransfer, DOCUMENT_FILE_EXTENSIONS } from "../composables";
+import {
+  useSalesRepDocuments,
+  useSalesRepDocumentTransfer,
+  DOCUMENT_FILE_EXTENSIONS,
+  CATEGORY_MAX_LENGTH,
+} from "../composables";
 import {
   VcBlade,
   VcContainer,
@@ -105,7 +143,10 @@ const pendingFiles = ref<File[]>([]);
 const fileTypeError = ref<string>();
 const selectedCategory = ref<string>();
 const newCategory = ref<string>();
+const displayName = ref<string>();
 const summary = ref<string>();
+const pageCount = ref<number>();
+const previewUrl = ref<string>();
 
 const categoryOptions = computed(() => categories.value.map((x) => ({ id: x.name, title: x.name })));
 
@@ -145,8 +186,20 @@ const bladeToolbar = computed((): IBladeToolbar[] => [
     clickHandler: async () => {
       // Sequential on purpose: uploads share the category subfolder, and one clear failure beats a burst
       // of parallel half-failures.
+      // Display name, page count and preview URL only make sense for a single file (inputs disabled otherwise).
+      const singleFile = pendingFiles.value.length === 1;
+      const name = singleFile ? displayName.value?.trim() || undefined : undefined;
+      const pages = singleFile && pageCount.value != null && pageCount.value > 0 ? Number(pageCount.value) : undefined;
+      const preview = singleFile ? previewUrl.value?.trim() || undefined : undefined;
       for (const file of pendingFiles.value) {
-        await uploadDocument({ file, category: effectiveCategory.value, summary: summary.value });
+        await uploadDocument({
+          file,
+          category: effectiveCategory.value,
+          name,
+          summary: summary.value,
+          pageCount: pages,
+          previewUrl: preview,
+        });
       }
       pendingFiles.value = [];
       callParent("reload");

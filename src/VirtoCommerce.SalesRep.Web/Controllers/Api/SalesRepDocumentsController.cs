@@ -45,6 +45,7 @@ public class SalesRepDocumentsController : Controller
     public async Task<ActionResult<SalesRepDocument>> Upload(
         IFormFile file,
         [FromForm] string category,
+        [FromForm] string name = null,
         [FromForm] string summary = null,
         [FromForm] int? pageCount = null,
         [FromForm] string previewUrl = null)
@@ -57,9 +58,10 @@ public class SalesRepDocumentsController : Controller
         category ??= Request.Query["category"];
 
         SalesRepDocumentMetadata metadata = null;
-        if (summary != null || pageCount != null || previewUrl != null)
+        if (name != null || summary != null || pageCount != null || previewUrl != null)
         {
             metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
+            metadata.Name = name;
             metadata.Summary = summary;
             metadata.PageCount = pageCount;
             metadata.PreviewUrl = previewUrl;
@@ -90,14 +92,14 @@ public class SalesRepDocumentsController : Controller
     }
 
     [HttpGet("categories")]
-    public async Task<ActionResult<SalesRepDocumentCategory[]>> GetCategories()
+    public async Task<ActionResult<SalesRepDocumentCategory[]>> GetCategories([FromQuery] string keyword = null)
     {
         if (!await AuthorizeReadAsync())
         {
             return Forbid();
         }
 
-        var result = await _documentSearchService.GetCategoriesAsync();
+        var result = await _documentSearchService.GetCategoriesAsync(keyword);
         return Ok(result);
     }
 
@@ -166,7 +168,46 @@ public class SalesRepDocumentsController : Controller
         }
 
         metadata.Id = id;
-        await _documentMetadataService.SaveAsync([metadata]);
+
+        try
+        {
+            await _documentMetadataService.SaveAsync([metadata]);
+        }
+        catch (ArgumentException exception)
+        {
+            return BadRequest(exception.Message);
+        }
+
+        var result = await _documentService.GetAsync(id);
+        return Ok(result);
+    }
+
+    // Pin state is exclusively these endpoints' concern (news module archive/unarchive REST shape);
+    // the metadata PUT above never changes it.
+    [HttpPost("{id}/pin")]
+    [Authorize(Permissions.DocumentsWrite)]
+    public Task<ActionResult<SalesRepDocument>> Pin([FromRoute] string id)
+    {
+        return SetPinnedAsync(id, isPinned: true);
+    }
+
+    [HttpPost("{id}/unpin")]
+    [Authorize(Permissions.DocumentsWrite)]
+    public Task<ActionResult<SalesRepDocument>> Unpin([FromRoute] string id)
+    {
+        return SetPinnedAsync(id, isPinned: false);
+    }
+
+    private async Task<ActionResult<SalesRepDocument>> SetPinnedAsync(string id, bool isPinned)
+    {
+        var document = await _documentService.GetAsync(id);
+
+        if (document == null)
+        {
+            return NotFound();
+        }
+
+        await _documentMetadataService.SetPinnedAsync(id, isPinned);
 
         var result = await _documentService.GetAsync(id);
         return Ok(result);

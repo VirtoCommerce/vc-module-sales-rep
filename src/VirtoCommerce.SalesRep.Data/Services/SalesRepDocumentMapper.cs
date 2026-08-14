@@ -1,7 +1,5 @@
-using System;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
@@ -18,17 +16,20 @@ internal static class SalesRepDocumentMapper
         document.ModifiedBy = entry.ModifiedBy;
         document.ModifiedDate = entry.ModifiedDate;
         document.Name = entry.BlobInfo?.Name;
-        document.Category = GetCategory(entry.BlobInfo?.RelativeUrl);
         document.ContentType = entry.BlobInfo?.ContentType;
         document.Size = entry.BlobInfo?.Size ?? 0;
         document.Url = GetDownloadUrl(entry.Id);
 
         if (metadata != null)
         {
+            document.Category = metadata.Category;
+            document.IsPinned = metadata.IsPinned;
             document.Summary = metadata.Summary;
             document.PageCount = metadata.PageCount;
             document.PreviewUrl = metadata.PreviewUrl;
         }
+
+        document.DisplayName = string.IsNullOrEmpty(metadata?.Name) ? document.Name : metadata.Name;
 
         return document;
     }
@@ -36,15 +37,5 @@ internal static class SalesRepDocumentMapper
     public static string GetDownloadUrl(string documentId)
     {
         return $"/api/sales-rep/documents/{documentId}";
-    }
-
-    // Category = first subfolder under the library root ("sales-rep-documents/{category}/{blobName}").
-    public static string GetCategory(string relativeUrl)
-    {
-        var segments = relativeUrl?.Trim('/').Split('/', StringSplitOptions.RemoveEmptyEntries) ?? [];
-
-        return segments.Length >= 3 && segments[0].EqualsIgnoreCase(ModuleConstants.DocumentsScope)
-            ? segments[1]
-            : string.Empty;
     }
 }

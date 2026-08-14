@@ -566,12 +566,13 @@ export class SalesRepDocumentsClient extends AuthApiBase {
     /**
      * @param file (optional) 
      * @param category (optional) 
+     * @param name (optional) 
      * @param summary (optional) 
      * @param pageCount (optional) 
      * @param previewUrl (optional) 
      * @return OK
      */
-    upload(file?: FileParameter | undefined, category?: string | undefined, summary?: string | undefined, pageCount?: number | undefined, previewUrl?: string | undefined): Promise<SalesRepDocument> {
+    upload(file?: FileParameter | undefined, category?: string | undefined, name?: string | undefined, summary?: string | undefined, pageCount?: number | undefined, previewUrl?: string | undefined): Promise<SalesRepDocument> {
         let url_ = this.baseUrl + "/api/sales-rep/documents";
         url_ = url_.replace(/[?&]$/, "");
 
@@ -584,6 +585,10 @@ export class SalesRepDocumentsClient extends AuthApiBase {
             throw new globalThis.Error("The parameter 'category' cannot be null.");
         else
             content_.append("category", category.toString());
+        if (name === null || name === undefined)
+            throw new globalThis.Error("The parameter 'name' cannot be null.");
+        else
+            content_.append("name", name.toString());
         if (summary === null || summary === undefined)
             throw new globalThis.Error("The parameter 'summary' cannot be null.");
         else
@@ -737,10 +742,15 @@ export class SalesRepDocumentsClient extends AuthApiBase {
     }
 
     /**
+     * @param keyword (optional) 
      * @return OK
      */
-    getCategories(): Promise<SalesRepDocumentCategory[]> {
-        let url_ = this.baseUrl + "/api/sales-rep/documents/categories";
+    getCategories(keyword?: string | undefined): Promise<SalesRepDocumentCategory[]> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/categories?";
+        if (keyword === null)
+            throw new globalThis.Error("The parameter 'keyword' cannot be null.");
+        else if (keyword !== undefined)
+            url_ += "keyword=" + encodeURIComponent("" + keyword) + "&";
         url_ = url_.replace(/[?&]$/, "");
 
         let options_: RequestInit = {
@@ -812,14 +822,6 @@ export class SalesRepDocumentsClient extends AuthApiBase {
             return response.text().then((_responseText) => {
             return;
             });
-        } else if (status === 401) {
-            return response.text().then((_responseText) => {
-            return throwException("Unauthorized", status, _responseText, _headers);
-            });
-        } else if (status === 403) {
-            return response.text().then((_responseText) => {
-            return throwException("Forbidden", status, _responseText, _headers);
-            });
         } else if (status !== 200 && status !== 204) {
             return response.text().then((_responseText) => {
             return throwException("An unexpected server error occurred.", status, _responseText, _headers);
@@ -861,14 +863,6 @@ export class SalesRepDocumentsClient extends AuthApiBase {
             result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
             return result200;
             });
-        } else if (status === 401) {
-            return response.text().then((_responseText) => {
-            return throwException("Unauthorized", status, _responseText, _headers);
-            });
-        } else if (status === 403) {
-            return response.text().then((_responseText) => {
-            return throwException("Forbidden", status, _responseText, _headers);
-            });
         } else if (status !== 200 && status !== 204) {
             return response.text().then((_responseText) => {
             return throwException("An unexpected server error occurred.", status, _responseText, _headers);
@@ -907,6 +901,104 @@ export class SalesRepDocumentsClient extends AuthApiBase {
     }
 
     protected processUpdateMetadata(response: Response): Promise<SalesRepDocument> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDocument>(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    pin(id: string): Promise<SalesRepDocument> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/{id}/pin";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processPin(_response);
+        });
+    }
+
+    protected processPin(response: Response): Promise<SalesRepDocument> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<SalesRepDocument>(null as any);
+    }
+
+    /**
+     * @return OK
+     */
+    unpin(id: string): Promise<SalesRepDocument> {
+        let url_ = this.baseUrl + "/api/sales-rep/documents/{id}/unpin";
+        if (id === undefined || id === null)
+            throw new globalThis.Error("The parameter 'id' must be defined.");
+        url_ = url_.replace("{id}", encodeURIComponent("" + id));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processUnpin(_response);
+        });
+    }
+
+    protected processUnpin(response: Response): Promise<SalesRepDocument> {
         const status = response.status;
         let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
         if (status === 200) {
@@ -1012,7 +1104,9 @@ export interface SalesRepDictionaries {
 
 export interface SalesRepDocument {
     name?: string | undefined;
+    displayName?: string | undefined;
     category?: string | undefined;
+    isPinned?: boolean;
     contentType?: string | undefined;
     size?: number;
     url?: string | undefined;
@@ -1032,6 +1126,9 @@ export interface SalesRepDocumentCategory {
 }
 
 export interface SalesRepDocumentMetadata {
+    name?: string | undefined;
+    category?: string | undefined;
+    isPinned?: boolean;
     summary?: string | undefined;
     pageCount?: number | undefined;
     previewUrl?: string | undefined;
@@ -1044,6 +1141,7 @@ export interface SalesRepDocumentMetadata {
 
 export interface SalesRepDocumentSearchCriteria {
     category?: string | undefined;
+    isPinned?: boolean | undefined;
     responseGroup?: string | undefined;
     objectType?: string | undefined;
     objectTypes?: string[] | undefined;

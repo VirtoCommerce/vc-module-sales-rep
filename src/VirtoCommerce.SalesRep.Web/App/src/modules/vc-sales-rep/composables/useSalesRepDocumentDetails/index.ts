@@ -43,7 +43,14 @@ export default () => {
     }
 
     const apiClient = await getApiClient();
+    // The endpoint is full-replace: omitted fields are cleared, so always send the complete metadata object.
+    // Pin state is NOT part of it — the PUT preserves the current pin; only the pin endpoints change it.
+    // displayName is the metadata name coalesced with the file name, so a value equal to the file name (or blank)
+    // is sent as "no override" — the backend keeps falling back to the file name.
+    const displayName = document.value.displayName?.trim();
     const result = await apiClient.updateMetadata(document.value.id, {
+      name: displayName && displayName !== document.value.name ? displayName : undefined,
+      category: document.value.category,
       summary: document.value.summary,
       pageCount: document.value.pageCount,
       previewUrl: document.value.previewUrl,
@@ -51,6 +58,20 @@ export default () => {
 
     if (result) {
       setDocument(result);
+    }
+  });
+
+  const { loading: pinningDocument, action: pinDocument } = useAsync(async () => {
+    if (document.value.id) {
+      const apiClient = await getApiClient();
+      setDocument(await apiClient.pin(document.value.id));
+    }
+  });
+
+  const { loading: unpinningDocument, action: unpinDocument } = useAsync(async () => {
+    if (document.value.id) {
+      const apiClient = await getApiClient();
+      setDocument(await apiClient.unpin(document.value.id));
     }
   });
 
@@ -68,6 +89,14 @@ export default () => {
     saveMetadata,
     resetDocument,
     deleteDocument,
-    loadingOrSavingDocument: useLoading(loadingDocument, savingMetadata, deletingDocument),
+    pinDocument,
+    unpinDocument,
+    loadingOrSavingDocument: useLoading(
+      loadingDocument,
+      savingMetadata,
+      deletingDocument,
+      pinningDocument,
+      unpinningDocument,
+    ),
   };
 };

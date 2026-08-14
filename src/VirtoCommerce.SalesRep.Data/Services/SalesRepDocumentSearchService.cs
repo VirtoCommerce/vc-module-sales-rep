@@ -17,7 +17,7 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 
 // Listing/paging works off the AssetEntry DB index (never IBlobStorageProvider.SearchAsync — no paging there).
 // The library is small (tens–hundreds), so all entries of the Group are fetched via the search-all pattern,
-// categories/counts derived in memory, and the whole set cached (TTL setting + expired on module mutations).
+// joined with their metadata rows, and the whole mapped set cached (TTL setting + expired on module mutations).
 public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 {
     private const int SearchAllPageSize = 100;
@@ -44,47 +44,45 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var entries = (await GetAllEntriesAsync()).AsEnumerable();
+        var documents = (await GetAllDocumentsAsync()).AsEnumerable();
 
         if (!criteria.ObjectIds.IsNullOrEmpty())
         {
-            entries = entries.Where(x => criteria.ObjectIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase));
+            documents = documents.Where(x => criteria.ObjectIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase));
         }
 
         if (!string.IsNullOrEmpty(criteria.Category))
         {
-            entries = entries.Where(x => criteria.Category.EqualsIgnoreCase(SalesRepDocumentMapper.GetCategory(x.BlobInfo?.RelativeUrl)));
+            documents = documents.Where(x => criteria.Category.EqualsIgnoreCase(x.Category));
         }
 
-        if (!string.IsNullOrEmpty(criteria.Keyword))
+        if (criteria.IsPinned != null)
         {
-            entries = entries.Where(x => x.BlobInfo?.Name?.Contains(criteria.Keyword, StringComparison.OrdinalIgnoreCase) == true);
+            documents = documents.Where(x => x.IsPinned == criteria.IsPinned);
         }
 
-        var matched = ApplySort(entries, criteria.SortInfos).ToList();
+        documents = ApplyKeyword(documents, criteria.Keyword);
+
+        var matched = ApplySort(documents, criteria.SortInfos).ToList();
 
         var result = AbstractTypeFactory<SalesRepDocumentSearchResult>.TryCreateInstance();
         result.TotalCount = matched.Count;
-
-        var page = matched.Skip(criteria.Skip).Take(criteria.Take).ToList();
-        var metadataById = (await _metadataService.GetByIdsAsync(page.Select(x => x.Id).ToList()))
-            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
-
-        result.Results = page
-            .Select(x => SalesRepDocumentMapper.ToModel(x, metadataById.GetValueOrDefault(x.Id)))
+        result.Results = matched
+            .Skip(criteria.Skip)
+            .Take(criteria.Take)
+            .Select(x => x.CloneTyped()) // the matched instances belong to the cache
             .ToList();
 
         return result;
     }
 
-    public virtual async Task<IList<SalesRepDocumentCategory>> GetCategoriesAsync()
+    public virtual async Task<IList<SalesRepDocumentCategory>> GetCategoriesAsync(string keyword = null)
     {
-        var entries = await GetAllEntriesAsync();
+        var documents = ApplyKeyword(await GetAllDocumentsAsync(), keyword);
 
-        return entries
-            .Select(x => SalesRepDocumentMapper.GetCategory(x.BlobInfo?.RelativeUrl))
-            .Where(x => !string.IsNullOrEmpty(x))
-            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+        return documents
+            .Where(x => !string.IsNullOrEmpty(x.Category))
+            .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
             .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
             .Select(group =>
             {
@@ -96,9 +94,9 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
             .ToList();
     }
 
-    protected virtual Task<IList<AssetEntry>> GetAllEntriesAsync()
+    protected virtual Task<IList<SalesRepDocument>> GetAllDocumentsAsync()
     {
-        var cacheKey = CacheKey.With(GetType(), nameof(GetAllEntriesAsync));
+        var cacheKey = CacheKey.With(GetType(), nameof(GetAllDocumentsAsync));
 
         return _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
         {
@@ -112,18 +110,36 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
             criteria.Take = SearchAllPageSize;
             criteria.Sort = "createdDate:desc"; // the search-all loop requires an explicit sort
 
-            return await _assetEntrySearchService.SearchAllAsync(criteria);
+            var entries = await _assetEntrySearchService.SearchAllAsync(criteria);
+            var metadataById = (await _metadataService.GetByIdsAsync(entries.Select(x => x.Id).ToList()))
+                .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+            return (IList<SalesRepDocument>)entries
+                .Select(x => SalesRepDocumentMapper.ToModel(x, metadataById.GetValueOrDefault(x.Id)))
+                .ToList();
         });
     }
 
-    protected virtual IEnumerable<AssetEntry> ApplySort(IEnumerable<AssetEntry> entries, IList<SortInfo> sortInfos)
+    protected virtual IEnumerable<SalesRepDocument> ApplyKeyword(IEnumerable<SalesRepDocument> documents, string keyword)
+    {
+        if (string.IsNullOrEmpty(keyword))
+        {
+            return documents;
+        }
+
+        return documents.Where(x =>
+            x.Name?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true ||
+            x.DisplayName?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true);
+    }
+
+    protected virtual IEnumerable<SalesRepDocument> ApplySort(IEnumerable<SalesRepDocument> documents, IList<SortInfo> sortInfos)
     {
         if (sortInfos.IsNullOrEmpty())
         {
-            return entries.OrderByDescending(x => x.CreatedDate);
+            return documents.OrderByDescending(x => x.CreatedDate);
         }
 
-        IOrderedEnumerable<AssetEntry> ordered = null;
+        IOrderedEnumerable<SalesRepDocument> ordered = null;
 
         foreach (var sortInfo in sortInfos)
         {
@@ -131,20 +147,21 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
             var descending = sortInfo.SortDirection == SortDirection.Descending;
 
             ordered = ordered == null
-                ? (descending ? entries.OrderByDescending(keySelector) : entries.OrderBy(keySelector))
+                ? (descending ? documents.OrderByDescending(keySelector) : documents.OrderBy(keySelector))
                 : (descending ? ordered.ThenByDescending(keySelector) : ordered.ThenBy(keySelector));
         }
 
         return ordered;
     }
 
-    protected virtual Func<AssetEntry, object> GetSortKeySelector(string sortColumn)
+    protected virtual Func<SalesRepDocument, object> GetSortKeySelector(string sortColumn)
     {
         return sortColumn?.ToLowerInvariant() switch
         {
-            "name" => x => x.BlobInfo?.Name,
-            "size" => x => x.BlobInfo?.Size ?? 0,
+            "name" => x => x.DisplayName,
+            "size" => x => x.Size,
             "modifieddate" => x => x.ModifiedDate,
+            "ispinned" => x => x.IsPinned,
             _ => x => x.CreatedDate,
         };
     }

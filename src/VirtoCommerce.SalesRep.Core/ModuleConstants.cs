@@ -46,6 +46,9 @@ public static class ModuleConstants
     public static class Documents
     {
         public const long MaxFileSize = 50 * 1024 * 1024;
+
+        // Mirrored by the VC-Shell admin UI; enforced server-side on upload and metadata update.
+        public const int CategoryMaxLength = 32;
     }
 
     public static class Communication

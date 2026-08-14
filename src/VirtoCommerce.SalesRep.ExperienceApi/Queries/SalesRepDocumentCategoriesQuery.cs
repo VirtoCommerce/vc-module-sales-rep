@@ -8,12 +8,15 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 public class SalesRepDocumentCategoriesQuery : Query<IList<SalesRepDocumentCategory>>
 {
+    public string Keyword { get; set; }
+
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        yield break;
+        yield return Argument<StringGraphType>(nameof(Keyword), "Counts are computed over the keyword-filtered documents; zero-count categories are omitted.");
     }
 
     public override void Map(IResolveFieldContext context)
     {
+        Keyword = context.GetArgument<string>(nameof(Keyword));
     }
 }

@@ -1,9 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Services;
@@ -12,6 +16,7 @@ using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Models;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using Xunit;
 using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
@@ -192,15 +197,161 @@ public class SalesRepDocumentsComponentTests
         using var ctx = SalesRepTestContext.Create();
         var document = await UploadAsync(ctx, "Editable.pdf", "Guides", new SalesRepDocumentMetadata { Summary = "v1" });
 
+        // Full-replace semantics: the save must carry every field that should survive (category included).
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
-        await metadataService.SaveAsync([new SalesRepDocumentMetadata { Id = document.Id, Summary = "v2", PageCount = 7 }]);
+        await metadataService.SaveAsync([new SalesRepDocumentMetadata { Id = document.Id, Name = "Pretty name", Category = "Manuals", Summary = "v2", PageCount = 7 }]);
 
         var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id);
+        reloaded.Name.Should().Be("Editable.pdf");
+        reloaded.DisplayName.Should().Be("Pretty name");
+        reloaded.Category.Should().Be("Manuals");
         reloaded.Summary.Should().Be("v2");
         reloaded.PageCount.Should().Be(7);
 
         using var db = ctx.NewSalesRepDbContext();
         (await db.Set<DocumentMetadataEntity>().CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task MetadataSave_RejectsAnOverlongCategory()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await UploadAsync(ctx, "Editable.pdf", "Guides");
+
+        var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
+        var save = () => metadataService.SaveAsync([new SalesRepDocumentMetadata
+        {
+            Id = document.Id,
+            Category = new string('x', ModuleConstants.Documents.CategoryMaxLength + 1),
+        }]);
+
+        await save.Should().ThrowAsync<ArgumentException>().WithMessage("*32*");
+        (await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id)).Category.Should().Be("Guides");
+    }
+
+    [Fact]
+    public async Task Pin_PinningOneDocumentUnpinsEveryOther()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var first = await UploadAsync(ctx, "First.pdf", "Catalogs");
+        var second = await UploadAsync(ctx, "Second.pdf", "Catalogs");
+
+        var controller = CreateController(ctx);
+        var searchService = ctx.GetRequiredService<ISalesRepDocumentSearchService>();
+
+        var pinnedFirst = (await controller.Pin(first.Id)).Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
+        pinnedFirst.IsPinned.Should().BeTrue();
+
+        var afterFirstPin = await searchService.SearchAsync(new SalesRepDocumentSearchCriteria());
+        afterFirstPin.Results.Where(x => x.IsPinned).Select(x => x.Id).Should().Equal(first.Id);
+
+        // Pinning the second must clear the first — a single pinned document at most.
+        await controller.Pin(second.Id);
+
+        var afterSecondPin = await searchService.SearchAsync(new SalesRepDocumentSearchCriteria());
+        afterSecondPin.Results.Where(x => x.IsPinned).Select(x => x.Id).Should().Equal(second.Id);
+
+        var pinnedOnly = await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true });
+        pinnedOnly.TotalCount.Should().Be(1);
+        pinnedOnly.Results.Single().Id.Should().Be(second.Id);
+
+        // Unpinning is plain — no document stays pinned.
+        var unpinned = (await controller.Unpin(second.Id)).Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
+        unpinned.IsPinned.Should().BeFalse();
+        (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true })).TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task PinAndUnpin_UnknownId_Return404()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await UploadAsync(ctx, "Only.pdf", "Catalogs");
+
+        var controller = CreateController(ctx);
+
+        (await controller.Pin("no-such-id")).Result.Should().BeOfType<NotFoundResult>();
+        (await controller.Unpin("no-such-id")).Result.Should().BeOfType<NotFoundResult>();
+
+        // A foreign AssetEntry id is not a library document either.
+        var foreignId = await SeedForeignAssetEntryAsync(ctx, group: "product-images");
+        (await controller.Pin(foreignId)).Result.Should().BeOfType<NotFoundResult>();
+    }
+
+    [Fact]
+    public async Task MetadataPut_PreservesThePinStateAndIgnoresIncomingIsPinned()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await UploadAsync(ctx, "Pinnable.pdf", "Catalogs", new SalesRepDocumentMetadata { Summary = "v1" });
+
+        var controller = CreateController(ctx);
+        await controller.Pin(document.Id);
+
+        // A full-replace metadata PUT carrying IsPinned=false must still leave the document pinned.
+        var updated = (await controller.UpdateMetadata(document.Id, new SalesRepDocumentMetadata { Name = "Renamed", Category = "Manuals", Summary = "v2", IsPinned = false }))
+            .Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
+        updated.IsPinned.Should().BeTrue();
+        updated.DisplayName.Should().Be("Renamed");
+        updated.Category.Should().Be("Manuals");
+        updated.Summary.Should().Be("v2");
+
+        // And the PUT cannot pin either: IsPinned=true on an unpinned document is ignored.
+        await controller.Unpin(document.Id);
+        var stillUnpinned = (await controller.UpdateMetadata(document.Id, new SalesRepDocumentMetadata { Category = "Manuals", IsPinned = true }))
+            .Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
+        stillUnpinned.IsPinned.Should().BeFalse();
+
+        var searchService = ctx.GetRequiredService<ISalesRepDocumentSearchService>();
+        (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true })).TotalCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GetCategories_ComputesCountsOverTheKeywordFilteredSet()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await UploadAsync(ctx, "Spring Catalog.pdf", "Catalogs");
+        await UploadAsync(ctx, "Fall Catalog.pdf", "Catalogs");
+        await UploadAsync(ctx, "Lookbook.pdf", "Lookbooks");
+
+        var searchService = ctx.GetRequiredService<ISalesRepDocumentSearchService>();
+
+        var all = await searchService.GetCategoriesAsync();
+        all.Select(x => (x.Name, x.Count)).Should().Equal(("Catalogs", 2), ("Lookbooks", 1));
+
+        // Keyword narrows the counted set; zero-count categories are omitted.
+        var fallOnly = await searchService.GetCategoriesAsync("fall");
+        fallOnly.Select(x => (x.Name, x.Count)).Should().Equal(("Catalogs", 1));
+
+        (await searchService.GetCategoriesAsync("no-such-document")).Should().BeEmpty();
+
+        // The keyword also matches display names.
+        var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
+        var lookbook = (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { Category = "Lookbooks" })).Results.Single();
+        await metadataService.SaveAsync([new SalesRepDocumentMetadata { Id = lookbook.Id, Category = "Lookbooks", Name = "Winter collection" }]);
+
+        var byDisplayName = await searchService.GetCategoriesAsync("winter");
+        byDisplayName.Select(x => (x.Name, x.Count)).Should().Equal(("Lookbooks", 1));
+    }
+
+    // The pin/metadata endpoints never call IAuthorizationService (they are gated declaratively), so a
+    // never-invoked stub satisfies the constructor.
+    private static SalesRepDocumentsController CreateController(SalesRepTestContext ctx)
+        => new(
+            ctx.GetRequiredService<ISalesRepDocumentService>(),
+            ctx.GetRequiredService<ISalesRepDocumentSearchService>(),
+            ctx.GetRequiredService<ISalesRepDocumentMetadataService>(),
+            new AllowAllAuthorizationService());
+
+    private sealed class AllowAllAuthorizationService : IAuthorizationService
+    {
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object resource, IEnumerable<IAuthorizationRequirement> requirements)
+            => Task.FromResult(AuthorizationResult.Success());
+
+        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object resource, string policyName)
+            => Task.FromResult(AuthorizationResult.Success());
     }
 
     private static async Task<SalesRepDocument> UploadAsync(

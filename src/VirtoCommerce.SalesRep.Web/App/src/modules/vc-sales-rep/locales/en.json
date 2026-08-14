@@ -127,12 +127,18 @@
           "METADATA": "Metadata"
         },
         "FORM": {
-          "NAME": "Name",
+          "FILE_NAME": "File name",
           "CATEGORY": "Category",
+          "CATEGORY_PLACEHOLDER": "Select an existing category",
+          "NEW_CATEGORY": "New category",
+          "NEW_CATEGORY_PLACEHOLDER": "Or type a name to create a new category",
+          "NEW_CATEGORY_HINT": "New category has priority over selection",
           "SIZE": "Size",
           "CONTENT_TYPE": "Content type",
           "CREATED_DATE": "Created",
           "MODIFIED_DATE": "Modified",
+          "DISPLAY_NAME": "Display name",
+          "DISPLAY_NAME_HINT": "Shown instead of the file name. Leave empty to use the file name.",
           "SUMMARY": "Summary",
           "PAGE_COUNT": "Page count",
           "PREVIEW_URL": "Preview URL"
@@ -140,6 +146,8 @@
         "TOOLBAR": {
           "SAVE": "Save",
           "RESET": "Reset",
+          "PIN": "Pin",
+          "UNPIN": "Unpin",
           "DOWNLOAD": "Download",
           "DELETE": "Delete"
         },
@@ -152,16 +160,20 @@
         "TITLE": "Upload documents",
         "BLOCKS": {
           "FILES": "Files",
-          "DETAILS": "Category & metadata"
+          "DETAILS": "Category & metadata",
+          "DETAILS_HINT": "Applied to every uploaded file."
         },
         "FORM": {
           "CATEGORY": "Category",
           "CATEGORY_PLACEHOLDER": "Select an existing category",
           "NEW_CATEGORY": "New category",
           "NEW_CATEGORY_PLACEHOLDER": "Or type a name to create a new category",
-          "NEW_CATEGORY_HINT": "When filled, this new category is used instead of the selection above.",
+          "NEW_CATEGORY_HINT": "New category has priority over selection",
+          "DISPLAY_NAME": "Display name",
+          "DISPLAY_NAME_PLACEHOLDER": "Optional name shown instead of the file name",
           "SUMMARY": "Summary",
-          "SUMMARY_HINT": "Optional. Applied to every uploaded file.",
+          "PAGE_COUNT": "Page count",
+          "PREVIEW_URL": "Preview URL",
           "FILE_TYPE_NOT_ALLOWED": "File type not allowed: {files}. Allowed types: {types}"
         },
         "TOOLBAR": {

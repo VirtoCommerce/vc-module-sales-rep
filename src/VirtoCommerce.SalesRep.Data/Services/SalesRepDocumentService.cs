@@ -43,7 +43,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         ArgumentNullException.ThrowIfNull(stream);
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
-        var safeCategory = SanitizeCategory(category);
+        var safeCategory = SalesRepDocumentCategoryValidator.Sanitize(category, required: true);
         var safeName = Path.GetFileName(fileName.Trim());
 
         if (!await _fileExtensionService.IsExtensionAllowedAsync(safeName))
@@ -56,7 +56,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             throw new InvalidOperationException($"File size exceeds the {MaxFileSize} bytes limit.");
         }
 
-        var blobUrl = $"{ModuleConstants.DocumentsScope}/{safeCategory}/{BuildBlobName(safeName)}";
+        // Blobs are stored flat under the library root; the category lives in the metadata row.
+        var blobUrl = $"{ModuleConstants.DocumentsScope}/{BuildBlobName(safeName)}";
         var blobWritten = false;
         AssetEntry entry = null;
 
@@ -80,11 +81,10 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
             await _assetEntryService.SaveChangesAsync([entry]);
 
-            if (metadata != null)
-            {
-                metadata.Id = entry.Id;
-                await _metadataService.SaveAsync([metadata]);
-            }
+            metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
+            metadata.Id = entry.Id;
+            metadata.Category = safeCategory;
+            await _metadataService.SaveAsync([metadata]);
 
             SalesRepDocumentCacheRegion.ExpireRegion();
 
@@ -173,26 +173,6 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     protected static bool IsLibraryEntry(AssetEntry entry)
     {
         return ModuleConstants.DocumentsScope.EqualsIgnoreCase(entry.Group);
-    }
-
-    protected static string SanitizeCategory(string category)
-    {
-        var value = category?.Trim();
-
-        if (string.IsNullOrEmpty(value))
-        {
-            throw new ArgumentException("Category is required.", nameof(category));
-        }
-
-        if (value.Contains("..") ||
-            value.Contains('/') ||
-            value.Contains('\\') ||
-            value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
-        {
-            throw new ArgumentException($"Invalid category name '{category}'.", nameof(category));
-        }
-
-        return value;
     }
 
     // "{slug}-{8charrandom}{ext}": randomized for collision handling + defense-in-depth; the human

@@ -50,6 +50,7 @@ public class SalesRepDocumentUploadTests
     [InlineData("a/b")]
     [InlineData(@"a\b")]
     [InlineData("bad|name")]
+    [InlineData("this-category-is-over-32-chars-long")] // > ModuleConstants.Documents.CategoryMaxLength
     public async Task Upload_InvalidCategory_ThrowsAndWritesNothing(string category)
     {
         var service = CreateService();
@@ -93,10 +94,11 @@ public class SalesRepDocumentUploadTests
         var first = await service.UploadAsync(Content("a"), "Price List 2026.PDF", "Catalogs");
         var second = await service.UploadAsync(Content("b"), "Price List 2026.PDF", "Catalogs");
 
+        // Blobs are stored flat under the library root — the category is metadata, not a path segment.
         var urls = _assetEntryService.Entries.Values.Select(x => x.BlobInfo.RelativeUrl).ToList();
         urls.Should().HaveCount(2).And.OnlyHaveUniqueItems();
         urls.Should().AllSatisfy(url =>
-            url.Should().MatchRegex($"^{ModuleConstants.DocumentsScope}/Catalogs/price-list-2026-[0-9a-f]{{8}}\\.pdf$"));
+            url.Should().MatchRegex($"^{ModuleConstants.DocumentsScope}/price-list-2026-[0-9a-f]{{8}}\\.pdf$"));
 
         // The human-readable name survives untouched for display and download.
         first.Name.Should().Be("Price List 2026.PDF");
@@ -112,7 +114,9 @@ public class SalesRepDocumentUploadTests
         var document = await service.UploadAsync(Content("payload"), "catalog.pdf", "Catalogs", metadata);
 
         document.Name.Should().Be("catalog.pdf");
+        document.DisplayName.Should().Be("catalog.pdf"); // no metadata name → falls back to the file name
         document.Category.Should().Be("Catalogs");
+        document.IsPinned.Should().BeFalse();
         document.ContentType.Should().Be("application/pdf");
         document.Size.Should().Be("payload".Length);
         document.Url.Should().Be($"/api/sales-rep/documents/{document.Id}");
@@ -124,7 +128,34 @@ public class SalesRepDocumentUploadTests
         entry.Group.Should().Be(ModuleConstants.DocumentsScope);
         entry.BlobInfo.Name.Should().Be("catalog.pdf");
         _blobProvider.Exists(entry.BlobInfo.RelativeUrl).Should().BeTrue();
-        _metadataService.Saved.Should().ContainSingle().Which.Id.Should().Be(document.Id);
+
+        var saved = _metadataService.Saved.Should().ContainSingle().Subject;
+        saved.Id.Should().Be(document.Id);
+        saved.Category.Should().Be("Catalogs");
+    }
+
+    [Fact]
+    public async Task Upload_WithoutMetadata_StillStoresTheCategoryInMetadata()
+    {
+        var service = CreateService();
+
+        var document = await service.UploadAsync(Content("x"), "list.pdf", " Catalogs ");
+
+        document.Category.Should().Be("Catalogs"); // trimmed
+        var saved = _metadataService.Saved.Should().ContainSingle().Subject;
+        saved.Id.Should().Be(document.Id);
+        saved.Category.Should().Be("Catalogs");
+    }
+
+    [Fact]
+    public async Task Upload_WithMetadataName_UsesItAsTheDisplayName()
+    {
+        var service = CreateService();
+
+        var document = await service.UploadAsync(Content("x"), "list.pdf", "Catalogs", new SalesRepDocumentMetadata { Name = "Spring price list" });
+
+        document.Name.Should().Be("list.pdf");
+        document.DisplayName.Should().Be("Spring price list");
     }
 
     [Fact]
@@ -225,6 +256,12 @@ public class SalesRepDocumentUploadTests
             }
 
             Saved.AddRange(metadata);
+            return Task.CompletedTask;
+        }
+
+        public Task SetPinnedAsync(string id, bool isPinned)
+        {
+            Saved.Single(x => x.Id == id).IsPinned = isPinned;
             return Task.CompletedTask;
         }
 
