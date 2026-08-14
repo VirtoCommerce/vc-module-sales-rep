@@ -1,5 +1,5 @@
 using System;
-using System.IO;
+using System.Linq;
 using VirtoCommerce.SalesRep.Core;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
@@ -8,6 +8,10 @@ internal static class SalesRepDocumentCategoryValidator
 {
     // The category is a plain metadata value now (blobs are stored flat), but the old path-segment
     // hygiene rules are kept as a value check so categories stay safe to echo into URLs and UIs.
+    // The rejected set is fixed (not Path.GetInvalidFileNameChars, which is OS-dependent) so the
+    // same input is accepted or rejected identically on Windows and Linux.
+    private static readonly char[] InvalidCategoryChars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
+
     public static string Sanitize(string category, bool required)
     {
         var value = category?.Trim();
@@ -23,9 +27,8 @@ internal static class SalesRepDocumentCategoryValidator
         }
 
         if (value.Contains("..") ||
-            value.Contains('/') ||
-            value.Contains('\\') ||
-            value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            value.IndexOfAny(InvalidCategoryChars) >= 0 ||
+            value.Any(char.IsControl))
         {
             throw new ArgumentException($"Invalid category name '{category}'.", nameof(category));
         }

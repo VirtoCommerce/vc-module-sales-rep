@@ -19,6 +19,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     private const int RandomSuffixLength = 8;
     private const int MaxSlugLength = 64;
 
+    private static readonly char[] PathSeparators = ['/', '\\'];
+
     private readonly IBlobStorageProvider _blobStorageProvider;
     private readonly IAssetEntryService _assetEntryService;
     private readonly ISalesRepDocumentMetadataService _metadataService;
@@ -44,7 +46,11 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
 
         var safeCategory = SalesRepDocumentCategoryValidator.Sanitize(category, required: true);
+
+        // Path.GetFileName treats '\' as a separator only on Windows; the explicit strip keeps
+        // client-supplied path components out of the stored name on every OS.
         var safeName = Path.GetFileName(fileName.Trim());
+        safeName = safeName[(safeName.LastIndexOfAny(PathSeparators) + 1)..];
 
         if (!await _fileExtensionService.IsExtensionAllowedAsync(safeName))
         {

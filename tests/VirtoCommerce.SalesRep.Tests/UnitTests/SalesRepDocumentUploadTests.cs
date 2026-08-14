@@ -41,6 +41,7 @@ public class SalesRepDocumentUploadTests
         _assetEntryService.Entries.Should().BeEmpty();
     }
 
+    // The rejected characters are an explicit OS-independent set — every case must fail on Windows and Linux alike.
     [Theory]
     [InlineData(null)]
     [InlineData("")]
@@ -50,6 +51,8 @@ public class SalesRepDocumentUploadTests
     [InlineData("a/b")]
     [InlineData(@"a\b")]
     [InlineData("bad|name")]
+    [InlineData("bad:name")]
+    [InlineData("bad\tname")]
     [InlineData("this-category-is-over-32-chars-long")] // > ModuleConstants.Documents.CategoryMaxLength
     public async Task Upload_InvalidCategory_ThrowsAndWritesNothing(string category)
     {
@@ -103,6 +106,21 @@ public class SalesRepDocumentUploadTests
         // The human-readable name survives untouched for display and download.
         first.Name.Should().Be("Price List 2026.PDF");
         second.Name.Should().Be("Price List 2026.PDF");
+    }
+
+    // Both separators must be stripped on every OS (Path.GetFileName alone ignores '\' on Linux).
+    [Theory]
+    [InlineData("docs/list.pdf")]
+    [InlineData(@"docs\list.pdf")]
+    [InlineData(@"C:\docs\list.pdf")]
+    public async Task Upload_FileNameWithPathComponents_StoresOnlyTheFileName(string fileName)
+    {
+        var service = CreateService();
+
+        var document = await service.UploadAsync(Content("x"), fileName, "Catalogs");
+
+        document.Name.Should().Be("list.pdf");
+        _assetEntryService.Entries.Values.Should().ContainSingle().Which.BlobInfo.Name.Should().Be("list.pdf");
     }
 
     [Fact]
