@@ -12,6 +12,8 @@
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
             <VcFileUpload
               multiple
+              :accept="DOCUMENT_FILE_EXTENSIONS"
+              :error-message="fileTypeError"
               @upload="onFilesSelected"
             />
             <div
@@ -72,7 +74,7 @@
 import { computed, onMounted, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { IBladeToolbar, useBlade, useLoading, readableSize } from "@vc-shell/framework";
-import { useSalesRepDocuments, useSalesRepDocumentTransfer } from "../composables";
+import { useSalesRepDocuments, useSalesRepDocumentTransfer, DOCUMENT_FILE_EXTENSIONS } from "../composables";
 import {
   VcBlade,
   VcContainer,
@@ -100,6 +102,7 @@ const { uploadDocument, transferring } = useSalesRepDocumentTransfer();
 const loading = useLoading(loadingDocuments, transferring);
 
 const pendingFiles = ref<File[]>([]);
+const fileTypeError = ref<string>();
 const selectedCategory = ref<string>();
 const newCategory = ref<string>();
 const summary = ref<string>();
@@ -109,8 +112,24 @@ const categoryOptions = computed(() => categories.value.map((x) => ({ id: x.name
 // Category = target subfolder: either an existing one, or a fresh name typed in (which creates it on upload).
 const effectiveCategory = computed(() => newCategory.value?.trim() || selectedCategory.value || "");
 
+const allowedExtensions = new Set(DOCUMENT_FILE_EXTENSIONS.split(","));
+
+const extensionOf = (fileName: string) => {
+  const dot = fileName.lastIndexOf(".");
+  return dot >= 0 ? fileName.slice(dot).toLowerCase() : "";
+};
+
+// Checked here (not via VcFileUpload rules) so drag-and-drop is covered too — drops bypass both `accept` and rules.
 const onFilesSelected = (files: FileList) => {
-  pendingFiles.value = [...pendingFiles.value, ...Array.from(files)];
+  const selected = Array.from(files);
+  const rejected = selected.filter((file) => !allowedExtensions.has(extensionOf(file.name)));
+  fileTypeError.value = rejected.length
+    ? t("VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.FILE_TYPE_NOT_ALLOWED", {
+        files: rejected.map((file) => file.name).join(", "),
+        types: DOCUMENT_FILE_EXTENSIONS.replace(/,/g, ", "),
+      })
+    : undefined;
+  pendingFiles.value = [...pendingFiles.value, ...selected.filter((file) => !rejected.includes(file))];
 };
 
 const removeFile = (index: number) => {

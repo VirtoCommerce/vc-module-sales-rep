@@ -161,7 +161,8 @@
           "NEW_CATEGORY_PLACEHOLDER": "Or type a name to create a new category",
           "NEW_CATEGORY_HINT": "When filled, this new category is used instead of the selection above.",
           "SUMMARY": "Summary",
-          "SUMMARY_HINT": "Optional. Applied to every uploaded file."
+          "SUMMARY_HINT": "Optional. Applied to every uploaded file.",
+          "FILE_TYPE_NOT_ALLOWED": "File type not allowed: {files}. Allowed types: {types}"
         },
         "TOOLBAR": {
           "UPLOAD": "Upload"

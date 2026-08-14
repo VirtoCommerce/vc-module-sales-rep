@@ -9,4 +9,4 @@ export { default as useRoles } from "./useRoles";
 export { default as useSalesRepDocuments } from "./useSalesRepDocuments";
 export { default as useSalesRepDocumentsUI } from "./useSalesRepDocumentsUI";
 export { default as useSalesRepDocumentDetails } from "./useSalesRepDocumentDetails";
-export { default as useSalesRepDocumentTransfer } from "./useSalesRepDocumentTransfer";
+export { default as useSalesRepDocumentTransfer, DOCUMENT_FILE_EXTENSIONS } from "./useSalesRepDocumentTransfer";

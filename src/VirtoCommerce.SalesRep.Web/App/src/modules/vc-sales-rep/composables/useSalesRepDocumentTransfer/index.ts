@@ -1,6 +1,10 @@
 import { useAsync, useApiClient, useLoading } from "@vc-shell/framework";
 import { SalesRepDocumentsClient, SalesRepDocument } from "../../../../api_client/virtocommerce.salesrep";
 
+// UX-side filter only — the platform's IFileExtensionService white/blacklist re-validates every upload on the backend.
+export const DOCUMENT_FILE_EXTENSIONS =
+  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.png,.jpg,.jpeg,.gif,.webp";
+
 export interface DocumentUploadArgs {
   file: File;
   category: string;
