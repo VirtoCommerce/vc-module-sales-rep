@@ -926,9 +926,9 @@ export class SalesRepDocumentsClient extends AuthApiBase {
     }
 
     /**
-     * @return OK
+     * @return No Content
      */
-    pin(id: string): Promise<SalesRepDocument> {
+    pin(id: string): Promise<void> {
         let url_ = this.baseUrl + "/api/sales-rep/documents/{id}/pin";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
@@ -938,7 +938,6 @@ export class SalesRepDocumentsClient extends AuthApiBase {
         let options_: RequestInit = {
             method: "POST",
             headers: {
-                "Accept": "application/json"
             }
         };
 
@@ -949,14 +948,12 @@ export class SalesRepDocumentsClient extends AuthApiBase {
         });
     }
 
-    protected processPin(response: Response): Promise<SalesRepDocument> {
+    protected processPin(response: Response): Promise<void> {
         const status = response.status;
         let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
-        if (status === 200) {
+        if (status === 204) {
             return response.text().then((_responseText) => {
-            let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
-            return result200;
+            return;
             });
         } else if (status === 401) {
             return response.text().then((_responseText) => {
@@ -971,13 +968,13 @@ export class SalesRepDocumentsClient extends AuthApiBase {
             return throwException("An unexpected server error occurred.", status, _responseText, _headers);
             });
         }
-        return Promise.resolve<SalesRepDocument>(null as any);
+        return Promise.resolve<void>(null as any);
     }
 
     /**
-     * @return OK
+     * @return No Content
      */
-    unpin(id: string): Promise<SalesRepDocument> {
+    unpin(id: string): Promise<void> {
         let url_ = this.baseUrl + "/api/sales-rep/documents/{id}/unpin";
         if (id === undefined || id === null)
             throw new globalThis.Error("The parameter 'id' must be defined.");
@@ -987,7 +984,6 @@ export class SalesRepDocumentsClient extends AuthApiBase {
         let options_: RequestInit = {
             method: "POST",
             headers: {
-                "Accept": "application/json"
             }
         };
 
@@ -998,14 +994,12 @@ export class SalesRepDocumentsClient extends AuthApiBase {
         });
     }
 
-    protected processUnpin(response: Response): Promise<SalesRepDocument> {
+    protected processUnpin(response: Response): Promise<void> {
         const status = response.status;
         let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
-        if (status === 200) {
+        if (status === 204) {
             return response.text().then((_responseText) => {
-            let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
-            return result200;
+            return;
             });
         } else if (status === 401) {
             return response.text().then((_responseText) => {
@@ -1020,7 +1014,7 @@ export class SalesRepDocumentsClient extends AuthApiBase {
             return throwException("An unexpected server error occurred.", status, _responseText, _headers);
             });
         }
-        return Promise.resolve<SalesRepDocument>(null as any);
+        return Promise.resolve<void>(null as any);
     }
 }
 

@@ -239,9 +239,7 @@ public class SalesRepDocumentsComponentTests
         var controller = CreateController(ctx);
         var searchService = ctx.GetRequiredService<ISalesRepDocumentSearchService>();
 
-        var pinnedFirst = (await controller.Pin(first.Id)).Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
-        pinnedFirst.IsPinned.Should().BeTrue();
+        (await controller.Pin(first.Id)).Should().BeOfType<NoContentResult>();
 
         var afterFirstPin = await searchService.SearchAsync(new SalesRepDocumentSearchCriteria());
         afterFirstPin.Results.Where(x => x.IsPinned).Select(x => x.Id).Should().Equal(first.Id);
@@ -257,26 +255,32 @@ public class SalesRepDocumentsComponentTests
         pinnedOnly.Results.Single().Id.Should().Be(second.Id);
 
         // Unpinning is plain — no document stays pinned.
-        var unpinned = (await controller.Unpin(second.Id)).Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
-        unpinned.IsPinned.Should().BeFalse();
+        (await controller.Unpin(second.Id)).Should().BeOfType<NoContentResult>();
         (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true })).TotalCount.Should().Be(0);
     }
 
     [Fact]
-    public async Task PinAndUnpin_UnknownId_Return404()
+    public async Task PinUnpinAndMetadata_UnknownId_Return404()
     {
         using var ctx = SalesRepTestContext.Create();
         await UploadAsync(ctx, "Only.pdf", "Catalogs");
 
         var controller = CreateController(ctx);
 
-        (await controller.Pin("no-such-id")).Result.Should().BeOfType<NotFoundResult>();
-        (await controller.Unpin("no-such-id")).Result.Should().BeOfType<NotFoundResult>();
+        (await controller.Pin("no-such-id")).Should().BeOfType<NotFoundResult>();
+        (await controller.Unpin("no-such-id")).Should().BeOfType<NotFoundResult>();
+
+        // A metadata PUT to an unknown id must not create an orphan row — it is a not-found.
+        (await controller.UpdateMetadata("no-such-id", new SalesRepDocumentMetadata { Category = "Catalogs" }))
+            .Result.Should().BeOfType<NotFoundResult>();
+        using (var db = ctx.NewSalesRepDbContext())
+        {
+            (await db.Set<DocumentMetadataEntity>().CountAsync()).Should().Be(1);
+        }
 
         // A foreign AssetEntry id is not a library document either.
         var foreignId = await SeedForeignAssetEntryAsync(ctx, group: "product-images");
-        (await controller.Pin(foreignId)).Result.Should().BeOfType<NotFoundResult>();
+        (await controller.Pin(foreignId)).Should().BeOfType<NotFoundResult>();
     }
 
     [Fact]

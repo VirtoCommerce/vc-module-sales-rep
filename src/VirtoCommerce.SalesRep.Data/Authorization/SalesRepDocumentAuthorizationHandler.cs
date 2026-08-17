@@ -1,10 +1,6 @@
-using System;
-using System.Linq;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.Platform.Core;
-using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Security.Authorization;
 using VirtoCommerce.SalesRep.Core;
 
@@ -19,8 +15,8 @@ public class SalesRepDocumentAuthorizationHandler : PermissionAuthorizationHandl
     {
         var authorized = context.User.Identity?.IsAuthenticated == true &&
             (context.User.IsInRole(PlatformConstants.Security.SystemRoles.Administrator) ||
-             CheckPermission(context.User, requirement.Permission) ||
-             CheckPermission(context.User, ModuleConstants.Security.Permissions.DocumentsWrite));
+             SalesRepDocumentPermissions.HasPermission(context.User, requirement.Permission) ||
+             SalesRepDocumentPermissions.HasPermission(context.User, ModuleConstants.Security.Permissions.DocumentsWrite));
 
         if (authorized)
         {
@@ -32,21 +28,5 @@ public class SalesRepDocumentAuthorizationHandler : PermissionAuthorizationHandl
         }
 
         return Task.CompletedTask;
-    }
-
-    // Mirrors PermissionAuthorizationHandlerBase: a limited_permissions claim restricts the effective set;
-    // otherwise the global permission claims apply.
-    protected virtual bool CheckPermission(ClaimsPrincipal user, string permission)
-    {
-        var limitedPermissionsClaim = user.FindFirstValue(PlatformConstants.Security.Claims.LimitedPermissionsClaimType);
-
-        if (limitedPermissionsClaim != null)
-        {
-            var limitedPermissions = limitedPermissionsClaim.Split(PlatformConstants.Security.Claims.PermissionClaimTypeDelimiter, StringSplitOptions.RemoveEmptyEntries);
-
-            return limitedPermissions.Contains(permission);
-        }
-
-        return user.HasClaim(PlatformConstants.Security.Claims.PermissionClaimType, permission);
     }
 }

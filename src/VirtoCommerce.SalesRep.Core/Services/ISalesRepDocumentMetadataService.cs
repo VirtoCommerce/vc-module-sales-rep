@@ -8,6 +8,8 @@ public interface ISalesRepDocumentMetadataService
 {
     Task<IList<SalesRepDocumentMetadata>> GetByIdsAsync(IList<string> ids);
 
+    Task CreateAsync(IList<SalesRepDocumentMetadata> metadata);
+
     Task SaveAsync(IList<SalesRepDocumentMetadata> metadata);
 
     Task SetPinnedAsync(string id, bool isPinned);

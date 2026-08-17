@@ -21,25 +21,27 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
 
     public virtual async Task EnsureDocumentRolesAsync()
     {
-        var roles = await LoadRolesAsync();
+        using var roleManager = _roleManagerFactory();
+
+        var roles = await LoadRolesAsync(roleManager);
 
         await EnsureRoleAsync(
+            roleManager,
             roles,
             ModuleConstants.Security.Roles.AdvancedSalesRepRoleName,
             "Grants Sales Rep access and documents library read (sales-rep:access, sales-rep-documents:read).",
             [ModuleConstants.Security.Permissions.Access, ModuleConstants.Security.Permissions.DocumentsRead]);
 
         await EnsureRoleAsync(
+            roleManager,
             roles,
             ModuleConstants.Security.Roles.DocumentsManagerRoleName,
             "Grants Sales Rep documents library management (sales-rep-documents:write).",
             [ModuleConstants.Security.Permissions.DocumentsWrite]);
     }
 
-    protected virtual async Task<IList<Role>> LoadRolesAsync()
+    protected virtual async Task<IList<Role>> LoadRolesAsync(RoleManager<Role> roleManager)
     {
-        using var roleManager = _roleManagerFactory();
-
         var roleIds = roleManager.Roles.Select(x => x.Id).ToList();
 
         List<Role> roles = [];
@@ -57,14 +59,12 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
 
     // Matches by permission set, never by name/id: an existing role (whatever it is called) already carrying
     // every listed permission means the capability is available, so seeding is skipped — renames don't re-seed.
-    protected virtual async Task EnsureRoleAsync(IList<Role> existingRoles, string name, string description, string[] permissions)
+    protected virtual async Task EnsureRoleAsync(RoleManager<Role> roleManager, IList<Role> existingRoles, string name, string description, string[] permissions)
     {
         if (existingRoles.Any(role => permissions.All(permission => role.Permissions?.Any(x => x.Name == permission) == true)))
         {
             return;
         }
-
-        using var roleManager = _roleManagerFactory();
 
         var role = AbstractTypeFactory<Role>.TryCreateInstance();
         role.Id = Guid.NewGuid().ToString("N");

@@ -61,17 +61,21 @@ export default () => {
     }
   });
 
+  // Pin/unpin return 204 (no body); re-fetch so IsPinned reflects the server (single-pin invariant
+  // may also have flipped another document, but this blade only shows the current one).
   const { loading: pinningDocument, action: pinDocument } = useAsync(async () => {
     if (document.value.id) {
       const apiClient = await getApiClient();
-      setDocument(await apiClient.pin(document.value.id));
+      await apiClient.pin(document.value.id);
+      await loadDocument({ id: document.value.id });
     }
   });
 
   const { loading: unpinningDocument, action: unpinDocument } = useAsync(async () => {
     if (document.value.id) {
       const apiClient = await getApiClient();
-      setDocument(await apiClient.unpin(document.value.id));
+      await apiClient.unpin(document.value.id);
+      await loadDocument({ id: document.value.id });
     }
   });
 

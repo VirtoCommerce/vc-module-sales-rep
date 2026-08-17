@@ -266,6 +266,8 @@ public class SalesRepDocumentUploadTests
         public Task<IList<SalesRepDocumentMetadata>> GetByIdsAsync(IList<string> ids)
             => Task.FromResult<IList<SalesRepDocumentMetadata>>([.. Saved.Where(x => ids.Contains(x.Id))]);
 
+        public Task CreateAsync(IList<SalesRepDocumentMetadata> metadata) => SaveAsync(metadata);
+
         public Task SaveAsync(IList<SalesRepDocumentMetadata> metadata)
         {
             if (FailOnSave)

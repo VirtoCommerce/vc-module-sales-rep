@@ -47,9 +47,9 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
         var safeCategory = SalesRepDocumentCategoryValidator.Sanitize(category, required: true);
 
-        // Path.GetFileName treats '\' as a separator only on Windows; the explicit strip keeps
-        // client-supplied path components out of the stored name on every OS.
-        var safeName = Path.GetFileName(fileName.Trim());
+        // Strip client-supplied path components on every OS (Path.GetFileName only adds Windows
+        // volume-separator handling, irrelevant for an upload filename).
+        var safeName = fileName.Trim();
         safeName = safeName[(safeName.LastIndexOfAny(PathSeparators) + 1)..];
 
         if (!await _fileExtensionService.IsExtensionAllowedAsync(safeName))
@@ -90,7 +90,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
             metadata.Id = entry.Id;
             metadata.Category = safeCategory;
-            await _metadataService.SaveAsync([metadata]);
+            await _metadataService.CreateAsync([metadata]);
 
             SalesRepDocumentCacheRegion.ExpireRegion();
 
@@ -120,7 +120,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return;
         }
 
-        var entries = await _assetEntryService.GetAsync(ids);
+        // Only Id and BlobInfo.RelativeUrl are read below, so skip the defensive deep-copy.
+        var entries = await _assetEntryService.GetAsync(ids, clone: false);
         var documents = entries.Where(IsLibraryEntry).ToList();
 
         if (documents.Count == 0)
@@ -132,11 +133,14 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         await _metadataService.DeleteAsync(documentIds);
         await _assetEntryService.DeleteAsync(documentIds);
 
-        foreach (var blobUrl in documents.Select(x => x.BlobInfo?.RelativeUrl).Where(x => !string.IsNullOrEmpty(x)))
-        {
-            // Tolerate an already-missing blob — the index rows are gone, the delete must still succeed.
-            await TryRunAsync(() => _blobStorageProvider.RemoveAsync([blobUrl]));
-        }
+        // Each blob failure is tolerated independently (an already-missing blob must not fail the delete);
+        // the removals are best-effort and run concurrently.
+        var removals = documents
+            .Select(x => x.BlobInfo?.RelativeUrl)
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Select(blobUrl => TryRunAsync(() => _blobStorageProvider.RemoveAsync([blobUrl])));
+
+        await Task.WhenAll(removals);
 
         SalesRepDocumentCacheRegion.ExpireRegion();
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -160,18 +161,15 @@ public class SalesRepDocumentsController : Controller
             return BadRequest("Metadata is required.");
         }
 
-        var document = await _documentService.GetAsync(id);
-
-        if (document == null)
-        {
-            return NotFound();
-        }
-
         metadata.Id = id;
 
         try
         {
             await _documentMetadataService.SaveAsync([metadata]);
+        }
+        catch (KeyNotFoundException)
+        {
+            return NotFound();
         }
         catch (ArgumentException exception)
         {
@@ -186,31 +184,32 @@ public class SalesRepDocumentsController : Controller
     // the metadata PUT above never changes it.
     [HttpPost("{id}/pin")]
     [Authorize(Permissions.DocumentsWrite)]
-    public Task<ActionResult<SalesRepDocument>> Pin([FromRoute] string id)
+    [ProducesResponseType(typeof(void), StatusCodes.Status204NoContent)]
+    public Task<ActionResult> Pin([FromRoute] string id)
     {
         return SetPinnedAsync(id, isPinned: true);
     }
 
     [HttpPost("{id}/unpin")]
     [Authorize(Permissions.DocumentsWrite)]
-    public Task<ActionResult<SalesRepDocument>> Unpin([FromRoute] string id)
+    [ProducesResponseType(typeof(void), StatusCodes.Status204NoContent)]
+    public Task<ActionResult> Unpin([FromRoute] string id)
     {
         return SetPinnedAsync(id, isPinned: false);
     }
 
-    private async Task<ActionResult<SalesRepDocument>> SetPinnedAsync(string id, bool isPinned)
+    private async Task<ActionResult> SetPinnedAsync(string id, bool isPinned)
     {
-        var document = await _documentService.GetAsync(id);
-
-        if (document == null)
+        try
+        {
+            await _documentMetadataService.SetPinnedAsync(id, isPinned);
+        }
+        catch (KeyNotFoundException)
         {
             return NotFound();
         }
 
-        await _documentMetadataService.SetPinnedAsync(id, isPinned);
-
-        var result = await _documentService.GetAsync(id);
-        return Ok(result);
+        return NoContent();
     }
 
     [HttpDelete("")]

@@ -36,7 +36,19 @@ public class SalesRepDocumentMetadataService : ISalesRepDocumentMetadataService
             .ToList();
     }
 
-    public virtual async Task SaveAsync(IList<SalesRepDocumentMetadata> metadata)
+    // Insert path for the upload flow: the AssetEntry already exists, this establishes its metadata row.
+    public virtual Task CreateAsync(IList<SalesRepDocumentMetadata> metadata)
+    {
+        return PersistAsync(metadata, allowCreate: true);
+    }
+
+    // Update path for the metadata PUT: acts on a pre-existing library document; an unknown id is a not-found.
+    public virtual Task SaveAsync(IList<SalesRepDocumentMetadata> metadata)
+    {
+        return PersistAsync(metadata, allowCreate: false);
+    }
+
+    protected virtual async Task PersistAsync(IList<SalesRepDocumentMetadata> metadata, bool allowCreate)
     {
         if (metadata.IsNullOrEmpty())
         {
@@ -57,25 +69,28 @@ public class SalesRepDocumentMetadataService : ISalesRepDocumentMetadataService
         var ids = metadata.Select(x => x.Id).ToList();
         var existingEntities = await repository.GetDocumentMetadataByIdsAsync(ids);
         var pkMap = new PrimaryKeyResolvingMap();
-        var savedEntities = new List<DocumentMetadataEntity>();
 
         foreach (var model in metadata)
         {
-            var sourceEntity = AbstractTypeFactory<DocumentMetadataEntity>.TryCreateInstance().FromModel(model, pkMap);
             var targetEntity = existingEntities.FirstOrDefault(x => x.Id == model.Id);
+
+            if (targetEntity == null && !allowCreate)
+            {
+                throw new KeyNotFoundException($"Document '{model.Id}' was not found in the library.");
+            }
+
+            var sourceEntity = AbstractTypeFactory<DocumentMetadataEntity>.TryCreateInstance().FromModel(model, pkMap);
 
             if (targetEntity != null)
             {
                 // Pin state is owned by SetPinnedAsync — a full-replace save must not change it.
                 sourceEntity.IsPinned = targetEntity.IsPinned;
                 sourceEntity.Patch(targetEntity);
-                savedEntities.Add(targetEntity);
             }
             else
             {
                 sourceEntity.IsPinned = false;
                 repository.Add(sourceEntity);
-                savedEntities.Add(sourceEntity);
             }
         }
 
@@ -90,17 +105,11 @@ public class SalesRepDocumentMetadataService : ISalesRepDocumentMetadataService
         ArgumentException.ThrowIfNullOrEmpty(id);
 
         using var repository = _repositoryFactory();
-        var entity = (await repository.GetDocumentMetadataByIdsAsync([id])).FirstOrDefault();
-
-        if (entity == null)
-        {
-            entity = AbstractTypeFactory<DocumentMetadataEntity>.TryCreateInstance();
-            entity.Id = id;
-            repository.Add(entity);
-        }
+        var entity = (await repository.GetDocumentMetadataByIdsAsync([id])).FirstOrDefault()
+            ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
 
         entity.IsPinned = isPinned;
-        await EnforceSinglePinAsync(repository, [entity]);
+        await EnforceSinglePinAsync(repository, entity);
 
         await repository.UnitOfWork.CommitAsync();
 
@@ -108,21 +117,19 @@ public class SalesRepDocumentMetadataService : ISalesRepDocumentMetadataService
     }
 
     // At most one document is pinned: pinning one unpins every other, all within the same commit.
-    protected virtual async Task EnforceSinglePinAsync(ISalesRepRepository repository, IList<DocumentMetadataEntity> savedEntities)
+    protected virtual async Task EnforceSinglePinAsync(ISalesRepRepository repository, DocumentMetadataEntity entity)
     {
-        var winner = savedEntities.LastOrDefault(x => x.IsPinned);
-
-        if (winner == null)
+        if (!entity.IsPinned)
         {
             return;
         }
 
-        // The DB query returns tracked instances for rows already loaded, so patched entities are covered too.
-        var pinnedInDb = await repository.DocumentMetadata.Where(x => x.IsPinned).ToListAsync();
+        // The query returns tracked instances for rows already loaded, so the just-pinned entity is excluded by id.
+        var pinnedInDb = await repository.DocumentMetadata.Where(x => x.IsPinned && x.Id != entity.Id).ToListAsync();
 
-        foreach (var entity in pinnedInDb.Concat(savedEntities).Where(x => x.Id != winner.Id))
+        foreach (var other in pinnedInDb)
         {
-            entity.IsPinned = false;
+            other.IsPinned = false;
         }
     }
 
