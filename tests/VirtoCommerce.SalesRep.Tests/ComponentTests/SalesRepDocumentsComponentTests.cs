@@ -1,12 +1,9 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.AssetsModule.Core.Assets;
@@ -340,23 +337,11 @@ public class SalesRepDocumentsComponentTests
         byDisplayName.Select(x => (x.Name, x.Count)).Should().Equal(("Lookbooks", 1));
     }
 
-    // The pin/metadata endpoints never call IAuthorizationService (they are gated declaratively), so a
-    // never-invoked stub satisfies the constructor.
     private static SalesRepDocumentsController CreateController(SalesRepTestContext ctx)
         => new(
             ctx.GetRequiredService<ISalesRepDocumentService>(),
             ctx.GetRequiredService<ISalesRepDocumentSearchService>(),
-            ctx.GetRequiredService<ISalesRepDocumentMetadataService>(),
-            new AllowAllAuthorizationService());
-
-    private sealed class AllowAllAuthorizationService : IAuthorizationService
-    {
-        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object resource, IEnumerable<IAuthorizationRequirement> requirements)
-            => Task.FromResult(AuthorizationResult.Success());
-
-        public Task<AuthorizationResult> AuthorizeAsync(ClaimsPrincipal user, object resource, string policyName)
-            => Task.FromResult(AuthorizationResult.Success());
-    }
+            ctx.GetRequiredService<ISalesRepDocumentMetadataService>());
 
     private static async Task<SalesRepDocument> UploadAsync(
         SalesRepTestContext ctx,

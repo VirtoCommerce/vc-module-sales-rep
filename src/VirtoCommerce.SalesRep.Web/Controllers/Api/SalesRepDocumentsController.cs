@@ -8,16 +8,14 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
-using VirtoCommerce.SalesRep.Data.Authorization;
-using FileModel = VirtoCommerce.FileExperienceApi.Core.Models.File;
 using Permissions = VirtoCommerce.SalesRep.Core.ModuleConstants.Security.Permissions;
 
 namespace VirtoCommerce.SalesRep.Web.Controllers.Api;
 
 // Write endpoints use the declarative platform permission policy (documents:write, Administrator passes).
 // Read endpoints must accept read OR write OR Administrator — a single-permission [Authorize] cannot express
-// that OR, so they are [Authorize] (authenticated) + an explicit check of the same
-// SalesRepDocumentAuthorizationRequirement the generic file surfaces run: one enforcement implementation.
+// that OR, so they are [Authorize] (authenticated) + an explicit SalesRepDocumentPermissions.HasReadAccess
+// check (the same .Core predicate the GraphQL resolver guard enforces): one enforcement implementation.
 [Authorize]
 [Route("api/sales-rep/documents")]
 public class SalesRepDocumentsController : Controller
@@ -25,18 +23,15 @@ public class SalesRepDocumentsController : Controller
     private readonly ISalesRepDocumentService _documentService;
     private readonly ISalesRepDocumentSearchService _documentSearchService;
     private readonly ISalesRepDocumentMetadataService _documentMetadataService;
-    private readonly IAuthorizationService _authorizationService;
 
     public SalesRepDocumentsController(
         ISalesRepDocumentService documentService,
         ISalesRepDocumentSearchService documentSearchService,
-        ISalesRepDocumentMetadataService documentMetadataService,
-        IAuthorizationService authorizationService)
+        ISalesRepDocumentMetadataService documentMetadataService)
     {
         _documentService = documentService;
         _documentSearchService = documentSearchService;
         _documentMetadataService = documentMetadataService;
-        _authorizationService = authorizationService;
     }
 
     [HttpPost("")]
@@ -83,7 +78,7 @@ public class SalesRepDocumentsController : Controller
     [HttpPost("search")]
     public async Task<ActionResult<SalesRepDocumentSearchResult>> Search([FromBody] SalesRepDocumentSearchCriteria criteria)
     {
-        if (!await AuthorizeReadAsync())
+        if (!SalesRepDocumentPermissions.HasReadAccess(User))
         {
             return Forbid();
         }
@@ -95,7 +90,7 @@ public class SalesRepDocumentsController : Controller
     [HttpGet("categories")]
     public async Task<ActionResult<SalesRepDocumentCategory[]>> GetCategories([FromQuery] string keyword = null)
     {
-        if (!await AuthorizeReadAsync())
+        if (!SalesRepDocumentPermissions.HasReadAccess(User))
         {
             return Forbid();
         }
@@ -106,7 +101,7 @@ public class SalesRepDocumentsController : Controller
 
     // [AllowAnonymous] on the two storefront-facing reads: the platform's default [Authorize] policy rejects
     // customer users (role __customer) before the action runs, and sales reps are customer users. The explicit
-    // AuthorizeReadAsync call below replaces the policy and still denies anonymous (XFile FileUploadController precedent).
+    // HasReadAccess check below replaces the policy and still denies anonymous (XFile FileUploadController precedent).
     [HttpGet("{id}")]
     [AllowAnonymous]
     public async Task<ActionResult> Download([FromRoute] string id)
@@ -118,7 +113,7 @@ public class SalesRepDocumentsController : Controller
             return NotFound();
         }
 
-        if (!await AuthorizeReadAsync(document))
+        if (!SalesRepDocumentPermissions.HasReadAccess(User))
         {
             return Forbid();
         }
@@ -144,7 +139,7 @@ public class SalesRepDocumentsController : Controller
             return NotFound();
         }
 
-        if (!await AuthorizeReadAsync(document))
+        if (!SalesRepDocumentPermissions.HasReadAccess(User))
         {
             return Forbid();
         }
@@ -218,25 +213,5 @@ public class SalesRepDocumentsController : Controller
     {
         await _documentService.DeleteAsync(ids);
         return NoContent();
-    }
-
-    private async Task<bool> AuthorizeReadAsync(SalesRepDocument document = null)
-    {
-        FileModel file = null;
-
-        if (document != null)
-        {
-            file = AbstractTypeFactory<FileModel>.TryCreateInstance();
-            file.Id = document.Id;
-            file.Scope = ModuleConstants.DocumentsScope;
-            file.Name = document.Name;
-            file.ContentType = document.ContentType;
-            file.Size = document.Size;
-        }
-
-        var requirement = new SalesRepDocumentAuthorizationRequirement(file, Permissions.DocumentsRead);
-        var result = await _authorizationService.AuthorizeAsync(User, file, requirement);
-
-        return result.Succeeded;
     }
 }

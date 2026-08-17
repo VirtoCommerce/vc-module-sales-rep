@@ -1,5 +1,4 @@
 using GraphQL;
-using VirtoCommerce.Platform.Core;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
@@ -16,19 +15,14 @@ public static class ResolveFieldContextAuthorizationExtensions
         }
     }
 
-    // Claim-level mirror of SalesRepDocumentAuthorizationHandler (Data — not referenceable from this project):
-    // read requires documents:read OR documents:write (write implies read) OR the Administrator role; anonymous
-    // never passes; a limited_permissions claim restricts the effective permission set.
+    // Shares the SalesRepDocumentPermissions predicate (.Core) with the REST controller: read requires
+    // documents:read OR documents:write (write implies read) OR the Administrator role; anonymous never passes;
+    // a limited_permissions claim restricts the effective permission set.
     public static void EnsureCanReadDocuments(this IResolveFieldContext context)
     {
         context.EnsureAuthenticated();
 
-        var user = context.GetCurrentPrincipal();
-        var authorized = user.IsInRole(PlatformConstants.Security.SystemRoles.Administrator) ||
-            SalesRepDocumentPermissions.HasPermission(user, ModuleConstants.Security.Permissions.DocumentsRead) ||
-            SalesRepDocumentPermissions.HasPermission(user, ModuleConstants.Security.Permissions.DocumentsWrite);
-
-        if (!authorized)
+        if (!SalesRepDocumentPermissions.HasReadAccess(context.GetCurrentPrincipal()))
         {
             throw AuthorizationError.PermissionRequired(ModuleConstants.Security.Permissions.DocumentsRead);
         }

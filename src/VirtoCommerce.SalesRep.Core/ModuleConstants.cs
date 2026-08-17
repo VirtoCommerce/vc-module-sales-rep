@@ -6,8 +6,8 @@ namespace VirtoCommerce.SalesRep.Core;
 
 public static class ModuleConstants
 {
-    // Shared documents library discriminator (VCST-5730): the assets root folder, AssetEntry.Group and
-    // File.Scope all carry this value — it is what routes generic file surfaces to the module's authorization.
+    // Shared documents library discriminator (VCST-5730): the assets root folder and every AssetEntry.Group
+    // carry this value, which scopes the library's blob storage and search.
     public const string DocumentsScope = "sales-rep-documents";
 
     public static class Security
