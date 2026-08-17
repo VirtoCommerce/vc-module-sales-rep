@@ -14,7 +14,7 @@ using VirtoCommerce.SalesRep.Core.Services;
 namespace VirtoCommerce.SalesRep.Data.Services;
 
 // No custom cache region: the metadata and AssetEntry services each own their platform caching that expires on its own mutations.
-public class SalesRepDocumentService : ISalesRepDocumentService
+public partial class SalesRepDocumentService : ISalesRepDocumentService
 {
     private const int RandomSuffixLength = 8;
     private const int MaxSlugLength = 64;
@@ -201,7 +201,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     protected static string BuildBlobName(string fileName)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
-        var slug = Regex.Replace(Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant(), "[^a-z0-9]+", "-").Trim('-');
+        var slug = NonSlugCharsRegex().Replace(Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant(), "-").Trim('-');
 
         if (slug.Length > MaxSlugLength)
         {
@@ -217,6 +217,9 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
         return $"{slug}-{random}{extension}";
     }
+
+    [GeneratedRegex("[^a-z0-9]+")]
+    private static partial Regex NonSlugCharsRegex();
 
     protected virtual async Task<long> CopyBoundedAsync(Stream source, Stream target)
     {

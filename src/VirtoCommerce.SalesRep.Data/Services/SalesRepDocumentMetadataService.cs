@@ -59,7 +59,7 @@ public class SalesRepDocumentMetadataService(
         // At most one document is pinned: pinning one clears the pin on every other row.
         if (isPinned)
         {
-            IList<string> otherPinnedIds;
+            List<string> otherPinnedIds;
             using (var repository = repositoryFactory())
             {
                 otherPinnedIds = await repository.DocumentMetadata

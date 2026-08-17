@@ -116,9 +116,14 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
             var keySelector = GetSortKeySelector(sortInfo.SortColumn);
             var descending = sortInfo.SortDirection == SortDirection.Descending;
 
-            ordered = ordered == null
-                ? (descending ? documents.OrderByDescending(keySelector) : documents.OrderBy(keySelector))
-                : (descending ? ordered.ThenByDescending(keySelector) : ordered.ThenBy(keySelector));
+            if (ordered == null)
+            {
+                ordered = descending ? documents.OrderByDescending(keySelector) : documents.OrderBy(keySelector);
+            }
+            else
+            {
+                ordered = descending ? ordered.ThenByDescending(keySelector) : ordered.ThenBy(keySelector);
+            }
         }
 
         return ordered;

@@ -275,7 +275,7 @@ public class SalesRepDocumentsControllerActionsTests
             [new Claim(ClaimTypes.Role, PlatformConstants.Security.SystemRoles.Administrator)],
             authenticationType: "Test"));
 
-    private static IFormFile CreateFormFile(string fileName, string content)
+    private static FormFile CreateFormFile(string fileName, string content)
     {
         var bytes = Encoding.UTF8.GetBytes(content);
         return new FormFile(new MemoryStream(bytes), baseStreamOffset: 0, length: bytes.Length, name: "file", fileName: fileName);

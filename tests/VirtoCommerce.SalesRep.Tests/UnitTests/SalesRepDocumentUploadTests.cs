@@ -201,8 +201,8 @@ public class SalesRepDocumentUploadTests
         _assetEntryService.Entries.Should().BeEmpty();
     }
 
-    private SalesRepDocumentService CreateService(long? maxFileSize = null)
-        => new TestableDocumentService(_blobProvider, _assetEntryService, _metadataService, _fileExtensionService, maxFileSize);
+    private TestableDocumentService CreateService(long? maxFileSize = null)
+        => new(_blobProvider, _assetEntryService, _metadataService, _fileExtensionService, maxFileSize);
 
     private static MemoryStream Content(string text) => new(Encoding.UTF8.GetBytes(text));
 
