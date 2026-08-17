@@ -67,7 +67,6 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         serviceCollection.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
-        serviceCollection.AddSingleton<IProtectedStaticPathsSource, SalesRepDocumentsProtectedPathsSource>();
 
         // Routes the generic file surfaces (GET /api/files/{id}, deleteFile) for the documents scope to the
         // module's fail-closed handler; the dedicated REST endpoints run the same requirement.

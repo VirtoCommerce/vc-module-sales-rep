@@ -14,7 +14,7 @@
       <IncludeAssets>runtime; build; native; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
 
-    <PackageReference Include="VirtoCommerce.Platform.Data.PostgreSql" Version="3.1059.0-alpha.13364-vcst-5730-files-protected-scopes" />
+    <PackageReference Include="VirtoCommerce.Platform.Data.PostgreSql" Version="3.1048.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
