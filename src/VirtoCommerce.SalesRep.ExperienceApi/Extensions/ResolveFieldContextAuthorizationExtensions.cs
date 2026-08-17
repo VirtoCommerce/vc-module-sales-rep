@@ -15,9 +15,7 @@ public static class ResolveFieldContextAuthorizationExtensions
         }
     }
 
-    // Shares the SalesRepDocumentPermissions predicate (.Core) with the REST controller: read requires
-    // documents:read OR documents:write (write implies read) OR the Administrator role; anonymous never passes;
-    // a limited_permissions claim restricts the effective permission set.
+    // Shares the SalesRepDocumentPermissions read predicate (.Core) with the REST controller.
     public static void EnsureCanReadDocuments(this IResolveFieldContext context)
     {
         context.EnsureAuthenticated();

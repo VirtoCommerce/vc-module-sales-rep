@@ -13,9 +13,7 @@ using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// CRUD orchestrator over the metadata CrudService (#1) + the Assets module services. Both sides own their own
-// platform caching (the metadata Crud/Search regions, the AssetEntry regions), so this composes cached reads and
-// mutating calls without a custom cache region of its own.
+// No custom cache region: the metadata and AssetEntry services each own their platform caching that expires on its own mutations.
 public class SalesRepDocumentService : ISalesRepDocumentService
 {
     private const int RandomSuffixLength = 8;
@@ -49,8 +47,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
         var safeCategory = SalesRepDocumentCategoryValidator.Sanitize(category, required: true);
 
-        // Strip client-supplied path components on every OS (Path.GetFileName only adds Windows
-        // volume-separator handling, irrelevant for an upload filename).
+        // Strip client-supplied path components OS-independently (not Path.GetFileName, whose behavior is Windows-specific).
         var safeName = fileName.Trim();
         safeName = safeName[(safeName.LastIndexOfAny(PathSeparators) + 1)..];
 
@@ -118,7 +115,6 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
-        // A metadata PUT acts on a pre-existing library document; an unknown id is a not-found.
         var entry = await GetLibraryEntryAsync(id)
             ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
 
@@ -140,7 +136,6 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return;
         }
 
-        // Only Id and BlobInfo.RelativeUrl are read below, so skip the defensive deep-copy.
         var entries = await _assetEntryService.GetAsync(ids, clone: false);
         var documents = entries.Where(IsLibraryEntry).ToList();
 
@@ -153,8 +148,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         await _metadataService.DeleteAsync(documentIds);
         await _assetEntryService.DeleteAsync(documentIds);
 
-        // Each blob failure is tolerated independently (an already-missing blob must not fail the delete);
-        // the removals are best-effort and run concurrently.
+        // Best-effort: an already-missing blob must not fail the delete.
         var removals = documents
             .Select(x => x.BlobInfo?.RelativeUrl)
             .Where(x => !string.IsNullOrEmpty(x))
@@ -203,8 +197,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         return ModuleConstants.DocumentsScope.EqualsIgnoreCase(entry.Group);
     }
 
-    // "{slug}-{8charrandom}{ext}": randomized for collision handling + defense-in-depth; the human
-    // name stays in AssetEntry.Name and is used as the download filename.
+    // Randomized "{slug}-{random}{ext}" for collision handling + defense-in-depth; the human name stays in AssetEntry.Name.
     protected static string BuildBlobName(string fileName)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();

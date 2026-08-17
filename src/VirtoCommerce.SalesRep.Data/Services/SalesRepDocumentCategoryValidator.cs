@@ -6,10 +6,7 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 
 internal static class SalesRepDocumentCategoryValidator
 {
-    // The category is a plain metadata value now (blobs are stored flat), but the old path-segment
-    // hygiene rules are kept as a value check so categories stay safe to echo into URLs and UIs.
-    // The rejected set is fixed (not Path.GetInvalidFileNameChars, which is OS-dependent) so the
-    // same input is accepted or rejected identically on Windows and Linux.
+    // Fixed rejected set (not the OS-dependent Path.GetInvalidFileNameChars) so a category is accepted or rejected identically on Windows and Linux.
     private static readonly char[] InvalidCategoryChars = ['<', '>', ':', '"', '/', '\\', '|', '?', '*'];
 
     public static string Sanitize(string category, bool required)

@@ -12,10 +12,8 @@ using Permissions = VirtoCommerce.SalesRep.Core.ModuleConstants.Security.Permiss
 
 namespace VirtoCommerce.SalesRep.Web.Controllers.Api;
 
-// Write endpoints use the declarative platform permission policy (documents:write, Administrator passes).
-// Read endpoints must accept read OR write OR Administrator — a single-permission [Authorize] cannot express
-// that OR, so they are [Authorize] (authenticated) + an explicit SalesRepDocumentPermissions.HasReadAccess
-// check (the same .Core predicate the GraphQL resolver guard enforces): one enforcement implementation.
+// Read endpoints need read OR write OR Administrator, which a single-permission [Authorize] cannot express,
+// so they use [Authorize] + an explicit SalesRepDocumentPermissions.HasReadAccess check (the same .Core predicate the GraphQL resolver enforces).
 [Authorize]
 [Route("api/sales-rep/documents")]
 public class SalesRepDocumentsController : Controller
@@ -99,9 +97,8 @@ public class SalesRepDocumentsController : Controller
         return Ok(result);
     }
 
-    // [AllowAnonymous] on the two storefront-facing reads: the platform's default [Authorize] policy rejects
-    // customer users (role __customer) before the action runs, and sales reps are customer users. The explicit
-    // HasReadAccess check below replaces the policy and still denies anonymous (XFile FileUploadController precedent).
+    // [AllowAnonymous]: the default [Authorize] policy rejects __customer users before the action runs, and sales reps are customer users.
+    // The explicit HasReadAccess check below replaces the policy and still denies anonymous.
     [HttpGet("{id}")]
     [AllowAnonymous]
     public async Task<ActionResult> Download([FromRoute] string id)
@@ -171,8 +168,7 @@ public class SalesRepDocumentsController : Controller
         }
     }
 
-    // Pin state is exclusively these endpoints' concern (news module archive/unarchive REST shape);
-    // the metadata PUT above never changes it.
+    // Pin state is exclusively these endpoints' concern; the metadata PUT above never changes it.
     [HttpPost("{id}/pin")]
     [Authorize(Permissions.DocumentsWrite)]
     [ProducesResponseType(typeof(void), StatusCodes.Status204NoContent)]

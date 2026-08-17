@@ -10,11 +10,8 @@ using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Search orchestrator. The category/isPinned/objectIds predicates run DB-side through the metadata SearchService;
-// the joined AssetEntries come from the Assets CRUD cache. Keyword (matches the file name OR the display name) and
-// the final sort span both tables, so they run in memory over the small library, then paging is applied in memory.
-// No custom cache region: the metadata Crud/Search regions and the AssetEntry regions each expire on their own
-// mutations, so composing their cached reads stays correct without manual invalidation.
+// Keyword and the final sort span both the metadata and AssetEntry tables, so they run (with paging) in memory over the small library.
+// No custom cache region: the metadata Crud/Search regions and the AssetEntry regions each expire on their own mutations, so composing their cached reads stays correct without manual invalidation.
 public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 {
     private const int MetadataPageSize = 100;
@@ -66,8 +63,6 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
             .ToList();
     }
 
-    // The metadata rows (1:1 with a library AssetEntry, created on upload) are the library's source of truth. Their
-    // AssetEntries are fetched from the Assets CRUD cache and joined; a foreign or missing Group entry is dropped.
     protected virtual async Task<IList<SalesRepDocument>> GetDocumentsAsync(string category, bool? isPinned, IList<string> objectIds)
     {
         var metadataCriteria = AbstractTypeFactory<SalesRepDocumentMetadataSearchCriteria>.TryCreateInstance();
@@ -109,7 +104,6 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
     {
         if (sortInfos.IsNullOrEmpty())
         {
-            // Pinned floats to the top, newest first within each group (isPinned:desc;createdDate:desc).
             return documents
                 .OrderByDescending(x => x.IsPinned)
                 .ThenByDescending(x => x.CreatedDate);

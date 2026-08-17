@@ -6,8 +6,7 @@ namespace VirtoCommerce.SalesRep.Core;
 
 public static class ModuleConstants
 {
-    // Shared documents library discriminator (VCST-5730): the assets root folder and every AssetEntry.Group
-    // carry this value, which scopes the library's blob storage and search.
+    // Reused as both the assets root folder and every AssetEntry.Group discriminator that scopes the library.
     public const string DocumentsScope = "sales-rep-documents";
 
     public static class Security
@@ -47,7 +46,6 @@ public static class ModuleConstants
     {
         public const long MaxFileSize = 50 * 1024 * 1024;
 
-        // Mirrored by the VC-Shell admin UI; enforced server-side on upload and metadata update.
         public const int CategoryMaxLength = 32;
     }
 

@@ -104,7 +104,6 @@ public class Module : IModule, IHasConfiguration
     {
         var serviceProvider = appBuilder.ApplicationServices;
 
-        // Apply migrations
         using (var serviceScope = serviceProvider.CreateScope())
         {
             using var dbContext = serviceScope.ServiceProvider.GetRequiredService<SalesRepDbContext>();

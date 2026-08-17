@@ -57,8 +57,7 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
         return roles;
     }
 
-    // Matches by permission set, never by name/id: an existing role (whatever it is called) already carrying
-    // every listed permission means the capability is available, so seeding is skipped — renames don't re-seed.
+    // Matches by permission set, not name/id: any role already carrying every listed permission counts, so renames don't re-seed.
     protected virtual async Task EnsureRoleAsync(RoleManager<Role> roleManager, IList<Role> existingRoles, string name, string description, string[] permissions)
     {
         if (existingRoles.Any(role => permissions.All(permission => role.Permissions?.Any(x => x.Name == permission) == true)))
