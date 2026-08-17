@@ -62,6 +62,7 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddSingleton<Func<ISalesRepRepository>>(provider => () => provider.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
         serviceCollection.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
+        serviceCollection.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         serviceCollection.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
 

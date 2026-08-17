@@ -156,11 +156,10 @@ public class SalesRepDocumentsController : Controller
             return BadRequest("Metadata is required.");
         }
 
-        metadata.Id = id;
-
         try
         {
-            await _documentMetadataService.SaveAsync([metadata]);
+            var result = await _documentService.UpdateMetadataAsync(id, metadata);
+            return Ok(result);
         }
         catch (KeyNotFoundException)
         {
@@ -170,9 +169,6 @@ public class SalesRepDocumentsController : Controller
         {
             return BadRequest(exception.Message);
         }
-
-        var result = await _documentService.GetAsync(id);
-        return Ok(result);
     }
 
     // Pin state is exclusively these endpoints' concern (news module archive/unarchive REST shape);

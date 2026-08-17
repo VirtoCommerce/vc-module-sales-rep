@@ -10,10 +10,12 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
-using VirtoCommerce.SalesRep.Data.Caching;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
+// CRUD orchestrator over the metadata CrudService (#1) + the Assets module services. Both sides own their own
+// platform caching (the metadata Crud/Search regions, the AssetEntry regions), so this composes cached reads and
+// mutating calls without a custom cache region of its own.
 public class SalesRepDocumentService : ISalesRepDocumentService
 {
     private const int RandomSuffixLength = 8;
@@ -90,9 +92,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
             metadata.Id = entry.Id;
             metadata.Category = safeCategory;
-            await _metadataService.CreateAsync([metadata]);
-
-            SalesRepDocumentCacheRegion.ExpireRegion();
+            metadata.IsPinned = false;
+            await _metadataService.SaveChangesAsync([metadata]);
 
             return SalesRepDocumentMapper.ToModel(entry, metadata);
         }
@@ -111,6 +112,25 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
             throw;
         }
+    }
+
+    public virtual async Task<SalesRepDocument> UpdateMetadataAsync(string id, SalesRepDocumentMetadata metadata)
+    {
+        ArgumentNullException.ThrowIfNull(metadata);
+
+        // A metadata PUT acts on a pre-existing library document; an unknown id is a not-found.
+        var entry = await GetLibraryEntryAsync(id)
+            ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
+
+        metadata.Id = id;
+
+        // Pin state is exclusively SetPinnedAsync's concern — a full-replace metadata PUT must not change it.
+        var existing = (await _metadataService.GetAsync([id])).FirstOrDefault();
+        metadata.IsPinned = existing?.IsPinned ?? false;
+
+        await _metadataService.SaveChangesAsync([metadata]);
+
+        return SalesRepDocumentMapper.ToModel(entry, metadata);
     }
 
     public virtual async Task DeleteAsync(IList<string> ids)
@@ -141,8 +161,6 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             .Select(blobUrl => TryRunAsync(() => _blobStorageProvider.RemoveAsync([blobUrl])));
 
         await Task.WhenAll(removals);
-
-        SalesRepDocumentCacheRegion.ExpireRegion();
     }
 
     public virtual async Task<SalesRepDocument> GetAsync(string id)
@@ -154,7 +172,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return null;
         }
 
-        var metadata = (await _metadataService.GetByIdsAsync([id])).FirstOrDefault();
+        var metadata = (await _metadataService.GetAsync([id])).FirstOrDefault();
 
         return SalesRepDocumentMapper.ToModel(entry, metadata);
     }

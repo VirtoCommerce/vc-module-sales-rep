@@ -196,7 +196,7 @@ public class SalesRepDocumentsComponentTests
 
         // Full-replace semantics: the save must carry every field that should survive (category included).
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
-        await metadataService.SaveAsync([new SalesRepDocumentMetadata { Id = document.Id, Name = "Pretty name", Category = "Manuals", Summary = "v2", PageCount = 7 }]);
+        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = document.Id, Name = "Pretty name", Category = "Manuals", Summary = "v2", PageCount = 7 }]);
 
         var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id);
         reloaded.Name.Should().Be("Editable.pdf");
@@ -216,7 +216,7 @@ public class SalesRepDocumentsComponentTests
         var document = await UploadAsync(ctx, "Editable.pdf", "Guides");
 
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
-        var save = () => metadataService.SaveAsync([new SalesRepDocumentMetadata
+        var save = () => metadataService.SaveChangesAsync([new SalesRepDocumentMetadata
         {
             Id = document.Id,
             Category = new string('x', ModuleConstants.Documents.CategoryMaxLength + 1),
@@ -331,7 +331,7 @@ public class SalesRepDocumentsComponentTests
         // The keyword also matches display names.
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
         var lookbook = (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { Category = "Lookbooks" })).Results.Single();
-        await metadataService.SaveAsync([new SalesRepDocumentMetadata { Id = lookbook.Id, Category = "Lookbooks", Name = "Winter collection" }]);
+        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = lookbook.Id, Category = "Lookbooks", Name = "Winter collection" }]);
 
         var byDisplayName = await searchService.GetCategoriesAsync("winter");
         byDisplayName.Select(x => (x.Name, x.Count)).Should().Equal(("Lookbooks", 1));

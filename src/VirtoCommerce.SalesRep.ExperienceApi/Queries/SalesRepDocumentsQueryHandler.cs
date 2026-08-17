@@ -17,7 +17,7 @@ public class SalesRepDocumentsQueryHandler : IQueryHandler<SalesRepDocumentsQuer
 
     public virtual Task<SalesRepDocumentSearchResult> Handle(SalesRepDocumentsQuery request, CancellationToken cancellationToken)
     {
-        // No sort argument → empty criteria.Sort → the search service's createdDate:desc default.
+        // No sort argument → empty criteria.Sort → the search service's isPinned:desc;createdDate:desc default.
         var criteria = request.GetSearchCriteria<SalesRepDocumentSearchCriteria>();
         criteria.Category = request.Category;
         criteria.IsPinned = request.Pinned;

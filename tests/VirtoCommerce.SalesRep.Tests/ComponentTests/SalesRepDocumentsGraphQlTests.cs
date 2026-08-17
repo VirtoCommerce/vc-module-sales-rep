@@ -144,7 +144,7 @@ public class SalesRepDocumentsGraphQlTests
         var (_, _, newest) = await SeedLibraryAsync(ctx);
 
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
-        await metadataService.SaveAsync([new SalesRepDocumentMetadata { Id = newest.Id, Name = "Pinned price list", Category = "Pricing" }]);
+        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = newest.Id, Name = "Pinned price list", Category = "Pricing" }]);
         await metadataService.SetPinnedAsync(newest.Id, isPinned: true);
 
         // The storefront's "fetch the pinned document" shape.

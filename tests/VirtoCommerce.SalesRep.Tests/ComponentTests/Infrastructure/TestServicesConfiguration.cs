@@ -204,6 +204,7 @@ internal static class TestServicesConfiguration
         services.AddSingleton<Func<ISalesRepRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
         services.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
+        services.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         services.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
 

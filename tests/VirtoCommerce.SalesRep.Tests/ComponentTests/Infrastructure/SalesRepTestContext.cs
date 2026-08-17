@@ -35,7 +35,6 @@ using VirtoCommerce.Platform.Core.Security.Events;
 using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
-using VirtoCommerce.SalesRep.Data.Caching;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.Tests.Infrastructure;
@@ -520,7 +519,9 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <summary>
     /// Backdate a document's AssetEntry creation date (the documents default sort key) so ordering tests are
     /// deterministic. Direct UPDATE (no audit re-stamp) + expiry of the asset CRUD/search cache regions the raw
-    /// write bypasses.
+    /// write bypasses. The AssetEntry createdDate is read through the Assets CRUD cache the search orchestrator
+    /// joins against, so expiring those two regions is what makes the new date visible; the metadata regions are
+    /// untouched (the id set the metadata search returns does not change).
     /// </summary>
     public async Task SetDocumentCreatedDateAsync(string documentId, DateTime createdDate)
     {
@@ -531,7 +532,6 @@ internal sealed class SalesRepTestContext : IDisposable
 
         GenericSearchCachingRegion<AssetEntry>.ExpireRegion();
         GenericCachingRegion<AssetEntry>.ExpireRegion();
-        SalesRepDocumentCacheRegion.ExpireRegion();
     }
 
     /// <summary>

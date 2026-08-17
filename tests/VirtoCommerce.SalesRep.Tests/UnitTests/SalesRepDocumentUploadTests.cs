@@ -263,12 +263,10 @@ public class SalesRepDocumentUploadTests
         public List<SalesRepDocumentMetadata> Saved { get; } = [];
         public bool FailOnSave { get; set; }
 
-        public Task<IList<SalesRepDocumentMetadata>> GetByIdsAsync(IList<string> ids)
+        public Task<IList<SalesRepDocumentMetadata>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
             => Task.FromResult<IList<SalesRepDocumentMetadata>>([.. Saved.Where(x => ids.Contains(x.Id))]);
 
-        public Task CreateAsync(IList<SalesRepDocumentMetadata> metadata) => SaveAsync(metadata);
-
-        public Task SaveAsync(IList<SalesRepDocumentMetadata> metadata)
+        public Task SaveChangesAsync(IList<SalesRepDocumentMetadata> metadata)
         {
             if (FailOnSave)
             {
@@ -285,7 +283,7 @@ public class SalesRepDocumentUploadTests
             return Task.CompletedTask;
         }
 
-        public Task DeleteAsync(IList<string> ids)
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false)
         {
             Saved.RemoveAll(x => ids.Contains(x.Id));
             return Task.CompletedTask;

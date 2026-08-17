@@ -1,18 +1,11 @@
-using System.Collections.Generic;
 using System.Threading.Tasks;
+using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Core.Services;
 
-public interface ISalesRepDocumentMetadataService
+public interface ISalesRepDocumentMetadataService : ICrudService<SalesRepDocumentMetadata>
 {
-    Task<IList<SalesRepDocumentMetadata>> GetByIdsAsync(IList<string> ids);
-
-    Task CreateAsync(IList<SalesRepDocumentMetadata> metadata);
-
-    Task SaveAsync(IList<SalesRepDocumentMetadata> metadata);
-
+    // Pins the document and clears the pin on every other row (a single pinned document at most).
     Task SetPinnedAsync(string id, bool isPinned);
-
-    Task DeleteAsync(IList<string> ids);
 }

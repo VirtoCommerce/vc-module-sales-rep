@@ -2,75 +2,47 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Caching.Memory;
-using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Services;
-using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
-using VirtoCommerce.SalesRep.Data.Caching;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Listing/paging works off the AssetEntry DB index (never IBlobStorageProvider.SearchAsync — no paging there).
-// The library is small (tens–hundreds), so all entries of the Group are fetched via the search-all pattern,
-// joined with their metadata rows, and the whole mapped set cached (TTL setting + expired on module mutations).
+// Search orchestrator. The category/isPinned/objectIds predicates run DB-side through the metadata SearchService;
+// the joined AssetEntries come from the Assets CRUD cache. Keyword (matches the file name OR the display name) and
+// the final sort span both tables, so they run in memory over the small library, then paging is applied in memory.
+// No custom cache region: the metadata Crud/Search regions and the AssetEntry regions each expire on their own
+// mutations, so composing their cached reads stays correct without manual invalidation.
 public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 {
-    private const int SearchAllPageSize = 100;
-    private static readonly TimeSpan CacheDisabled = TimeSpan.FromTicks(1);
+    private const int MetadataPageSize = 100;
 
-    private readonly IAssetEntrySearchService _assetEntrySearchService;
-    private readonly ISalesRepDocumentMetadataService _metadataService;
-    private readonly IPlatformMemoryCache _platformMemoryCache;
-    private readonly ISettingsManager _settingsManager;
+    private readonly ISalesRepDocumentMetadataSearchService _metadataSearchService;
+    private readonly IAssetEntryService _assetEntryService;
 
     public SalesRepDocumentSearchService(
-        IAssetEntrySearchService assetEntrySearchService,
-        ISalesRepDocumentMetadataService metadataService,
-        IPlatformMemoryCache platformMemoryCache,
-        ISettingsManager settingsManager)
+        ISalesRepDocumentMetadataSearchService metadataSearchService,
+        IAssetEntryService assetEntryService)
     {
-        _assetEntrySearchService = assetEntrySearchService;
-        _metadataService = metadataService;
-        _platformMemoryCache = platformMemoryCache;
-        _settingsManager = settingsManager;
+        _metadataSearchService = metadataSearchService;
+        _assetEntryService = assetEntryService;
     }
 
     public virtual async Task<SalesRepDocumentSearchResult> SearchAsync(SalesRepDocumentSearchCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var documents = (await GetAllDocumentsAsync()).AsEnumerable();
+        var documents = await GetDocumentsAsync(criteria.Category, criteria.IsPinned, criteria.ObjectIds);
 
-        if (!criteria.ObjectIds.IsNullOrEmpty())
-        {
-            documents = documents.Where(x => criteria.ObjectIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase));
-        }
-
-        if (!string.IsNullOrEmpty(criteria.Category))
-        {
-            documents = documents.Where(x => criteria.Category.EqualsIgnoreCase(x.Category));
-        }
-
-        if (criteria.IsPinned != null)
-        {
-            documents = documents.Where(x => x.IsPinned == criteria.IsPinned);
-        }
-
-        documents = ApplyKeyword(documents, criteria.Keyword);
-
-        var matched = ApplySort(documents, criteria.SortInfos).ToList();
+        var matched = ApplySort(ApplyKeyword(documents, criteria.Keyword), criteria.SortInfos).ToList();
 
         var result = AbstractTypeFactory<SalesRepDocumentSearchResult>.TryCreateInstance();
         result.TotalCount = matched.Count;
         result.Results = matched
             .Skip(criteria.Skip)
             .Take(criteria.Take)
-            .Select(x => x.CloneTyped()) // the matched instances belong to the cache
             .ToList();
 
         return result;
@@ -78,7 +50,7 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 
     public virtual async Task<IList<SalesRepDocumentCategory>> GetCategoriesAsync(string keyword = null)
     {
-        var documents = ApplyKeyword(await GetAllDocumentsAsync(), keyword);
+        var documents = ApplyKeyword(await GetDocumentsAsync(category: null, isPinned: null, objectIds: null), keyword);
 
         return documents
             .Where(x => !string.IsNullOrEmpty(x.Category))
@@ -94,30 +66,31 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
             .ToList();
     }
 
-    protected virtual Task<IList<SalesRepDocument>> GetAllDocumentsAsync()
+    // The metadata rows (1:1 with a library AssetEntry, created on upload) are the library's source of truth. Their
+    // AssetEntries are fetched from the Assets CRUD cache and joined; a foreign or missing Group entry is dropped.
+    protected virtual async Task<IList<SalesRepDocument>> GetDocumentsAsync(string category, bool? isPinned, IList<string> objectIds)
     {
-        var cacheKey = CacheKey.With(GetType(), nameof(GetAllDocumentsAsync));
+        var metadataCriteria = AbstractTypeFactory<SalesRepDocumentMetadataSearchCriteria>.TryCreateInstance();
+        metadataCriteria.Category = category;
+        metadataCriteria.IsPinned = isPinned;
+        metadataCriteria.ObjectIds = objectIds;
+        metadataCriteria.Take = MetadataPageSize;
 
-        return _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async options =>
+        var metadata = await _metadataSearchService.SearchAllNoCloneAsync(metadataCriteria);
+
+        if (metadata.Count == 0)
         {
-            options.AddExpirationToken(SalesRepDocumentCacheRegion.CreateChangeToken());
+            return [];
+        }
 
-            var minutes = await _settingsManager.GetValueAsync<int>(ModuleConstants.Settings.Caching.DocumentsCacheExpiration);
-            options.AbsoluteExpirationRelativeToNow = minutes > 0 ? TimeSpan.FromMinutes(minutes) : CacheDisabled;
+        var entriesById = (await _assetEntryService.GetAsync(metadata.Select(x => x.Id).ToList(), clone: false))
+            .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Group))
+            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
 
-            var criteria = AbstractTypeFactory<AssetEntrySearchCriteria>.TryCreateInstance();
-            criteria.Group = ModuleConstants.DocumentsScope;
-            criteria.Take = SearchAllPageSize;
-            criteria.Sort = "createdDate:desc"; // the search-all loop requires an explicit sort
-
-            var entries = await _assetEntrySearchService.SearchAllAsync(criteria);
-            var metadataById = (await _metadataService.GetByIdsAsync(entries.Select(x => x.Id).ToList()))
-                .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
-
-            return (IList<SalesRepDocument>)entries
-                .Select(x => SalesRepDocumentMapper.ToModel(x, metadataById.GetValueOrDefault(x.Id)))
-                .ToList();
-        });
+        return metadata
+            .Where(x => entriesById.ContainsKey(x.Id))
+            .Select(x => SalesRepDocumentMapper.ToModel(entriesById[x.Id], x))
+            .ToList();
     }
 
     protected virtual IEnumerable<SalesRepDocument> ApplyKeyword(IEnumerable<SalesRepDocument> documents, string keyword)
@@ -136,7 +109,10 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
     {
         if (sortInfos.IsNullOrEmpty())
         {
-            return documents.OrderByDescending(x => x.CreatedDate);
+            // Pinned floats to the top, newest first within each group (isPinned:desc;createdDate:desc).
+            return documents
+                .OrderByDescending(x => x.IsPinned)
+                .ThenByDescending(x => x.CreatedDate);
         }
 
         IOrderedEnumerable<SalesRepDocument> ordered = null;
