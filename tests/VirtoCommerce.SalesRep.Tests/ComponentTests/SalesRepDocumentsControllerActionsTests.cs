@@ -112,6 +112,7 @@ public class SalesRepDocumentsControllerActionsTests
         document.PreviewUrl.Should().Be("https://example.test/preview.png");
 
         var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id);
+        reloaded.FileId.Should().Be(fileId, "the persisted metadata row must reference the step-1 uploaded file");
         reloaded.DisplayName.Should().Be("Pretty spec");
         reloaded.Summary.Should().Be("The summary");
         reloaded.PageCount.Should().Be(9);
