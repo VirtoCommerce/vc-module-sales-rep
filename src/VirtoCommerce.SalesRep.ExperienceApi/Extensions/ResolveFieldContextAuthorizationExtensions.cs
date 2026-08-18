@@ -20,7 +20,7 @@ public static class ResolveFieldContextAuthorizationExtensions
     {
         context.EnsureAuthenticated();
 
-        if (!SalesRepDocumentPermissions.HasReadAccess(context.GetCurrentPrincipal()))
+        if (!context.GetCurrentPrincipal().HasReadAccess())
         {
             throw AuthorizationError.PermissionRequired(ModuleConstants.Security.Permissions.DocumentsRead);
         }

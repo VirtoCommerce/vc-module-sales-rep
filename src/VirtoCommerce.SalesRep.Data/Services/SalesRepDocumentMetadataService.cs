@@ -28,13 +28,11 @@ public class SalesRepDocumentMetadataService(
 {
     protected override Task<IList<DocumentMetadataEntity>> LoadEntities(IRepository repository, IList<string> ids, string responseGroup)
     {
-        return ((ISalesRepRepository)repository).GetDocumentMetadataByIdsAsync(ids);
+        return ((ISalesRepRepository)repository).GetDocumentMetadataByIdsAsync(ids, responseGroup);
     }
 
     protected override async Task BeforeSaveChanges(IList<SalesRepDocumentMetadata> models)
     {
-        await base.BeforeSaveChanges(models);
-
         if (models.Any(x => string.IsNullOrEmpty(x.Id)))
         {
             throw new ArgumentException("Document metadata requires the document id.", nameof(models));
@@ -44,6 +42,8 @@ public class SalesRepDocumentMetadataService(
         {
             model.Category = SalesRepDocumentCategoryValidator.Sanitize(model.Category, required: false);
         }
+
+        await base.BeforeSaveChanges(models);
     }
 
     public virtual async Task SetPinnedAsync(string id, bool isPinned)

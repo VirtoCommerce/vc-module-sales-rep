@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.CartModule.Core;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -41,22 +42,22 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
             return null;
         }
 
-        if (kind.Names is { Count: > 0 })
+        if (!kind.Names.IsNullOrEmpty())
         {
             criteria.Names = kind.Names;
         }
 
-        if (kind.Types is { Count: > 0 })
+        if (!kind.Types.IsNullOrEmpty())
         {
             criteria.Types = kind.Types;
         }
 
-        if (kind.ExcludeTypes is { Count: > 0 })
+        if (!kind.ExcludeTypes.IsNullOrEmpty())
         {
             criteria.ExcludeTypes = kind.ExcludeTypes;
         }
 
-        if (kind.Statuses is { Count: > 0 })
+        if (!kind.Statuses.IsNullOrEmpty())
         {
             criteria.Statuses = kind.Statuses;
         }

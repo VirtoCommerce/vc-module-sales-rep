@@ -18,7 +18,7 @@ public class SalesRepRepository : DbContextRepositoryBase<SalesRepDbContext>, IS
 
     public IQueryable<DocumentMetadataEntity> DocumentMetadata => DbContext.Set<DocumentMetadataEntity>();
 
-    public async Task<IList<DocumentMetadataEntity>> GetDocumentMetadataByIdsAsync(IList<string> ids)
+    public async Task<IList<DocumentMetadataEntity>> GetDocumentMetadataByIdsAsync(IList<string> ids, string responseGroup = null)
     {
         if (ids.IsNullOrEmpty())
         {

@@ -76,7 +76,7 @@ public class SalesRepDocumentsController : Controller
     [HttpPost("search")]
     public async Task<ActionResult<SalesRepDocumentSearchResult>> Search([FromBody] SalesRepDocumentSearchCriteria criteria)
     {
-        if (!SalesRepDocumentPermissions.HasReadAccess(User))
+        if (!User.HasReadAccess())
         {
             return Forbid();
         }
@@ -88,7 +88,7 @@ public class SalesRepDocumentsController : Controller
     [HttpGet("categories")]
     public async Task<ActionResult<SalesRepDocumentCategory[]>> GetCategories([FromQuery] string keyword = null)
     {
-        if (!SalesRepDocumentPermissions.HasReadAccess(User))
+        if (!User.HasReadAccess())
         {
             return Forbid();
         }
@@ -110,7 +110,7 @@ public class SalesRepDocumentsController : Controller
             return NotFound();
         }
 
-        if (!SalesRepDocumentPermissions.HasReadAccess(User))
+        if (!User.HasReadAccess())
         {
             return Forbid();
         }
@@ -136,7 +136,7 @@ public class SalesRepDocumentsController : Controller
             return NotFound();
         }
 
-        if (!SalesRepDocumentPermissions.HasReadAccess(User))
+        if (!User.HasReadAccess())
         {
             return Forbid();
         }

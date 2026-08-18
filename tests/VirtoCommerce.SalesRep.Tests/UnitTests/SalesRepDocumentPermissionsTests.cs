@@ -51,8 +51,8 @@ public class SalesRepDocumentPermissionsTests
     {
         var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
 
-        SalesRepDocumentPermissions.HasReadAccess(anonymous).Should().BeFalse();
-        SalesRepDocumentPermissions.HasWriteAccess(anonymous).Should().BeFalse();
+        anonymous.HasReadAccess().Should().BeFalse();
+        anonymous.HasWriteAccess().Should().BeFalse();
     }
 
     [Fact]
@@ -66,15 +66,15 @@ public class SalesRepDocumentPermissionsTests
         };
         var user = new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
 
-        SalesRepDocumentPermissions.HasReadAccess(user).Should().BeTrue();
-        SalesRepDocumentPermissions.HasWriteAccess(user).Should().BeFalse();
+        user.HasReadAccess().Should().BeTrue();
+        user.HasWriteAccess().Should().BeFalse();
     }
 
     private static bool HasAccess(ClaimsPrincipal user, string requiredPermission)
     {
         return requiredPermission == DocumentsWrite
-            ? SalesRepDocumentPermissions.HasWriteAccess(user)
-            : SalesRepDocumentPermissions.HasReadAccess(user);
+            ? user.HasWriteAccess()
+            : user.HasReadAccess();
     }
 
     private static ClaimsPrincipal CreateUser(bool authenticated, string[] permissions, bool administrator)

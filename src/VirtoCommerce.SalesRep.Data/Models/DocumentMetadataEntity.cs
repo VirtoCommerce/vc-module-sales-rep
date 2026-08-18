@@ -32,6 +32,10 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
         pkMap.AddPair(model, this);
 
         Id = model.Id;
+        CreatedBy = model.CreatedBy;
+        CreatedDate = model.CreatedDate;
+        ModifiedBy = model.ModifiedBy;
+        ModifiedDate = model.ModifiedDate;
         Name = model.Name;
         Category = model.Category;
         IsPinned = model.IsPinned;

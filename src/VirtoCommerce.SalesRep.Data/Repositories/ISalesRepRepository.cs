@@ -10,5 +10,5 @@ public interface ISalesRepRepository : IRepository
 {
     IQueryable<DocumentMetadataEntity> DocumentMetadata { get; }
 
-    Task<IList<DocumentMetadataEntity>> GetDocumentMetadataByIdsAsync(IList<string> ids);
+    Task<IList<DocumentMetadataEntity>> GetDocumentMetadataByIdsAsync(IList<string> ids, string responseGroup = null);
 }
