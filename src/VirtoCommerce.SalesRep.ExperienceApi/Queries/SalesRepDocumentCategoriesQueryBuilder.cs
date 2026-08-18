@@ -1,10 +1,11 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
 using Microsoft.AspNetCore.Authorization;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
-using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
+using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -22,6 +23,6 @@ public class SalesRepDocumentCategoriesQueryBuilder : SalesRepQueryBuilder<Sales
     {
         await base.BeforeMediatorSend(context, request);
 
-        context.EnsureCanReadDocuments();
+        await Authorize(context, request, new SalesRepDocumentAuthorizationRequirement(file: null, ModuleConstants.Security.Permissions.DocumentsRead));
     }
 }

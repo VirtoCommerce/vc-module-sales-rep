@@ -24,7 +24,7 @@ namespace VirtoCommerce.SalesRep.Data.MySql.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Name = table.Column<string>(type: "varchar(512)", maxLength: 512, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    Category = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: true)
+                    Category = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     IsPinned = table.Column<bool>(type: "tinyint(1)", nullable: false),
                     Summary = table.Column<string>(type: "varchar(2048)", maxLength: 2048, nullable: true)

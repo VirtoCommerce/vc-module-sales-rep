@@ -32,8 +32,6 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     {
         ArgumentException.ThrowIfNullOrEmpty(fileId);
 
-        var safeCategory = SalesRepDocumentCategoryValidator.Sanitize(category, required: true);
-
         var file = await GetLibraryFileAsync(fileId)
             ?? throw new InvalidOperationException($"File '{fileId}' was not found in the '{ModuleConstants.DocumentsScope}' scope.");
 
@@ -45,7 +43,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
         metadata.Id = null;
         metadata.FileId = file.Id;
-        metadata.Category = safeCategory;
+        metadata.Category = category;
         metadata.IsPinned = false;
 
         await _metadataService.SaveChangesAsync([metadata]);

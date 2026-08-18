@@ -33,6 +33,7 @@ namespace VirtoCommerce.SalesRep.Data.MySql.Migrations
                         .HasColumnType("varchar(128)");
 
                     b.Property<string>("Category")
+                        .IsRequired()
                         .HasMaxLength(128)
                         .HasColumnType("varchar(128)");
 

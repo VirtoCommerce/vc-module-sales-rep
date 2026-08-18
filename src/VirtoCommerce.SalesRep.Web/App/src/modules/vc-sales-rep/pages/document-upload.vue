@@ -55,6 +55,7 @@
                 :label="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.CATEGORY')"
                 :placeholder="$t('VC_SALES_REP.PAGES.DOCUMENT_UPLOAD.FORM.CATEGORY_PLACEHOLDER')"
                 :options="categoryOptions"
+                required
                 option-value="id"
                 option-label="title"
                 :disabled="!!newCategory"

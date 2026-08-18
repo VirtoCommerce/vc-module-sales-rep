@@ -4,7 +4,7 @@ using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.SalesRep.Core;
 using FilePermissions = VirtoCommerce.FileExperienceApi.Core.ModuleConstants.Security.Permissions;
 
-namespace VirtoCommerce.SalesRep.Data.Authorization;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 
 // Reroutes the generic file surfaces (GET /api/files/{id}, deleteFile) for the library scope to the module's
 // handler — the default file-exp-api handler would grant any ownerless file, even to anonymous callers.

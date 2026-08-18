@@ -137,8 +137,8 @@ public class SalesRepDocumentsControllerActionsTests
         var fileId = await UploadFileAsync(ctx, "Doc.pdf");
         var controller = CreateController(ctx, WithPermissions(DocumentsWrite));
 
-        // A category carrying a path separator is genuinely rejected by the real category validator inside the
-        // service (ArgumentException), which the action maps to a 400 — no mock involved.
+        // A category carrying a path separator is genuinely rejected by the real SalesRepDocumentMetadataValidator
+        // in the save pipeline (ValidationException), which the action maps to a 400 — no mock involved.
         (await controller.Create(new SalesRepDocumentCreateRequest { FileId = fileId, Category = "bad/category" }))
             .Result.Should().BeOfType<BadRequestObjectResult>();
 

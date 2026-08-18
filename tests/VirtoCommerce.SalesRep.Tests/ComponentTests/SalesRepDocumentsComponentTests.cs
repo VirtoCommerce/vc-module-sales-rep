@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.AssetsModule.Core.Assets;
@@ -247,8 +248,35 @@ public class SalesRepDocumentsComponentTests
             Category = new string('x', ModuleConstants.Documents.CategoryMaxLength + 1),
         }]);
 
-        await save.Should().ThrowAsync<ArgumentException>().WithMessage("*32*");
+        await save.Should().ThrowAsync<ValidationException>().WithMessage("*32*");
         (await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id)).Category.Should().Be("Guides");
+    }
+
+    // The category is mandatory on EVERY save — a full-replace metadata PUT that omits it must be rejected
+    // instead of silently clearing the field (which would drop the document out of every category listing).
+    [Fact]
+    public async Task MetadataSave_RejectsAMissingCategory()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await ctx.UploadDocumentAsync("Editable.pdf", "Guides");
+
+        var controller = CreateController(ctx);
+        var response = (await controller.UpdateMetadata(document.Id, new SalesRepDocumentMetadata { Summary = "no category" }))
+            .Result.Should().BeOfType<BadRequestObjectResult>().Subject;
+        response.Value.ToString().Should().Contain("Category");
+
+        (await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id)).Category.Should().Be("Guides");
+    }
+
+    [Fact]
+    public async Task Create_TrimsTheCategory()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        var document = await ctx.UploadDocumentAsync("Padded.pdf", " Catalogs ");
+
+        document.Category.Should().Be("Catalogs");
+        (await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id)).Category.Should().Be("Catalogs");
     }
 
     [Fact]

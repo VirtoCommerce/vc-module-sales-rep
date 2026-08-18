@@ -18,7 +18,7 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                     Id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     FileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     Name = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
-                    Category = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    Category = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     IsPinned = table.Column<bool>(type: "boolean", nullable: false),
                     Summary = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
                     PageCount = table.Column<int>(type: "integer", nullable: true),

@@ -12,7 +12,7 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
 /// The documents library X-API (VCST-5730 T3) end to end: real GraphQL query strings through the real scoped
-/// schema, builders (claim-level permission gate) and the real document services over in-memory SQLite. Covers
+/// schema, builders (RequestBuilder.Authorize through SalesRepDocumentAuthorizationHandler) and the real document services over in-memory SQLite. Covers
 /// the three queries' data shapes (paging, default createdDate:desc, keyword/category, categories with counts)
 /// and the full authorization matrix: read passes, write implies read, Administrator passes, no-permission and
 /// anonymous are denied on EVERY query with no data leaking.
@@ -219,8 +219,9 @@ public class SalesRepDocumentsGraphQlTests
         {
             var json = await ctx.ExecuteGraphQlAsync(query, userId: RepUserId, permissions: AccessOnlyPermission);
 
+            // The standard RequestBuilder.Authorize error: generic Forbidden, no permission name disclosed.
             json.Should().Contain("\"errors\"");
-            json.Should().Contain(Permissions.DocumentsRead);
+            json.Should().Contain("Forbidden");
             json.Should().NotContain("Secret.pdf");
             json.Should().NotContain(document.Id);
         }

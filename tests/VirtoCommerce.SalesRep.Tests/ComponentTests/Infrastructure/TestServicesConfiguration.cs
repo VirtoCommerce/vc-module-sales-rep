@@ -43,8 +43,10 @@ using VirtoCommerce.Platform.Data.Common;
 using VirtoCommerce.Platform.Security;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.Platform.Security.Services;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
@@ -217,6 +219,7 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepRepository, SalesRepRepository>();
         services.AddSingleton<Func<ISalesRepRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
+        services.AddTransient<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
         services.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         services.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();

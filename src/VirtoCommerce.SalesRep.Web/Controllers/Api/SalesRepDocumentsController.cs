@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +14,8 @@ using Permissions = VirtoCommerce.SalesRep.Core.ModuleConstants.Security.Permiss
 namespace VirtoCommerce.SalesRep.Web.Controllers.Api;
 
 // Read endpoints need read OR write OR Administrator, which a single-permission [Authorize] cannot express,
-// so they use [Authorize] + an explicit SalesRepDocumentPermissions.HasReadAccess check (the same .Core predicate the GraphQL resolver enforces).
+// so they use [Authorize] + an explicit SalesRepDocumentPermissions.HasReadAccess check — the same read matrix
+// SalesRepDocumentAuthorizationHandler enforces on the GraphQL queries and the generic file surfaces.
 [Authorize]
 [Route("api/sales-rep/documents")]
 public class SalesRepDocumentsController : Controller
@@ -58,7 +60,7 @@ public class SalesRepDocumentsController : Controller
             var document = await _documentService.CreateAsync(request.FileId, request.Category, metadata);
             return Ok(document);
         }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or ValidationException)
         {
             return BadRequest(exception.Message);
         }
@@ -106,7 +108,7 @@ public class SalesRepDocumentsController : Controller
         {
             return NotFound();
         }
-        catch (ArgumentException exception)
+        catch (Exception exception) when (exception is ArgumentException or ValidationException)
         {
             return BadRequest(exception.Message);
         }

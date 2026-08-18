@@ -4,7 +4,7 @@ using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Security.Authorization;
 using VirtoCommerce.SalesRep.Core;
 
-namespace VirtoCommerce.SalesRep.Data.Authorization;
+namespace VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 
 // Fail-closed gate for the shared documents library: an authenticated caller needs documents:read for reads
 // and documents:write for mutations; write implies read; platform Administrator always passes; anonymous never

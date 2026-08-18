@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
@@ -16,17 +17,19 @@ using VirtoCommerce.Platform.Data.MySql.Extensions;
 using VirtoCommerce.Platform.Data.PostgreSql.Extensions;
 using VirtoCommerce.Platform.Data.SqlServer.Extensions;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
-using VirtoCommerce.SalesRep.Data.Authorization;
 using VirtoCommerce.SalesRep.Data.MySql;
 using VirtoCommerce.SalesRep.Data.PostgreSql;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
+using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.Data.SqlServer;
 using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -64,13 +67,15 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepRepository, SalesRepRepository>();
         serviceCollection.AddSingleton<Func<ISalesRepRepository>>(provider => () => provider.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
+        serviceCollection.AddTransient<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
         serviceCollection.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         serviceCollection.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         serviceCollection.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
 
-        // Routes the generic file surfaces (GET /api/files/{id}, deleteFile) for the documents scope to the
-        // module's fail-closed handler instead of the default file-exp-api handler (which grants ownerless files).
+        // One fail-closed handler for every document read surface: the GraphQL query builders authorize through it
+        // directly, and the factory routes the generic file surfaces (GET /api/files/{id}, deleteFile) for the
+        // documents scope to it instead of the default file-exp-api handler (which grants ownerless files).
         serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
         serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
 

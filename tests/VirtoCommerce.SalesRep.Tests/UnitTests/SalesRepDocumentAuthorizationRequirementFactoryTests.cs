@@ -1,6 +1,6 @@
 using FluentAssertions;
 using VirtoCommerce.FileExperienceApi.Core.Models;
-using VirtoCommerce.SalesRep.Data.Authorization;
+using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using Xunit;
 using FilePermissions = VirtoCommerce.FileExperienceApi.Core.ModuleConstants.Security.Permissions;
 using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;

@@ -57,6 +57,7 @@
                 option-value="id"
                 option-label="title"
                 :disabled="!hasWriteAccess || !!newCategory"
+                required
                 clearable
               />
               <VcInput
@@ -182,7 +183,8 @@ const pageCountValue = computed<string | undefined>({
 const { canSave, setBaseline } = useBladeForm({
   data: document,
   closeConfirmMessage: computed(() => t("VC_SALES_REP.PAGES.DOCUMENT_DETAILS.ALERTS.CLOSE_CONFIRMATION")),
-  canSaveOverride: computed(() => !!documentIsDirty.value),
+  // The category is mandatory (the backend rejects a save without one), so an emptied editor blocks Save.
+  canSaveOverride: computed(() => !!documentIsDirty.value && !!document.value.category?.trim()),
 });
 
 const bladeToolbar = computed((): IBladeToolbar[] => [

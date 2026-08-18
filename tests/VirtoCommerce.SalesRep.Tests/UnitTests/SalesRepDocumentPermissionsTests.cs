@@ -12,9 +12,9 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 /// <summary>
 /// The documents-library authorization matrix (anonymous / no-permission / read / write / admin × read and
 /// write operations): fail-closed everywhere, write implies read, Administrator always passes, anonymous
-/// never does — over the shared SalesRepDocumentPermissions predicate that both the REST controller and the
-/// GraphQL resolver guard call. (The file-experience-api surfaces run SalesRepDocumentAuthorizationHandler,
-/// which has its own equivalent matrix test.)
+/// never does — over the SalesRepDocumentPermissions predicate the REST controller reads call. (The GraphQL
+/// queries and file-experience-api surfaces run SalesRepDocumentAuthorizationHandler, which has its own
+/// equivalent matrix test.)
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepDocumentPermissionsTests

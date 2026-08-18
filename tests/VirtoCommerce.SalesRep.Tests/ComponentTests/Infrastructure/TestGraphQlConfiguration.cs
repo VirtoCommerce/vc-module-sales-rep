@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Introspection;
 using GraphQL.MicrosoftDI;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -38,6 +39,7 @@ using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -143,8 +145,10 @@ internal static class TestGraphQlConfiguration
 
     public static IServiceCollection AddSalesRepGraphQl(this IServiceCollection services)
     {
-        // IAuthorizationService is required by the query builders' base constructor.
+        // IAuthorizationService is required by the query builders' base constructor; the document query builders
+        // authorize through the module's requirement handler.
         services.AddAuthorization();
+        services.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
 
         // ScopedSchemaFactory depends on ISchemaFilter (registered by Xapi.Data in production).
         services.AddSingleton<ISchemaFilter, DefaultSchemaFilter>();

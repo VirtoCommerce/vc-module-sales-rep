@@ -8,25 +8,32 @@ namespace VirtoCommerce.SalesRep.Data.Models;
 
 public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetadataEntity, SalesRepDocumentMetadata>
 {
+    public const int FileIdLength = 128;
+    public const int NameLength = 512;
+    public const int CategoryLength = 128;
+    public const int SummaryLength = 2048;
+    public const int PreviewUrlLength = 2083;
+
     // The library file id (file-experience-api File / AssetEntry). No FK — the AssetEntry table belongs to the Assets module.
     [Required]
-    [StringLength(128)]
+    [StringLength(FileIdLength)]
     public string FileId { get; set; }
 
-    [StringLength(512)]
+    [StringLength(NameLength)]
     public string Name { get; set; }
 
-    [StringLength(128)]
+    [Required]
+    [StringLength(CategoryLength)]
     public string Category { get; set; }
 
     public bool IsPinned { get; set; }
 
-    [StringLength(2048)]
+    [StringLength(SummaryLength)]
     public string Summary { get; set; }
 
     public int? PageCount { get; set; }
 
-    [StringLength(2083)]
+    [StringLength(PreviewUrlLength)]
     public string PreviewUrl { get; set; }
 
     public virtual DocumentMetadataEntity FromModel(SalesRepDocumentMetadata model, PrimaryKeyResolvingMap pkMap)

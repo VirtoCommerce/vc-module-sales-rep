@@ -66,27 +66,18 @@ public class SalesRepDocumentCreateTests
         _metadataService.Saved.Should().BeEmpty();
     }
 
-    // The rejected characters are an explicit OS-independent set — every case must fail on Windows and Linux alike.
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("   ")]
-    [InlineData("..")]
-    [InlineData("../etc")]
-    [InlineData("a/b")]
-    [InlineData(@"a\b")]
-    [InlineData("bad|name")]
-    [InlineData("bad:name")]
-    [InlineData("bad\tname")]
-    [InlineData("this-category-is-over-32-chars-long")] // > ModuleConstants.Documents.CategoryMaxLength
-    public async Task Create_InvalidCategory_ThrowsAndSavesNothing(string category)
+    // Category validation itself lives in the metadata service save pipeline (SalesRepDocumentMetadataValidator,
+    // covered by its own tests plus the component tests); here it matters that a failed save claims nothing.
+    [Fact]
+    public async Task Create_MetadataSaveFails_TakesNoOwnership()
     {
         var file = AddFile();
+        _metadataService.FailOnSave = true;
         var service = CreateService();
 
-        var create = () => service.CreateAsync(file.Id, category);
+        var create = () => service.CreateAsync(file.Id, "Catalogs");
 
-        await create.Should().ThrowAsync<ArgumentException>();
+        await create.Should().ThrowAsync<InvalidOperationException>().WithMessage("*metadata save failed*");
         _metadataService.Saved.Should().BeEmpty();
         file.OwnerEntityId.Should().BeNull();
     }
@@ -98,12 +89,12 @@ public class SalesRepDocumentCreateTests
         var service = CreateService();
         var metadata = new SalesRepDocumentMetadata { Summary = "Spring catalog", PageCount = 42, PreviewUrl = "https://cdn/preview.png" };
 
-        var document = await service.CreateAsync(file.Id, " Catalogs ", metadata);
+        var document = await service.CreateAsync(file.Id, "Catalogs", metadata);
 
         var saved = _metadataService.Saved.Should().ContainSingle().Subject;
         saved.Id.Should().NotBeNullOrEmpty("the metadata row gets its own generated id");
         saved.FileId.Should().Be(file.Id);
-        saved.Category.Should().Be("Catalogs"); // trimmed
+        saved.Category.Should().Be("Catalogs");
 
         document.Id.Should().Be(saved.Id);
         document.FileId.Should().Be(file.Id);
@@ -269,12 +260,18 @@ public class SalesRepDocumentCreateTests
     private sealed class FakeMetadataService : ISalesRepDocumentMetadataService
     {
         public List<SalesRepDocumentMetadata> Saved { get; } = [];
+        public bool FailOnSave { get; set; }
 
         public Task<IList<SalesRepDocumentMetadata>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
             => Task.FromResult<IList<SalesRepDocumentMetadata>>([.. Saved.Where(x => ids.Contains(x.Id))]);
 
         public Task SaveChangesAsync(IList<SalesRepDocumentMetadata> metadata)
         {
+            if (FailOnSave)
+            {
+                throw new InvalidOperationException("Document metadata save failed.");
+            }
+
             foreach (var model in metadata)
             {
                 // The persistence layer generates the primary key for new rows.

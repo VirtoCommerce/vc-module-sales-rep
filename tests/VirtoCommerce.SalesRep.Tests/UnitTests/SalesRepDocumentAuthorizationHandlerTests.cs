@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.Platform.Core;
-using VirtoCommerce.SalesRep.Data.Authorization;
+using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using Xunit;
 using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 

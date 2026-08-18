@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
@@ -19,7 +20,8 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 public class SalesRepDocumentMetadataService(
         Func<ISalesRepRepository> repositoryFactory,
         IPlatformMemoryCache platformMemoryCache,
-        IEventPublisher eventPublisher)
+        IEventPublisher eventPublisher,
+        AbstractValidator<SalesRepDocumentMetadata> validator)
     : CrudService<SalesRepDocumentMetadata, DocumentMetadataEntity, DocumentMetadataChangingEvent, DocumentMetadataChangedEvent>(
         repositoryFactory,
         platformMemoryCache,
@@ -33,17 +35,22 @@ public class SalesRepDocumentMetadataService(
 
     protected override async Task BeforeSaveChanges(IList<SalesRepDocumentMetadata> models)
     {
-        if (models.Any(x => string.IsNullOrEmpty(x.FileId)))
-        {
-            throw new ArgumentException("Document metadata requires the file id.", nameof(models));
-        }
-
         foreach (var model in models)
         {
-            model.Category = SalesRepDocumentCategoryValidator.Sanitize(model.Category, required: false);
+            model.Category = model.Category?.Trim();
         }
 
+        await ValidateAsync(models);
+
         await base.BeforeSaveChanges(models);
+    }
+
+    protected virtual async Task ValidateAsync(IList<SalesRepDocumentMetadata> models)
+    {
+        foreach (var model in models)
+        {
+            await validator.ValidateAndThrowAsync(model);
+        }
     }
 
     public virtual async Task SetPinnedAsync(string id, bool isPinned)
