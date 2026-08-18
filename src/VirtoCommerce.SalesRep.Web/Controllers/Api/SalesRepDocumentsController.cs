@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentValidation;
@@ -14,8 +14,7 @@ using Permissions = VirtoCommerce.SalesRep.Core.ModuleConstants.Security.Permiss
 namespace VirtoCommerce.SalesRep.Web.Controllers.Api;
 
 // Read endpoints need read OR write OR Administrator, which a single-permission [Authorize] cannot express,
-// so they use [Authorize] + an explicit SalesRepDocumentPermissions.HasReadAccess check — the same read matrix
-// SalesRepDocumentAuthorizationHandler enforces on the GraphQL queries and the generic file surfaces.
+// so they use [Authorize] + an explicit HasReadAccess check.
 [Authorize]
 [Route("api/sales-rep/documents")]
 public class SalesRepDocumentsController : Controller
@@ -34,8 +33,7 @@ public class SalesRepDocumentsController : Controller
         _documentMetadataService = documentMetadataService;
     }
 
-    // Step 2 of the two-step upload: the file is first uploaded to the sales-rep-documents scope via the
-    // file-experience-api endpoint (POST /api/files/{scope}), then registered in the library here.
+    // Step 2 of the two-step upload: registers a file already uploaded to the sales-rep-documents scope (POST /api/files/{scope}).
     [HttpPost("")]
     [Authorize(Permissions.DocumentsWrite)]
     public async Task<ActionResult<SalesRepDocument>> Create([FromBody] SalesRepDocumentCreateRequest request)
@@ -45,15 +43,11 @@ public class SalesRepDocumentsController : Controller
             return BadRequest("File id is required.");
         }
 
-        SalesRepDocumentMetadata metadata = null;
-        if (request.Name != null || request.Summary != null || request.PageCount != null || request.PreviewUrl != null)
-        {
-            metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
-            metadata.Name = request.Name;
-            metadata.Summary = request.Summary;
-            metadata.PageCount = request.PageCount;
-            metadata.PreviewUrl = request.PreviewUrl;
-        }
+        var metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
+        metadata.Name = request.Name;
+        metadata.Summary = request.Summary;
+        metadata.PageCount = request.PageCount;
+        metadata.PreviewUrl = request.PreviewUrl;
 
         try
         {

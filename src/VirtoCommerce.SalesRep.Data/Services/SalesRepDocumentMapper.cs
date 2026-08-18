@@ -1,5 +1,11 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using VirtoCommerce.FileExperienceApi.Core.Extensions;
+using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
@@ -7,6 +13,24 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 
 internal static class SalesRepDocumentMapper
 {
+    // Batch-fetches the metadata rows' files (library scope only) and maps the pairs; rows whose file is gone are skipped.
+    public static async Task<IList<SalesRepDocument>> ToModelsAsync(IFileUploadService fileUploadService, IList<SalesRepDocumentMetadata> metadatas)
+    {
+        if (metadatas.Count == 0)
+        {
+            return [];
+        }
+
+        var filesById = (await fileUploadService.GetAsync(metadatas.Select(x => x.FileId).ToList(), clone: false))
+            .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
+            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+        return metadatas
+            .Where(x => filesById.ContainsKey(x.FileId))
+            .Select(x => ToModel(filesById[x.FileId], x))
+            .ToList();
+    }
+
     public static SalesRepDocument ToModel(File file, SalesRepDocumentMetadata metadata)
     {
         var document = AbstractTypeFactory<SalesRepDocument>.TryCreateInstance();

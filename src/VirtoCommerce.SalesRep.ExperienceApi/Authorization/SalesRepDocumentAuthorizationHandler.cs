@@ -1,22 +1,19 @@
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Security.Authorization;
 using VirtoCommerce.SalesRep.Core;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 
-// Fail-closed gate for the shared documents library: an authenticated caller needs documents:read for reads
-// and documents:write for mutations; write implies read; platform Administrator always passes; anonymous never
-// does. Unlike the default file-exp-api handler, there is NO ownerless-file shortcut.
+// Fail-closed gate for the shared documents library — one policy encoding: the same SalesRepDocumentPermissions
+// predicates the REST controller reads call. Unlike the default file-exp-api handler, there is NO ownerless-file shortcut.
 public class SalesRepDocumentAuthorizationHandler : PermissionAuthorizationHandlerBase<SalesRepDocumentAuthorizationRequirement>
 {
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, SalesRepDocumentAuthorizationRequirement requirement)
     {
-        var authorized = context.User.Identity?.IsAuthenticated == true &&
-            (context.User.IsInRole(PlatformConstants.Security.SystemRoles.Administrator) ||
-             context.User.HasPermission(requirement.Permission) ||
-             context.User.HasPermission(ModuleConstants.Security.Permissions.DocumentsWrite));
+        var authorized = requirement.Permission == ModuleConstants.Security.Permissions.DocumentsRead
+            ? context.User.HasReadAccess()
+            : context.User.HasWriteAccess();
 
         if (authorized)
         {

@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Linq;
 using VirtoCommerce.Platform.Core.Settings;
 
@@ -6,8 +6,7 @@ namespace VirtoCommerce.SalesRep.Core;
 
 public static class ModuleConstants
 {
-    // The file-experience-api upload scope of the documents library. Files are uploaded via
-    // POST /api/files/{scope}, so the scope must be configured in the FileUpload:Scopes application settings.
+    // The file-experience-api upload scope; must be configured in the FileUpload:Scopes application settings.
     public const string DocumentsScope = "sales-rep-documents";
 
     public static class Security

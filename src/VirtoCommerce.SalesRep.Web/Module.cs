@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -73,9 +73,8 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         serviceCollection.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
 
-        // One fail-closed handler for every document read surface: the GraphQL query builders authorize through it
-        // directly, and the factory routes the generic file surfaces (GET /api/files/{id}, deleteFile) for the
-        // documents scope to it instead of the default file-exp-api handler (which grants ownerless files).
+        // One fail-closed handler for every document surface: the GraphQL builders run it directly, the factory
+        // routes the generic file surfaces (GET /api/files/{id}, deleteFile) to it.
         serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
         serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
 

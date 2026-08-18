@@ -1,4 +1,4 @@
-import { useAsync, useApiClient, useLoading } from "@vc-shell/framework";
+﻿import { useAsync, useApiClient, useLoading } from "@vc-shell/framework";
 import { SalesRepDocumentsClient, SalesRepDocument } from "../../../../api_client/virtocommerce.salesrep";
 
 // UX-side filter only — the platform's IFileExtensionService white/blacklist re-validates every upload on the backend.
@@ -17,8 +17,7 @@ export interface DocumentUploadArgs {
   previewUrl?: string;
 }
 
-// The upload scope of the documents library — the file-experience-api endpoint POST /api/files/{scope}.
-export const DOCUMENTS_SCOPE = "sales-rep-documents";
+const DOCUMENTS_SCOPE = "sales-rep-documents";
 
 interface FileUploadResult {
   id?: string;
@@ -27,11 +26,8 @@ interface FileUploadResult {
   errorMessage?: string;
 }
 
-// File transfer endpoints are called with a hand-built fetch instead of the generated SalesRepDocumentsClient:
-// the file upload endpoint belongs to the file-experience-api module (not this client), and download() would
-// discard the response body. All calls attach auth exactly like AuthApiBase.transformOptions does — a bearer
-// header when the framework has wired a token onto the client, cookies otherwise — and use the same relative
-// URLs, so they go through the identical pipeline as every other API call in this app.
+// Hand-built fetch: the upload endpoint belongs to the file-experience-api module (not this client), and
+// download() would discard the response body. Auth is attached exactly like AuthApiBase.transformOptions.
 export default () => {
   const { getApiClient } = useApiClient(SalesRepDocumentsClient);
 
@@ -40,8 +36,7 @@ export default () => {
     return apiClient.authToken ? { authorization: `Bearer ${apiClient.authToken}` } : {};
   };
 
-  // Two steps: upload the bytes to the sales-rep-documents scope (file-experience-api), then register the
-  // uploaded file in the library with its category/metadata (which is what makes it visible and owned).
+  // Two steps: upload the bytes to the sales-rep-documents scope, then register the file in the library.
   const { loading: uploading, action: uploadDocument } = useAsync<DocumentUploadArgs, SalesRepDocument | undefined>(
     async (args?: DocumentUploadArgs) => {
       if (!args) {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -61,8 +61,7 @@ public class SalesRepDocumentMetadataService(
         }
     }
 
-    // The at-most-one-pinned invariant is application-enforced (filtered unique indexes are not portable across
-    // the three providers), so the read-modify-write is serialized by a distributed lock.
+    // The lock serializes the read-modify-write; filtered unique indexes are not portable across the three providers.
     public virtual async Task SetPinnedAsync(string id, bool isPinned)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);

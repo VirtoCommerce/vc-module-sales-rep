@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Domain;
@@ -14,7 +14,7 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
     public const int SummaryLength = 2048;
     public const int PreviewUrlLength = 2083;
 
-    // The library file id (file-experience-api File / AssetEntry). No FK — the AssetEntry table belongs to the Assets module.
+    // No FK — the referenced file is stored by the file-experience-api module.
     [Required]
     [StringLength(FileIdLength)]
     public string FileId { get; set; }
@@ -22,7 +22,6 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
     [StringLength(NameLength)]
     public string Name { get; set; }
 
-    // The column length IS the business cap — one number, defined once.
     [Required]
     [StringLength(ModuleConstants.Documents.CategoryMaxLength)]
     public string Category { get; set; }
@@ -79,7 +78,7 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
         return model;
     }
 
-    // FileId is deliberately not patched: the file link is immutable after the document is created.
+    // FileId is not patched: the file link is immutable.
     public virtual void Patch(DocumentMetadataEntity target)
     {
         target.Name = Name;

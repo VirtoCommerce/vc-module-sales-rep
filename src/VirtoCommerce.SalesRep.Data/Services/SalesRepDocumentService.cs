@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,9 +12,7 @@ using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Files enter the library in two steps: uploaded to the sales-rep-documents scope through the file-experience-api
-// endpoint (POST /api/files/{scope}) first, then registered here — CreateAsync validates the uploaded file, creates
-// the metadata row, and takes ownership of the file so the generic file surfaces treat it as a library document.
+// Two-step intake: files are uploaded to the sales-rep-documents scope via file-experience-api first; CreateAsync registers (claims) them.
 public class SalesRepDocumentService : ISalesRepDocumentService
 {
     private readonly IFileUploadService _fileUploadService;
@@ -48,9 +46,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
         metadata.Id = null;
         metadata.FileId = file.Id;
-        // The display name is the search/sort surface, so it is always stored — defaulted from the
-        // (immutable) file name when the caller provides no explicit one.
-        metadata.Name = string.IsNullOrWhiteSpace(metadata.Name) ? file.Name : metadata.Name.Trim();
+        // The display name is the search surface, so it is always stored.
+        metadata.Name = NormalizeName(metadata.Name, file.Name);
         metadata.Category = category;
         metadata.IsPinned = false;
 
@@ -76,7 +73,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
-        var existing = (await _metadataService.GetAsync([id])).FirstOrDefault()
+        var existing = await _metadataService.GetNoCloneAsync(id)
             ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
 
         var file = await GetLibraryFileAsync(existing.FileId)
@@ -87,8 +84,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         // a full-replace metadata PUT must not change either.
         metadata.FileId = existing.FileId;
         metadata.IsPinned = existing.IsPinned;
-        // An omitted/cleared display name resets to the file name (the display name is always stored).
-        metadata.Name = string.IsNullOrWhiteSpace(metadata.Name) ? file.Name : metadata.Name.Trim();
+        metadata.Name = NormalizeName(metadata.Name, file.Name);
 
         await _metadataService.SaveChangesAsync([metadata]);
 
@@ -126,9 +122,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     {
         var metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
 
-        // DisplayName is the metadata name coalesced with the file name, so a value equal to the file name
-        // is stored as "no override" — the read side keeps falling back to the file name.
-        metadata.Name = document.DisplayName != document.Name ? document.DisplayName : null;
+        metadata.Name = document.DisplayName;
         metadata.Category = document.Category;
         metadata.Summary = document.Summary;
         metadata.PageCount = document.PageCount;
@@ -144,7 +138,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return;
         }
 
-        var documents = await _metadataService.GetAsync(ids);
+        var documents = await _metadataService.GetNoCloneAsync(ids);
 
         if (documents.Count == 0)
         {
@@ -168,21 +162,9 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return [];
         }
 
-        var metadatas = await _metadataService.GetAsync(ids, responseGroup);
+        var metadatas = await _metadataService.GetNoCloneAsync(ids, responseGroup);
 
-        if (metadatas.Count == 0)
-        {
-            return [];
-        }
-
-        var filesById = (await _fileUploadService.GetAsync(metadatas.Select(x => x.FileId).ToList()))
-            .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
-            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
-
-        return metadatas
-            .Where(x => filesById.ContainsKey(x.FileId))
-            .Select(x => SalesRepDocumentMapper.ToModel(filesById[x.FileId], x))
-            .ToList();
+        return await SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadatas);
     }
 
     protected virtual async Task<File> GetLibraryFileAsync(string fileId)
@@ -192,9 +174,14 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return null;
         }
 
-        var file = (await _fileUploadService.GetAsync([fileId])).FirstOrDefault();
+        var file = await _fileUploadService.GetByIdAsync(fileId);
 
         return file != null && ModuleConstants.DocumentsScope.EqualsIgnoreCase(file.Scope) ? file : null;
+    }
+
+    private static string NormalizeName(string name, string fileName)
+    {
+        return string.IsNullOrWhiteSpace(name) ? fileName : name.Trim();
     }
 
     private static async Task TryRunAsync(Func<Task> action)

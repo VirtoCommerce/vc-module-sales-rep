@@ -1,9 +1,11 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
+using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Domain;
@@ -28,6 +30,8 @@ public class SalesRepDocumentMetadataSearchService(
         crudOptions),
     ISalesRepDocumentMetadataSearchService
 {
+    private readonly IPlatformMemoryCache _platformMemoryCache = platformMemoryCache;
+
     protected override IQueryable<DocumentMetadataEntity> BuildQuery(IRepository repository, SalesRepDocumentMetadataSearchCriteria criteria)
     {
         var query = ((ISalesRepRepository)repository).DocumentMetadata;
@@ -37,8 +41,8 @@ public class SalesRepDocumentMetadataSearchService(
             query = query.Where(x => criteria.ObjectIds.Contains(x.Id));
         }
 
-        // Category and keyword compare case-insensitively on every provider (PostgreSQL is case-sensitive by
-        // default), matching the case-insensitive grouping of the category listing.
+        // ToLower on both sides: PostgreSQL compares case-sensitively by default.
+#pragma warning disable CA1862 // EF Core cannot translate the StringComparison overloads; ToLower is the SQL-translatable form
         if (!string.IsNullOrEmpty(criteria.Category))
         {
             var category = criteria.Category.ToLower();
@@ -50,44 +54,45 @@ public class SalesRepDocumentMetadataSearchService(
             query = query.Where(x => x.IsPinned == criteria.IsPinned);
         }
 
-        // The keyword matches the display name only — the raw file name is internal (download filename).
         if (!string.IsNullOrEmpty(criteria.Keyword))
         {
             var keyword = criteria.Keyword.ToLower();
             query = query.Where(x => x.Name.ToLower().Contains(keyword));
         }
+#pragma warning restore CA1862
 
         return query;
     }
 
-    public virtual async Task<IList<SalesRepDocumentCategory>> GetCategoryCountsAsync(string keyword = null)
+    public virtual Task<IList<SalesRepDocumentCategory>> GetCategoryCountsAsync(string keyword = null)
     {
-        using var repository = repositoryFactory();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetCategoryCountsAsync), keyword);
 
-        var query = ((ISalesRepRepository)repository).DocumentMetadata.AsQueryable();
-
-        if (!string.IsNullOrEmpty(keyword))
+        return _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async cacheEntry =>
         {
-            var loweredKeyword = keyword.ToLower();
-            query = query.Where(x => x.Name.ToLower().Contains(loweredKeyword));
-        }
+            cacheEntry.AddExpirationToken(GenericSearchCachingRegion<SalesRepDocumentMetadata>.CreateChangeToken());
 
-        // Case-insensitive grouping; each group is listed under its first (alphabetically smallest) stored spelling.
-        var groups = await query
-            .GroupBy(x => x.Category.ToLower())
-            .Select(g => new { Name = g.Min(x => x.Category), Count = g.Count() })
-            .OrderBy(x => x.Name)
-            .ToListAsync();
+            var criteria = AbstractTypeFactory<SalesRepDocumentMetadataSearchCriteria>.TryCreateInstance();
+            criteria.Keyword = keyword;
 
-        return groups
-            .Select(group =>
-            {
-                var category = AbstractTypeFactory<SalesRepDocumentCategory>.TryCreateInstance();
-                category.Name = group.Name;
-                category.Count = group.Count;
-                return category;
-            })
-            .ToList();
+            using var repository = repositoryFactory();
+
+            var groups = await BuildQuery(repository, criteria)
+                .GroupBy(x => x.Category.ToLower())
+                .Select(g => new { Name = g.Min(x => x.Category), Count = g.Count() })
+                .OrderBy(x => x.Name)
+                .ToListAsync();
+
+            return groups
+                .Select(group =>
+                {
+                    var category = AbstractTypeFactory<SalesRepDocumentCategory>.TryCreateInstance();
+                    category.Name = group.Name;
+                    category.Count = group.Count;
+                    return category;
+                })
+                .ToList() as IList<SalesRepDocumentCategory>;
+        });
     }
 
     protected override IList<SortInfo> BuildSortExpression(SalesRepDocumentMetadataSearchCriteria criteria)

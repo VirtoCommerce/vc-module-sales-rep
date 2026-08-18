@@ -1,19 +1,16 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Models;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Every filter, sort and keyword field lives on the metadata row (the display name is always stored, the raw
-// file name is internal), so the search is a single DB-paged metadata query; only the returned page's files
-// are fetched. No custom cache region: the metadata Crud/Search regions expire on their own mutations.
+// A single DB-paged metadata query (every search field lives on the metadata row); only the page's files are fetched.
 public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 {
     private readonly ISalesRepDocumentMetadataSearchService _metadataSearchService;
@@ -60,8 +57,7 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
         return metadataCriteria;
     }
 
-    // Maps the public sort tokens to metadata columns ("name" = the display name); unknown tokens are dropped,
-    // falling back to the default pinned-first, newest-first ordering.
+    // Unknown sort tokens are dropped — the default pinned-first, newest-first ordering applies.
     protected virtual IList<SortInfo> MapSortInfos(IList<SortInfo> sortInfos)
     {
         return sortInfos
@@ -86,20 +82,8 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
         };
     }
 
-    protected virtual async Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadatas)
+    protected virtual Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadatas)
     {
-        if (metadatas.Count == 0)
-        {
-            return [];
-        }
-
-        var filesById = (await _fileUploadService.GetAsync(metadatas.Select(x => x.FileId).ToList(), clone: false))
-            .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
-            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
-
-        return metadatas
-            .Where(x => filesById.ContainsKey(x.FileId))
-            .Select(x => SalesRepDocumentMapper.ToModel(filesById[x.FileId], x))
-            .ToList();
+        return SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadatas);
     }
 }
