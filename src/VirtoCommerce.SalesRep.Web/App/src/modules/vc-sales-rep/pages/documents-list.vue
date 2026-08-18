@@ -44,7 +44,7 @@
         >
           {{ readableSize((data as SalesRepDocument).size) }}
         </template>
-        <!-- Sorting stays on the raw file name field; the cell shows the display name with a pin marker. -->
+        <!-- The name sort orders by the display name (always stored server-side); the cell adds a pin marker. -->
         <template
           v-else-if="col.id === 'name'"
           #body="{ data }"

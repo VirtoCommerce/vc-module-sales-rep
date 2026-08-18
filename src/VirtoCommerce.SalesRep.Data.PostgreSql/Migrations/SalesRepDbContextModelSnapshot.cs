@@ -31,8 +31,8 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(64)
@@ -47,7 +47,9 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                         .HasColumnType("character varying(128)");
 
                     b.Property<bool>("IsPinned")
-                        .HasColumnType("boolean");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("ModifiedBy")
                         .HasMaxLength(64)
@@ -75,6 +77,8 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
 
                     b.HasIndex("FileId")
                         .IsUnique();
+
+                    b.HasIndex("IsPinned", "CreatedDate");
 
                     b.ToTable("SalesRepDocumentMetadata", (string)null);
                 });

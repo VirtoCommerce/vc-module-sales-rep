@@ -96,7 +96,13 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .DistinctIgnoreCase()
             .ToDictionary(x => x, x => StatisticsCurrencyConverter.GetRate(x, criteria.CurrencyCode, currencies), StringComparer.OrdinalIgnoreCase);
 
-        var convertibleCurrencies = rates.Where(x => x.Value != 0m).Select(x => x.Key).ToArray();
+        // The SQL IN this feeds is case-sensitive on PostgreSQL, so it must carry every actual currency spelling
+        // whose rate resolved — not the case-insensitively de-duplicated rate keys.
+        var convertibleCurrencies = priceGroups
+            .Select(x => x.Currency ?? string.Empty)
+            .Distinct()
+            .Where(x => rates[x] != 0m)
+            .ToArray();
 
         var byCurrency = priceGroups
             .GroupBy(x => x.Currency)
@@ -162,6 +168,8 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return query;
     }
 
+    // Deliberately unbounded in time: this yields the cart SET (scope filters only); the FromDate/ToDate window
+    // applies to LINE ITEMS and belongs to BuildItemQuery — an override here must not re-add date bounds.
     protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var query = repository.ShoppingCarts.Where(x => !x.IsDeleted);

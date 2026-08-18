@@ -279,6 +279,19 @@ public class SalesRepDocumentsComponentTests
         (await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id)).Category.Should().Be("Catalogs");
     }
 
+    // The category filter must agree with the case-insensitive category listing on every provider.
+    [Fact]
+    public async Task Search_CategoryFilter_IsCaseInsensitive()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await ctx.UploadDocumentAsync("Mine.pdf", "Catalogs");
+
+        var result = await ctx.GetRequiredService<ISalesRepDocumentSearchService>()
+            .SearchAsync(new SalesRepDocumentSearchCriteria { Category = "cataLOGS" });
+
+        result.Results.Select(x => x.Id).Should().Equal(document.Id);
+    }
+
     [Fact]
     public async Task Pin_PinningOneDocumentUnpinsEveryOther()
     {

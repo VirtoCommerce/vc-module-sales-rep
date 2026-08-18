@@ -94,7 +94,7 @@ export default (options: {
       id: "size",
       title: computed(() => t("VC_SALES_REP.PAGES.DOCUMENTS.TABLE.HEADER.SIZE")),
       alwaysVisible: true,
-      sortable: true,
+      sortable: false,
       width: "15%",
       mobilePosition: "bottom-left",
     },

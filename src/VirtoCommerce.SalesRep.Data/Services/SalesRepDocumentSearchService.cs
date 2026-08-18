@@ -7,15 +7,15 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Models;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Keyword and the final sort span both the metadata table and the file store, so they run (with paging) in memory over the small library.
-// No custom cache region: the metadata Crud/Search regions and the underlying AssetEntry regions each expire on their own mutations, so composing their cached reads stays correct without manual invalidation.
+// Every filter, sort and keyword field lives on the metadata row (the display name is always stored, the raw
+// file name is internal), so the search is a single DB-paged metadata query; only the returned page's files
+// are fetched. No custom cache region: the metadata Crud/Search regions expire on their own mutations.
 public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 {
-    private const int MetadataPageSize = 100;
-
     private readonly ISalesRepDocumentMetadataSearchService _metadataSearchService;
     private readonly IFileUploadService _fileUploadService;
 
@@ -31,113 +31,75 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        var documents = await GetDocumentsAsync(criteria.Category, criteria.IsPinned, criteria.ObjectIds);
-
-        var matched = ApplySort(ApplyKeyword(documents, criteria.Keyword), criteria.SortInfos).ToList();
+        var metadataResult = await _metadataSearchService.SearchNoCloneAsync(ToMetadataCriteria(criteria));
 
         var result = AbstractTypeFactory<SalesRepDocumentSearchResult>.TryCreateInstance();
-        result.TotalCount = matched.Count;
-        result.Results = matched
-            .Skip(criteria.Skip)
-            .Take(criteria.Take)
-            .ToList();
+        result.TotalCount = metadataResult.TotalCount;
+        result.Results = await MapToDocumentsAsync(metadataResult.Results);
 
         return result;
     }
 
-    public virtual async Task<IList<SalesRepDocumentCategory>> GetCategoriesAsync(string keyword = null)
+    public virtual Task<IList<SalesRepDocumentCategory>> GetCategoriesAsync(string keyword = null)
     {
-        var documents = ApplyKeyword(await GetDocumentsAsync(category: null, isPinned: null, objectIds: null), keyword);
+        return _metadataSearchService.GetCategoryCountsAsync(keyword);
+    }
 
-        return documents
-            .Where(x => !string.IsNullOrEmpty(x.Category))
-            .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
-            .OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
-            .Select(group =>
+    protected virtual SalesRepDocumentMetadataSearchCriteria ToMetadataCriteria(SalesRepDocumentSearchCriteria criteria)
+    {
+        var metadataCriteria = AbstractTypeFactory<SalesRepDocumentMetadataSearchCriteria>.TryCreateInstance();
+
+        metadataCriteria.ObjectIds = criteria.ObjectIds;
+        metadataCriteria.Category = criteria.Category;
+        metadataCriteria.IsPinned = criteria.IsPinned;
+        metadataCriteria.Keyword = criteria.Keyword;
+        metadataCriteria.Skip = criteria.Skip;
+        metadataCriteria.Take = criteria.Take;
+        metadataCriteria.Sort = SortInfo.ToString(MapSortInfos(criteria.SortInfos));
+
+        return metadataCriteria;
+    }
+
+    // Maps the public sort tokens to metadata columns ("name" = the display name); unknown tokens are dropped,
+    // falling back to the default pinned-first, newest-first ordering.
+    protected virtual IList<SortInfo> MapSortInfos(IList<SortInfo> sortInfos)
+    {
+        return sortInfos
+            .Select(sortInfo => new SortInfo
             {
-                var category = AbstractTypeFactory<SalesRepDocumentCategory>.TryCreateInstance();
-                category.Name = group.Key;
-                category.Count = group.Count();
-                return category;
+                SortColumn = MapSortColumn(sortInfo.SortColumn),
+                SortDirection = sortInfo.SortDirection,
             })
+            .Where(x => x.SortColumn != null)
             .ToList();
     }
 
-    protected virtual async Task<IList<SalesRepDocument>> GetDocumentsAsync(string category, bool? isPinned, IList<string> objectIds)
+    protected virtual string MapSortColumn(string sortColumn)
     {
-        var metadataCriteria = AbstractTypeFactory<SalesRepDocumentMetadataSearchCriteria>.TryCreateInstance();
-        metadataCriteria.Category = category;
-        metadataCriteria.IsPinned = isPinned;
-        metadataCriteria.ObjectIds = objectIds;
-        metadataCriteria.Take = MetadataPageSize;
+        return sortColumn?.ToLowerInvariant() switch
+        {
+            "name" => nameof(DocumentMetadataEntity.Name),
+            "ispinned" => nameof(DocumentMetadataEntity.IsPinned),
+            "createddate" => nameof(DocumentMetadataEntity.CreatedDate),
+            "modifieddate" => nameof(DocumentMetadataEntity.ModifiedDate),
+            _ => null,
+        };
+    }
 
-        var metadata = await _metadataSearchService.SearchAllNoCloneAsync(metadataCriteria);
-
-        if (metadata.Count == 0)
+    protected virtual async Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadatas)
+    {
+        if (metadatas.Count == 0)
         {
             return [];
         }
 
-        var filesById = (await _fileUploadService.GetAsync(metadata.Select(x => x.FileId).ToList(), clone: false))
+        var filesById = (await _fileUploadService.GetAsync(metadatas.Select(x => x.FileId).ToList(), clone: false))
             .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
             .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
 
-        return metadata
+        return metadatas
             .Where(x => filesById.ContainsKey(x.FileId))
             .Select(x => SalesRepDocumentMapper.ToModel(filesById[x.FileId], x))
             .ToList();
-    }
-
-    protected virtual IEnumerable<SalesRepDocument> ApplyKeyword(IEnumerable<SalesRepDocument> documents, string keyword)
-    {
-        if (string.IsNullOrEmpty(keyword))
-        {
-            return documents;
-        }
-
-        return documents.Where(x =>
-            x.Name?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true ||
-            x.DisplayName?.Contains(keyword, StringComparison.OrdinalIgnoreCase) == true);
-    }
-
-    protected virtual IEnumerable<SalesRepDocument> ApplySort(IEnumerable<SalesRepDocument> documents, IList<SortInfo> sortInfos)
-    {
-        if (sortInfos.IsNullOrEmpty())
-        {
-            return documents
-                .OrderByDescending(x => x.IsPinned)
-                .ThenByDescending(x => x.CreatedDate);
-        }
-
-        IOrderedEnumerable<SalesRepDocument> ordered = null;
-
-        foreach (var sortInfo in sortInfos)
-        {
-            var keySelector = GetSortKeySelector(sortInfo.SortColumn);
-            var descending = sortInfo.SortDirection == SortDirection.Descending;
-
-            if (ordered == null)
-            {
-                ordered = descending ? documents.OrderByDescending(keySelector) : documents.OrderBy(keySelector);
-            }
-            else
-            {
-                ordered = descending ? ordered.ThenByDescending(keySelector) : ordered.ThenBy(keySelector);
-            }
-        }
-
-        return ordered;
-    }
-
-    protected virtual Func<SalesRepDocument, object> GetSortKeySelector(string sortColumn)
-    {
-        return sortColumn?.ToLowerInvariant() switch
-        {
-            "name" => x => x.DisplayName,
-            "size" => x => x.Size,
-            "modifieddate" => x => x.ModifiedDate,
-            "ispinned" => x => x.IsPinned,
-            _ => x => x.CreatedDate,
-        };
     }
 }

@@ -23,7 +23,10 @@ public class SalesRepDbContext : DbContextBase
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<DocumentMetadataEntity>().ToAuditableEntityTable("SalesRepDocumentMetadata");
+        modelBuilder.Entity<DocumentMetadataEntity>().Property(x => x.IsPinned).HasDefaultValue(false);
         modelBuilder.Entity<DocumentMetadataEntity>().HasIndex(x => x.FileId).IsUnique();
+        // The default listing path: pinned-first, newest-first.
+        modelBuilder.Entity<DocumentMetadataEntity>().HasIndex(x => new { x.IsPinned, x.CreatedDate });
 
         switch (Database.ProviderName)
         {

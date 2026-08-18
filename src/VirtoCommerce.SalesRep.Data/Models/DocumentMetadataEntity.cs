@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel.DataAnnotations;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Domain;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Data.Models;
@@ -10,7 +11,6 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
 {
     public const int FileIdLength = 128;
     public const int NameLength = 512;
-    public const int CategoryLength = 128;
     public const int SummaryLength = 2048;
     public const int PreviewUrlLength = 2083;
 
@@ -22,8 +22,9 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
     [StringLength(NameLength)]
     public string Name { get; set; }
 
+    // The column length IS the business cap — one number, defined once.
     [Required]
-    [StringLength(CategoryLength)]
+    [StringLength(ModuleConstants.Documents.CategoryMaxLength)]
     public string Category { get; set; }
 
     public bool IsPinned { get; set; }

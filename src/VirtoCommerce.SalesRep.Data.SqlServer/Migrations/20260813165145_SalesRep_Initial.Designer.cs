@@ -34,8 +34,8 @@ namespace VirtoCommerce.SalesRep.Data.SqlServer.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("nvarchar(128)");
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(64)
@@ -50,7 +50,9 @@ namespace VirtoCommerce.SalesRep.Data.SqlServer.Migrations
                         .HasColumnType("nvarchar(128)");
 
                     b.Property<bool>("IsPinned")
-                        .HasColumnType("bit");
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("ModifiedBy")
                         .HasMaxLength(64)
@@ -78,6 +80,8 @@ namespace VirtoCommerce.SalesRep.Data.SqlServer.Migrations
 
                     b.HasIndex("FileId")
                         .IsUnique();
+
+                    b.HasIndex("IsPinned", "CreatedDate");
 
                     b.ToTable("SalesRepDocumentMetadata", (string)null);
                 });

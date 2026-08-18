@@ -58,9 +58,9 @@ public class SalesRepDocumentMetadataSearchTests
 
         var searchService = ctx.GetRequiredService<ISalesRepDocumentMetadataSearchService>();
 
-        // The metadata-side keyword is a DB predicate over the metadata Name (the case-insensitive, file-name-aware
-        // keyword is the orchestrator's in-memory concern).
-        var result = await searchService.SearchAsync(new SalesRepDocumentMetadataSearchCriteria { Keyword = "Winter", Take = 100 });
+        // The keyword is a case-insensitive DB predicate over the display name (always stored; the raw file
+        // name is internal and not matched).
+        var result = await searchService.SearchAsync(new SalesRepDocumentMetadataSearchCriteria { Keyword = "wINTer", Take = 100 });
         result.Results.Select(x => x.Id).Should().Equal(named.Id);
     }
 

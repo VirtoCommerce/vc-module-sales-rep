@@ -53,6 +53,18 @@ public class SalesRepDocumentCreateTests
     }
 
     [Fact]
+    public async Task Create_EmptyFile_ThrowsAndSavesNothing()
+    {
+        var file = AddFile(size: 0);
+        var service = CreateService();
+
+        var create = () => service.CreateAsync(file.Id, "Catalogs");
+
+        await create.Should().ThrowAsync<InvalidOperationException>().WithMessage("*empty*");
+        _metadataService.Saved.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task Create_AlreadyOwnedFile_ThrowsAndSavesNothing()
     {
         var file = AddFile();
@@ -94,6 +106,7 @@ public class SalesRepDocumentCreateTests
         var saved = _metadataService.Saved.Should().ContainSingle().Subject;
         saved.Id.Should().NotBeNullOrEmpty("the metadata row gets its own generated id");
         saved.FileId.Should().Be(file.Id);
+        saved.Name.Should().Be("catalog.pdf", "the display name is always stored, defaulted from the file name");
         saved.Category.Should().Be("Catalogs");
 
         document.Id.Should().Be(saved.Id);
@@ -162,6 +175,10 @@ public class SalesRepDocumentCreateTests
         updated.DisplayName.Should().Be("Renamed");
         updated.FileId.Should().Be(file.Id);
         updated.IsPinned.Should().BeTrue("a full-replace metadata PUT must not change the pin state");
+
+        // An omitted display name resets to the file name — the display name is always stored.
+        var reset = await service.UpdateMetadataAsync(document.Id, new SalesRepDocumentMetadata { Category = "Price lists" });
+        reset.DisplayName.Should().Be("list.pdf");
     }
 
     [Fact]

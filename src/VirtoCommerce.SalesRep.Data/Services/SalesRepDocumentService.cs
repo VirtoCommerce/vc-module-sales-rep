@@ -40,9 +40,17 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             throw new InvalidOperationException($"File '{fileId}' already belongs to a library document.");
         }
 
+        if (file.Size == 0)
+        {
+            throw new InvalidOperationException($"File '{fileId}' is empty.");
+        }
+
         metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
         metadata.Id = null;
         metadata.FileId = file.Id;
+        // The display name is the search/sort surface, so it is always stored — defaulted from the
+        // (immutable) file name when the caller provides no explicit one.
+        metadata.Name = string.IsNullOrWhiteSpace(metadata.Name) ? file.Name : metadata.Name.Trim();
         metadata.Category = category;
         metadata.IsPinned = false;
 
@@ -79,6 +87,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         // a full-replace metadata PUT must not change either.
         metadata.FileId = existing.FileId;
         metadata.IsPinned = existing.IsPinned;
+        // An omitted/cleared display name resets to the file name (the display name is always stored).
+        metadata.Name = string.IsNullOrWhiteSpace(metadata.Name) ? file.Name : metadata.Name.Trim();
 
         await _metadataService.SaveChangesAsync([metadata]);
 
