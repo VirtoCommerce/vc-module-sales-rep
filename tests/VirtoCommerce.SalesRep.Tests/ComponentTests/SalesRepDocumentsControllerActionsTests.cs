@@ -50,27 +50,15 @@ public class SalesRepDocumentsControllerActionsTests
         }
     }
 
-    [Theory]
-    [InlineData(DocumentsRead)]
-    [InlineData(DocumentsWrite)] // write implies read
-    public async Task Reads_AllowWithReadOrWritePermission(string permission)
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.UploadDocumentAsync("Report.pdf", "Catalogs");
-
-        var controller = CreateController(ctx, WithPermissions(permission));
-
-        (await controller.Search(new SalesRepDocumentSearchCriteria())).Result.Should().BeOfType<OkObjectResult>();
-        (await controller.GetCategories(null)).Result.Should().BeOfType<OkObjectResult>();
-    }
-
+    // One allow case proves the controller runs the predicate and maps its outcome; the full
+    // permission matrix (write implies read, Administrator) is owned by SalesRepDocumentPermissionsTests.
     [Fact]
-    public async Task Reads_AllowAdministratorWithoutPermissionClaims()
+    public async Task Reads_AllowWithReadPermission()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.UploadDocumentAsync("Report.pdf", "Catalogs");
 
-        var controller = CreateController(ctx, Administrator());
+        var controller = CreateController(ctx, WithPermissions(DocumentsRead));
 
         (await controller.Search(new SalesRepDocumentSearchCriteria())).Result.Should().BeOfType<OkObjectResult>();
         (await controller.GetCategories(null)).Result.Should().BeOfType<OkObjectResult>();
@@ -210,8 +198,4 @@ public class SalesRepDocumentsControllerActionsTests
             permissions.Select(p => new Claim(PlatformConstants.Security.Claims.PermissionClaimType, p)),
             authenticationType: "Test"));
 
-    private static ClaimsPrincipal Administrator()
-        => new(new ClaimsIdentity(
-            [new Claim(ClaimTypes.Role, PlatformConstants.Security.SystemRoles.Administrator)],
-            authenticationType: "Test"));
 }

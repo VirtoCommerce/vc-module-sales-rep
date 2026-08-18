@@ -292,6 +292,37 @@ public class SalesRepDocumentsComponentTests
         result.Results.Select(x => x.Id).Should().Equal(document.Id);
     }
 
+    // A removed/unknown sort token (e.g. the retired "size") falls back to the default ordering instead of throwing.
+    [Fact]
+    public async Task Search_UnknownSortToken_FallsBackToTheDefaultOrder()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var older = await ctx.UploadDocumentAsync("Older.pdf", "Catalogs");
+        var newer = await ctx.UploadDocumentAsync("Newer.pdf", "Catalogs");
+        await ctx.SetDocumentCreatedDateAsync(older.Id, Utc(2026, 1, 1));
+        await ctx.SetDocumentCreatedDateAsync(newer.Id, Utc(2026, 3, 1));
+
+        var result = await ctx.GetRequiredService<ISalesRepDocumentSearchService>()
+            .SearchAsync(new SalesRepDocumentSearchCriteria { Sort = "size:desc" });
+
+        result.Results.Select(x => x.Id).Should().Equal(newer.Id, older.Id);
+    }
+
+    // The "name" sort orders by the DISPLAY name (metadata override), not the raw file name.
+    [Fact]
+    public async Task Search_NameSort_UsesTheDisplayName()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.UploadDocumentAsync("AAA.pdf", "Catalogs", new SalesRepDocumentMetadata { Name = "Yellow pages" });
+        await ctx.UploadDocumentAsync("BBB.pdf", "Catalogs");
+
+        var result = await ctx.GetRequiredService<ISalesRepDocumentSearchService>()
+            .SearchAsync(new SalesRepDocumentSearchCriteria { Sort = "name:asc" });
+
+        // A file-name sort would put AAA.pdf first.
+        result.Results.Select(x => x.DisplayName).Should().Equal("BBB.pdf", "Yellow pages");
+    }
+
     [Fact]
     public async Task Pin_PinningOneDocumentUnpinsEveryOther()
     {

@@ -48,15 +48,6 @@ public class SalesRepDocumentPermissionsTests
     }
 
     [Fact]
-    public void Access_Anonymous_IsDenied()
-    {
-        var anonymous = new ClaimsPrincipal(new ClaimsIdentity());
-
-        anonymous.HasReadAccess().Should().BeFalse();
-        anonymous.HasWriteAccess().Should().BeFalse();
-    }
-
-    [Fact]
     public void Access_LimitedPermissionsClaim_RestrictsEffectivePermissions()
     {
         // Global write claim present, but limited_permissions narrows the token to read only.

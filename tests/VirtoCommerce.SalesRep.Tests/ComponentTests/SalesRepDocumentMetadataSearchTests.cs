@@ -10,9 +10,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
 /// The metadata <see cref="ISalesRepDocumentMetadataSearchService"/> (platform SearchService base) over the real
-/// module DbContext: its BuildQuery predicates (category ==, isPinned, keyword over the metadata Name, objectIds)
-/// and the pinned-first default sort. This is the metadata half only — the document search orchestrator composes
-/// it with the AssetEntry side and applies the file-name keyword + cross-table sort in memory.
+/// module DbContext: its BuildQuery predicates (case-insensitive category, isPinned, keyword over the display
+/// name, objectIds). The default pinned-first sort and paging are pinned at the document-search level.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepDocumentMetadataSearchTests
@@ -62,24 +61,6 @@ public class SalesRepDocumentMetadataSearchTests
         // name is internal and not matched).
         var result = await searchService.SearchAsync(new SalesRepDocumentMetadataSearchCriteria { Keyword = "wINTer", Take = 100 });
         result.Results.Select(x => x.Id).Should().Equal(named.Id);
-    }
-
-    [Fact]
-    public async Task BuildSortExpression_DefaultsToPinnedFirst()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await UploadAsync(ctx, "First.pdf", "Catalogs");
-        var pinned = await UploadAsync(ctx, "Second.pdf", "Catalogs");
-
-        var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
-        await metadataService.SetPinnedAsync(pinned.Id, isPinned: true);
-
-        var searchService = ctx.GetRequiredService<ISalesRepDocumentMetadataSearchService>();
-
-        // Default sort => the pinned row leads.
-        var result = await searchService.SearchAsync(new SalesRepDocumentMetadataSearchCriteria { Take = 100 });
-        result.Results.First().Id.Should().Be(pinned.Id);
-        result.Results.First().IsPinned.Should().BeTrue();
     }
 
     private static Task<SalesRepDocument> UploadAsync(
