@@ -20,6 +20,8 @@ namespace VirtoCommerce.SalesRep.Data.MySql.Migrations
                 {
                     Id = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
+                    FileId = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: false)
+                        .Annotation("MySql:CharSet", "utf8mb4"),
                     Name = table.Column<string>(type: "varchar(512)", maxLength: 512, nullable: true)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Category = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: true)
@@ -42,6 +44,12 @@ namespace VirtoCommerce.SalesRep.Data.MySql.Migrations
                     table.PrimaryKey("PK_SalesRepDocumentMetadata", x => x.Id);
                 })
                 .Annotation("MySql:CharSet", "utf8mb4");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SalesRepDocumentMetadata_FileId",
+                table: "SalesRepDocumentMetadata",
+                column: "FileId",
+                unique: true);
         }
 
         /// <inheritdoc />

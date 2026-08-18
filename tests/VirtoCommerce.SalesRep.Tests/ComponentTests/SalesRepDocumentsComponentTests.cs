@@ -1,13 +1,13 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Services;
+using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -20,10 +20,11 @@ using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// The documents library against the REAL assets services (AssetEntry CRUD + search on in-memory SQLite) and the
-/// module's own metadata DbContext — only the binary storage is an in-memory double. Covers the upload→search
-/// round-trip (paging, default createdDate:desc sort, keyword, category filter/counts), the delete cascade
-/// (metadata + AssetEntry + blob), and Group isolation (foreign AssetEntries must never appear or be deleted).
+/// The documents library against the REAL file-experience-api upload service and assets services (AssetEntry CRUD +
+/// search on in-memory SQLite) and the module's own metadata DbContext — only the binary storage is an in-memory
+/// double. Covers the two-step intake (file upload → library registration with ownership) → search round-trip
+/// (paging, default createdDate:desc sort, keyword, category filter/counts), the delete cascade (metadata +
+/// AssetEntry + blob), and scope isolation (foreign files must never appear or be deleted).
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepDocumentsComponentTests
@@ -33,9 +34,9 @@ public class SalesRepDocumentsComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
 
-        var oldest = await UploadAsync(ctx, "Spring Catalog.pdf", "Catalogs");
-        var middle = await UploadAsync(ctx, "Lookbook.pdf", "Lookbooks");
-        var newest = await UploadAsync(ctx, "Price List.xlsx", "Pricing", new SalesRepDocumentMetadata { Summary = "Current prices", PageCount = 3 });
+        var oldest = await ctx.UploadDocumentAsync("Spring Catalog.pdf", "Catalogs");
+        var middle = await ctx.UploadDocumentAsync("Lookbook.pdf", "Lookbooks");
+        var newest = await ctx.UploadDocumentAsync("Price List.xlsx", "Pricing", new SalesRepDocumentMetadata { Summary = "Current prices", PageCount = 3 });
 
         await ctx.SetDocumentCreatedDateAsync(oldest.Id, Utc(2026, 1, 1));
         await ctx.SetDocumentCreatedDateAsync(middle.Id, Utc(2026, 2, 1));
@@ -48,11 +49,11 @@ public class SalesRepDocumentsComponentTests
         all.TotalCount.Should().Be(3);
         all.Results.Select(x => x.Id).Should().Equal(newest.Id, middle.Id, oldest.Id);
 
-        // Metadata joined into search results; Url points at the module's endpoint.
+        // Metadata joined into search results; Url points at the file-experience-api endpoint.
         var priced = all.Results.Single(x => x.Id == newest.Id);
         priced.Summary.Should().Be("Current prices");
         priced.PageCount.Should().Be(3);
-        priced.Url.Should().Be($"/api/sales-rep/documents/{newest.Id}");
+        priced.Url.Should().Be($"/api/files/{newest.FileId}");
 
         // Paging keeps the total while slicing.
         var firstPage = await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { Take = 2 });
@@ -84,17 +85,35 @@ public class SalesRepDocumentsComponentTests
     }
 
     [Fact]
-    public async Task Download_StreamsTheUploadedContent()
+    public async Task Upload_TakesOwnershipOfTheFile()
     {
         using var ctx = SalesRepTestContext.Create();
-        var uploaded = await UploadAsync(ctx, "Guide.pdf", "Guides", content: "guide-content");
+        var document = await ctx.UploadDocumentAsync("Owned.pdf", "Catalogs");
+
+        var file = (await ctx.GetRequiredService<IFileUploadService>().GetAsync([document.FileId])).Single();
+        file.Scope.Should().Be(ModuleConstants.DocumentsScope);
+        file.OwnerEntityId.Should().Be(document.Id);
+        file.OwnerEntityType.Should().Be(nameof(SalesRepDocumentMetadata));
+
+        // A second registration of the same file must be refused — the file already belongs to a document.
+        var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
+        var recreate = () => documentService.CreateAsync(document.FileId, "Catalogs");
+        await recreate.Should().ThrowAsync<InvalidOperationException>().WithMessage("*already belongs*");
+    }
+
+    [Fact]
+    public async Task Download_StreamsTheUploadedContentThroughTheFileService()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var uploaded = await ctx.UploadDocumentAsync("Guide.pdf", "Guides", content: "guide-content");
 
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
         var document = await documentService.GetAsync(uploaded.Id);
         document.Name.Should().Be("Guide.pdf");
         document.Category.Should().Be("Guides");
 
-        await using var stream = await documentService.OpenReadAsync(uploaded.Id);
+        // The download endpoint (GET /api/files/{id}) streams through the file service by the document's FileId.
+        await using var stream = await ctx.GetRequiredService<IFileUploadService>().OpenReadAsync(document.FileId);
         using var reader = new StreamReader(stream);
         (await reader.ReadToEndAsync()).Should().Be("guide-content");
     }
@@ -103,7 +122,7 @@ public class SalesRepDocumentsComponentTests
     public async Task GetById_ReturnsTheDocumentWithMetadataAndNullForUnknownId()
     {
         using var ctx = SalesRepTestContext.Create();
-        var uploaded = await UploadAsync(ctx, "Info.pdf", "Guides", new SalesRepDocumentMetadata { Summary = "About", PageCount = 2 });
+        var uploaded = await ctx.UploadDocumentAsync("Info.pdf", "Guides", new SalesRepDocumentMetadata { Summary = "About", PageCount = 2 });
 
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
 
@@ -112,7 +131,8 @@ public class SalesRepDocumentsComponentTests
         document.Category.Should().Be("Guides");
         document.Summary.Should().Be("About");
         document.PageCount.Should().Be(2);
-        document.Url.Should().Be($"/api/sales-rep/documents/{uploaded.Id}");
+        document.FileId.Should().Be(uploaded.FileId);
+        document.Url.Should().Be($"/api/files/{uploaded.FileId}");
 
         (await documentService.GetAsync("missing-id")).Should().BeNull();
     }
@@ -121,7 +141,7 @@ public class SalesRepDocumentsComponentTests
     public async Task Delete_CascadesToMetadataAssetEntryAndBlob()
     {
         using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Doomed.pdf", "Catalogs", new SalesRepDocumentMetadata { Summary = "gone soon" });
+        var document = await ctx.UploadDocumentAsync("Doomed.pdf", "Catalogs", new SalesRepDocumentMetadata { Summary = "gone soon" });
 
         var blobProvider = ctx.GetRequiredService<InMemoryBlobStorageProvider>();
         blobProvider.BlobUrls.Should().HaveCount(1);
@@ -132,7 +152,7 @@ public class SalesRepDocumentsComponentTests
         blobProvider.BlobUrls.Should().BeEmpty();
 
         // AssetEntry row gone.
-        var entries = await ctx.GetRequiredService<IAssetEntryService>().GetAsync([document.Id]);
+        var entries = await ctx.GetRequiredService<IAssetEntryService>().GetAsync([document.FileId]);
         entries.Should().BeEmpty();
 
         // Metadata row gone.
@@ -148,7 +168,7 @@ public class SalesRepDocumentsComponentTests
     public async Task Delete_ToleratesAnAlreadyMissingBlob()
     {
         using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Vanished.pdf", "Catalogs");
+        var document = await ctx.UploadDocumentAsync("Vanished.pdf", "Catalogs");
 
         var blobProvider = ctx.GetRequiredService<InMemoryBlobStorageProvider>();
         await blobProvider.RemoveAsync([.. blobProvider.BlobUrls]);
@@ -160,27 +180,28 @@ public class SalesRepDocumentsComponentTests
     }
 
     [Fact]
-    public async Task Search_MustNotSeeAssetEntriesOfOtherGroups()
+    public async Task Library_MustNotSeeFilesOfOtherScopes()
     {
         using var ctx = SalesRepTestContext.Create();
 
-        var library = await UploadAsync(ctx, "Mine.pdf", "Catalogs");
+        var library = await ctx.UploadDocumentAsync("Mine.pdf", "Catalogs");
         var foreignId = await SeedForeignAssetEntryAsync(ctx, group: "product-images");
         var groupLessId = await SeedForeignAssetEntryAsync(ctx, group: null);
 
+        // Isolation: files of a different (or absent) scope must NOT appear anywhere.
         var searchService = ctx.GetRequiredService<ISalesRepDocumentSearchService>();
-
-        // Isolation: entries of a different (or absent) Group must NOT appear anywhere.
         var result = await searchService.SearchAsync(new SalesRepDocumentSearchCriteria());
         result.Results.Select(x => x.Id).Should().Equal(library.Id);
-        result.Results.Select(x => x.Id).Should().NotContain([foreignId, groupLessId]);
 
         var categories = await searchService.GetCategoriesAsync();
         categories.Select(x => x.Name).Should().Equal("Catalogs");
 
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
         (await documentService.GetAsync(foreignId)).Should().BeNull();
-        (await documentService.OpenReadAsync(foreignId)).Should().BeNull();
+
+        // A foreign file cannot be registered as a library document.
+        var create = () => documentService.CreateAsync(foreignId, "Catalogs");
+        await create.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
 
         // Delete must refuse to touch foreign entries even when handed their ids.
         await documentService.DeleteAsync([foreignId, groupLessId]);
@@ -192,11 +213,11 @@ public class SalesRepDocumentsComponentTests
     public async Task MetadataSave_UpdatesAnExistingDocumentInPlace()
     {
         using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Editable.pdf", "Guides", new SalesRepDocumentMetadata { Summary = "v1" });
+        var document = await ctx.UploadDocumentAsync("Editable.pdf", "Guides", new SalesRepDocumentMetadata { Summary = "v1" });
 
         // Full-replace semantics: the save must carry every field that should survive (category included).
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
-        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = document.Id, Name = "Pretty name", Category = "Manuals", Summary = "v2", PageCount = 7 }]);
+        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = document.Id, FileId = document.FileId, Name = "Pretty name", Category = "Manuals", Summary = "v2", PageCount = 7 }]);
 
         var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id);
         reloaded.Name.Should().Be("Editable.pdf");
@@ -213,12 +234,13 @@ public class SalesRepDocumentsComponentTests
     public async Task MetadataSave_RejectsAnOverlongCategory()
     {
         using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Editable.pdf", "Guides");
+        var document = await ctx.UploadDocumentAsync("Editable.pdf", "Guides");
 
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
         var save = () => metadataService.SaveChangesAsync([new SalesRepDocumentMetadata
         {
             Id = document.Id,
+            FileId = document.FileId,
             Category = new string('x', ModuleConstants.Documents.CategoryMaxLength + 1),
         }]);
 
@@ -230,8 +252,8 @@ public class SalesRepDocumentsComponentTests
     public async Task Pin_PinningOneDocumentUnpinsEveryOther()
     {
         using var ctx = SalesRepTestContext.Create();
-        var first = await UploadAsync(ctx, "First.pdf", "Catalogs");
-        var second = await UploadAsync(ctx, "Second.pdf", "Catalogs");
+        var first = await ctx.UploadDocumentAsync("First.pdf", "Catalogs");
+        var second = await ctx.UploadDocumentAsync("Second.pdf", "Catalogs");
 
         var controller = CreateController(ctx);
         var searchService = ctx.GetRequiredService<ISalesRepDocumentSearchService>();
@@ -260,7 +282,7 @@ public class SalesRepDocumentsComponentTests
     public async Task PinUnpinAndMetadata_UnknownId_Return404()
     {
         using var ctx = SalesRepTestContext.Create();
-        await UploadAsync(ctx, "Only.pdf", "Catalogs");
+        await ctx.UploadDocumentAsync("Only.pdf", "Catalogs");
 
         var controller = CreateController(ctx);
 
@@ -284,7 +306,7 @@ public class SalesRepDocumentsComponentTests
     public async Task MetadataPut_PreservesThePinStateAndIgnoresIncomingIsPinned()
     {
         using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Pinnable.pdf", "Catalogs", new SalesRepDocumentMetadata { Summary = "v1" });
+        var document = await ctx.UploadDocumentAsync("Pinnable.pdf", "Catalogs", new SalesRepDocumentMetadata { Summary = "v1" });
 
         var controller = CreateController(ctx);
         await controller.Pin(document.Id);
@@ -313,9 +335,9 @@ public class SalesRepDocumentsComponentTests
     public async Task GetCategories_ComputesCountsOverTheKeywordFilteredSet()
     {
         using var ctx = SalesRepTestContext.Create();
-        await UploadAsync(ctx, "Spring Catalog.pdf", "Catalogs");
-        await UploadAsync(ctx, "Fall Catalog.pdf", "Catalogs");
-        await UploadAsync(ctx, "Lookbook.pdf", "Lookbooks");
+        await ctx.UploadDocumentAsync("Spring Catalog.pdf", "Catalogs");
+        await ctx.UploadDocumentAsync("Fall Catalog.pdf", "Catalogs");
+        await ctx.UploadDocumentAsync("Lookbook.pdf", "Lookbooks");
 
         var searchService = ctx.GetRequiredService<ISalesRepDocumentSearchService>();
 
@@ -331,7 +353,7 @@ public class SalesRepDocumentsComponentTests
         // The keyword also matches display names.
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
         var lookbook = (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { Category = "Lookbooks" })).Results.Single();
-        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = lookbook.Id, Category = "Lookbooks", Name = "Winter collection" }]);
+        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = lookbook.Id, FileId = lookbook.FileId, Category = "Lookbooks", Name = "Winter collection" }]);
 
         var byDisplayName = await searchService.GetCategoriesAsync("winter");
         byDisplayName.Select(x => (x.Name, x.Count)).Should().Equal(("Lookbooks", 1));
@@ -342,18 +364,6 @@ public class SalesRepDocumentsComponentTests
             ctx.GetRequiredService<ISalesRepDocumentService>(),
             ctx.GetRequiredService<ISalesRepDocumentSearchService>(),
             ctx.GetRequiredService<ISalesRepDocumentMetadataService>());
-
-    private static async Task<SalesRepDocument> UploadAsync(
-        SalesRepTestContext ctx,
-        string fileName,
-        string category,
-        SalesRepDocumentMetadata metadata = null,
-        string content = "content")
-    {
-        var service = ctx.GetRequiredService<ISalesRepDocumentService>();
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-        return await service.UploadAsync(stream, fileName, category, metadata);
-    }
 
     private static async Task<string> SeedForeignAssetEntryAsync(SalesRepTestContext ctx, string group)
     {

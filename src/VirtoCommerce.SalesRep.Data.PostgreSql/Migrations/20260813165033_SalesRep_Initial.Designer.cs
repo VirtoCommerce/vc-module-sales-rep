@@ -43,6 +43,11 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("FileId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
                     b.Property<bool>("IsPinned")
                         .HasColumnType("boolean");
 
@@ -69,6 +74,9 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                         .HasColumnType("character varying(2048)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FileId")
+                        .IsUnique();
 
                     b.ToTable("SalesRepDocumentMetadata", (string)null);
                 });

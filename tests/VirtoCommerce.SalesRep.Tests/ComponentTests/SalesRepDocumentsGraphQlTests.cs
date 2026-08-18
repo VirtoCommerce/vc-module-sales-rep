@@ -1,7 +1,5 @@
-using System;
-using System.IO;
+﻿using System;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -51,7 +49,7 @@ public class SalesRepDocumentsGraphQlTests
         priced.GetProperty("displayName").GetString().Should().Be("Price List.xlsx"); // no metadata name → the file name
         priced.GetProperty("category").GetString().Should().Be("Pricing");
         priced.GetProperty("isPinned").GetBoolean().Should().BeFalse();
-        priced.GetProperty("url").GetString().Should().Be($"/api/sales-rep/documents/{newest.Id}");
+        priced.GetProperty("url").GetString().Should().Be($"/api/files/{newest.FileId}");
         priced.GetProperty("summary").GetString().Should().Be("Current prices");
         priced.GetProperty("pageCount").GetInt32().Should().Be(3);
         priced.GetProperty("size").GetInt64().Should().BeGreaterThan(0);
@@ -125,7 +123,7 @@ public class SalesRepDocumentsGraphQlTests
         node.GetProperty("id").GetString().Should().Be(document.Id);
         node.GetProperty("name").GetString().Should().Be("Guide.pdf");
         node.GetProperty("category").GetString().Should().Be("Guides");
-        node.GetProperty("url").GetString().Should().Be($"/api/sales-rep/documents/{document.Id}");
+        node.GetProperty("url").GetString().Should().Be($"/api/files/{document.FileId}");
         node.GetProperty("summary").GetString().Should().Be("How-to");
 
         // Unknown id → null, no error.
@@ -144,7 +142,7 @@ public class SalesRepDocumentsGraphQlTests
         var (_, _, newest) = await SeedLibraryAsync(ctx);
 
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
-        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = newest.Id, Name = "Pinned price list", Category = "Pricing" }]);
+        await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = newest.Id, FileId = newest.FileId, Name = "Pinned price list", Category = "Pricing" }]);
         await metadataService.SetPinnedAsync(newest.Id, isPinned: true);
 
         // The storefront's "fetch the pinned document" shape.
@@ -295,15 +293,13 @@ public class SalesRepDocumentsGraphQlTests
         return (oldest, middle, newest);
     }
 
-    private static async Task<SalesRepDocument> UploadAsync(
+    private static Task<SalesRepDocument> UploadAsync(
         SalesRepTestContext ctx,
         string fileName,
         string category,
         SalesRepDocumentMetadata metadata = null)
     {
-        var service = ctx.GetRequiredService<ISalesRepDocumentService>();
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("content"));
-        return await service.UploadAsync(stream, fileName, category, metadata);
+        return ctx.UploadDocumentAsync(fileName, category, metadata);
     }
 
     private static DateTime Utc(int year, int month, int day) => new(year, month, day, 0, 0, 0, DateTimeKind.Utc);

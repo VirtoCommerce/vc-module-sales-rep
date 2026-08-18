@@ -23,6 +23,7 @@ public class SalesRepDbContext : DbContextBase
         base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<DocumentMetadataEntity>().ToAuditableEntityTable("SalesRepDocumentMetadata");
+        modelBuilder.Entity<DocumentMetadataEntity>().HasIndex(x => x.FileId).IsUnique();
 
         switch (Database.ProviderName)
         {

@@ -5,6 +5,8 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 
 public class SalesRepDocument : AuditableEntity, ICloneable
 {
+    public string FileId { get; set; }
+
     public string Name { get; set; }
 
     public string DisplayName { get; set; }

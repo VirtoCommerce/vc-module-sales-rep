@@ -32,39 +32,30 @@ public class SalesRepDocumentsController : Controller
         _documentMetadataService = documentMetadataService;
     }
 
+    // Step 2 of the two-step upload: the file is first uploaded to the sales-rep-documents scope via the
+    // file-experience-api endpoint (POST /api/files/{scope}), then registered in the library here.
     [HttpPost("")]
     [Authorize(Permissions.DocumentsWrite)]
-    [RequestSizeLimit(ModuleConstants.Documents.MaxFileSize)]
-    [RequestFormLimits(MultipartBodyLengthLimit = ModuleConstants.Documents.MaxFileSize)]
-    public async Task<ActionResult<SalesRepDocument>> Upload(
-        IFormFile file,
-        [FromForm] string category,
-        [FromForm] string name = null,
-        [FromForm] string summary = null,
-        [FromForm] int? pageCount = null,
-        [FromForm] string previewUrl = null)
+    public async Task<ActionResult<SalesRepDocument>> Create([FromBody] SalesRepDocumentCreateRequest request)
     {
-        if (file == null)
+        if (string.IsNullOrEmpty(request?.FileId))
         {
-            return BadRequest("File is required.");
+            return BadRequest("File id is required.");
         }
 
-        category ??= Request.Query["category"];
-
         SalesRepDocumentMetadata metadata = null;
-        if (name != null || summary != null || pageCount != null || previewUrl != null)
+        if (request.Name != null || request.Summary != null || request.PageCount != null || request.PreviewUrl != null)
         {
             metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
-            metadata.Name = name;
-            metadata.Summary = summary;
-            metadata.PageCount = pageCount;
-            metadata.PreviewUrl = previewUrl;
+            metadata.Name = request.Name;
+            metadata.Summary = request.Summary;
+            metadata.PageCount = request.PageCount;
+            metadata.PreviewUrl = request.PreviewUrl;
         }
 
         try
         {
-            await using var stream = file.OpenReadStream();
-            var document = await _documentService.UploadAsync(stream, file.FileName, category, metadata);
+            var document = await _documentService.CreateAsync(request.FileId, request.Category, metadata);
             return Ok(document);
         }
         catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
@@ -95,53 +86,6 @@ public class SalesRepDocumentsController : Controller
 
         var result = await _documentSearchService.GetCategoriesAsync(keyword);
         return Ok(result);
-    }
-
-    // [AllowAnonymous]: the default [Authorize] policy rejects __customer users before the action runs, and sales reps are customer users.
-    // The explicit HasReadAccess check below replaces the policy and still denies anonymous.
-    [HttpGet("{id}")]
-    [AllowAnonymous]
-    public async Task<ActionResult> Download([FromRoute] string id)
-    {
-        var document = await _documentService.GetAsync(id);
-
-        if (document == null)
-        {
-            return NotFound();
-        }
-
-        if (!User.HasReadAccess())
-        {
-            return Forbid();
-        }
-
-        var stream = await _documentService.OpenReadAsync(id);
-
-        if (stream == null)
-        {
-            return NotFound();
-        }
-
-        return File(stream, document.ContentType ?? "application/octet-stream", document.Name);
-    }
-
-    [HttpGet("{id}/info")]
-    [AllowAnonymous]
-    public async Task<ActionResult<SalesRepDocument>> GetInfo([FromRoute] string id)
-    {
-        var document = await _documentService.GetAsync(id);
-
-        if (document == null)
-        {
-            return NotFound();
-        }
-
-        if (!User.HasReadAccess())
-        {
-            return Forbid();
-        }
-
-        return Ok(document);
     }
 
     [HttpPut("{id}/metadata")]

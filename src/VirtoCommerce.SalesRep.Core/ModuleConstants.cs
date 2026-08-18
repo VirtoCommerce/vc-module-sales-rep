@@ -6,7 +6,8 @@ namespace VirtoCommerce.SalesRep.Core;
 
 public static class ModuleConstants
 {
-    // Reused as both the assets root folder and every AssetEntry.Group discriminator that scopes the library.
+    // The file-experience-api upload scope of the documents library. Files are uploaded via
+    // POST /api/files/{scope}, so the scope must be configured in the FileUpload:Scopes application settings.
     public const string DocumentsScope = "sales-rep-documents";
 
     public static class Security
@@ -44,8 +45,6 @@ public static class ModuleConstants
 
     public static class Documents
     {
-        public const long MaxFileSize = 50 * 1024 * 1024;
-
         public const int CategoryMaxLength = 32;
     }
 

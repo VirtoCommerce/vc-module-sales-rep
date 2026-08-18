@@ -6,9 +6,13 @@ using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.Data.Models;
 
-// Id = the document's AssetEntry id (shared primary key, no FK — the AssetEntry table belongs to the Assets module).
 public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetadataEntity, SalesRepDocumentMetadata>
 {
+    // The library file id (file-experience-api File / AssetEntry). No FK — the AssetEntry table belongs to the Assets module.
+    [Required]
+    [StringLength(128)]
+    public string FileId { get; set; }
+
     [StringLength(512)]
     public string Name { get; set; }
 
@@ -36,6 +40,7 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
         CreatedDate = model.CreatedDate;
         ModifiedBy = model.ModifiedBy;
         ModifiedDate = model.ModifiedDate;
+        FileId = model.FileId;
         Name = model.Name;
         Category = model.Category;
         IsPinned = model.IsPinned;
@@ -55,6 +60,7 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
         model.CreatedDate = CreatedDate;
         model.ModifiedBy = ModifiedBy;
         model.ModifiedDate = ModifiedDate;
+        model.FileId = FileId;
         model.Name = Name;
         model.Category = Category;
         model.IsPinned = IsPinned;
@@ -65,6 +71,7 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
         return model;
     }
 
+    // FileId is deliberately not patched: the file link is immutable after the document is created.
     public virtual void Patch(DocumentMetadataEntity target)
     {
         target.Name = Name;

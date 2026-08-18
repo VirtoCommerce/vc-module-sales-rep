@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,6 +27,8 @@ using VirtoCommerce.CustomerModule.Data.Handlers;
 using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
+using VirtoCommerce.FileExperienceApi.Core.Models;
+using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core;
@@ -35,6 +39,8 @@ using VirtoCommerce.Platform.Core.Security.Events;
 using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Models;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.Tests.Infrastructure;
@@ -42,6 +48,7 @@ using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -517,21 +524,43 @@ internal sealed class SalesRepTestContext : IDisposable
     public SalesRepDbContext NewSalesRepDbContext() => new(_salesRepOptions);
 
     /// <summary>
-    /// Backdate a document's AssetEntry creation date (the documents default sort key) so ordering tests are
-    /// deterministic. Direct UPDATE (no audit re-stamp) + expiry of the asset CRUD/search cache regions the raw
-    /// write bypasses. The AssetEntry createdDate is read through the Assets CRUD cache the search orchestrator
-    /// joins against, so expiring those two regions is what makes the new date visible; the metadata regions are
-    /// untouched (the id set the metadata search returns does not change).
+    /// Backdate a document's metadata creation date (the documents default sort key) so ordering tests are
+    /// deterministic. Direct UPDATE (no audit re-stamp) + expiry of the metadata CRUD/search cache regions the
+    /// raw write bypasses.
     /// </summary>
     public async Task SetDocumentCreatedDateAsync(string documentId, DateTime createdDate)
     {
-        using var db = NewAssetsDbContext();
-        await db.Set<VirtoCommerce.AssetsModule.Data.Model.AssetEntryEntity>()
+        using var db = NewSalesRepDbContext();
+        await db.Set<DocumentMetadataEntity>()
             .Where(x => x.Id == documentId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.CreatedDate, createdDate));
 
-        GenericSearchCachingRegion<AssetEntry>.ExpireRegion();
-        GenericCachingRegion<AssetEntry>.ExpireRegion();
+        GenericSearchCachingRegion<SalesRepDocumentMetadata>.ExpireRegion();
+        GenericCachingRegion<SalesRepDocumentMetadata>.ExpireRegion();
+    }
+
+    /// <summary>
+    /// The real two-step document intake: upload the bytes to the sales-rep-documents scope through the REAL
+    /// file-experience-api upload service, then register the uploaded file in the library.
+    /// </summary>
+    public async Task<SalesRepDocument> UploadDocumentAsync(string fileName, string category, SalesRepDocumentMetadata metadata = null, string content = "content")
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+
+        var uploadResult = await GetRequiredService<IFileUploadService>().UploadFileAsync(new FileUploadRequest
+        {
+            Scope = SalesRepModuleConstants.DocumentsScope,
+            UserId = "test-user",
+            FileName = fileName,
+            Stream = stream,
+        });
+
+        if (!uploadResult.Succeeded)
+        {
+            throw new InvalidOperationException(uploadResult.ErrorMessage);
+        }
+
+        return await GetRequiredService<ISalesRepDocumentService>().CreateAsync(uploadResult.Id, category, metadata);
     }
 
     /// <summary>

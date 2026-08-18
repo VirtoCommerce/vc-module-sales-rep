@@ -1,132 +1,90 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using VirtoCommerce.AssetsModule.Core.Assets;
-using VirtoCommerce.AssetsModule.Core.Services;
+using VirtoCommerce.FileExperienceApi.Core.Extensions;
+using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// No custom cache region: the metadata and AssetEntry services each own their platform caching that expires on its own mutations.
-public partial class SalesRepDocumentService : ISalesRepDocumentService
+// Files enter the library in two steps: uploaded to the sales-rep-documents scope through the file-experience-api
+// endpoint (POST /api/files/{scope}) first, then registered here — CreateAsync validates the uploaded file, creates
+// the metadata row, and takes ownership of the file so the generic file surfaces treat it as a library document.
+public class SalesRepDocumentService : ISalesRepDocumentService
 {
-    private const int RandomSuffixLength = 8;
-    private const int MaxSlugLength = 64;
-
-    private static readonly char[] PathSeparators = ['/', '\\'];
-
-    private readonly IBlobStorageProvider _blobStorageProvider;
-    private readonly IAssetEntryService _assetEntryService;
+    private readonly IFileUploadService _fileUploadService;
     private readonly ISalesRepDocumentMetadataService _metadataService;
-    private readonly IFileExtensionService _fileExtensionService;
 
     public SalesRepDocumentService(
-        IBlobStorageProvider blobStorageProvider,
-        IAssetEntryService assetEntryService,
-        ISalesRepDocumentMetadataService metadataService,
-        IFileExtensionService fileExtensionService)
+        IFileUploadService fileUploadService,
+        ISalesRepDocumentMetadataService metadataService)
     {
-        _blobStorageProvider = blobStorageProvider;
-        _assetEntryService = assetEntryService;
+        _fileUploadService = fileUploadService;
         _metadataService = metadataService;
-        _fileExtensionService = fileExtensionService;
     }
 
-    protected virtual long MaxFileSize => ModuleConstants.Documents.MaxFileSize;
-
-    public virtual async Task<SalesRepDocument> UploadAsync(Stream stream, string fileName, string category, SalesRepDocumentMetadata metadata = null)
+    public virtual async Task<SalesRepDocument> CreateAsync(string fileId, string category, SalesRepDocumentMetadata metadata = null)
     {
-        ArgumentNullException.ThrowIfNull(stream);
-        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        ArgumentException.ThrowIfNullOrEmpty(fileId);
 
         var safeCategory = SalesRepDocumentCategoryValidator.Sanitize(category, required: true);
 
-        // Strip client-supplied path components OS-independently (not Path.GetFileName, whose behavior is Windows-specific).
-        var safeName = fileName.Trim();
-        safeName = safeName[(safeName.LastIndexOfAny(PathSeparators) + 1)..];
+        var file = await GetLibraryFileAsync(fileId)
+            ?? throw new InvalidOperationException($"File '{fileId}' was not found in the '{ModuleConstants.DocumentsScope}' scope.");
 
-        if (!await _fileExtensionService.IsExtensionAllowedAsync(safeName))
+        if (!file.OwnerIsEmpty())
         {
-            throw new InvalidOperationException($"File extension '{Path.GetExtension(safeName)}' is not allowed.");
+            throw new InvalidOperationException($"File '{fileId}' already belongs to a library document.");
         }
 
-        if (stream.CanSeek && stream.Length > MaxFileSize)
-        {
-            throw new InvalidOperationException($"File size exceeds the {MaxFileSize} bytes limit.");
-        }
+        metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
+        metadata.Id = null;
+        metadata.FileId = file.Id;
+        metadata.Category = safeCategory;
+        metadata.IsPinned = false;
 
-        // Blobs are stored flat under the library root; the category lives in the metadata row.
-        var blobUrl = $"{ModuleConstants.DocumentsScope}/{BuildBlobName(safeName)}";
-        var blobWritten = false;
-        AssetEntry entry = null;
+        await _metadataService.SaveChangesAsync([metadata]);
 
         try
         {
-            long size;
-            await using (var targetStream = await _blobStorageProvider.OpenWriteAsync(blobUrl))
-            {
-                blobWritten = true;
-                size = await CopyBoundedAsync(stream, targetStream);
-            }
-
-            entry = AbstractTypeFactory<AssetEntry>.TryCreateInstance();
-            entry.Id = Guid.NewGuid().ToString("N");
-            entry.Group = ModuleConstants.DocumentsScope;
-            entry.BlobInfo = AbstractTypeFactory<BlobInfo>.TryCreateInstance();
-            entry.BlobInfo.Name = safeName;
-            entry.BlobInfo.RelativeUrl = blobUrl;
-            entry.BlobInfo.ContentType = MimeTypeResolver.ResolveContentType(safeName);
-            entry.BlobInfo.Size = size;
-
-            await _assetEntryService.SaveChangesAsync([entry]);
-
-            metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
-            metadata.Id = entry.Id;
-            metadata.Category = safeCategory;
-            metadata.IsPinned = false;
-            await _metadataService.SaveChangesAsync([metadata]);
-
-            return SalesRepDocumentMapper.ToModel(entry, metadata);
+            file.OwnerEntityId = metadata.Id;
+            file.OwnerEntityType = nameof(SalesRepDocumentMetadata);
+            await _fileUploadService.SaveChangesAsync([file]);
         }
         catch
         {
-            // Best-effort rollback so a failed upload leaves no orphan blob/entry behind.
-            if (entry?.Id != null)
-            {
-                await TryRunAsync(() => _assetEntryService.DeleteAsync([entry.Id]));
-            }
-
-            if (blobWritten)
-            {
-                await TryRunAsync(() => _blobStorageProvider.RemoveAsync([blobUrl]));
-            }
-
+            // Best-effort rollback so a failed claim leaves no metadata row behind.
+            await TryRunAsync(() => _metadataService.DeleteAsync([metadata.Id]));
             throw;
         }
+
+        return SalesRepDocumentMapper.ToModel(file, metadata);
     }
 
     public virtual async Task<SalesRepDocument> UpdateMetadataAsync(string id, SalesRepDocumentMetadata metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
-        var entry = await GetLibraryEntryAsync(id)
+        var existing = (await _metadataService.GetAsync([id])).FirstOrDefault()
+            ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
+
+        var file = await GetLibraryFileAsync(existing.FileId)
             ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
 
         metadata.Id = id;
-
-        // Pin state is exclusively SetPinnedAsync's concern — a full-replace metadata PUT must not change it.
-        var existing = (await _metadataService.GetAsync([id])).FirstOrDefault();
-        metadata.IsPinned = existing?.IsPinned ?? false;
+        // The file link is immutable, and pin state is exclusively SetPinnedAsync's concern —
+        // a full-replace metadata PUT must not change either.
+        metadata.FileId = existing.FileId;
+        metadata.IsPinned = existing.IsPinned;
 
         await _metadataService.SaveChangesAsync([metadata]);
 
-        return SalesRepDocumentMapper.ToModel(entry, metadata);
+        return SalesRepDocumentMapper.ToModel(file, metadata);
     }
 
     public virtual async Task DeleteAsync(IList<string> ids)
@@ -136,110 +94,52 @@ public partial class SalesRepDocumentService : ISalesRepDocumentService
             return;
         }
 
-        var entries = await _assetEntryService.GetAsync(ids, clone: false);
-        var documents = entries.Where(IsLibraryEntry).ToList();
+        var documents = await _metadataService.GetAsync(ids);
 
         if (documents.Count == 0)
         {
             return;
         }
 
-        var documentIds = documents.Select(x => x.Id).ToList();
-        await _metadataService.DeleteAsync(documentIds);
-        await _assetEntryService.DeleteAsync(documentIds);
+        await _metadataService.DeleteAsync(documents.Select(x => x.Id).ToList());
 
-        // Best-effort: an already-missing blob must not fail the delete.
-        var removals = documents
-            .Select(x => x.BlobInfo?.RelativeUrl)
-            .Where(x => !string.IsNullOrEmpty(x))
-            .Select(blobUrl => TryRunAsync(() => _blobStorageProvider.RemoveAsync([blobUrl])));
-
-        await Task.WhenAll(removals);
+        // Best-effort: an already-missing file/blob must not fail the delete.
+        var fileIds = documents.Select(x => x.FileId).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        if (fileIds.Count > 0)
+        {
+            await TryRunAsync(() => _fileUploadService.DeleteAsync(fileIds));
+        }
     }
 
     public virtual async Task<SalesRepDocument> GetAsync(string id)
-    {
-        var entry = await GetLibraryEntryAsync(id);
-
-        if (entry == null)
-        {
-            return null;
-        }
-
-        var metadata = (await _metadataService.GetAsync([id])).FirstOrDefault();
-
-        return SalesRepDocumentMapper.ToModel(entry, metadata);
-    }
-
-    public virtual async Task<Stream> OpenReadAsync(string id)
-    {
-        var entry = await GetLibraryEntryAsync(id);
-
-        return entry?.BlobInfo?.RelativeUrl is null
-            ? null
-            : await _blobStorageProvider.OpenReadAsync(entry.BlobInfo.RelativeUrl);
-    }
-
-    protected virtual async Task<AssetEntry> GetLibraryEntryAsync(string id)
     {
         if (string.IsNullOrEmpty(id))
         {
             return null;
         }
 
-        var entry = await _assetEntryService.GetNoCloneAsync(id);
+        var metadata = (await _metadataService.GetAsync([id])).FirstOrDefault();
 
-        return entry != null && IsLibraryEntry(entry) ? entry : null;
-    }
-
-    protected static bool IsLibraryEntry(AssetEntry entry)
-    {
-        return ModuleConstants.DocumentsScope.EqualsIgnoreCase(entry.Group);
-    }
-
-    // Randomized "{slug}-{random}{ext}" for collision handling + defense-in-depth; the human name stays in AssetEntry.Name.
-    protected static string BuildBlobName(string fileName)
-    {
-        var extension = Path.GetExtension(fileName).ToLowerInvariant();
-        var slug = NonSlugCharsRegex().Replace(Path.GetFileNameWithoutExtension(fileName).ToLowerInvariant(), "-").Trim('-');
-
-        if (slug.Length > MaxSlugLength)
+        if (metadata == null)
         {
-            slug = slug[..MaxSlugLength].Trim('-');
+            return null;
         }
 
-        if (slug.Length == 0)
-        {
-            slug = "document";
-        }
+        var file = await GetLibraryFileAsync(metadata.FileId);
 
-        var random = Guid.NewGuid().ToString("N")[..RandomSuffixLength];
-
-        return $"{slug}-{random}{extension}";
+        return file == null ? null : SalesRepDocumentMapper.ToModel(file, metadata);
     }
 
-    [GeneratedRegex("[^a-z0-9]+")]
-    private static partial Regex NonSlugCharsRegex();
-
-    protected virtual async Task<long> CopyBoundedAsync(Stream source, Stream target)
+    protected virtual async Task<File> GetLibraryFileAsync(string fileId)
     {
-        var buffer = new byte[81920];
-        long total = 0;
-        int read;
-
-        while ((read = await source.ReadAsync(buffer)) > 0)
+        if (string.IsNullOrEmpty(fileId))
         {
-            total += read;
-
-            if (total > MaxFileSize)
-            {
-                throw new InvalidOperationException($"File size exceeds the {MaxFileSize} bytes limit.");
-            }
-
-            await target.WriteAsync(buffer.AsMemory(0, read));
+            return null;
         }
 
-        return total;
+        var file = (await _fileUploadService.GetAsync([fileId])).FirstOrDefault();
+
+        return file != null && ModuleConstants.DocumentsScope.EqualsIgnoreCase(file.Scope) ? file : null;
     }
 
     private static async Task TryRunAsync(Func<Task> action)

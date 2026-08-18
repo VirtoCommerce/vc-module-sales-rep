@@ -33,9 +33,9 @@ public class SalesRepDocumentMetadataService(
 
     protected override async Task BeforeSaveChanges(IList<SalesRepDocumentMetadata> models)
     {
-        if (models.Any(x => string.IsNullOrEmpty(x.Id)))
+        if (models.Any(x => string.IsNullOrEmpty(x.FileId)))
         {
-            throw new ArgumentException("Document metadata requires the document id.", nameof(models));
+            throw new ArgumentException("Document metadata requires the file id.", nameof(models));
         }
 
         foreach (var model in models)

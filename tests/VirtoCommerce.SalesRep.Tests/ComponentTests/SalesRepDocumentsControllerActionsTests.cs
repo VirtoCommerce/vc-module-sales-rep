@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,7 +7,8 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Primitives;
+using VirtoCommerce.FileExperienceApi.Core.Models;
+using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -20,10 +20,11 @@ using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// The documents REST controller invoked directly (no TestServer) against the real assets/metadata services, with
+/// The documents REST controller invoked directly (no TestServer) against the real file/metadata services, with
 /// a crafted <see cref="ClaimsPrincipal"/> on the ControllerContext so the in-action <c>HasReadAccess → Forbid()</c>
-/// guard runs. Covers the read-endpoint authorization matrix, the Download/GetInfo response branches, and the Upload
-/// action's mappings (null file, query-string category fallback, optional metadata assembly, service-exception → 400).
+/// guard runs. Covers the read-endpoint authorization matrix and the Create action's mappings (missing fileId,
+/// optional metadata assembly, service-exception → 400). File download authorization runs on the
+/// file-experience-api endpoint through SalesRepDocumentAuthorizationHandler — covered by its own tests.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepDocumentsControllerActionsTests
@@ -31,164 +32,91 @@ public class SalesRepDocumentsControllerActionsTests
     private const string DocumentsRead = ModuleConstants.Security.Permissions.DocumentsRead;
     private const string DocumentsWrite = ModuleConstants.Security.Permissions.DocumentsWrite;
 
-    // ---- Gap 2: read-endpoint in-action authorization (crafted principals) ----
+    // ---- Read-endpoint in-action authorization (crafted principals) ----
 
     [Fact]
     public async Task Reads_ForbidAnonymousAndAuthenticatedWithoutPermission()
     {
         using var ctx = SalesRepTestContext.Create();
-        // Download/GetInfo look the document up first and 404 a missing one BEFORE the auth check, so a seeded
-        // document is required to reach (and prove) their Forbid branch.
-        var document = await UploadAsync(ctx, "Report.pdf", "Catalogs");
+        await ctx.UploadDocumentAsync("Report.pdf", "Catalogs");
 
         foreach (var user in new[] { Anonymous(), AuthenticatedWithout() })
         {
             var controller = CreateController(ctx, user);
 
-            (await controller.Download(document.Id)).Should().BeOfType<ForbidResult>();
-            (await controller.GetInfo(document.Id)).Result.Should().BeOfType<ForbidResult>();
             (await controller.Search(new SalesRepDocumentSearchCriteria())).Result.Should().BeOfType<ForbidResult>();
             (await controller.GetCategories(null)).Result.Should().BeOfType<ForbidResult>();
         }
     }
 
-    [Fact]
-    public async Task Reads_AllowWithReadPermission()
+    [Theory]
+    [InlineData(DocumentsRead)]
+    [InlineData(DocumentsWrite)] // write implies read
+    public async Task Reads_AllowWithReadOrWritePermission(string permission)
     {
         using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Report.pdf", "Catalogs");
+        await ctx.UploadDocumentAsync("Report.pdf", "Catalogs");
 
-        var controller = CreateController(ctx, WithPermissions(DocumentsRead));
+        var controller = CreateController(ctx, WithPermissions(permission));
 
-        (await controller.Download(document.Id)).Should().NotBeOfType<ForbidResult>().And.BeOfType<FileStreamResult>();
-        (await controller.GetInfo(document.Id)).Result.Should().BeOfType<OkObjectResult>();
         (await controller.Search(new SalesRepDocumentSearchCriteria())).Result.Should().BeOfType<OkObjectResult>();
         (await controller.GetCategories(null)).Result.Should().BeOfType<OkObjectResult>();
     }
 
     [Fact]
-    public async Task Download_FullPrincipalMatrix()
+    public async Task Reads_AllowAdministratorWithoutPermissionClaims()
     {
         using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Report.pdf", "Catalogs");
+        await ctx.UploadDocumentAsync("Report.pdf", "Catalogs");
 
-        // Deny: anonymous and authenticated-without-permission.
-        (await CreateController(ctx, Anonymous()).Download(document.Id)).Should().BeOfType<ForbidResult>();
-        (await CreateController(ctx, AuthenticatedWithout()).Download(document.Id)).Should().BeOfType<ForbidResult>();
+        var controller = CreateController(ctx, Administrator());
 
-        // Allow: read, write (implies read), and Administrator.
-        (await CreateController(ctx, WithPermissions(DocumentsRead)).Download(document.Id)).Should().BeOfType<FileStreamResult>();
-        (await CreateController(ctx, WithPermissions(DocumentsWrite)).Download(document.Id)).Should().BeOfType<FileStreamResult>();
-        (await CreateController(ctx, Administrator()).Download(document.Id)).Should().BeOfType<FileStreamResult>();
+        (await controller.Search(new SalesRepDocumentSearchCriteria())).Result.Should().BeOfType<OkObjectResult>();
+        (await controller.GetCategories(null)).Result.Should().BeOfType<OkObjectResult>();
     }
 
-    // ---- Gap 3: Download / GetInfo response behavior + branches ----
+    // ---- Create action mappings ----
 
     [Fact]
-    public async Task Download_StreamsTheFileWithContentTypeAndRawName()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Guide.pdf", "Guides", content: "guide-bytes");
-
-        var controller = CreateController(ctx, WithPermissions(DocumentsRead));
-
-        var file = (await controller.Download(document.Id)).Should().BeOfType<FileStreamResult>().Subject;
-        file.ContentType.Should().Be(document.ContentType);
-        file.ContentType.Should().Be("application/pdf");
-        file.FileDownloadName.Should().Be("Guide.pdf");
-
-        using var reader = new StreamReader(file.FileStream);
-        (await reader.ReadToEndAsync()).Should().Be("guide-bytes");
-    }
-
-    [Fact]
-    public async Task Download_UnknownId_IsNotFound()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await UploadAsync(ctx, "Only.pdf", "Catalogs");
-
-        var controller = CreateController(ctx, WithPermissions(DocumentsRead));
-
-        (await controller.Download("missing-id")).Should().BeOfType<NotFoundResult>();
-    }
-
-    [Fact]
-    public async Task GetInfo_ReturnsTheMappedDocument()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        var document = await UploadAsync(ctx, "Info.pdf", "Guides", new SalesRepDocumentMetadata { Name = "Nice name", Summary = "About", PageCount = 2 });
-
-        var controller = CreateController(ctx, WithPermissions(DocumentsRead));
-
-        var info = (await controller.GetInfo(document.Id)).Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
-        info.Id.Should().Be(document.Id);
-        info.Name.Should().Be("Info.pdf");
-        info.DisplayName.Should().Be("Nice name");
-        info.Category.Should().Be("Guides");
-        info.Summary.Should().Be("About");
-        info.PageCount.Should().Be(2);
-        info.Url.Should().Be($"/api/sales-rep/documents/{document.Id}");
-    }
-
-    [Fact]
-    public async Task GetInfo_UnknownId_IsNotFound()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await UploadAsync(ctx, "Only.pdf", "Catalogs");
-
-        var controller = CreateController(ctx, WithPermissions(DocumentsRead));
-
-        (await controller.GetInfo("missing-id")).Result.Should().BeOfType<NotFoundResult>();
-    }
-
-    // ---- Gap 4: Upload action mappings ----
-
-    [Fact]
-    public async Task Upload_NullFile_IsBadRequest()
+    public async Task Create_MissingFileId_IsBadRequest()
     {
         using var ctx = SalesRepTestContext.Create();
         var controller = CreateController(ctx, WithPermissions(DocumentsWrite));
 
-        (await controller.Upload(file: null, category: "Catalogs")).Result.Should().BeOfType<BadRequestObjectResult>();
+        (await controller.Create(null)).Result.Should().BeOfType<BadRequestObjectResult>();
+        (await controller.Create(new SalesRepDocumentCreateRequest { Category = "Catalogs" })).Result.Should().BeOfType<BadRequestObjectResult>();
     }
 
     [Fact]
-    public async Task Upload_UsesTheQueryStringCategoryWhenTheFormParamIsNull()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        var controller = CreateController(
-            ctx,
-            WithPermissions(DocumentsWrite),
-            query: new QueryCollection(new Dictionary<string, StringValues> { ["category"] = "FromQuery" }));
-
-        var document = (await controller.Upload(CreateFormFile("Doc.pdf", "content"), category: null))
-            .Result.Should().BeOfType<OkObjectResult>()
-            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
-
-        document.Category.Should().Be("FromQuery");
-
-        // And it is the value that was persisted.
-        var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id);
-        reloaded.Category.Should().Be("FromQuery");
-    }
-
-    [Fact]
-    public async Task Upload_AssemblesOptionalMetadataFieldsAndPersistsThem()
+    public async Task Create_UnknownFileId_IsBadRequest()
     {
         using var ctx = SalesRepTestContext.Create();
         var controller = CreateController(ctx, WithPermissions(DocumentsWrite));
 
-        var document = (await controller.Upload(
-                CreateFormFile("Spec.pdf", "content"),
-                category: "Specs",
-                name: "Pretty spec",
-                summary: "The summary",
-                pageCount: 9,
-                previewUrl: "https://example.test/preview.png"))
+        (await controller.Create(new SalesRepDocumentCreateRequest { FileId = "no-such-file", Category = "Catalogs" }))
+            .Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Create_AssemblesOptionalMetadataFieldsAndPersistsThem()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var fileId = await UploadFileAsync(ctx, "Spec.pdf");
+        var controller = CreateController(ctx, WithPermissions(DocumentsWrite));
+
+        var document = (await controller.Create(new SalesRepDocumentCreateRequest
+            {
+                FileId = fileId,
+                Category = "Specs",
+                Name = "Pretty spec",
+                Summary = "The summary",
+                PageCount = 9,
+                PreviewUrl = "https://example.test/preview.png",
+            }))
             .Result.Should().BeOfType<OkObjectResult>()
             .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
 
+        document.FileId.Should().Be(fileId);
         document.DisplayName.Should().Be("Pretty spec");
         document.Summary.Should().Be("The summary");
         document.PageCount.Should().Be(9);
@@ -202,34 +130,35 @@ public class SalesRepDocumentsControllerActionsTests
     }
 
     [Fact]
-    public async Task Upload_ServiceRejectsAnInvalidCategory_IsBadRequest()
+    public async Task Create_ServiceRejectsAnInvalidCategory_IsBadRequest()
     {
         using var ctx = SalesRepTestContext.Create();
+        var fileId = await UploadFileAsync(ctx, "Doc.pdf");
         var controller = CreateController(ctx, WithPermissions(DocumentsWrite));
 
         // A category carrying a path separator is genuinely rejected by the real category validator inside the
         // service (ArgumentException), which the action maps to a 400 — no mock involved.
-        (await controller.Upload(CreateFormFile("Doc.pdf", "content"), category: "bad/category"))
+        (await controller.Create(new SalesRepDocumentCreateRequest { FileId = fileId, Category = "bad/category" }))
             .Result.Should().BeOfType<BadRequestObjectResult>();
 
-        // Nothing was persisted for the rejected upload.
+        // Nothing was persisted for the rejected registration.
         (await ctx.GetRequiredService<ISalesRepDocumentSearchService>()
             .SearchAsync(new SalesRepDocumentSearchCriteria())).TotalCount.Should().Be(0);
     }
 
-    // ---- Gap 5: default-sort tie-break (isPinned:desc THEN createdDate:desc) at the orchestrator ----
+    // ---- Default-sort tie-break (isPinned:desc THEN createdDate:desc) at the orchestrator ----
 
     [Fact]
     public async Task Search_DefaultSort_PinnedOlderOutranksNewerUnpinned()
     {
         using var ctx = SalesRepTestContext.Create();
 
-        var pinnedOlder = await UploadAsync(ctx, "Pinned Older.pdf", "Catalogs");
-        var newerUnpinned = await UploadAsync(ctx, "Newer Unpinned.pdf", "Catalogs");
+        var pinnedOlder = await ctx.UploadDocumentAsync("Pinned Older.pdf", "Catalogs");
+        var newerUnpinned = await ctx.UploadDocumentAsync("Newer Unpinned.pdf", "Catalogs");
 
         // Deterministic ages: the pinned document is the OLDER of the two (createdDate:desc alone would rank it last).
-        await ctx.SetDocumentCreatedDateAsync(pinnedOlder.Id, new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc));
-        await ctx.SetDocumentCreatedDateAsync(newerUnpinned.Id, new DateTime(2026, 3, 1, 0, 0, 0, DateTimeKind.Utc));
+        await ctx.SetDocumentCreatedDateAsync(pinnedOlder.Id, new System.DateTime(2026, 1, 1, 0, 0, 0, System.DateTimeKind.Utc));
+        await ctx.SetDocumentCreatedDateAsync(newerUnpinned.Id, new System.DateTime(2026, 3, 1, 0, 0, 0, System.DateTimeKind.Utc));
 
         await ctx.GetRequiredService<ISalesRepDocumentMetadataService>().SetPinnedAsync(pinnedOlder.Id, isPinned: true);
 
@@ -241,23 +170,33 @@ public class SalesRepDocumentsControllerActionsTests
         result.Results.First().IsPinned.Should().BeTrue();
     }
 
-    private static SalesRepDocumentsController CreateController(
-        SalesRepTestContext ctx,
-        ClaimsPrincipal user = null,
-        IQueryCollection query = null)
+    /// <summary>Step 1 only: an uploaded, not-yet-registered library file.</summary>
+    private static async Task<string> UploadFileAsync(SalesRepTestContext ctx, string fileName, string content = "content")
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        var result = await ctx.GetRequiredService<IFileUploadService>().UploadFileAsync(new FileUploadRequest
+        {
+            Scope = ModuleConstants.DocumentsScope,
+            UserId = "test-user",
+            FileName = fileName,
+            Stream = stream,
+        });
+
+        result.Succeeded.Should().BeTrue(result.ErrorMessage);
+        return result.Id;
+    }
+
+    private static SalesRepDocumentsController CreateController(SalesRepTestContext ctx, ClaimsPrincipal user = null)
     {
         var controller = new SalesRepDocumentsController(
             ctx.GetRequiredService<ISalesRepDocumentService>(),
             ctx.GetRequiredService<ISalesRepDocumentSearchService>(),
             ctx.GetRequiredService<ISalesRepDocumentMetadataService>());
 
-        var httpContext = new DefaultHttpContext { User = user ?? Anonymous() };
-        if (query != null)
+        controller.ControllerContext = new ControllerContext
         {
-            httpContext.Request.Query = query;
-        }
-
-        controller.ControllerContext = new ControllerContext { HttpContext = httpContext };
+            HttpContext = new DefaultHttpContext { User = user ?? Anonymous() },
+        };
         return controller;
     }
 
@@ -274,22 +213,4 @@ public class SalesRepDocumentsControllerActionsTests
         => new(new ClaimsIdentity(
             [new Claim(ClaimTypes.Role, PlatformConstants.Security.SystemRoles.Administrator)],
             authenticationType: "Test"));
-
-    private static FormFile CreateFormFile(string fileName, string content)
-    {
-        var bytes = Encoding.UTF8.GetBytes(content);
-        return new FormFile(new MemoryStream(bytes), baseStreamOffset: 0, length: bytes.Length, name: "file", fileName: fileName);
-    }
-
-    private static async Task<SalesRepDocument> UploadAsync(
-        SalesRepTestContext ctx,
-        string fileName,
-        string category,
-        SalesRepDocumentMetadata metadata = null,
-        string content = "content")
-    {
-        var service = ctx.GetRequiredService<ISalesRepDocumentService>();
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-        return await service.UploadAsync(stream, fileName, category, metadata);
-    }
 }

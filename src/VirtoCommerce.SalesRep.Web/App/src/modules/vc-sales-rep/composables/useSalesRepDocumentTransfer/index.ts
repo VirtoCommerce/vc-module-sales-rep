@@ -17,9 +17,19 @@ export interface DocumentUploadArgs {
   previewUrl?: string;
 }
 
+// The upload scope of the documents library — the file-experience-api endpoint POST /api/files/{scope}.
+export const DOCUMENTS_SCOPE = "sales-rep-documents";
+
+interface FileUploadResult {
+  id?: string;
+  name?: string;
+  succeeded?: boolean;
+  errorMessage?: string;
+}
+
 // File transfer endpoints are called with a hand-built fetch instead of the generated SalesRepDocumentsClient:
-// its upload() rejects omitted optional form fields (NSwag renders them as required-not-null) and its download()
-// discards the response body. Both calls attach auth exactly like AuthApiBase.transformOptions does — a bearer
+// the file upload endpoint belongs to the file-experience-api module (not this client), and download() would
+// discard the response body. All calls attach auth exactly like AuthApiBase.transformOptions does — a bearer
 // header when the framework has wired a token onto the client, cookies otherwise — and use the same relative
 // URLs, so they go through the identical pipeline as every other API call in this app.
 export default () => {
@@ -30,6 +40,8 @@ export default () => {
     return apiClient.authToken ? { authorization: `Bearer ${apiClient.authToken}` } : {};
   };
 
+  // Two steps: upload the bytes to the sales-rep-documents scope (file-experience-api), then register the
+  // uploaded file in the library with its category/metadata (which is what makes it visible and owned).
   const { loading: uploading, action: uploadDocument } = useAsync<DocumentUploadArgs, SalesRepDocument | undefined>(
     async (args?: DocumentUploadArgs) => {
       if (!args) {
@@ -38,31 +50,44 @@ export default () => {
 
       const formData = new FormData();
       formData.append("file", args.file, args.file.name);
-      formData.append("category", args.category);
-      if (args.name) {
-        formData.append("name", args.name);
-      }
-      if (args.summary) {
-        formData.append("summary", args.summary);
-      }
-      if (args.pageCount != null) {
-        formData.append("pageCount", String(args.pageCount));
-      }
-      if (args.previewUrl) {
-        formData.append("previewUrl", args.previewUrl);
-      }
 
-      const response = await fetch("/api/sales-rep/documents", {
+      const uploadResponse = await fetch(`/api/files/${DOCUMENTS_SCOPE}`, {
         method: "POST",
         headers: await getAuthHeaders(),
         body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error(`Failed to upload "${args.file.name}": ${response.status} ${await response.text()}`);
+      if (!uploadResponse.ok) {
+        throw new Error(
+          `Failed to upload "${args.file.name}": ${uploadResponse.status} ${await uploadResponse.text()}`,
+        );
       }
 
-      return (await response.json()) as SalesRepDocument;
+      const [uploadedFile] = ((await uploadResponse.json()) ?? []) as FileUploadResult[];
+      if (!uploadedFile?.id || uploadedFile.succeeded === false) {
+        throw new Error(`Failed to upload "${args.file.name}": ${uploadedFile?.errorMessage ?? "no file id returned"}`);
+      }
+
+      const createResponse = await fetch("/api/sales-rep/documents", {
+        method: "POST",
+        headers: { ...(await getAuthHeaders()), "content-type": "application/json" },
+        body: JSON.stringify({
+          fileId: uploadedFile.id,
+          category: args.category,
+          name: args.name,
+          summary: args.summary,
+          pageCount: args.pageCount,
+          previewUrl: args.previewUrl,
+        }),
+      });
+
+      if (!createResponse.ok) {
+        throw new Error(
+          `Failed to register "${args.file.name}": ${createResponse.status} ${await createResponse.text()}`,
+        );
+      }
+
+      return (await createResponse.json()) as SalesRepDocument;
     },
   );
 

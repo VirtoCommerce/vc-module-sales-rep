@@ -12,9 +12,10 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 /// <summary>
 /// Attribute-presence guard for the documents REST controller. The direct-invocation component harness cannot run
 /// the declarative <c>[Authorize(documents:write)]</c> policy (no TestServer), so this reflection test pins the
-/// declarative surface: the write actions carry the write-permission policy, the two storefront reads are
-/// [AllowAnonymous], the reads never carry the write policy, and the controller itself is [Authorize] by default.
-/// It fails the moment any of those attributes is silently removed or its policy string drifts.
+/// declarative surface: the write actions carry the write-permission policy, the reads never carry the write
+/// policy, and the controller itself is [Authorize] by default. It fails the moment any of those attributes is
+/// silently removed or its policy string drifts. (File download runs on the file-experience-api endpoint, whose
+/// authorization is enforced by SalesRepDocumentAuthorizationHandler — covered by its own tests.)
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepDocumentsControllerAuthorizationTests
@@ -23,7 +24,7 @@ public class SalesRepDocumentsControllerAuthorizationTests
     private static readonly Type ControllerType = typeof(SalesRepDocumentsController);
 
     [Theory]
-    [InlineData(nameof(SalesRepDocumentsController.Upload))]
+    [InlineData(nameof(SalesRepDocumentsController.Create))]
     [InlineData(nameof(SalesRepDocumentsController.UpdateMetadata))]
     [InlineData(nameof(SalesRepDocumentsController.Pin))]
     [InlineData(nameof(SalesRepDocumentsController.Unpin))]
@@ -37,19 +38,8 @@ public class SalesRepDocumentsControllerAuthorizationTests
     }
 
     [Theory]
-    [InlineData(nameof(SalesRepDocumentsController.Download))]
-    [InlineData(nameof(SalesRepDocumentsController.GetInfo))]
-    public void StorefrontRead_IsAllowAnonymous(string actionName)
-    {
-        GetAction(actionName).GetCustomAttributes<AllowAnonymousAttribute>(inherit: true)
-            .Should().NotBeEmpty("the storefront read replaces the default policy with an in-action check");
-    }
-
-    [Theory]
     [InlineData(nameof(SalesRepDocumentsController.Search))]
     [InlineData(nameof(SalesRepDocumentsController.GetCategories))]
-    [InlineData(nameof(SalesRepDocumentsController.Download))]
-    [InlineData(nameof(SalesRepDocumentsController.GetInfo))]
     public void ReadAction_DoesNotCarryTheWritePolicy(string actionName)
     {
         GetAction(actionName).GetCustomAttributes<AuthorizeAttribute>(inherit: true)

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using VirtoCommerce.AssetsModule.Core.Services;
+using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -10,21 +10,21 @@ using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Keyword and the final sort span both the metadata and AssetEntry tables, so they run (with paging) in memory over the small library.
-// No custom cache region: the metadata Crud/Search regions and the AssetEntry regions each expire on their own mutations, so composing their cached reads stays correct without manual invalidation.
+// Keyword and the final sort span both the metadata table and the file store, so they run (with paging) in memory over the small library.
+// No custom cache region: the metadata Crud/Search regions and the underlying AssetEntry regions each expire on their own mutations, so composing their cached reads stays correct without manual invalidation.
 public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 {
     private const int MetadataPageSize = 100;
 
     private readonly ISalesRepDocumentMetadataSearchService _metadataSearchService;
-    private readonly IAssetEntryService _assetEntryService;
+    private readonly IFileUploadService _fileUploadService;
 
     public SalesRepDocumentSearchService(
         ISalesRepDocumentMetadataSearchService metadataSearchService,
-        IAssetEntryService assetEntryService)
+        IFileUploadService fileUploadService)
     {
         _metadataSearchService = metadataSearchService;
-        _assetEntryService = assetEntryService;
+        _fileUploadService = fileUploadService;
     }
 
     public virtual async Task<SalesRepDocumentSearchResult> SearchAsync(SalesRepDocumentSearchCriteria criteria)
@@ -78,13 +78,13 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
             return [];
         }
 
-        var entriesById = (await _assetEntryService.GetAsync(metadata.Select(x => x.Id).ToList(), clone: false))
-            .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Group))
+        var filesById = (await _fileUploadService.GetAsync(metadata.Select(x => x.FileId).ToList(), clone: false))
+            .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
             .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
 
         return metadata
-            .Where(x => entriesById.ContainsKey(x.Id))
-            .Select(x => SalesRepDocumentMapper.ToModel(entriesById[x.Id], x))
+            .Where(x => filesById.ContainsKey(x.FileId))
+            .Select(x => SalesRepDocumentMapper.ToModel(filesById[x.FileId], x))
             .ToList();
     }
 

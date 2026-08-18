@@ -1,41 +1,33 @@
-using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.FileExperienceApi.Core.Extensions;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
+using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
 internal static class SalesRepDocumentMapper
 {
-    public static SalesRepDocument ToModel(AssetEntry entry, SalesRepDocumentMetadata metadata)
+    public static SalesRepDocument ToModel(File file, SalesRepDocumentMetadata metadata)
     {
         var document = AbstractTypeFactory<SalesRepDocument>.TryCreateInstance();
 
-        document.Id = entry.Id;
-        document.CreatedBy = entry.CreatedBy;
-        document.CreatedDate = entry.CreatedDate;
-        document.ModifiedBy = entry.ModifiedBy;
-        document.ModifiedDate = entry.ModifiedDate;
-        document.Name = entry.BlobInfo?.Name;
-        document.ContentType = entry.BlobInfo?.ContentType;
-        document.Size = entry.BlobInfo?.Size ?? 0;
-        document.Url = GetDownloadUrl(entry.Id);
-
-        if (metadata != null)
-        {
-            document.Category = metadata.Category;
-            document.IsPinned = metadata.IsPinned;
-            document.Summary = metadata.Summary;
-            document.PageCount = metadata.PageCount;
-            document.PreviewUrl = metadata.PreviewUrl;
-        }
-
-        document.DisplayName = string.IsNullOrEmpty(metadata?.Name) ? document.Name : metadata.Name;
+        document.Id = metadata.Id;
+        document.CreatedBy = metadata.CreatedBy;
+        document.CreatedDate = metadata.CreatedDate;
+        document.ModifiedBy = metadata.ModifiedBy;
+        document.ModifiedDate = metadata.ModifiedDate;
+        document.FileId = file.Id;
+        document.Name = file.Name;
+        document.ContentType = file.ContentType;
+        document.Size = file.Size;
+        document.Url = FileUploadServiceExtensions.GetPublicUrl(file.Id);
+        document.Category = metadata.Category;
+        document.IsPinned = metadata.IsPinned;
+        document.Summary = metadata.Summary;
+        document.PageCount = metadata.PageCount;
+        document.PreviewUrl = metadata.PreviewUrl;
+        document.DisplayName = string.IsNullOrEmpty(metadata.Name) ? file.Name : metadata.Name;
 
         return document;
-    }
-
-    public static string GetDownloadUrl(string documentId)
-    {
-        return $"/api/sales-rep/documents/{documentId}";
     }
 }

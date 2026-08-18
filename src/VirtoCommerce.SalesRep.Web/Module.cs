@@ -1,9 +1,11 @@
 using System;
 using System.IO;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.FileExperienceApi.Core.Authorization;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
 using VirtoCommerce.Platform.Core.Common;
@@ -17,6 +19,7 @@ using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
+using VirtoCommerce.SalesRep.Data.Authorization;
 using VirtoCommerce.SalesRep.Data.MySql;
 using VirtoCommerce.SalesRep.Data.PostgreSql;
 using VirtoCommerce.SalesRep.Data.Repositories;
@@ -65,6 +68,11 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         serviceCollection.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
+
+        // Routes the generic file surfaces (GET /api/files/{id}, deleteFile) for the documents scope to the
+        // module's fail-closed handler instead of the default file-exp-api handler (which grants ownerless files).
+        serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
+        serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
 
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();

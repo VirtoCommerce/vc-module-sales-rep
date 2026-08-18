@@ -9,6 +9,9 @@ using VirtoCommerce.AssetsModule.Core.Services;
 using VirtoCommerce.AssetsModule.Data.Repositories;
 using VirtoCommerce.AssetsModule.Data.Services;
 using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.FileExperienceApi.Core.Models;
+using VirtoCommerce.FileExperienceApi.Core.Services;
+using VirtoCommerce.FileExperienceApi.Data.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -51,6 +54,7 @@ using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.StoreModule.Core.Model;
 using VirtoCommerce.StoreModule.Core.Services;
 using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
+using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -191,6 +195,16 @@ internal static class TestServicesConfiguration
         services.AddSingleton<InMemoryBlobStorageProvider>();
         services.AddSingleton<IBlobStorageProvider>(sp => sp.GetRequiredService<InMemoryBlobStorageProvider>());
         services.AddSingleton<IBlobUrlResolver>(sp => sp.GetRequiredService<InMemoryBlobStorageProvider>());
+
+        // The REAL file-experience-api upload service over the same assets slice, with the documents scope
+        // configured the way a deployment configures it in FileUpload:Scopes.
+        services.Configure<FileUploadOptions>(options => options.Scopes.Add(new FileUploadScopeOptions
+        {
+            Scope = SalesRepModuleConstants.DocumentsScope,
+            MaxFileSize = 50 * 1024 * 1024,
+            AllowedExtensions = [],
+        }));
+        services.AddTransient<IFileUploadService, FileUploadService>();
 
         return services;
     }

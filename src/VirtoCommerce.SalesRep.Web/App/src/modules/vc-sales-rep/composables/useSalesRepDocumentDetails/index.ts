@@ -5,6 +5,7 @@ import {
   SalesRepDocumentsClient,
   SalesRepDocument,
   SalesRepDocumentMetadata,
+  SalesRepDocumentSearchCriteria,
 } from "../../../../api_client/virtocommerce.salesrep";
 
 export default () => {
@@ -30,10 +31,12 @@ export default () => {
     }
 
     const apiClient = await getApiClient();
-    const result = await apiClient.getInfo(args.id);
+    // No single-document REST read — fetch through search pinned to the requested id.
+    const result = await apiClient.search({ objectIds: [args.id], take: 1 } as SalesRepDocumentSearchCriteria);
 
-    if (result) {
-      setDocument(result);
+    const found = result?.results?.[0];
+    if (found) {
+      setDocument(found);
     }
   });
 

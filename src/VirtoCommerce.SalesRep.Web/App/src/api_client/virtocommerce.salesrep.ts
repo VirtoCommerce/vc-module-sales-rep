@@ -564,48 +564,20 @@ export class SalesRepDocumentsClient extends AuthApiBase {
     }
 
     /**
-     * @param file (optional) 
-     * @param category (optional) 
-     * @param name (optional) 
-     * @param summary (optional) 
-     * @param pageCount (optional) 
-     * @param previewUrl (optional) 
+     * @param body (optional) 
      * @return OK
      */
-    upload(file?: FileParameter | undefined, category?: string | undefined, name?: string | undefined, summary?: string | undefined, pageCount?: number | undefined, previewUrl?: string | undefined): Promise<SalesRepDocument> {
+    create(body?: SalesRepDocumentCreateRequest | undefined): Promise<SalesRepDocument> {
         let url_ = this.baseUrl + "/api/sales-rep/documents";
         url_ = url_.replace(/[?&]$/, "");
 
-        const content_ = new FormData();
-        if (file === null || file === undefined)
-            throw new globalThis.Error("The parameter 'file' cannot be null.");
-        else
-            content_.append("file", file.data, file.fileName ? file.fileName : "file");
-        if (category === null || category === undefined)
-            throw new globalThis.Error("The parameter 'category' cannot be null.");
-        else
-            content_.append("category", category.toString());
-        if (name === null || name === undefined)
-            throw new globalThis.Error("The parameter 'name' cannot be null.");
-        else
-            content_.append("name", name.toString());
-        if (summary === null || summary === undefined)
-            throw new globalThis.Error("The parameter 'summary' cannot be null.");
-        else
-            content_.append("summary", summary.toString());
-        if (pageCount === null || pageCount === undefined)
-            throw new globalThis.Error("The parameter 'pageCount' cannot be null.");
-        else
-            content_.append("pageCount", pageCount.toString());
-        if (previewUrl === null || previewUrl === undefined)
-            throw new globalThis.Error("The parameter 'previewUrl' cannot be null.");
-        else
-            content_.append("previewUrl", previewUrl.toString());
+        const content_ = JSON.stringify(body);
 
         let options_: RequestInit = {
             body: content_,
             method: "POST",
             headers: {
+                "Content-Type": "application/json-patch+json",
                 "Accept": "application/json"
             }
         };
@@ -613,11 +585,11 @@ export class SalesRepDocumentsClient extends AuthApiBase {
         return this.transformOptions(options_).then(transformedOptions_ => {
             return this.http.fetch(url_, transformedOptions_);
         }).then((_response: Response) => {
-            return this.processUpload(_response);
+            return this.processCreate(_response);
         });
     }
 
-    protected processUpload(response: Response): Promise<SalesRepDocument> {
+    protected processCreate(response: Response): Promise<SalesRepDocument> {
         const status = response.status;
         let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
         if (status === 200) {
@@ -790,85 +762,6 @@ export class SalesRepDocumentsClient extends AuthApiBase {
             });
         }
         return Promise.resolve<SalesRepDocumentCategory[]>(null as any);
-    }
-
-    /**
-     * @return OK
-     */
-    download(id: string): Promise<void> {
-        let url_ = this.baseUrl + "/api/sales-rep/documents/{id}";
-        if (id === undefined || id === null)
-            throw new globalThis.Error("The parameter 'id' must be defined.");
-        url_ = url_.replace("{id}", encodeURIComponent("" + id));
-        url_ = url_.replace(/[?&]$/, "");
-
-        let options_: RequestInit = {
-            method: "GET",
-            headers: {
-            }
-        };
-
-        return this.transformOptions(options_).then(transformedOptions_ => {
-            return this.http.fetch(url_, transformedOptions_);
-        }).then((_response: Response) => {
-            return this.processDownload(_response);
-        });
-    }
-
-    protected processDownload(response: Response): Promise<void> {
-        const status = response.status;
-        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
-        if (status === 200) {
-            return response.text().then((_responseText) => {
-            return;
-            });
-        } else if (status !== 200 && status !== 204) {
-            return response.text().then((_responseText) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            });
-        }
-        return Promise.resolve<void>(null as any);
-    }
-
-    /**
-     * @return OK
-     */
-    getInfo(id: string): Promise<SalesRepDocument> {
-        let url_ = this.baseUrl + "/api/sales-rep/documents/{id}/info";
-        if (id === undefined || id === null)
-            throw new globalThis.Error("The parameter 'id' must be defined.");
-        url_ = url_.replace("{id}", encodeURIComponent("" + id));
-        url_ = url_.replace(/[?&]$/, "");
-
-        let options_: RequestInit = {
-            method: "GET",
-            headers: {
-                "Accept": "application/json"
-            }
-        };
-
-        return this.transformOptions(options_).then(transformedOptions_ => {
-            return this.http.fetch(url_, transformedOptions_);
-        }).then((_response: Response) => {
-            return this.processGetInfo(_response);
-        });
-    }
-
-    protected processGetInfo(response: Response): Promise<SalesRepDocument> {
-        const status = response.status;
-        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
-        if (status === 200) {
-            return response.text().then((_responseText) => {
-            let result200: any = null;
-            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as SalesRepDocument;
-            return result200;
-            });
-        } else if (status !== 200 && status !== 204) {
-            return response.text().then((_responseText) => {
-            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
-            });
-        }
-        return Promise.resolve<SalesRepDocument>(null as any);
     }
 
     /**
@@ -1097,6 +990,7 @@ export interface SalesRepDictionaries {
 }
 
 export interface SalesRepDocument {
+    fileId?: string | undefined;
     name?: string | undefined;
     displayName?: string | undefined;
     category?: string | undefined;
@@ -1119,7 +1013,17 @@ export interface SalesRepDocumentCategory {
     count?: number;
 }
 
+export interface SalesRepDocumentCreateRequest {
+    fileId?: string | undefined;
+    category?: string | undefined;
+    name?: string | undefined;
+    summary?: string | undefined;
+    pageCount?: number | undefined;
+    previewUrl?: string | undefined;
+}
+
 export interface SalesRepDocumentMetadata {
+    fileId?: string | undefined;
     name?: string | undefined;
     category?: string | undefined;
     isPinned?: boolean;
@@ -1212,11 +1116,6 @@ export enum SortDirection {
 export interface SortInfo {
     sortColumn?: string | undefined;
     sortDirection?: SortDirection;
-}
-
-export interface FileParameter {
-    data: any;
-    fileName: string;
 }
 
 export class ApiException extends Error {

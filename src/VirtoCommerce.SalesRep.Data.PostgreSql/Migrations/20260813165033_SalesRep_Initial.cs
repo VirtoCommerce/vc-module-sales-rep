@@ -16,6 +16,7 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    FileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     Name = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
                     Category = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                     IsPinned = table.Column<bool>(type: "boolean", nullable: false),
@@ -31,6 +32,12 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                 {
                     table.PrimaryKey("PK_SalesRepDocumentMetadata", x => x.Id);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SalesRepDocumentMetadata_FileId",
+                table: "SalesRepDocumentMetadata",
+                column: "FileId",
+                unique: true);
         }
 
         /// <inheritdoc />

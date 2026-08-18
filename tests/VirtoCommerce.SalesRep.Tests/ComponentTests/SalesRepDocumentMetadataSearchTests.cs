@@ -1,6 +1,4 @@
-using System.IO;
-using System.Linq;
-using System.Text;
+﻿using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -84,14 +82,12 @@ public class SalesRepDocumentMetadataSearchTests
         result.Results.First().IsPinned.Should().BeTrue();
     }
 
-    private static async Task<SalesRepDocument> UploadAsync(
+    private static Task<SalesRepDocument> UploadAsync(
         SalesRepTestContext ctx,
         string fileName,
         string category,
         SalesRepDocumentMetadata metadata = null)
     {
-        var service = ctx.GetRequiredService<ISalesRepDocumentService>();
-        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("content"));
-        return await service.UploadAsync(stream, fileName, category, metadata);
+        return ctx.UploadDocumentAsync(fileName, category, metadata);
     }
 }

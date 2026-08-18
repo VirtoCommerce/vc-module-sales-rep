@@ -43,6 +43,11 @@ namespace VirtoCommerce.SalesRep.Data.SqlServer.Migrations
                     b.Property<DateTime>("CreatedDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("FileId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
                     b.Property<bool>("IsPinned")
                         .HasColumnType("bit");
 
@@ -69,6 +74,9 @@ namespace VirtoCommerce.SalesRep.Data.SqlServer.Migrations
                         .HasColumnType("nvarchar(2048)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FileId")
+                        .IsUnique();
 
                     b.ToTable("SalesRepDocumentMetadata", (string)null);
                 });
