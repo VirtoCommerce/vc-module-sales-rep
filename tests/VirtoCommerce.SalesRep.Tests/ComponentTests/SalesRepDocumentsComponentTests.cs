@@ -82,6 +82,9 @@ public class SalesRepDocumentsComponentTests
 
         var categories = await searchService.GetCategoriesAsync();
         categories.Select(x => (x.Name, x.Count)).Should().Equal(("Catalogs", 1), ("Lookbooks", 1), ("Pricing", 1));
+
+        // The platform ISearchService conformance makes the generic extensions usable (pages Take=2 until exhausted).
+        (await searchService.SearchAllAsync(new SalesRepDocumentSearchCriteria { Take = 2 })).Should().HaveCount(3);
     }
 
     [Fact]
@@ -108,7 +111,7 @@ public class SalesRepDocumentsComponentTests
         var uploaded = await ctx.UploadDocumentAsync("Guide.pdf", "Guides", content: "guide-content");
 
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
-        var document = await documentService.GetAsync(uploaded.Id);
+        var document = await documentService.GetByIdAsync(uploaded.Id);
         document.Name.Should().Be("Guide.pdf");
         document.Category.Should().Be("Guides");
 
@@ -126,7 +129,7 @@ public class SalesRepDocumentsComponentTests
 
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
 
-        var document = await documentService.GetAsync(uploaded.Id);
+        var document = await documentService.GetByIdAsync(uploaded.Id);
         document.Name.Should().Be("Info.pdf");
         document.Category.Should().Be("Guides");
         document.Summary.Should().Be("About");
@@ -134,7 +137,7 @@ public class SalesRepDocumentsComponentTests
         document.FileId.Should().Be(uploaded.FileId);
         document.Url.Should().Be($"/api/files/{uploaded.FileId}");
 
-        (await documentService.GetAsync("missing-id")).Should().BeNull();
+        (await documentService.GetByIdAsync("missing-id")).Should().BeNull();
     }
 
     [Fact]
@@ -176,7 +179,7 @@ public class SalesRepDocumentsComponentTests
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
         await documentService.DeleteAsync([document.Id]);
 
-        (await documentService.GetAsync(document.Id)).Should().BeNull();
+        (await documentService.GetByIdAsync(document.Id)).Should().BeNull();
     }
 
     [Fact]
@@ -197,7 +200,7 @@ public class SalesRepDocumentsComponentTests
         categories.Select(x => x.Name).Should().Equal("Catalogs");
 
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
-        (await documentService.GetAsync(foreignId)).Should().BeNull();
+        (await documentService.GetByIdAsync(foreignId)).Should().BeNull();
 
         // A foreign file cannot be registered as a library document.
         var create = () => documentService.CreateAsync(foreignId, "Catalogs");
@@ -219,7 +222,7 @@ public class SalesRepDocumentsComponentTests
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
         await metadataService.SaveChangesAsync([new SalesRepDocumentMetadata { Id = document.Id, FileId = document.FileId, Name = "Pretty name", Category = "Manuals", Summary = "v2", PageCount = 7 }]);
 
-        var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id);
+        var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id);
         reloaded.Name.Should().Be("Editable.pdf");
         reloaded.DisplayName.Should().Be("Pretty name");
         reloaded.Category.Should().Be("Manuals");
@@ -245,7 +248,7 @@ public class SalesRepDocumentsComponentTests
         }]);
 
         await save.Should().ThrowAsync<ArgumentException>().WithMessage("*32*");
-        (await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id)).Category.Should().Be("Guides");
+        (await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id)).Category.Should().Be("Guides");
     }
 
     [Fact]

@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
@@ -150,11 +151,11 @@ public class SalesRepDocumentCreateTests
     public async Task Get_MissingMetadataOrFile_ReturnsNull()
     {
         var service = CreateService();
-        (await service.GetAsync("missing")).Should().BeNull();
+        (await service.GetByIdAsync("missing")).Should().BeNull();
 
         // Metadata whose file has vanished from the store must not surface as a document.
         _metadataService.Saved.Add(new SalesRepDocumentMetadata { Id = "orphan", FileId = "gone", Category = "Catalogs" });
-        (await service.GetAsync("orphan")).Should().BeNull();
+        (await service.GetByIdAsync("orphan")).Should().BeNull();
     }
 
     [Fact]
@@ -170,6 +171,30 @@ public class SalesRepDocumentCreateTests
         updated.DisplayName.Should().Be("Renamed");
         updated.FileId.Should().Be(file.Id);
         updated.IsPinned.Should().BeTrue("a full-replace metadata PUT must not change the pin state");
+    }
+
+    [Fact]
+    public async Task SaveChanges_CreatesNewAndUpdatesExistingDocuments()
+    {
+        var file = AddFile(name: "list.pdf");
+        var service = CreateService();
+
+        // No id → the model is registered as a new document (file claim included) and gets its id back.
+        var created = new SalesRepDocument { FileId = file.Id, Category = "Catalogs", Summary = "v1" };
+        await service.SaveChangesAsync([created]);
+
+        created.Id.Should().NotBeNullOrEmpty();
+        file.OwnerEntityId.Should().Be(created.Id);
+
+        // With an id → full-replace metadata update (file link and pin state preserved by UpdateMetadataAsync).
+        var updated = new SalesRepDocument { Id = created.Id, Name = "list.pdf", DisplayName = "Pretty", Category = "Manuals", Summary = "v2" };
+        await service.SaveChangesAsync([updated]);
+
+        var reloaded = await service.GetByIdAsync(created.Id);
+        reloaded.DisplayName.Should().Be("Pretty");
+        reloaded.Category.Should().Be("Manuals");
+        reloaded.Summary.Should().Be("v2");
+        reloaded.FileId.Should().Be(file.Id);
     }
 
     [Fact]

@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -122,7 +123,7 @@ public class SalesRepDocumentsControllerActionsTests
         document.PageCount.Should().Be(9);
         document.PreviewUrl.Should().Be("https://example.test/preview.png");
 
-        var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetAsync(document.Id);
+        var reloaded = await ctx.GetRequiredService<ISalesRepDocumentService>().GetByIdAsync(document.Id);
         reloaded.DisplayName.Should().Be("Pretty spec");
         reloaded.Summary.Should().Be("The summary");
         reloaded.PageCount.Should().Be(9);

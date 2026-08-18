@@ -27,7 +27,7 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
         _fileUploadService = fileUploadService;
     }
 
-    public virtual async Task<SalesRepDocumentSearchResult> SearchAsync(SalesRepDocumentSearchCriteria criteria)
+    public virtual async Task<SalesRepDocumentSearchResult> SearchAsync(SalesRepDocumentSearchCriteria criteria, bool clone = true)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 

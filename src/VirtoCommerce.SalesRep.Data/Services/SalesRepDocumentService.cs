@@ -87,7 +87,49 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         return SalesRepDocumentMapper.ToModel(file, metadata);
     }
 
-    public virtual async Task DeleteAsync(IList<string> ids)
+    public virtual async Task SaveChangesAsync(IList<SalesRepDocument> models)
+    {
+        ArgumentNullException.ThrowIfNull(models);
+
+        foreach (var model in models)
+        {
+            await SaveOneAsync(model);
+        }
+    }
+
+    protected virtual async Task SaveOneAsync(SalesRepDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(document);
+
+        var metadata = ToMetadata(document);
+
+        if (string.IsNullOrEmpty(document.Id))
+        {
+            var created = await CreateAsync(document.FileId, document.Category, metadata);
+            document.Id = created.Id;
+        }
+        else
+        {
+            await UpdateMetadataAsync(document.Id, metadata);
+        }
+    }
+
+    protected virtual SalesRepDocumentMetadata ToMetadata(SalesRepDocument document)
+    {
+        var metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
+
+        // DisplayName is the metadata name coalesced with the file name, so a value equal to the file name
+        // is stored as "no override" — the read side keeps falling back to the file name.
+        metadata.Name = document.DisplayName != document.Name ? document.DisplayName : null;
+        metadata.Category = document.Category;
+        metadata.Summary = document.Summary;
+        metadata.PageCount = document.PageCount;
+        metadata.PreviewUrl = document.PreviewUrl;
+
+        return metadata;
+    }
+
+    public virtual async Task DeleteAsync(IList<string> ids, bool softDelete = false)
     {
         if (ids.IsNullOrEmpty())
         {
@@ -111,23 +153,28 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         }
     }
 
-    public virtual async Task<SalesRepDocument> GetAsync(string id)
+    public virtual async Task<IList<SalesRepDocument>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
     {
-        if (string.IsNullOrEmpty(id))
+        if (ids.IsNullOrEmpty())
         {
-            return null;
+            return [];
         }
 
-        var metadata = (await _metadataService.GetAsync([id])).FirstOrDefault();
+        var metadatas = await _metadataService.GetAsync(ids, responseGroup);
 
-        if (metadata == null)
+        if (metadatas.Count == 0)
         {
-            return null;
+            return [];
         }
 
-        var file = await GetLibraryFileAsync(metadata.FileId);
+        var filesById = (await _fileUploadService.GetAsync(metadatas.Select(x => x.FileId).ToList()))
+            .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
+            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
 
-        return file == null ? null : SalesRepDocumentMapper.ToModel(file, metadata);
+        return metadatas
+            .Where(x => filesById.ContainsKey(x.FileId))
+            .Select(x => SalesRepDocumentMapper.ToModel(filesById[x.FileId], x))
+            .ToList();
     }
 
     protected virtual async Task<File> GetLibraryFileAsync(string fileId)
