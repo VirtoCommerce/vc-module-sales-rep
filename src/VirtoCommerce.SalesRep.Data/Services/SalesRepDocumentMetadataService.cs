@@ -6,9 +6,11 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.DistributedLock;
 using VirtoCommerce.Platform.Core.Domain;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Data.GenericCrud;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Events;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -21,13 +23,19 @@ public class SalesRepDocumentMetadataService(
         Func<ISalesRepRepository> repositoryFactory,
         IPlatformMemoryCache platformMemoryCache,
         IEventPublisher eventPublisher,
-        AbstractValidator<SalesRepDocumentMetadata> validator)
+        AbstractValidator<SalesRepDocumentMetadata> validator,
+        IDistributedLockService distributedLockService)
     : CrudService<SalesRepDocumentMetadata, DocumentMetadataEntity, DocumentMetadataChangingEvent, DocumentMetadataChangedEvent>(
         repositoryFactory,
         platformMemoryCache,
         eventPublisher),
     ISalesRepDocumentMetadataService
 {
+    private const string PinLockKey = ModuleConstants.DocumentsScope + ":pin";
+
+    private static readonly TimeSpan _pinTryLockTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan _pinRetryInterval = TimeSpan.FromMilliseconds(100);
+
     protected override Task<IList<DocumentMetadataEntity>> LoadEntities(IRepository repository, IList<string> ids, string responseGroup)
     {
         return ((ISalesRepRepository)repository).GetDocumentMetadataByIdsAsync(ids, responseGroup);
@@ -53,10 +61,25 @@ public class SalesRepDocumentMetadataService(
         }
     }
 
+    // The at-most-one-pinned invariant is application-enforced (filtered unique indexes are not portable across
+    // the three providers), so the read-modify-write is serialized by a distributed lock.
     public virtual async Task SetPinnedAsync(string id, bool isPinned)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
+        await distributedLockService.ExecuteAsync(
+            PinLockKey,
+            async () =>
+            {
+                await SetPinnedInternalAsync(id, isPinned);
+                return true;
+            },
+            tryLockTimeout: _pinTryLockTimeout,
+            retryInterval: _pinRetryInterval);
+    }
+
+    protected virtual async Task SetPinnedInternalAsync(string id, bool isPinned)
+    {
         var target = (await GetAsync([id])).FirstOrDefault()
             ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
 

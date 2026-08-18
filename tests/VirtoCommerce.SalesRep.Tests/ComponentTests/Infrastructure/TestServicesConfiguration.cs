@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -19,6 +19,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using VirtoCommerce.Platform.Core.GenericCrud;
+using VirtoCommerce.Platform.Core.DistributedLock;
+using VirtoCommerce.Platform.DistributedLock.NoLock;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
@@ -220,6 +222,8 @@ internal static class TestServicesConfiguration
         services.AddSingleton<Func<ISalesRepRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
         services.AddTransient<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
+        // The platform's non-Redis default: pass-through locking (the pin lock is exercised, not simulated).
+        services.AddSingleton<IDistributedLockService, NoLockService>();
         services.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         services.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
