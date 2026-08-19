@@ -82,8 +82,8 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
         };
     }
 
-    protected virtual Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadatas)
+    protected virtual Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadataItems)
     {
-        return SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadatas);
+        return SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadataItems);
     }
 }

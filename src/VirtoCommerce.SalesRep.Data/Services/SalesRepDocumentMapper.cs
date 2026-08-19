@@ -14,18 +14,18 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 internal static class SalesRepDocumentMapper
 {
     // Batch-fetches the metadata rows' files (library scope only) and maps the pairs; rows whose file is gone are skipped.
-    public static async Task<IList<SalesRepDocument>> ToModelsAsync(IFileUploadService fileUploadService, IList<SalesRepDocumentMetadata> metadatas)
+    public static async Task<IList<SalesRepDocument>> ToModelsAsync(IFileUploadService fileUploadService, IList<SalesRepDocumentMetadata> metadataItems)
     {
-        if (metadatas.Count == 0)
+        if (metadataItems.Count == 0)
         {
             return [];
         }
 
-        var filesById = (await fileUploadService.GetAsync(metadatas.Select(x => x.FileId).ToList(), clone: false))
+        var filesById = (await fileUploadService.GetAsync(metadataItems.Select(x => x.FileId).ToList(), clone: false))
             .Where(x => ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
             .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
 
-        return metadatas
+        return metadataItems
             .Where(x => filesById.ContainsKey(x.FileId))
             .Select(x => ToModel(filesById[x.FileId], x))
             .ToList();

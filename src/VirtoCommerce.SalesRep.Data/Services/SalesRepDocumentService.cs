@@ -186,9 +186,9 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return [];
         }
 
-        var metadatas = await _metadataService.GetNoCloneAsync(ids, responseGroup);
+        var metadataItems = await _metadataService.GetNoCloneAsync(ids, responseGroup);
 
-        return await SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadatas);
+        return await SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadataItems);
     }
 
     protected virtual async Task<File> GetLibraryFileAsync(string fileId)
