@@ -74,21 +74,25 @@ public class SalesRepMapperTests
     {
         var libraryFile = CreateFile("file-1");
         var foreignFile = CreateFile("file-2", scope: "product-images");
-        var paired = CreateMetadata("FILE-1");
+        var paired = CreateMetadata("file-1");
         var foreign = CreateMetadata("file-2");
         var orphan = CreateMetadata("file-3");
 
         var documents = _mapper.ToDocuments([libraryFile, foreignFile], [paired, foreign, orphan]);
 
-        // Pairing is case-insensitive on the file id; a foreign-scope or missing file drops its row.
+        // Pairing is exact on the file id (machine-generated, stored verbatim — same rule as the DB unique
+        // index and the delete cascade); a foreign-scope or missing file drops its row.
         documents.Should().ContainSingle().Which.FileId.Should().Be("file-1");
     }
 
     [Fact]
-    public void ToDocuments_NullSource_ReturnsNull()
+    public void ToDocuments_NullSource_Throws()
     {
-        _mapper.ToDocuments(null, [CreateMetadata("file-1")]).Should().BeNull();
-        _mapper.ToDocuments([CreateFile("file-1")], null).Should().BeNull();
+        var nullFiles = () => _mapper.ToDocuments(null, [CreateMetadata("file-1")]);
+        var nullMetadata = () => _mapper.ToDocuments([CreateFile("file-1")], null);
+
+        nullFiles.Should().Throw<ArgumentNullException>();
+        nullMetadata.Should().Throw<ArgumentNullException>();
     }
 
     [Fact]

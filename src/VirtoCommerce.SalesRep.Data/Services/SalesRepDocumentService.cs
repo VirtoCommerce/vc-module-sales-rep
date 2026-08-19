@@ -8,6 +8,7 @@ using VirtoCommerce.FileExperienceApi.Core.Extensions;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Extensions;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
@@ -195,14 +196,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         }
 
         var metadataItems = await _metadataService.GetNoCloneAsync(ids, responseGroup);
-        if (metadataItems.Count == 0)
-        {
-            return [];
-        }
 
-        var files = await _fileUploadService.GetAsync(metadataItems.Select(x => x.FileId).ToList(), clone: false);
-
-        return _mapper.ToDocuments(files, metadataItems);
+        return await _mapper.ToDocumentsAsync(_fileUploadService, metadataItems);
     }
 
     protected virtual async Task<File> GetLibraryFileAsync(string fileId)

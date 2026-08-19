@@ -72,16 +72,18 @@ public class SalesRepRoleSeedingComponentTests
 
     // A role carrying the seeded NAME suppresses seeding whatever its permission set: the seeder never fights
     // the administrator — no mutation (an admin may have removed a permission on purpose), no name collision.
+    // The name match is case-insensitive, like Identity's NormalizedName uniqueness the guard protects.
     [Fact]
     public async Task Seed_RoleWithSeededNameExists_IsLeftUntouched()
     {
         using var ctx = SalesRepTestContext.Create();
-        await ctx.CreateRoleAsync(ManagerRoleName, DocumentsWrite);
+        var caseVariantName = ManagerRoleName.ToUpperInvariant();
+        await ctx.CreateRoleAsync(caseVariantName, DocumentsWrite);
 
         await SeedAsync(ctx);
 
         var roles = await LoadRolesAsync(ctx);
-        var manager = roles.Single(x => x.Name == ManagerRoleName);
+        var manager = roles.Single(x => x.Name == caseVariantName);
         manager.Permissions.Select(x => x.Name).Should().BeEquivalentTo([DocumentsWrite]);
     }
 

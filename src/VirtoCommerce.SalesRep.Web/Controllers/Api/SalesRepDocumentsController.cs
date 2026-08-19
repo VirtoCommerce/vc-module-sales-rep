@@ -12,8 +12,6 @@ using Permissions = VirtoCommerce.SalesRep.Core.ModuleConstants.Security.Permiss
 
 namespace VirtoCommerce.SalesRep.Web.Controllers.Api;
 
-// One permission per endpoint: read means read, write means write; the seeded Documents Manager role carries
-// both. Administrators pass every permission via the platform's authorization handler.
 [Authorize]
 [Route("api/sales-rep/documents")]
 public class SalesRepDocumentsController : Controller

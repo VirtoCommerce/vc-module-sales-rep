@@ -21,8 +21,7 @@ public class SalesRepDocumentAuthorizationHandler : PermissionAuthorizationHandl
 {
     protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, SalesRepDocumentAuthorizationRequirement requirement)
     {
-        // Read means read, write means write (the seeded manager role carries both); any non-read
-        // permission fails closed to the write branch.
+        // Any non-read permission fails closed to the write branch.
         var authorized = requirement.Permission == ModuleConstants.Security.Permissions.DocumentsRead
             ? HasPermission(context.User, ModuleConstants.Security.Permissions.DocumentsRead) && IsReadableFile(requirement)
             : HasPermission(context.User, ModuleConstants.Security.Permissions.DocumentsWrite) && IsWritableFile(requirement);

@@ -32,7 +32,6 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
             "Grants Sales Rep access and documents library read (sales-rep:access, sales-rep-documents:read).",
             [ModuleConstants.Security.Permissions.Access, ModuleConstants.Security.Permissions.DocumentsRead]);
 
-        // Read is granted alongside write by role composition — write does NOT imply read in code.
         await EnsureRoleAsync(
             roleManager,
             roles,
@@ -64,7 +63,7 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
     protected virtual async Task EnsureRoleAsync(RoleManager<Role> roleManager, IList<Role> existingRoles, string name, string description, string[] permissions)
     {
         if (existingRoles.Any(role =>
-                role.Name == name ||
+                role.Name.EqualsIgnoreCase(name) ||
                 permissions.All(permission => role.Permissions?.Any(x => x.Name == permission) == true)))
         {
             return;

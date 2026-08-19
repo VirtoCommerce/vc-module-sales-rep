@@ -42,14 +42,12 @@ public class SalesRepMapper : ISalesRepMapper
 
     public virtual IList<SalesRepDocument> ToDocuments(IList<File> files, IList<SalesRepDocumentMetadata> metadataItems)
     {
-        if (files == null || metadataItems == null)
-        {
-            return null;
-        }
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(metadataItems);
 
         var filesById = files
             .Where(x => x != null && ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
-            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x => x.Id);
 
         return metadataItems
             .Where(x => filesById.ContainsKey(x.FileId))
