@@ -244,17 +244,17 @@ public class SalesRepDocumentsGraphQlTests
     }
 
     [Fact]
-    public async Task AllQueries_WithWriteOnlyPermission_AreAllowed()
+    public async Task AllQueries_WithWriteOnlyPermission_AreDenied()
     {
         using var ctx = SalesRepTestContext.Create();
         var document = await UploadAsync(ctx, "Managed.pdf", "Catalogs");
 
-        // Write implies read.
+        // Read means read: write does not imply it — roles compose the two (the seeded manager carries both).
         foreach (var query in AllQueries(document.Id))
         {
             var json = await ctx.ExecuteGraphQlAsync(query, userId: RepUserId, permissions: WritePermission);
 
-            json.Should().NotContain("\"errors\"");
+            json.Should().Contain("Access denied.");
         }
     }
 

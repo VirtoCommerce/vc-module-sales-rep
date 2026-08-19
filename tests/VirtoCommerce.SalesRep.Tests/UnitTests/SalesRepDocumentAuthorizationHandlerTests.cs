@@ -13,11 +13,12 @@ using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 
 /// <summary>
-/// The handler delegates the permission decision to the SalesRepDocumentPermissions predicates (whose full
-/// authorization matrix has its own test); pinned here is what the handler itself owns: the requirement→predicate
-/// branch, the fail-closed denial, and the library-document claim rule — a scope file is readable only once its
-/// owner stamp is set, so an uploaded-but-unregistered blob is served to no one (unlike the default file-exp-api
-/// handler's ownerless-file shortcut), while documents:write holders can still delete such blobs for cleanup.
+/// The single owner of the documents authorization matrix (the REST endpoints use plain single-permission
+/// [Authorize] attributes handled by the platform): read means read, write means write (roles compose them),
+/// Administrator passes unless a limited token confines it, anonymous never passes. Plus the library-document
+/// claim rule — a scope file is readable only once its owner stamp is set, so an uploaded-but-unregistered blob
+/// is served to no one (unlike the default file-exp-api handler's ownerless-file shortcut), while
+/// documents:write holders can still delete such blobs for cleanup.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepDocumentAuthorizationHandlerTests
@@ -26,23 +27,52 @@ public class SalesRepDocumentAuthorizationHandlerTests
     private const string DocumentsWrite = ModuleConstants.Security.Permissions.DocumentsWrite;
 
     [Fact]
-    public async Task Handle_ReadRequirement_RunsTheReadPredicate()
+    public async Task Handle_ReadMeansReadAndWriteMeansWrite()
     {
-        // A read-permission holder passes the read requirement but not the write one.
+        // Neither permission implies the other — roles compose them (the seeded manager role carries both).
         var reader = CreateUser(DocumentsRead);
+        var writer = CreateUser(DocumentsWrite);
 
         (await AuthorizeAsync(reader, DocumentsRead)).Should().BeTrue();
         (await AuthorizeAsync(reader, DocumentsWrite)).Should().BeFalse();
+        (await AuthorizeAsync(writer, DocumentsWrite)).Should().BeTrue();
+        (await AuthorizeAsync(writer, DocumentsRead)).Should().BeFalse();
     }
 
     [Fact]
-    public async Task Handle_NonReadRequirement_RunsTheWritePredicate()
+    public async Task Handle_NonReadRequirement_FailsClosedToTheWriteBranch()
     {
-        // Any non-read permission fails closed to the write predicate; a write holder passes both branches.
-        var writer = CreateUser(DocumentsWrite);
+        // Any non-read permission requires documents:write.
+        (await AuthorizeAsync(CreateUser(DocumentsWrite), "unknown:permission")).Should().BeTrue();
+        (await AuthorizeAsync(CreateUser(DocumentsRead), "unknown:permission")).Should().BeFalse();
+    }
 
-        (await AuthorizeAsync(writer, "unknown:permission")).Should().BeTrue();
-        (await AuthorizeAsync(writer, DocumentsRead)).Should().BeTrue();
+    [Fact]
+    public async Task Handle_Administrator_PassesBothBranches()
+    {
+        var administrator = CreateAdministrator();
+
+        (await AuthorizeAsync(administrator, DocumentsRead)).Should().BeTrue();
+        (await AuthorizeAsync(administrator, DocumentsWrite)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_LimitedToken_ConfinesEvenAnAdministrator()
+    {
+        // Platform semantics: a limited_permissions token grants ONLY its listed permissions.
+        var limitedAdministrator = CreateAdministrator(limitedPermissions: DocumentsRead);
+
+        (await AuthorizeAsync(limitedAdministrator, DocumentsRead)).Should().BeTrue();
+        (await AuthorizeAsync(limitedAdministrator, DocumentsWrite)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_AuthenticatedWithoutPermissions_IsDenied()
+    {
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims: [], authenticationType: "Test"));
+
+        (await AuthorizeAsync(user, DocumentsRead)).Should().BeFalse();
+        (await AuthorizeAsync(user, DocumentsWrite)).Should().BeFalse();
     }
 
     [Fact]
@@ -107,6 +137,18 @@ public class SalesRepDocumentAuthorizationHandlerTests
         var claims = new[] { new Claim(PlatformConstants.Security.Claims.PermissionClaimType, permission) };
 
         return new ClaimsPrincipal(new ClaimsIdentity(claims, "Test"));
+    }
+
+    private static ClaimsPrincipal CreateAdministrator(string limitedPermissions = null)
+    {
+        var identity = new ClaimsIdentity(claims: [], authenticationType: "Test");
+        identity.AddClaim(new Claim(identity.RoleClaimType, PlatformConstants.Security.SystemRoles.Administrator));
+        if (limitedPermissions != null)
+        {
+            identity.AddClaim(new Claim(PlatformConstants.Security.Claims.LimitedPermissionsClaimType, limitedPermissions));
+        }
+
+        return new ClaimsPrincipal(identity);
     }
 
     private static async Task<bool> AuthorizeAsync(ClaimsPrincipal user, string permission, File file = null)

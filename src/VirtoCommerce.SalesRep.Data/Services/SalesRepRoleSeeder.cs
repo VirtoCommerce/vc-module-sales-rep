@@ -32,12 +32,13 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
             "Grants Sales Rep access and documents library read (sales-rep:access, sales-rep-documents:read).",
             [ModuleConstants.Security.Permissions.Access, ModuleConstants.Security.Permissions.DocumentsRead]);
 
+        // Read is granted alongside write by role composition — write does NOT imply read in code.
         await EnsureRoleAsync(
             roleManager,
             roles,
             ModuleConstants.Security.Roles.DocumentsManagerRoleName,
-            "Grants Sales Rep documents library management (sales-rep-documents:write).",
-            [ModuleConstants.Security.Permissions.DocumentsWrite]);
+            "Grants Sales Rep documents library management (sales-rep-documents:read, sales-rep-documents:write).",
+            [ModuleConstants.Security.Permissions.DocumentsRead, ModuleConstants.Security.Permissions.DocumentsWrite]);
     }
 
     protected virtual async Task<IList<Role>> LoadRolesAsync(RoleManager<Role> roleManager)
@@ -57,10 +58,14 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
         return roles;
     }
 
-    // Matches by permission set, not name/id: any role already carrying every listed permission counts, so renames don't re-seed.
+    // Matches by permission set, not name/id: any role already carrying every listed permission counts, so renames
+    // don't re-seed. A role with the seeded NAME also suppresses seeding whatever its permissions — it is owned by
+    // the administrator (or an earlier seeder version) and is never mutated or collided with.
     protected virtual async Task EnsureRoleAsync(RoleManager<Role> roleManager, IList<Role> existingRoles, string name, string description, string[] permissions)
     {
-        if (existingRoles.Any(role => permissions.All(permission => role.Permissions?.Any(x => x.Name == permission) == true)))
+        if (existingRoles.Any(role =>
+                role.Name == name ||
+                permissions.All(permission => role.Permissions?.Any(x => x.Name == permission) == true)))
         {
             return;
         }

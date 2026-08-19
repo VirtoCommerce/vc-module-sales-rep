@@ -1,10 +1,12 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using VirtoCommerce.FileExperienceApi.Core.Models;
@@ -21,11 +23,12 @@ using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// The documents REST controller invoked directly (no TestServer) against the real file/metadata services, with
-/// a crafted <see cref="ClaimsPrincipal"/> on the ControllerContext so the in-action <c>HasReadAccess → Forbid()</c>
-/// guard runs. Covers the read-endpoint authorization matrix and the Create action's mappings (missing fileId,
-/// optional metadata assembly, service-exception → 400). File download authorization runs on the
-/// file-experience-api endpoint through SalesRepDocumentAuthorizationHandler — covered by its own tests.
+/// The documents REST controller invoked directly (no TestServer) against the real file/metadata services.
+/// Authorization is declarative — one permission per endpoint via [Authorize], enforced by the platform's
+/// permission handler (Administrator bypass included) — so this class asserts the declared attribute per action
+/// and covers the Create action's mappings (missing fileId, optional metadata assembly, service-exception → 400).
+/// File download authorization runs on the file-experience-api endpoint through
+/// SalesRepDocumentAuthorizationHandler — covered by its own tests, which own the permission matrix.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepDocumentsControllerActionsTests
@@ -33,35 +36,24 @@ public class SalesRepDocumentsControllerActionsTests
     private const string DocumentsRead = ModuleConstants.Security.Permissions.DocumentsRead;
     private const string DocumentsWrite = ModuleConstants.Security.Permissions.DocumentsWrite;
 
-    // ---- Read-endpoint in-action authorization (crafted principals) ----
+    // ---- Declarative authorization: one permission per endpoint (read means read, write means write) ----
 
-    [Fact]
-    public async Task Reads_ForbidAnonymousAndAuthenticatedWithoutPermission()
+    [Theory]
+    [InlineData(nameof(SalesRepDocumentsController.Search), DocumentsRead)]
+    [InlineData(nameof(SalesRepDocumentsController.GetCategories), DocumentsRead)]
+    [InlineData(nameof(SalesRepDocumentsController.Create), DocumentsWrite)]
+    [InlineData(nameof(SalesRepDocumentsController.UpdateMetadata), DocumentsWrite)]
+    [InlineData(nameof(SalesRepDocumentsController.Pin), DocumentsWrite)]
+    [InlineData(nameof(SalesRepDocumentsController.Unpin), DocumentsWrite)]
+    [InlineData(nameof(SalesRepDocumentsController.Delete), DocumentsWrite)]
+    public void Action_DeclaresExactlyItsPermission(string actionName, string permission)
     {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.UploadDocumentAsync("Report.pdf", "Catalogs");
+        var attribute = typeof(SalesRepDocumentsController)
+            .GetMethod(actionName)
+            .GetCustomAttributes<AuthorizeAttribute>()
+            .Single();
 
-        foreach (var user in new[] { Anonymous(), AuthenticatedWithout() })
-        {
-            var controller = CreateController(ctx, user);
-
-            (await controller.Search(new SalesRepDocumentSearchCriteria())).Result.Should().BeOfType<ForbidResult>();
-            (await controller.GetCategories(null)).Result.Should().BeOfType<ForbidResult>();
-        }
-    }
-
-    // One allow case proves the controller runs the predicate and maps its outcome; the full
-    // permission matrix (write implies read, Administrator) is owned by SalesRepDocumentPermissionsTests.
-    [Fact]
-    public async Task Reads_AllowWithReadPermission()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.UploadDocumentAsync("Report.pdf", "Catalogs");
-
-        var controller = CreateController(ctx, WithPermissions(DocumentsRead));
-
-        (await controller.Search(new SalesRepDocumentSearchCriteria())).Result.Should().BeOfType<OkObjectResult>();
-        (await controller.GetCategories(null)).Result.Should().BeOfType<OkObjectResult>();
+        attribute.Policy.Should().Be(permission);
     }
 
     // ---- Create action mappings ----
@@ -191,8 +183,6 @@ public class SalesRepDocumentsControllerActionsTests
     }
 
     private static ClaimsPrincipal Anonymous() => new(new ClaimsIdentity());
-
-    private static ClaimsPrincipal AuthenticatedWithout() => new(new ClaimsIdentity(claims: [], authenticationType: "Test"));
 
     private static ClaimsPrincipal WithPermissions(params string[] permissions)
         => new(new ClaimsIdentity(

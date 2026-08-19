@@ -12,8 +12,8 @@ using Permissions = VirtoCommerce.SalesRep.Core.ModuleConstants.Security.Permiss
 
 namespace VirtoCommerce.SalesRep.Web.Controllers.Api;
 
-// Read endpoints need read OR write OR Administrator, which a single-permission [Authorize] cannot express,
-// so they use [Authorize] + an explicit HasReadAccess check.
+// One permission per endpoint: read means read, write means write; the seeded Documents Manager role carries
+// both. Administrators pass every permission via the platform's authorization handler.
 [Authorize]
 [Route("api/sales-rep/documents")]
 public class SalesRepDocumentsController : Controller
@@ -60,25 +60,17 @@ public class SalesRepDocumentsController : Controller
     }
 
     [HttpPost("search")]
+    [Authorize(Permissions.DocumentsRead)]
     public async Task<ActionResult<SalesRepDocumentSearchResult>> Search([FromBody] SalesRepDocumentSearchCriteria criteria)
     {
-        if (!User.HasReadAccess())
-        {
-            return Forbid();
-        }
-
         var result = await _documentSearchService.SearchAsync(criteria ?? AbstractTypeFactory<SalesRepDocumentSearchCriteria>.TryCreateInstance());
         return Ok(result);
     }
 
     [HttpGet("categories")]
+    [Authorize(Permissions.DocumentsRead)]
     public async Task<ActionResult<SalesRepDocumentCategory[]>> GetCategories([FromQuery] string keyword = null)
     {
-        if (!User.HasReadAccess())
-        {
-            return Forbid();
-        }
-
         var result = await _documentSearchService.GetCategoriesAsync(keyword);
         return Ok(result);
     }

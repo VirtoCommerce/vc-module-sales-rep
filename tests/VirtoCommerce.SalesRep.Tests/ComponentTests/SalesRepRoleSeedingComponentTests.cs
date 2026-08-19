@@ -38,8 +38,9 @@ public class SalesRepRoleSeedingComponentTests
         var advanced = roles.Single(x => x.Name == AdvancedRoleName);
         advanced.Permissions.Select(x => x.Name).Should().BeEquivalentTo([Access, DocumentsRead]);
 
+        // Read is granted alongside write by role composition — write does not imply read in code.
         var manager = roles.Single(x => x.Name == ManagerRoleName);
-        manager.Permissions.Select(x => x.Name).Should().BeEquivalentTo([DocumentsWrite]);
+        manager.Permissions.Select(x => x.Name).Should().BeEquivalentTo([DocumentsRead, DocumentsWrite]);
     }
 
     [Fact]
@@ -57,16 +58,31 @@ public class SalesRepRoleSeedingComponentTests
     }
 
     [Fact]
-    public async Task Seed_RoleWithDocumentsWriteExists_SkipsManagerRole()
+    public async Task Seed_RoleWithBothDocumentPermissionsExists_SkipsManagerRole()
     {
         using var ctx = SalesRepTestContext.Create();
-        await ctx.CreateRoleAsync("Custom Library Admin", DocumentsWrite);
+        await ctx.CreateRoleAsync("Custom Library Admin", DocumentsRead, DocumentsWrite);
 
         await SeedAsync(ctx);
 
         var roles = await LoadRolesAsync(ctx);
         roles.Should().NotContain(x => x.Name == ManagerRoleName);
         roles.Should().ContainSingle(x => x.Name == AdvancedRoleName, "the rep+read capability is still uncovered");
+    }
+
+    // A role carrying the seeded NAME suppresses seeding whatever its permission set: the seeder never fights
+    // the administrator — no mutation (an admin may have removed a permission on purpose), no name collision.
+    [Fact]
+    public async Task Seed_RoleWithSeededNameExists_IsLeftUntouched()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.CreateRoleAsync(ManagerRoleName, DocumentsWrite);
+
+        await SeedAsync(ctx);
+
+        var roles = await LoadRolesAsync(ctx);
+        var manager = roles.Single(x => x.Name == ManagerRoleName);
+        manager.Permissions.Select(x => x.Name).Should().BeEquivalentTo([DocumentsWrite]);
     }
 
     [Fact]
