@@ -129,6 +129,12 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => x.StoreId == criteria.StoreId);
         }
 
+        if (!string.IsNullOrEmpty(criteria.CurrencyCode))
+        {
+            var currencyCode = criteria.CurrencyCode.ToUpperInvariant();
+            query = query.Where(x => x.Currency == currencyCode);
+        }
+
         if (!criteria.Names.IsNullOrEmpty())
         {
             query = query.Where(x => criteria.Names.Contains(x.Name));
