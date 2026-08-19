@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -101,7 +101,10 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
         await _metadataService.SaveChangesAsync([metadata]);
 
-        return SalesRepDocumentMapper.ToModel(file, metadata);
+        // The audit stamps land only on the stored row; re-read so the response carries them.
+        var saved = await _metadataService.GetNoCloneAsync(id);
+
+        return SalesRepDocumentMapper.ToModel(file, saved);
     }
 
     public virtual async Task SaveChangesAsync(IList<SalesRepDocument> models)

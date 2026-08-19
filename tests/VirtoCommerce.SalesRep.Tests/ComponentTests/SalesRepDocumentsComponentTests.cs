@@ -426,6 +426,22 @@ public class SalesRepDocumentsComponentTests
         (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true })).TotalCount.Should().Be(0);
     }
 
+    // The PUT response must carry the STORED audit stamps — a request body that omits them must not
+    // surface as createdDate 0001-01-01 / null modifiedDate in the answer.
+    [Fact]
+    public async Task MetadataPut_ResponseCarriesTheStoredAuditFields()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await ctx.UploadDocumentAsync("Audited.pdf", "Catalogs");
+
+        var updated = (await CreateController(ctx).UpdateMetadata(document.Id, new SalesRepDocumentMetadata { Category = "Catalogs", Name = "Renamed" }))
+            .Result.Should().BeOfType<OkObjectResult>()
+            .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
+
+        updated.CreatedDate.Should().NotBe(default);
+        updated.ModifiedDate.Should().NotBeNull();
+    }
+
     [Fact]
     public async Task GetCategories_ComputesCountsOverTheKeywordFilteredSet()
     {
