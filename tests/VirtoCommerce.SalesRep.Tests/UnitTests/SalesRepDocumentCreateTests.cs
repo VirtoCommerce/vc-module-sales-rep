@@ -339,10 +339,10 @@ public class SalesRepDocumentCreateTests
             return Task.CompletedTask;
         }
 
-        public Task SetPinnedAsync(string id, bool isPinned)
+        public Task<bool> SetPinnedAsync(string id, bool isPinned)
         {
             Saved.Single(x => x.Id == id).IsPinned = isPinned;
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
 
         public Task DeleteAsync(IList<string> ids, bool softDelete = false)

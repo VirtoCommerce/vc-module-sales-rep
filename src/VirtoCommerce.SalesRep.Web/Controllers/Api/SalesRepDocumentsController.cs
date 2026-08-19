@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -96,11 +95,7 @@ public class SalesRepDocumentsController : Controller
         try
         {
             var result = await _documentService.UpdateMetadataAsync(id, metadata);
-            return Ok(result);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
+            return result != null ? Ok(result) : NotFound();
         }
         catch (Exception exception) when (exception is ArgumentException or ValidationException)
         {
@@ -127,16 +122,9 @@ public class SalesRepDocumentsController : Controller
 
     private async Task<ActionResult> SetPinnedAsync(string id, bool isPinned)
     {
-        try
-        {
-            await _documentMetadataService.SetPinnedAsync(id, isPinned);
-        }
-        catch (KeyNotFoundException)
-        {
-            return NotFound();
-        }
+        var found = await _documentMetadataService.SetPinnedAsync(id, isPinned);
 
-        return NoContent();
+        return found ? NoContent() : NotFound();
     }
 
     [HttpDelete("")]

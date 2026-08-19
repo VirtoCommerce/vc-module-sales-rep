@@ -63,25 +63,24 @@ public class SalesRepDocumentMetadataService(
     }
 
     // The lock serializes the read-modify-write; filtered unique indexes are not portable across the three providers.
-    public virtual async Task SetPinnedAsync(string id, bool isPinned)
+    public virtual Task<bool> SetPinnedAsync(string id, bool isPinned)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        await distributedLockService.ExecuteAsync(
+        return distributedLockService.ExecuteAsync(
             PinLockKey,
-            async () =>
-            {
-                await SetPinnedInternalAsync(id, isPinned);
-                return true;
-            },
+            () => SetPinnedInternalAsync(id, isPinned),
             tryLockTimeout: _pinTryLockTimeout,
             retryInterval: _pinRetryInterval);
     }
 
-    protected virtual async Task SetPinnedInternalAsync(string id, bool isPinned)
+    protected virtual async Task<bool> SetPinnedInternalAsync(string id, bool isPinned)
     {
-        var target = (await GetAsync([id])).FirstOrDefault()
-            ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
+        var target = (await GetAsync([id])).FirstOrDefault();
+        if (target == null)
+        {
+            return false;
+        }
 
         target.IsPinned = isPinned;
         var toSave = new List<SalesRepDocumentMetadata> { target };
@@ -111,5 +110,7 @@ public class SalesRepDocumentMetadataService(
         }
 
         await SaveChangesAsync(toSave);
+
+        return true;
     }
 }

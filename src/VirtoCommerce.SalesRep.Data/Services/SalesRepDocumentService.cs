@@ -86,11 +86,17 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
-        var existing = await _metadataService.GetNoCloneAsync(id)
-            ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
+        var existing = await _metadataService.GetNoCloneAsync(id);
+        if (existing == null)
+        {
+            return null;
+        }
 
-        var file = await GetLibraryFileAsync(existing.FileId)
-            ?? throw new KeyNotFoundException($"Document '{id}' was not found in the library.");
+        var file = await GetLibraryFileAsync(existing.FileId);
+        if (file == null)
+        {
+            return null;
+        }
 
         metadata.Id = id;
         // The file link is immutable, and pin state is exclusively SetPinnedAsync's concern —
