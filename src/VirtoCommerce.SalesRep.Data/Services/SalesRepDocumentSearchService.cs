@@ -75,14 +75,27 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 
     protected virtual string MapSortColumn(string sortColumn)
     {
-        return sortColumn?.ToLowerInvariant() switch
+        if (sortColumn.EqualsIgnoreCase(nameof(DocumentMetadataEntity.Name)))
         {
-            "name" => nameof(DocumentMetadataEntity.Name),
-            "ispinned" => nameof(DocumentMetadataEntity.IsPinned),
-            "createddate" => nameof(DocumentMetadataEntity.CreatedDate),
-            "modifieddate" => nameof(DocumentMetadataEntity.ModifiedDate),
-            _ => null,
-        };
+            return nameof(DocumentMetadataEntity.Name);
+        }
+
+        if (sortColumn.EqualsIgnoreCase(nameof(DocumentMetadataEntity.IsPinned)))
+        {
+            return nameof(DocumentMetadataEntity.IsPinned);
+        }
+
+        if (sortColumn.EqualsIgnoreCase(nameof(DocumentMetadataEntity.CreatedDate)))
+        {
+            return nameof(DocumentMetadataEntity.CreatedDate);
+        }
+
+        if (sortColumn.EqualsIgnoreCase(nameof(DocumentMetadataEntity.ModifiedDate)))
+        {
+            return nameof(DocumentMetadataEntity.ModifiedDate);
+        }
+
+        return null;
     }
 
     protected virtual async Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadataItems)
