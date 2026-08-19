@@ -16,6 +16,10 @@
     <Content Remove="App\**" />
     <EmbeddedResource Remove="App\**" />
     <None Remove="App\**" />
+    <Compile Remove="StorefrontApp\**" />
+    <Content Remove="StorefrontApp\**" />
+    <EmbeddedResource Remove="StorefrontApp\**" />
+    <None Remove="StorefrontApp\**" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="Localizations\**">

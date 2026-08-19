@@ -1,0 +1,209 @@
+{
+  "sales_rep": {
+    "navigation": {
+      "link": "Sales reps"
+    },
+    "page": {
+      "title": "Sales reps"
+    },
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone",
+      "search_placeholder": "Search by name, email or phone",
+      "search_aria": "Search sales reps",
+      "empty": "No sales reps found",
+      "no_results": "No sales reps match your search",
+      "reset_search": "Reset search",
+      "load_failed": "Couldn't load sales reps"
+    },
+    "my_customers": {
+      "navigation": {
+        "link": "My customers"
+      },
+      "page": {
+        "title": "My customers"
+      },
+      "table": {
+        "customer": "Customer",
+        "last_order": "My last order",
+        "ytd": "YTD purchases",
+        "last_year": "Last year",
+        "orders_count": "{count} orders",
+        "all_customers": "All",
+        "actions": "Actions",
+        "search_placeholder": "Search by name",
+        "search_aria": "Search customers",
+        "empty": "No customers found",
+        "no_results": "No customers match your search",
+        "reset_search": "Reset search",
+        "load_failed": "Couldn't load customers"
+      }
+    },
+    "hub": {
+      "title": "Sales Rep hub",
+      "dashboard": {
+        "navigation": {
+          "link": "Dashboard"
+        },
+        "page": {
+          "title": "Dashboard"
+        },
+        "widgets": {
+          "new_orders": "Orders in “New” status",
+          "active_carts": "Active carts",
+          "active_cart": "Active cart",
+          "orders_placed_week": "Orders placed · WEEK",
+          "orders_placed_mtd": "Orders placed · MTD",
+          "purchased_mtd": "Purchased · MTD",
+          "orders_placed_ytd": "Orders placed · YTD",
+          "my_customers": "My customers"
+        },
+        "stats": {
+          "value_total": "{amount} total",
+          "vs_last_week": "{delta} vs last week",
+          "vs_last_month": "{delta} vs last month",
+          "vs_last_year": "{delta} vs last year",
+          "ordered_this_month": "{count} ordered this month",
+          "new_customers": "{count} new customers",
+          "of_recent_orders": "of {count} created in the last 7 days",
+          "new_this_week": "{count} new this week",
+          "mtd_of_ytd": "{percent}% of YTD",
+          "load_failed": "Couldn't load"
+        }
+      },
+      "layout": {
+        "edit": "Edit layout",
+        "editing": "Editing layout",
+        "hint": "— drag a block by its handle to reorder it, or hide it with ✕.",
+        "hint_keyboard": "Keyboard: press space on a block to pick it up, arrow keys to move it, space to drop, escape to cancel.",
+        "save": "Save layout",
+        "cancel": "Cancel",
+        "reset": "Reset",
+        "save_failed": "The layout could not be saved. Your changes are still here — try again.",
+        "load_failed": "The saved layout could not be loaded, so the default arrangement is shown. Editing is unavailable until it loads — try refreshing the page.",
+        "hidden_widgets": "Hidden widgets",
+        "visible_stats": "Visible stats",
+        "hidden_stats": "Hidden stats",
+        "empty_visible": "Drag a stat here to show it",
+        "empty_hidden": "Drag a stat here to hide it",
+        "max_rows": "Max rows",
+        "a11y": {
+          "reorder": "Reorder {title}",
+          "hide": "Hide {title}",
+          "show": "Show {title}",
+          "grabbed": "{title} grabbed. Position {position} of {total}. Use the arrow keys to move it, space to drop it, escape to cancel.",
+          "grabbed_parkable": "{title} grabbed. Position {position} of {total}. Use the left and right arrow keys to move it, up and down to hide or show it, space to drop it, escape to cancel.",
+          "moved": "{title} moved to position {position} of {total}.",
+          "dropped": "{title} dropped at position {position} of {total}.",
+          "edge": "{title} is already at position {position} of {total}.",
+          "cancelled": "Move of {title} cancelled.",
+          "parked": "{title} hidden.",
+          "restored": "{title} shown.",
+          "max_rows": "Maximum rows shown by {title}, between {min} and {max}"
+        }
+      }
+    },
+    "customer_profile": {
+      "loading": "Loading…",
+      "not_found": "Customer not found or not in your customers.",
+      "back_to_customers": "Back to my customers",
+      "widgets": {
+        "avg_order_value": "Avg order value"
+      },
+      "stats": {
+        "per_order": "Average per order (YTD)"
+      },
+      "info": {
+        "title": "Customer information",
+        "empty": "No information available",
+        "primary_contact": "Primary contact",
+        "phone": "Phone",
+        "account_type": "Account type",
+        "ship_to": "Ship-to"
+      }
+    },
+    "communication": {
+      "action": "Send email",
+      "title": "Send a message",
+      "subtitle": "Reaches every member of {organization}",
+      "title_label": "Title",
+      "message_label": "Message",
+      "channels_label": "Send via",
+      "email_label": "Email",
+      "push_label": "Push notification",
+      "send_button": "Send",
+      "cancel_button": "Cancel",
+      "success_text": "Your message has been sent.",
+      "partial_success_text": "Your message was sent, but not on every channel:",
+      "error_text": "The message could not be sent. Please try again.",
+      "warnings": {
+        "generic": "The message could not be sent on one of the selected channels.",
+        "NoRecipients": "This organization has no contacts to notify.",
+        "EmailUnavailable": "Email is currently unavailable. Please contact your administrator.",
+        "EmailStoreAccessDenied": "Email could not be sent for the selected store.",
+        "EmailNoRecipients": "None of the recipients have an email address.",
+        "EmailSendFailed": "The email could not be sent. Please try again later.",
+        "PushSendFailed": "The push notification could not be sent. Please try again later."
+      },
+      "quick_actions": {
+        "title": "Quick actions",
+        "order_on_behalf": "Order on behalf",
+        "send_email": "Send email",
+        "create_quote": "Create quote",
+        "schedule_call": "Schedule call"
+      }
+    },
+    "orders": {
+      "title": "Recent orders",
+      "view_all": "All orders",
+      "empty": "No orders yet",
+      "no_results": "No orders match this filter",
+      "number": "Order #",
+      "customer": "Customer",
+      "date": "Date",
+      "items": "Items",
+      "status": "Status",
+      "total": "Total",
+      "filter_all": "All",
+      "load_failed": "Couldn't load orders"
+    },
+    "top_sellers": {
+      "title": "Top sellers",
+      "rank": "#",
+      "product": "Product",
+      "units": "Units",
+      "revenue": "Revenue",
+      "empty": "No sales in this period",
+      "no_results": "No sales in this category",
+      "all_categories": "All categories",
+      "load_failed": "Couldn't load top sellers"
+    },
+    "rules": {
+      "customer": {
+        "filter": {
+          "All": "All"
+        }
+      }
+    },
+    "list_sharing": {
+      "share_customers_label": "Customer",
+      "share_customers_placeholder": "Select customer",
+      "share_customers_error": "The customer list could not be loaded. Please try again.",
+      "share_replace_hint": "The previously selected customer will lose access to this list.",
+      "share_message_label": "Message",
+      "share_message_placeholder": "Optional message to include",
+      "share_channels_label": "Send via",
+      "share_email_label": "Email",
+      "share_push_label": "Push notification",
+      "share_default_title": "A new list from your sales representative",
+      "share_default_message": "Hi! I've just shared the list \"{listName}\" with your organization. Take a look:",
+      "share_success": "List shared with the customer.",
+      "share_partial": "List shared, but not every notification was delivered.",
+      "share_notify_error": "The list was saved, but the customer could not be notified.",
+      "scope_label": "Customer",
+      "status": "Shared with customer",
+      "badge": "Recommended by your sales representative"
+    }
+  }
+}

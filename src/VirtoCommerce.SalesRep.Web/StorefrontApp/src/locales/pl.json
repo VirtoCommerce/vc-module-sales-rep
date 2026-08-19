@@ -1,0 +1,209 @@
+{
+  "sales_rep": {
+    "navigation": {
+      "link": "Przedstawiciele handlowi"
+    },
+    "page": {
+      "title": "Przedstawiciele handlowi"
+    },
+    "table": {
+      "name": "Imię i nazwisko",
+      "email": "Email",
+      "phone": "Telefon",
+      "search_placeholder": "Szukaj po imieniu i nazwisku, emailu lub telefonie",
+      "search_aria": "Szukaj przedstawicieli handlowych",
+      "empty": "Nie znaleziono przedstawicieli handlowych",
+      "no_results": "Nie znaleziono przedstawicieli handlowych pasujących do Twojego wyszukiwania",
+      "reset_search": "Resetuj wyszukiwanie",
+      "load_failed": "Nie udało się wczytać przedstawicieli handlowych"
+    },
+    "my_customers": {
+      "navigation": {
+        "link": "Moi klienci"
+      },
+      "page": {
+        "title": "Moi klienci"
+      },
+      "table": {
+        "customer": "Klient",
+        "last_order": "Moje ostatnie zamówienie",
+        "ytd": "Zakupy w tym roku",
+        "last_year": "W zeszłym roku",
+        "orders_count": "{count} zamówień",
+        "all_customers": "Wszyscy",
+        "actions": "Akcje",
+        "search_placeholder": "Szukaj według nazwy",
+        "search_aria": "Szukaj klientów",
+        "empty": "Nie znaleziono klientów",
+        "no_results": "Żaden klient nie pasuje do wyszukiwania",
+        "reset_search": "Resetuj wyszukiwanie",
+        "load_failed": "Nie udało się wczytać klientów"
+      }
+    },
+    "hub": {
+      "title": "Centrum przedstawiciela handlowego",
+      "dashboard": {
+        "navigation": {
+          "link": "Panel"
+        },
+        "page": {
+          "title": "Panel"
+        },
+        "widgets": {
+          "new_orders": "Zamówienia w statusie „New”",
+          "active_carts": "Aktywne koszyki",
+          "active_cart": "Aktywny koszyk",
+          "orders_placed_week": "Zamówienia w tym tygodniu",
+          "orders_placed_mtd": "Zamówienia od początku miesiąca",
+          "purchased_mtd": "Zakupy od początku miesiąca",
+          "orders_placed_ytd": "Zamówienia od początku roku",
+          "my_customers": "Moi klienci"
+        },
+        "stats": {
+          "value_total": "{amount} łącznie",
+          "vs_last_week": "{delta} vs poprzedni tydzień",
+          "vs_last_month": "{delta} vs poprzedni miesiąc",
+          "vs_last_year": "{delta} vs poprzedni rok",
+          "ordered_this_month": "{count} zamówiło w tym miesiącu",
+          "new_customers": "{count} nowych klientów",
+          "of_recent_orders": "z {count} utworzonych w ciągu ostatnich 7 dni",
+          "new_this_week": "{count} nowych w tym tygodniu",
+          "mtd_of_ytd": "{percent}% roku",
+          "load_failed": "Nie udało się wczytać"
+        }
+      },
+      "layout": {
+        "edit": "Edytuj układ",
+        "editing": "Edytowanie układu",
+        "hint": "— przeciągnij blok za uchwyt, aby zmienić kolejność, lub ukryj go przyciskiem ✕.",
+        "hint_keyboard": "Klawiatura: spacja chwyta blok, strzałki go przesuwają, spacja upuszcza, Esc anuluje.",
+        "save": "Zapisz układ",
+        "cancel": "Anuluj",
+        "reset": "Przywróć domyślne",
+        "save_failed": "Nie udało się zapisać układu. Twoje zmiany nie przepadły — spróbuj ponownie.",
+        "load_failed": "Nie udało się wczytać zapisanego układu, więc wyświetlany jest układ domyślny. Edycja jest niedostępna do czasu wczytania — odśwież stronę.",
+        "hidden_widgets": "Ukryte widżety",
+        "visible_stats": "Widoczne wskaźniki",
+        "hidden_stats": "Ukryte wskaźniki",
+        "empty_visible": "Przeciągnij tutaj wskaźnik, aby go pokazać",
+        "empty_hidden": "Przeciągnij tutaj wskaźnik, aby go ukryć",
+        "max_rows": "Maks. wierszy",
+        "a11y": {
+          "reorder": "Zmień kolejność: {title}",
+          "hide": "Ukryj {title}",
+          "show": "Pokaż {title}",
+          "grabbed": "Chwycono {title}. Pozycja {position} z {total}. Użyj strzałek, aby przenieść, spacji, aby upuścić, Escape, aby anulować.",
+          "grabbed_parkable": "Chwycono {title}. Pozycja {position} z {total}. Użyj strzałek w lewo i w prawo, aby przenieść, w górę i w dół, aby ukryć lub pokazać, spacji, aby upuścić, Escape, aby anulować.",
+          "moved": "Przeniesiono {title} na pozycję {position} z {total}.",
+          "dropped": "Upuszczono {title} na pozycji {position} z {total}.",
+          "edge": "{title} jest już na pozycji {position} z {total}.",
+          "cancelled": "Anulowano przenoszenie {title}.",
+          "parked": "Ukryto {title}.",
+          "restored": "Pokazano {title}.",
+          "max_rows": "Maksymalna liczba wierszy wyświetlanych przez {title}, od {min} do {max}"
+        }
+      }
+    },
+    "customer_profile": {
+      "loading": "Ładowanie…",
+      "not_found": "Nie znaleziono klienta lub nie należy do Twoich klientów.",
+      "back_to_customers": "Powrót do moich klientów",
+      "widgets": {
+        "avg_order_value": "Średnia wartość zamówienia"
+      },
+      "stats": {
+        "per_order": "Średnio na zamówienie (od początku roku)"
+      },
+      "info": {
+        "title": "Informacje o kliencie",
+        "empty": "Brak dostępnych informacji",
+        "primary_contact": "Główna osoba kontaktowa",
+        "phone": "Telefon",
+        "account_type": "Typ konta",
+        "ship_to": "Adres dostawy"
+      }
+    },
+    "communication": {
+      "action": "Wyślij e-mail",
+      "title": "Wyślij wiadomość",
+      "subtitle": "Dociera do każdego członka organizacji {organization}",
+      "title_label": "Tytuł",
+      "message_label": "Wiadomość",
+      "channels_label": "Wyślij przez",
+      "email_label": "E-mail",
+      "push_label": "Powiadomienie push",
+      "send_button": "Wyślij",
+      "cancel_button": "Anuluj",
+      "success_text": "Twoja wiadomość została wysłana.",
+      "error_text": "Nie udało się wysłać wiadomości. Spróbuj ponownie.",
+      "partial_success_text": "Twoja wiadomość została wysłana, ale nie wszystkimi kanałami:",
+      "warnings": {
+        "generic": "Nie udało się wysłać wiadomości jednym z wybranych kanałów.",
+        "NoRecipients": "Ta organizacja nie ma kontaktów do powiadomienia.",
+        "EmailUnavailable": "Poczta e-mail jest obecnie niedostępna. Skontaktuj się z administratorem.",
+        "EmailStoreAccessDenied": "Nie udało się wysłać wiadomości e-mail dla wybranego sklepu.",
+        "EmailNoRecipients": "Żaden z odbiorców nie ma adresu e-mail.",
+        "EmailSendFailed": "Nie udało się wysłać wiadomości e-mail. Spróbuj ponownie później.",
+        "PushSendFailed": "Nie udało się wysłać powiadomienia push. Spróbuj ponownie później."
+      },
+      "quick_actions": {
+        "title": "Szybkie akcje",
+        "order_on_behalf": "Zamów w imieniu",
+        "send_email": "Wyślij e-mail",
+        "create_quote": "Utwórz ofertę",
+        "schedule_call": "Zaplanuj rozmowę"
+      }
+    },
+    "orders": {
+      "title": "Ostatnie zamówienia",
+      "view_all": "Wszystkie zamówienia",
+      "empty": "Brak zamówień",
+      "no_results": "Żadne zamówienie nie pasuje do tego filtra",
+      "number": "Nr zamówienia",
+      "customer": "Klient",
+      "date": "Data",
+      "items": "Pozycje",
+      "status": "Status",
+      "total": "Razem",
+      "filter_all": "Wszyscy",
+      "load_failed": "Nie udało się wczytać zamówień"
+    },
+    "top_sellers": {
+      "title": "Najlepsi sprzedawcy",
+      "rank": "#",
+      "product": "Produkt",
+      "units": "Sztuki",
+      "revenue": "Przychody",
+      "empty": "Brak sprzedaży w tym okresie",
+      "no_results": "Brak sprzedaży w tej kategorii",
+      "all_categories": "Wszystkie kategorie",
+      "load_failed": "Nie udało się wczytać bestsellerów"
+    },
+    "rules": {
+      "customer": {
+        "filter": {
+          "All": "Wszyscy"
+        }
+      }
+    },
+    "list_sharing": {
+      "share_customers_label": "Klient",
+      "share_customers_placeholder": "Wybierz klienta",
+      "share_customers_error": "Nie udało się wczytać listy klientów. Spróbuj ponownie.",
+      "share_replace_hint": "Wcześniej wybrany klient utraci dostęp do tej listy.",
+      "share_message_label": "Wiadomość",
+      "share_message_placeholder": "Opcjonalna wiadomość",
+      "share_channels_label": "Wyślij przez",
+      "share_email_label": "E-mail",
+      "share_push_label": "Powiadomienie push",
+      "share_default_title": "Nowa lista od Twojego przedstawiciela handlowego",
+      "share_default_message": "Cześć! Lista „{listName}” jest już dostępna dla Twojej organizacji. Sprawdź ją:",
+      "share_success": "Lista została udostępniona klientowi.",
+      "share_partial": "Lista została udostępniona, ale nie wszystkie powiadomienia zostały dostarczone.",
+      "share_notify_error": "Lista została zapisana, ale nie udało się powiadomić klienta.",
+      "scope_label": "Klient",
+      "status": "Udostępniona klientowi",
+      "badge": "Polecane przez Twojego przedstawiciela handlowego"
+    }
+  }
+}

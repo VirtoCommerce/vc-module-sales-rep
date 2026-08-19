@@ -1,0 +1,32 @@
+import { createSharedComposable } from "@vueuse/core";
+import { computed } from "vue";
+import { globals } from "@vc-frontend/core";
+import { Logger } from "@vc-frontend/core";
+import { SalesRepCustomersCountDocument } from "../api/graphql/types";
+import { HUB_FETCH_POLICY } from "../constants";
+import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
+
+// Count-only query (first: 0, totalCount) for the left-rail badge — deliberately unfiltered so it
+// reflects the rep's full total, not the My Customers page's filtered/paged view.
+export function useSalesRepCustomersCount() {
+  // Shows the same number as the dashboard's "Assigned customers" card — cache-first let the two disagree.
+  const { result, onError } = useSalesRepHubQuery(
+    SalesRepCustomersCountDocument,
+    () => ({ storeId: globals.storeId }),
+    {
+      fetchPolicy: HUB_FETCH_POLICY,
+    },
+  );
+
+  onError((error) => {
+    // Keep the nav functional (badge just hides); no toasts by design.
+    Logger.error("[sales-rep] salesRepCustomers count failed:", error);
+  });
+
+  const count = computed(() => result.value?.salesRepCustomers?.totalCount ?? 0);
+
+  return { count };
+}
+
+/** One query for however many nav surfaces show the badge, stopped when the last unmounts. */
+export const useSharedSalesRepCustomersCount = createSharedComposable(useSalesRepCustomersCount);

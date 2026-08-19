@@ -1,0 +1,11 @@
+node_modules
+dist/
+.yalc/
+yalc.lock
+
+# yalc-linked facade is unreleased — no committed lockfile until core-v* ships
+yarn.lock
+.yarn/*
+!.yarn/patches
+.pnp.*
+.env
