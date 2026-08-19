@@ -122,14 +122,6 @@ public static class ModuleConstants
                 DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
-            public static SettingDescriptor DocumentsCacheExpiration { get; } = new()
-            {
-                Name = "SalesRep.Documents.CacheExpirationMinutes",
-                GroupName = "Sales Rep|Documents",
-                ValueType = SettingValueType.Integer,
-                DefaultValue = DefaultCacheLifetimeMinutes,
-            };
-
             public static IEnumerable<SettingDescriptor> AllCachingSettings
             {
                 get
@@ -138,7 +130,6 @@ public static class ModuleConstants
                     yield return CartStatisticsCacheExpiration;
                     yield return CustomerCountsCacheExpiration;
                     yield return TopSellerCacheExpiration;
-                    yield return DocumentsCacheExpiration;
                 }
             }
         }
