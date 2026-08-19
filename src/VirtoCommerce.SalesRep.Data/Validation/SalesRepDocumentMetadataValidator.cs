@@ -23,9 +23,10 @@ public class SalesRepDocumentMetadataValidator : AbstractValidator<SalesRepDocum
             .MaximumLength(ModuleConstants.Documents.CategoryMaxLength)
             .Must(BeAValidCategoryName).WithMessage(x => $"Invalid category name '{x.Category}'.");
 
-        RuleFor(x => x.Name).MaximumLength(DocumentMetadataEntity.NameLength);
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(DocumentMetadataEntity.NameLength);
         RuleFor(x => x.Summary).MaximumLength(DocumentMetadataEntity.SummaryLength);
         RuleFor(x => x.PreviewUrl).MaximumLength(DocumentMetadataEntity.PreviewUrlLength);
+        RuleFor(x => x.PageCount).GreaterThan(0);
     }
 
     private static bool BeAValidCategoryName(string category)

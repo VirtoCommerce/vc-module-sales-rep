@@ -265,6 +265,7 @@ public class SalesRepDocumentsComponentTests
         {
             Id = document.Id,
             FileId = document.FileId,
+            Name = "Editable.pdf",
             Category = new string('x', ModuleConstants.Documents.CategoryMaxLength + 1),
         }]);
 

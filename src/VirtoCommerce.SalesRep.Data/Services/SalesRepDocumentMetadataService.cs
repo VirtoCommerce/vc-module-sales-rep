@@ -45,6 +45,7 @@ public class SalesRepDocumentMetadataService(
     {
         foreach (var model in models)
         {
+            model.Name = model.Name?.Trim();
             model.Category = model.Category?.Trim();
         }
 

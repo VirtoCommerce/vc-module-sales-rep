@@ -8,9 +8,9 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 
 /// <summary>
 /// The document metadata validation rules enforced on every save (the validator runs in
-/// SalesRepDocumentMetadataService.BeforeSaveChanges): the file link and category are required, the category
-/// respects the business length cap and rejects path/control characters identically on Windows and Linux,
-/// and the optional text fields respect their column lengths.
+/// SalesRepDocumentMetadataService.BeforeSaveChanges): the file link, display name, and category are required,
+/// the category respects the business length cap and rejects path/control characters identically on Windows
+/// and Linux, the optional text fields respect their column lengths, and a page count must be positive.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepDocumentMetadataValidatorTests
@@ -55,6 +55,31 @@ public class SalesRepDocumentMetadataValidatorTests
         result.Errors.Should().Contain(x => x.PropertyName == nameof(SalesRepDocumentMetadata.Category));
     }
 
+    // The "display name is always stored" invariant is defended in the save pipeline, not only in the
+    // orchestrator methods that happen to set it — a direct SaveChangesAsync cannot persist a nameless row
+    // (invisible to keyword search: LIKE never matches NULL).
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void Validate_MissingName_Fails(string name)
+    {
+        var result = _validator.Validate(CreateMetadata(x => x.Name = name));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(x => x.PropertyName == nameof(SalesRepDocumentMetadata.Name));
+    }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(-1)]
+    public void Validate_NonPositivePageCount_Fails(int pageCount)
+    {
+        var result = _validator.Validate(CreateMetadata(x => x.PageCount = pageCount));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(x => x.PropertyName == nameof(SalesRepDocumentMetadata.PageCount));
+    }
+
     [Fact]
     public void Validate_OverlongOptionalFields_Fail()
     {
@@ -76,6 +101,7 @@ public class SalesRepDocumentMetadataValidatorTests
         var metadata = new SalesRepDocumentMetadata
         {
             FileId = "file-1",
+            Name = "Price list.pdf",
             Category = "Catalogs",
         };
         mutate?.Invoke(metadata);
