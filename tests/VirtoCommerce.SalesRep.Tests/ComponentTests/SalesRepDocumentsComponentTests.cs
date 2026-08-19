@@ -121,7 +121,7 @@ public class SalesRepDocumentsComponentTests
         // The download endpoint (GET /api/files/{id}) streams through the file service by the document's FileId.
         await using var stream = await ctx.GetRequiredService<IFileUploadService>().OpenReadAsync(document.FileId);
         using var reader = new StreamReader(stream);
-        (await reader.ReadToEndAsync()).Should().Be("guide-content");
+        (await reader.ReadToEndAsync(TestContext.Current.CancellationToken)).Should().Be("guide-content");
     }
 
     [Fact]
@@ -163,7 +163,7 @@ public class SalesRepDocumentsComponentTests
 
         // Metadata row gone.
         using var db = ctx.NewSalesRepDbContext();
-        (await db.Set<DocumentMetadataEntity>().CountAsync()).Should().Be(0);
+        (await db.Set<DocumentMetadataEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
 
         // And the search surface agrees.
         var result = await ctx.GetRequiredService<ISalesRepDocumentSearchService>().SearchAsync(new SalesRepDocumentSearchCriteria());
@@ -183,7 +183,7 @@ public class SalesRepDocumentsComponentTests
 
         using (var db = ctx.NewSalesRepDbContext())
         {
-            (await db.Set<DocumentMetadataEntity>().CountAsync()).Should().Be(0);
+            (await db.Set<DocumentMetadataEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
         }
 
         var result = await ctx.GetRequiredService<ISalesRepDocumentSearchService>().SearchAsync(new SalesRepDocumentSearchCriteria());
@@ -253,7 +253,7 @@ public class SalesRepDocumentsComponentTests
         reloaded.PageCount.Should().Be(7);
 
         using var db = ctx.NewSalesRepDbContext();
-        (await db.Set<DocumentMetadataEntity>().CountAsync()).Should().Be(1);
+        (await db.Set<DocumentMetadataEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(1);
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class SalesRepDocumentsComponentTests
             .Result.Should().BeOfType<NotFoundResult>();
         using (var db = ctx.NewSalesRepDbContext())
         {
-            (await db.Set<DocumentMetadataEntity>().CountAsync()).Should().Be(1);
+            (await db.Set<DocumentMetadataEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(1);
         }
 
         // A foreign AssetEntry id is not a library document either.
