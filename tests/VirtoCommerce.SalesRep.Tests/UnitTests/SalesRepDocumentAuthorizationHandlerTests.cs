@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.AspNetCore.Authorization;
+using VirtoCommerce.FileExperienceApi.Core.Extensions;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
@@ -94,13 +95,12 @@ public class SalesRepDocumentAuthorizationHandlerTests
 
     private static File UnclaimedFile() => new() { Id = "file-1", Scope = ModuleConstants.DocumentsScope };
 
-    private static File ClaimedFile() => new()
+    private static File ClaimedFile()
     {
-        Id = "file-1",
-        Scope = ModuleConstants.DocumentsScope,
-        OwnerEntityId = "document-1",
-        OwnerEntityType = nameof(SalesRepDocumentMetadata),
-    };
+        var file = new File { Id = "file-1", Scope = ModuleConstants.DocumentsScope };
+        file.SetOwner<SalesRepDocumentMetadata>("document-1");
+        return file;
+    }
 
     private static ClaimsPrincipal CreateUser(string permission)
     {

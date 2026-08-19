@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
+using VirtoCommerce.FileExperienceApi.Core.Extensions;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -69,8 +70,7 @@ public class SalesRepDocumentCreateTests
     public async Task Create_AlreadyOwnedFile_ThrowsAndSavesNothing()
     {
         var file = AddFile();
-        file.OwnerEntityId = "other-document";
-        file.OwnerEntityType = nameof(SalesRepDocumentMetadata);
+        file.SetOwner<SalesRepDocumentMetadata>("other-document");
         var service = CreateService();
 
         var create = () => service.CreateAsync(file.Id, "Catalogs");
@@ -124,7 +124,7 @@ public class SalesRepDocumentCreateTests
         document.PreviewUrl.Should().Be("https://cdn/preview.png");
 
         file.OwnerEntityId.Should().Be(saved.Id);
-        file.OwnerEntityType.Should().Be(nameof(SalesRepDocumentMetadata));
+        file.OwnerTypeIs<SalesRepDocumentMetadata>().Should().BeTrue();
     }
 
     [Fact]

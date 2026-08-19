@@ -60,8 +60,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
         try
         {
-            file.OwnerEntityId = metadata.Id;
-            file.OwnerEntityType = nameof(SalesRepDocumentMetadata);
+            file.SetOwner(metadata);
             await _fileUploadService.SaveChangesAsync([file]);
         }
         catch

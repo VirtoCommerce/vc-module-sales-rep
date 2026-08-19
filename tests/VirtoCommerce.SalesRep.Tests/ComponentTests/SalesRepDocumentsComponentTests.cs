@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Services;
+using VirtoCommerce.FileExperienceApi.Core.Extensions;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -97,7 +98,7 @@ public class SalesRepDocumentsComponentTests
         var file = (await ctx.GetRequiredService<IFileUploadService>().GetAsync([document.FileId])).Single();
         file.Scope.Should().Be(ModuleConstants.DocumentsScope);
         file.OwnerEntityId.Should().Be(document.Id);
-        file.OwnerEntityType.Should().Be(nameof(SalesRepDocumentMetadata));
+        file.OwnerTypeIs<SalesRepDocumentMetadata>().Should().BeTrue();
 
         // A second registration of the same file must be refused — the file already belongs to a document.
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
