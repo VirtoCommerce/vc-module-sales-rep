@@ -107,7 +107,7 @@ public class SalesRepMapperTests
     }
 
     private static File CreateFile(string id, string scope = ModuleConstants.DocumentsScope, string name = "list.pdf", string contentType = "application/pdf", long size = 1)
-        => new() { Id = id, Scope = scope, Name = name, ContentType = contentType, Size = size };
+        => new() { Id = id, Scope = scope, Name = name, ContentType = contentType, Size = size, PublicUrl = $"/api/files/{id}" };
 
     private static SalesRepDocumentMetadata CreateMetadata(string fileId, string name = "Pretty name")
         => new() { FileId = fileId, Name = name, Category = "Catalogs" };

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using VirtoCommerce.FileExperienceApi.Core.Extensions;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -30,7 +29,7 @@ public class SalesRepMapper : ISalesRepMapper
         document.Name = file.Name;
         document.ContentType = file.ContentType;
         document.Size = file.Size;
-        document.Url = FileUploadServiceExtensions.GetPublicUrl(file.Id);
+        document.Url = file.PublicUrl;
         document.Category = metadata.Category;
         document.IsPinned = metadata.IsPinned;
         document.Summary = metadata.Summary;

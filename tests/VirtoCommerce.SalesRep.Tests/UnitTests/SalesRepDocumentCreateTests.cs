@@ -262,6 +262,7 @@ public class SalesRepDocumentCreateTests
             ContentType = contentType,
             Size = size,
         };
+        file.PublicUrl = $"/api/files/{file.Id}";
         _fileUploadService.Files[file.Id] = file;
         return file;
     }
