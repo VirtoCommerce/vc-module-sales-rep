@@ -45,6 +45,8 @@
     admin UI relies on. Pass -p:SkipStorefrontPlugin=true for a backend-only build without node.
   -->
   <Target Name="BuildStorefrontPlugin" BeforeTargets="Publish" Condition="'$(SkipStorefrontPlugin)' != 'true' AND Exists('$(MSBuildProjectDirectory)\StorefrontApp\package.json')">
+    <!-- The runner's global yarn is 1.x; package.json pins yarn 4, so corepack has to activate it. -->
+    <Exec Command="corepack enable" ContinueOnError="true" />
     <Exec Command="yarn install --immutable" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
     <Exec Command="yarn build" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
   </Target>
