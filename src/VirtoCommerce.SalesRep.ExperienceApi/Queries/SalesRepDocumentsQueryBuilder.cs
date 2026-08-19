@@ -1,4 +1,4 @@
-﻿using System.Threading.Tasks;
+using System.Threading.Tasks;
 using GraphQL;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.Core;

@@ -94,14 +94,14 @@ public class SalesRepDocumentsControllerActionsTests
         var controller = CreateController(ctx, WithPermissions(DocumentsWrite));
 
         var document = (await controller.Create(new SalesRepDocumentCreateRequest
-            {
-                FileId = fileId,
-                Category = "Specs",
-                Name = "Pretty spec",
-                Summary = "The summary",
-                PageCount = 9,
-                PreviewUrl = "https://example.test/preview.png",
-            }))
+        {
+            FileId = fileId,
+            Category = "Specs",
+            Name = "Pretty spec",
+            Summary = "The summary",
+            PageCount = 9,
+            PreviewUrl = "https://example.test/preview.png",
+        }))
             .Result.Should().BeOfType<OkObjectResult>()
             .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
 

@@ -1,4 +1,4 @@
-﻿import { useAsync, useApiClient, useLoading } from "@vc-shell/framework";
+import { useAsync, useApiClient, useLoading } from "@vc-shell/framework";
 import { SalesRepDocumentsClient, SalesRepDocument } from "../../../../api_client/virtocommerce.salesrep";
 
 // UX-side filter only — the platform's IFileExtensionService white/blacklist re-validates every upload on the backend.

@@ -1,4 +1,4 @@
-﻿namespace VirtoCommerce.SalesRep.Core.Models;
+namespace VirtoCommerce.SalesRep.Core.Models;
 
 public class SalesRepDocumentCreateRequest
 {

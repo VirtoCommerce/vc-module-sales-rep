@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
@@ -29,8 +29,8 @@ using VirtoCommerce.SalesRep.Data.PostgreSql;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
-using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.Data.SqlServer;
+using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
