@@ -38,22 +38,17 @@
     <NotificationTemplates Include="NotificationTemplates\**" />
   </ItemGroup>
   <!--
-    Builds the storefront MF plugin into plugins/vc-frontend/ so the packed module carries it.
-    vc-build's BuildCustomApp cannot do this: it walks <apps> from module.manifest, only looks in
-    Apps/{appId} (or the legacy App/), and copies dist into Content/{appId} — and declaring the
-    plugin as an <app> would both claim a host app id we do not own and drop the App/ fallback the
-    admin UI relies on. Pass -p:SkipStorefrontPlugin=true for a backend-only build without node.
+    vc-build's BuildCustomApp cannot build this: it only walks <apps> from module.manifest, and
+    declaring the plugin as an <app> would claim a host app id we do not own and drop the App/
+    fallback the admin UI relies on. Pass -p:SkipStorefrontPlugin=true to build without node.
   -->
   <Target Name="BuildStorefrontPlugin" BeforeTargets="Publish" Condition="'$(SkipStorefrontPlugin)' != 'true' AND Exists('$(MSBuildProjectDirectory)\StorefrontApp\package.json')">
-    <!-- The runner's global yarn is 1.x; package.json pins yarn 4, so corepack has to activate it. -->
+    <!-- The runner's global yarn is 1.x; package.json pins yarn 4. -->
     <Exec Command="corepack enable" ContinueOnError="true" />
     <Exec Command="yarn install --immutable" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
     <Exec Command="yarn build" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
   </Target>
-  <!--
-    The default Content glob is evaluated before any target runs, so files the build above creates
-    are invisible to it. They are added to the publish set explicitly instead.
-  -->
+  <!-- The default Content glob is evaluated before any target runs, so the built files need adding by hand. -->
   <Target Name="PublishStorefrontPlugin" DependsOnTargets="BuildStorefrontPlugin" BeforeTargets="ComputeResolvedFilesToPublishList" Condition="'$(SkipStorefrontPlugin)' != 'true'">
     <ItemGroup>
       <StorefrontPluginFile Include="$(MSBuildProjectDirectory)\plugins\**\*" />
