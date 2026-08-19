@@ -41,12 +41,11 @@ public class SalesRepDocumentMetadataSearchService(
             query = query.Where(x => criteria.ObjectIds.Contains(x.Id));
         }
 
-        // ToLower on both sides: PostgreSQL compares case-sensitively by default.
-#pragma warning disable CA1862 // EF Core cannot translate the StringComparison overloads; ToLower is the SQL-translatable form
+        // Case-insensitivity is a DB concern: SqlServer/MySql default collations are CI; PostgreSQL gets the
+        // case_insensitive collation on Name and Category via Data.PostgreSql's DocumentMetadataEntityConfiguration.
         if (!string.IsNullOrEmpty(criteria.Category))
         {
-            var category = criteria.Category.ToLower();
-            query = query.Where(x => x.Category.ToLower() == category);
+            query = query.Where(x => x.Category == criteria.Category);
         }
 
         if (criteria.IsPinned != null)
@@ -56,10 +55,8 @@ public class SalesRepDocumentMetadataSearchService(
 
         if (!string.IsNullOrEmpty(criteria.Keyword))
         {
-            var keyword = criteria.Keyword.ToLower();
-            query = query.Where(x => x.Name.ToLower().Contains(keyword));
+            query = query.Where(x => x.Name.Contains(criteria.Keyword));
         }
-#pragma warning restore CA1862
 
         return query;
     }
@@ -78,8 +75,8 @@ public class SalesRepDocumentMetadataSearchService(
             using var repository = repositoryFactory();
 
             var groups = await BuildQuery(repository, criteria)
-                .GroupBy(x => x.Category.ToLower())
-                .Select(g => new { Name = g.Min(x => x.Category), Count = g.Count() })
+                .GroupBy(x => x.Category)
+                .Select(g => new { Name = g.Key, Count = g.Count() })
                 .OrderBy(x => x.Name)
                 .ToListAsync();
 
