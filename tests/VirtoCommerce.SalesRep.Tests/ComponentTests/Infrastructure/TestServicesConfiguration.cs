@@ -225,6 +225,7 @@ internal static class TestServicesConfiguration
         services.AddTransient<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
         // The platform's non-Redis default: pass-through locking (the pin lock is exercised, not simulated).
         services.AddSingleton<IDistributedLockService, NoLockService>();
+        services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
         services.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         services.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();

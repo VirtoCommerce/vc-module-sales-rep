@@ -19,15 +19,18 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 {
     private readonly IFileUploadService _fileUploadService;
     private readonly ISalesRepDocumentMetadataService _metadataService;
+    private readonly ISalesRepMapper _mapper;
     private readonly ILogger<SalesRepDocumentService> _logger;
 
     public SalesRepDocumentService(
         IFileUploadService fileUploadService,
         ISalesRepDocumentMetadataService metadataService,
+        ISalesRepMapper mapper,
         ILogger<SalesRepDocumentService> logger)
     {
         _fileUploadService = fileUploadService;
         _metadataService = metadataService;
+        _mapper = mapper;
         _logger = logger;
     }
 
@@ -78,7 +81,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             throw;
         }
 
-        return SalesRepDocumentMapper.ToModel(file, metadata);
+        return _mapper.ToDocument(file, metadata);
     }
 
     public virtual async Task<SalesRepDocument> UpdateMetadataAsync(string id, SalesRepDocumentMetadata metadata)
@@ -109,7 +112,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         // The audit stamps land only on the stored row; re-read so the response carries them.
         var saved = await _metadataService.GetNoCloneAsync(id);
 
-        return SalesRepDocumentMapper.ToModel(file, saved);
+        return _mapper.ToDocument(file, saved);
     }
 
     public virtual async Task SaveChangesAsync(IList<SalesRepDocument> models)
@@ -192,8 +195,14 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         }
 
         var metadataItems = await _metadataService.GetNoCloneAsync(ids, responseGroup);
+        if (metadataItems.Count == 0)
+        {
+            return [];
+        }
 
-        return await SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadataItems);
+        var files = await _fileUploadService.GetAsync(metadataItems.Select(x => x.FileId).ToList(), clone: false);
+
+        return _mapper.ToDocuments(files, metadataItems);
     }
 
     protected virtual async Task<File> GetLibraryFileAsync(string fileId)

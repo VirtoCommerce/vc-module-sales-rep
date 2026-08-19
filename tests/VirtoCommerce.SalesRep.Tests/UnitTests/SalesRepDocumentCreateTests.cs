@@ -250,7 +250,7 @@ public class SalesRepDocumentCreateTests
         _metadataService.Saved.Should().BeEmpty();
     }
 
-    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, NullLogger<SalesRepDocumentService>.Instance);
+    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, new SalesRepMapper(), NullLogger<SalesRepDocumentService>.Instance);
 
     private File AddFile(string scope = ModuleConstants.DocumentsScope, string name = "list.pdf", string contentType = "application/pdf", long size = 1)
     {

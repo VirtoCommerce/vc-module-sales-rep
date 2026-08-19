@@ -15,13 +15,16 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
 {
     private readonly ISalesRepDocumentMetadataSearchService _metadataSearchService;
     private readonly IFileUploadService _fileUploadService;
+    private readonly ISalesRepMapper _mapper;
 
     public SalesRepDocumentSearchService(
         ISalesRepDocumentMetadataSearchService metadataSearchService,
-        IFileUploadService fileUploadService)
+        IFileUploadService fileUploadService,
+        ISalesRepMapper mapper)
     {
         _metadataSearchService = metadataSearchService;
         _fileUploadService = fileUploadService;
+        _mapper = mapper;
     }
 
     public virtual async Task<SalesRepDocumentSearchResult> SearchAsync(SalesRepDocumentSearchCriteria criteria, bool clone = true)
@@ -82,8 +85,15 @@ public class SalesRepDocumentSearchService : ISalesRepDocumentSearchService
         };
     }
 
-    protected virtual Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadataItems)
+    protected virtual async Task<IList<SalesRepDocument>> MapToDocumentsAsync(IList<SalesRepDocumentMetadata> metadataItems)
     {
-        return SalesRepDocumentMapper.ToModelsAsync(_fileUploadService, metadataItems);
+        if (metadataItems.Count == 0)
+        {
+            return [];
+        }
+
+        var files = await _fileUploadService.GetAsync(metadataItems.Select(x => x.FileId).ToList(), clone: false);
+
+        return _mapper.ToDocuments(files, metadataItems);
     }
 }
