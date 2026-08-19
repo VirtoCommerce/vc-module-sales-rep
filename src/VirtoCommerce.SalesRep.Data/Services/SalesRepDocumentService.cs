@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using VirtoCommerce.FileExperienceApi.Core.Extensions;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -17,13 +19,16 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 {
     private readonly IFileUploadService _fileUploadService;
     private readonly ISalesRepDocumentMetadataService _metadataService;
+    private readonly ILogger<SalesRepDocumentService> _logger;
 
     public SalesRepDocumentService(
         IFileUploadService fileUploadService,
-        ISalesRepDocumentMetadataService metadataService)
+        ISalesRepDocumentMetadataService metadataService,
+        ILogger<SalesRepDocumentService> logger)
     {
         _fileUploadService = fileUploadService;
         _metadataService = metadataService;
+        _logger = logger;
     }
 
     public virtual async Task<SalesRepDocument> CreateAsync(string fileId, string category, SalesRepDocumentMetadata metadata = null)
@@ -62,7 +67,15 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         catch
         {
             // Best-effort rollback so a failed claim leaves no metadata row behind.
-            await TryRunAsync(() => _metadataService.DeleteAsync([metadata.Id]));
+            try
+            {
+                await _metadataService.DeleteAsync([metadata.Id]);
+            }
+            catch (Exception cleanupException)
+            {
+                _logger.LogWarning(cleanupException, "Failed to roll back metadata '{MetadataId}' after a failed claim of file '{FileId}'.", metadata.Id, fileId);
+            }
+
             throw;
         }
 
@@ -145,14 +158,22 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return;
         }
 
-        await _metadataService.DeleteAsync(documents.Select(x => x.Id).ToList());
-
-        // Best-effort: an already-missing file/blob must not fail the delete.
-        var fileIds = documents.Select(x => x.FileId).Where(x => !string.IsNullOrEmpty(x)).ToList();
-        if (fileIds.Count > 0)
+        // Files first: if the file store fails, the documents stay listed and the delete stays retryable — the
+        // reverse order would leave readable files unreachable through the module. One file per call so a blob
+        // already missing from the physical storage (deleting it was the goal) doesn't abort the rest.
+        foreach (var fileId in documents.Select(x => x.FileId).Where(x => !string.IsNullOrEmpty(x)))
         {
-            await TryRunAsync(() => _fileUploadService.DeleteAsync(fileIds));
+            try
+            {
+                await _fileUploadService.DeleteAsync([fileId]);
+            }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
+            {
+                _logger.LogWarning(ex, "File '{FileId}' is already missing from the storage; deleting the document anyway.", fileId);
+            }
         }
+
+        await _metadataService.DeleteAsync(documents.Select(x => x.Id).ToList());
     }
 
     public virtual async Task<IList<SalesRepDocument>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
@@ -184,15 +205,4 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         return string.IsNullOrWhiteSpace(name) ? fileName : name.Trim();
     }
 
-    private static async Task TryRunAsync(Func<Task> action)
-    {
-        try
-        {
-            await action();
-        }
-        catch
-        {
-            // Intentionally swallowed: cleanup is best-effort and must not mask the original outcome.
-        }
-    }
 }

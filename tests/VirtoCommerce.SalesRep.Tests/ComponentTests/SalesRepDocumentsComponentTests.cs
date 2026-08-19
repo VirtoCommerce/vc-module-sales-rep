@@ -168,6 +168,26 @@ public class SalesRepDocumentsComponentTests
         result.TotalCount.Should().Be(0);
     }
 
+    // Deleting the file record through any IAssetEntryService path (the generic deleteFile mutation, the platform
+    // asset admin APIs) raises AssetEntryChangedEvent; the module's handler must drop the sidecar metadata row so
+    // no invisible orphan inflates TotalCount.
+    [Fact]
+    public async Task FileRecordDeletion_CascadesToTheMetadataRow()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await ctx.UploadDocumentAsync("Doomed.pdf", "Catalogs");
+
+        await ctx.GetRequiredService<IAssetEntryService>().DeleteAsync([document.FileId]);
+
+        using (var db = ctx.NewSalesRepDbContext())
+        {
+            (await db.Set<DocumentMetadataEntity>().CountAsync()).Should().Be(0);
+        }
+
+        var result = await ctx.GetRequiredService<ISalesRepDocumentSearchService>().SearchAsync(new SalesRepDocumentSearchCriteria());
+        result.TotalCount.Should().Be(0);
+    }
+
     [Fact]
     public async Task Delete_ToleratesAnAlreadyMissingBlob()
     {

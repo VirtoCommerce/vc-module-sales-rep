@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.IO;
@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.AssetsModule.Data.Repositories;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Data.Model;
@@ -40,6 +41,7 @@ using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Handlers;
 using VirtoCommerce.SalesRep.Data.Models;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.ExperienceApi;
@@ -160,6 +162,11 @@ internal sealed class SalesRepTestContext : IDisposable
         // appBuilder.RegisterEventHandler<UserChangedEvent, DeleteOrganizationMembershipUserChangedEventHandler>().
         provider.GetRequiredService<IEventHandlerRegistrar>()
             .RegisterEventHandler<UserChangedEvent>(provider.GetRequiredService<DeleteOrganizationMembershipUserChangedEventHandler>());
+
+        // Subscribe the documents sidecar-cleanup handler — mirrors the module's
+        // appBuilder.RegisterEventHandler<AssetEntryChangedEvent, DeleteDocumentMetadataAssetEntryChangedEventHandler>().
+        provider.GetRequiredService<IEventHandlerRegistrar>()
+            .RegisterEventHandler<AssetEntryChangedEvent>(provider.GetRequiredService<DeleteDocumentMetadataAssetEntryChangedEventHandler>());
 
         // Register the Member search-request builder (done in the customer module's PostInitialize) so keyword
         // member searches — which route to the index and resolve a builder by document type — work in tests.

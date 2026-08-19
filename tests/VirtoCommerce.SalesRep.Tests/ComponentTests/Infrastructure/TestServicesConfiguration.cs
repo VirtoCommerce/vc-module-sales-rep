@@ -47,6 +47,7 @@ using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.Platform.Security.Services;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Handlers;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
@@ -228,6 +229,7 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         services.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
+        services.AddTransient<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
 
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         services.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();

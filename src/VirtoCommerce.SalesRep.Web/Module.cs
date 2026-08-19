@@ -6,10 +6,12 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.FileExperienceApi.Core.Authorization;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Settings;
@@ -21,6 +23,7 @@ using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
+using VirtoCommerce.SalesRep.Data.Handlers;
 using VirtoCommerce.SalesRep.Data.MySql;
 using VirtoCommerce.SalesRep.Data.PostgreSql;
 using VirtoCommerce.SalesRep.Data.Repositories;
@@ -77,6 +80,7 @@ public class Module : IModule, IHasConfiguration
         // routes the generic file surfaces (GET /api/files/{id}, deleteFile) to it.
         serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
         serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
+        serviceCollection.AddTransient<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
 
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
@@ -136,6 +140,8 @@ public class Module : IModule, IHasConfiguration
         notificationRegistrar.RegisterNotification<SalesRepMessageEmailNotification>().WithTemplatesFromPath(notificationTemplatesPath);
 
         appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
+
+        appBuilder.RegisterEventHandler<AssetEntryChangedEvent, DeleteDocumentMetadataAssetEntryChangedEventHandler>();
 
         // Seed the default roles once (create-if-none, matched by permission set). No distributed lock is needed:
         // PostInitialize runs inside the platform's startup critical section (ExecuteSynchronized(nameof(Startup))),

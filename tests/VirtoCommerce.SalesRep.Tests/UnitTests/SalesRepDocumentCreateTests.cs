@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -218,7 +219,38 @@ public class SalesRepDocumentCreateTests
         _fileUploadService.Files.Should().BeEmpty();
     }
 
-    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService);
+    // Files are deleted first so a file-store failure leaves the document listed and the delete retryable —
+    // the reverse order would leave a readable file unreachable through the module.
+    [Fact]
+    public async Task Delete_FileDeleteFails_KeepsTheDocument()
+    {
+        var file = AddFile();
+        var service = CreateService();
+        var document = await service.CreateAsync(file.Id, "Catalogs");
+        _fileUploadService.FailOnDeleteWith = new InvalidOperationException("File delete failed.");
+
+        var delete = () => service.DeleteAsync([document.Id]);
+
+        await delete.Should().ThrowAsync<InvalidOperationException>().WithMessage("*file delete failed*");
+        _metadataService.Saved.Should().ContainSingle();
+    }
+
+    // A blob already missing from the physical storage (removed directly from disk or the blob container)
+    // must not block the delete — removing the file was the goal anyway.
+    [Fact]
+    public async Task Delete_FileMissingFromStorage_DeletesTheDocument()
+    {
+        var file = AddFile();
+        var service = CreateService();
+        var document = await service.CreateAsync(file.Id, "Catalogs");
+        _fileUploadService.FailOnDeleteWith = new FileNotFoundException("Could not find file.");
+
+        await service.DeleteAsync([document.Id]);
+
+        _metadataService.Saved.Should().BeEmpty();
+    }
+
+    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, NullLogger<SalesRepDocumentService>.Instance);
 
     private File AddFile(string scope = ModuleConstants.DocumentsScope, string name = "list.pdf", string contentType = "application/pdf", long size = 1)
     {
@@ -238,6 +270,7 @@ public class SalesRepDocumentCreateTests
     {
         public Dictionary<string, File> Files { get; } = [];
         public bool FailOnSave { get; set; }
+        public Exception FailOnDeleteWith { get; set; }
 
         public Task<IList<File>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
             => Task.FromResult<IList<File>>([.. ids.Where(Files.ContainsKey).Select(id => Files[id])]);
@@ -259,6 +292,11 @@ public class SalesRepDocumentCreateTests
 
         public Task DeleteAsync(IList<string> ids, bool softDelete = false)
         {
+            if (FailOnDeleteWith != null)
+            {
+                throw FailOnDeleteWith;
+            }
+
             foreach (var id in ids)
             {
                 Files.Remove(id);

@@ -65,10 +65,19 @@ public class SalesRepDocumentAuthorizationHandlerTests
     [Fact]
     public async Task Handle_DeleteOfUnclaimedFile_IsAllowedForWriteHolders()
     {
-        // The cleanup path for abandoned uploads: write/delete stays permission-only.
+        // The cleanup path for abandoned uploads.
         var writer = CreateUser(DocumentsWrite);
 
         (await AuthorizeAsync(writer, DocumentsWrite, UnclaimedFile())).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_DeleteOfClaimedFile_IsDeniedForWriteHolders()
+    {
+        // A claimed document is managed only through the module's own endpoints, which cascade the metadata row.
+        var writer = CreateUser(DocumentsWrite);
+
+        (await AuthorizeAsync(writer, DocumentsWrite, ClaimedFile())).Should().BeFalse();
     }
 
     [Fact]
