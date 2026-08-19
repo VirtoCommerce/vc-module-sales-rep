@@ -35,7 +35,8 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                     b.Property<string>("Category")
                         .IsRequired()
                         .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
+                        .HasColumnType("character varying(32)")
+                        .UseCollation("case_insensitive");
 
                     b.Property<string>("CreatedBy")
                         .HasMaxLength(64)
@@ -63,7 +64,8 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
 
                     b.Property<string>("Name")
                         .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
+                        .HasColumnType("character varying(512)")
+                        .UseCollation("case_insensitive");
 
                     b.Property<int?>("PageCount")
                         .HasColumnType("integer");

@@ -92,7 +92,7 @@ public class SalesRepDocumentsGraphQlTests
         var (oldest, middle, _) = await SeedLibraryAsync(ctx);
 
         var byKeyword = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepDocuments(keyword:\"lookbook\") { totalCount items { id } } }",
+            "query { salesRepDocuments(keyword:\"Lookbook\") { totalCount items { id } } }",
             userId: RepUserId,
             permissions: ReadPermission);
         var keywordNode = SalesRepTestContext.Node(byKeyword, "salesRepDocuments");
@@ -194,7 +194,7 @@ public class SalesRepDocumentsGraphQlTests
 
         // Keyword-filtered counts; zero-count categories are omitted.
         var filtered = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepDocumentCategories(keyword:\"catalog\") { name count } }",
+            "query { salesRepDocumentCategories(keyword:\"Catalog\") { name count } }",
             userId: RepUserId,
             permissions: ReadPermission);
         SalesRepTestContext.Node(filtered, "salesRepDocumentCategories").EnumerateArray()

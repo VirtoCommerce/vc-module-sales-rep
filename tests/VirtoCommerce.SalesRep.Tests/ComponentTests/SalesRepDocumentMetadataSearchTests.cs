@@ -10,8 +10,9 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
 /// The metadata <see cref="ISalesRepDocumentMetadataSearchService"/> (platform SearchService base) over the real
-/// module DbContext: its BuildQuery predicates (case-insensitive category, isPinned, keyword over the display
-/// name, objectIds). The default pinned-first sort and paging are pinned at the document-search level.
+/// module DbContext: its BuildQuery predicates (category, isPinned, keyword over the display name, objectIds).
+/// Case-insensitivity is collation-provided (per-provider DB config), so it is not exercisable on the SQLite
+/// harness. The default pinned-first sort and paging are pinned at the document-search level.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepDocumentMetadataSearchTests
@@ -57,9 +58,9 @@ public class SalesRepDocumentMetadataSearchTests
 
         var searchService = ctx.GetRequiredService<ISalesRepDocumentMetadataSearchService>();
 
-        // The keyword is a case-insensitive DB predicate over the display name (always stored; the raw file
-        // name is internal and not matched).
-        var result = await searchService.SearchAsync(new SalesRepDocumentMetadataSearchCriteria { Keyword = "wINTer", Take = 100 });
+        // The keyword is a DB predicate over the display name (always stored; the raw file name is internal
+        // and not matched).
+        var result = await searchService.SearchAsync(new SalesRepDocumentMetadataSearchCriteria { Keyword = "Winter", Take = 100 });
         result.Results.Select(x => x.Id).Should().Equal(named.Id);
     }
 
