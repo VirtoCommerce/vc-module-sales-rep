@@ -1,0 +1,40 @@
+import { computed, toValue } from "vue";
+import { globals } from "@vc-frontend/core";
+import { Logger } from "@vc-frontend/core";
+import { SalesRepCustomerCartStatisticsDocument } from "../api/graphql/types";
+import { ACTIVE_CARTS_FILTER, HUB_FETCH_POLICY } from "../constants";
+import { buildStatisticsWindows } from "../utils";
+import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
+import type { Ref } from "vue";
+
+type UseSalesRepCartStatisticsOptionsType = {
+  organizationId?: string | Ref<string | undefined> | (() => string | undefined);
+};
+
+// Two aliased slices from one query: activeCarts backs the "Active carts" card, newCartsThisWeek backs its delta.
+export function useSalesRepCartStatistics(options: UseSalesRepCartStatisticsOptionsType = {}) {
+  const variables = computed(() => {
+    const windows = buildStatisticsWindows();
+    return {
+      organizationId: toValue(options.organizationId),
+      storeId: globals.storeId,
+      currencyCode: globals.currencyCode,
+      cultureName: globals.cultureName,
+      cartFilter: ACTIVE_CARTS_FILTER,
+      weekFrom: windows.weekFrom,
+      weekTo: windows.weekTo,
+    };
+  });
+
+  const { result, loading, error, onError } = useSalesRepHubQuery(SalesRepCustomerCartStatisticsDocument, variables, {
+    fetchPolicy: HUB_FETCH_POLICY,
+  });
+
+  onError((err) => {
+    Logger.error("[sales-rep] salesRepCustomerCartStatistics failed:", err);
+  });
+
+  const statistics = computed(() => result.value?.salesRepCustomerCartStatistics);
+
+  return { statistics, loading, error };
+}

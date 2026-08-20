@@ -1,0 +1,209 @@
+{
+  "sales_rep": {
+    "navigation": {
+      "link": "営業担当者"
+    },
+    "page": {
+      "title": "営業担当者"
+    },
+    "table": {
+      "name": "名前",
+      "email": "メール",
+      "phone": "電話",
+      "search_placeholder": "名前、メール、または電話で検索",
+      "search_aria": "営業担当者を検索",
+      "empty": "営業担当者が見つかりませんでした",
+      "no_results": "営業担当者が見つかりませんでした",
+      "reset_search": "検索をリセット",
+      "load_failed": "営業担当者を読み込めませんでした"
+    },
+    "my_customers": {
+      "navigation": {
+        "link": "担当顧客"
+      },
+      "page": {
+        "title": "担当顧客"
+      },
+      "table": {
+        "customer": "顧客",
+        "last_order": "私の最近の注文",
+        "ytd": "今年度の購入金額",
+        "last_year": "昨年",
+        "orders_count": "{count} 件の注文",
+        "all_customers": "すべて",
+        "actions": "アクション",
+        "search_placeholder": "名前で検索",
+        "search_aria": "顧客を検索",
+        "empty": "顧客が見つかりません",
+        "no_results": "検索条件に一致する顧客がありません",
+        "reset_search": "検索をリセット",
+        "load_failed": "顧客を読み込めませんでした"
+      }
+    },
+    "hub": {
+      "title": "営業担当ハブ",
+      "dashboard": {
+        "navigation": {
+          "link": "ダッシュボード"
+        },
+        "page": {
+          "title": "ダッシュボード"
+        },
+        "widgets": {
+          "new_orders": "ステータス「New」の注文",
+          "active_carts": "アクティブなカート",
+          "active_cart": "アクティブなカート",
+          "orders_placed_week": "今週の注文",
+          "orders_placed_mtd": "今月の注文",
+          "purchased_mtd": "今月の購入額",
+          "orders_placed_ytd": "今年の注文",
+          "my_customers": "担当顧客"
+        },
+        "stats": {
+          "value_total": "合計 {amount}",
+          "vs_last_week": "先週比 {delta}",
+          "vs_last_month": "先月比 {delta}",
+          "vs_last_year": "前年比 {delta}",
+          "ordered_this_month": "今月 {count} 件が注文",
+          "new_customers": "新規顧客 {count} 件",
+          "of_recent_orders": "過去7日間に作成された {count} 件中",
+          "new_this_week": "今週 新規 {count} 件",
+          "mtd_of_ytd": "年初来の {percent}%",
+          "load_failed": "読み込みに失敗しました"
+        }
+      },
+      "layout": {
+        "edit": "レイアウトを編集",
+        "editing": "レイアウトを編集中",
+        "hint": "— ハンドルをドラッグしてブロックを並べ替えるか、✕ で非表示にします。",
+        "hint_keyboard": "キーボード操作: スペースキーでブロックをつかみ、矢印キーで移動、スペースキーで確定、Esc でキャンセルします。",
+        "save": "レイアウトを保存",
+        "cancel": "キャンセル",
+        "reset": "リセット",
+        "save_failed": "レイアウトを保存できませんでした。変更は保持されています。もう一度お試しください。",
+        "load_failed": "保存されたレイアウトを読み込めませんでした。既定の配置を表示しています。読み込まれるまで編集できません。ページを再読み込みしてください。",
+        "hidden_widgets": "非表示のウィジェット",
+        "visible_stats": "表示中の指標",
+        "hidden_stats": "非表示の指標",
+        "empty_visible": "指標をここにドラッグすると表示されます",
+        "empty_hidden": "指標をここにドラッグすると非表示になります",
+        "max_rows": "最大行数",
+        "a11y": {
+          "reorder": "{title} を並べ替え",
+          "hide": "{title} を非表示",
+          "show": "{title} を表示",
+          "grabbed": "{title} をつかみました。{total} 件中 {position} 番目。矢印キーで移動、スペースで配置、Esc でキャンセルします。",
+          "grabbed_parkable": "{title} をつかみました。{total} 件中 {position} 番目。左右の矢印キーで移動、上下キーで非表示または表示、スペースで配置、Esc でキャンセルします。",
+          "moved": "{title} を {total} 件中 {position} 番目に移動しました。",
+          "dropped": "{title} を {total} 件中 {position} 番目に配置しました。",
+          "edge": "{title} はすでに {total} 件中 {position} 番目です。",
+          "cancelled": "{title} の移動をキャンセルしました。",
+          "parked": "{title} を非表示にしました。",
+          "restored": "{title} を表示しました。",
+          "max_rows": "{title}に表示される最大行数。{min}から{max}の間で選択できます"
+        }
+      }
+    },
+    "customer_profile": {
+      "loading": "読み込み中…",
+      "not_found": "顧客が見つからないか、担当顧客に含まれていません。",
+      "back_to_customers": "担当顧客に戻る",
+      "widgets": {
+        "avg_order_value": "平均注文額"
+      },
+      "stats": {
+        "per_order": "平均注文単価 (今年度)"
+      },
+      "info": {
+        "title": "顧客情報",
+        "empty": "利用可能な情報はありません",
+        "primary_contact": "主要担当者",
+        "phone": "電話番号",
+        "account_type": "アカウントタイプ",
+        "ship_to": "配送先"
+      }
+    },
+    "communication": {
+      "action": "メールを送信",
+      "title": "メッセージを送信",
+      "subtitle": "{organization} のすべてのメンバーに届きます",
+      "title_label": "タイトル",
+      "message_label": "メッセージ",
+      "channels_label": "送信方法",
+      "email_label": "メール",
+      "push_label": "プッシュ通知",
+      "send_button": "送信",
+      "cancel_button": "キャンセル",
+      "success_text": "メッセージを送信しました。",
+      "error_text": "メッセージを送信できませんでした。もう一度お試しください。",
+      "partial_success_text": "メッセージは送信されましたが、一部のチャネルでは送信されませんでした:",
+      "warnings": {
+        "generic": "選択されたチャネルのいずれかでメッセージを送信できませんでした。",
+        "NoRecipients": "この組織には通知する連絡先がありません。",
+        "EmailUnavailable": "現在メールは利用できません。管理者にお問い合わせください。",
+        "EmailStoreAccessDenied": "選択したストアではメールを送信できませんでした。",
+        "EmailNoRecipients": "受信者の中にメールアドレスを持つ人がいません。",
+        "EmailSendFailed": "メールを送信できませんでした。しばらくしてからもう一度お試しください。",
+        "PushSendFailed": "プッシュ通知を送信できませんでした。しばらくしてからもう一度お試しください。"
+      },
+      "quick_actions": {
+        "title": "クイックアクション",
+        "order_on_behalf": "代理で注文",
+        "send_email": "メールを送信",
+        "create_quote": "見積もりを作成",
+        "schedule_call": "通話を予約"
+      }
+    },
+    "orders": {
+      "title": "最近の注文",
+      "view_all": "すべての注文",
+      "empty": "注文はまだありません",
+      "no_results": "このフィルターに一致する注文はありません",
+      "number": "注文番号",
+      "customer": "顧客",
+      "date": "日付",
+      "items": "商品数",
+      "status": "ステータス",
+      "total": "合計",
+      "filter_all": "すべて",
+      "load_failed": "注文を読み込めませんでした"
+    },
+    "top_sellers": {
+      "title": "トップセラー",
+      "rank": "#",
+      "product": "商品",
+      "units": "個数",
+      "revenue": "収益",
+      "empty": "この期間の売上なし",
+      "no_results": "このカテゴリーの売上なし",
+      "all_categories": "全カテゴリー",
+      "load_failed": "売上上位を読み込めませんでした"
+    },
+    "rules": {
+      "customer": {
+        "filter": {
+          "All": "すべて"
+        }
+      }
+    },
+    "list_sharing": {
+      "share_customers_label": "顧客",
+      "share_customers_placeholder": "顧客を選択",
+      "share_customers_error": "顧客リストを読み込めませんでした。もう一度お試しください。",
+      "share_replace_hint": "以前に選択した顧客はこのリストにアクセスできなくなります。",
+      "share_message_label": "メッセージ",
+      "share_message_placeholder": "任意のメッセージを入力",
+      "share_channels_label": "送信方法",
+      "share_email_label": "メール",
+      "share_push_label": "プッシュ通知",
+      "share_default_title": "営業担当者からの新しいリスト",
+      "share_default_message": "こんにちは。リスト「{listName}」をあなたの組織と共有しました。ぜひご覧ください：",
+      "share_success": "リストを顧客と共有しました。",
+      "share_partial": "リストを共有しましたが、一部の通知を配信できませんでした。",
+      "share_notify_error": "リストは保存されましたが、顧客に通知できませんでした。",
+      "scope_label": "顧客",
+      "status": "顧客と共有",
+      "badge": "営業担当者のおすすめ"
+    }
+  }
+}
