@@ -97,9 +97,9 @@ public class SalesRepSearchService : ISalesRepSearchService
         return BuildRows(criteria, candidateUserIds, usersById, totalCounts, globalRoleUserIds);
     }
 
-    private const string EmailSortColumn = "email";
-    private const string OrganizationsCountSortColumn = "organizationscount";
-    private const string IsLockedSortColumn = "islocked";
+    private const string EmailSortColumn = nameof(CandidateRow.Email);
+    private const string OrganizationsCountSortColumn = nameof(CandidateRow.OrganizationsCount);
+    private const string IsLockedSortColumn = nameof(CandidateRow.IsLocked);
 
     private static readonly HashSet<string> _rowBackedSortColumns = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -172,13 +172,21 @@ public class SalesRepSearchService : ISalesRepSearchService
     {
         var sort = sortInfos?.FirstOrDefault();
         var descending = sort?.SortDirection == SortDirection.Descending;
+        var sortColumn = sort?.SortColumn;
 
-        Func<CandidateRow, object> selector = sort?.SortColumn?.ToLowerInvariant() switch
+        Func<CandidateRow, object> selector;
+        if (sortColumn.EqualsIgnoreCase(OrganizationsCountSortColumn))
         {
-            OrganizationsCountSortColumn => r => r.OrganizationsCount,
-            IsLockedSortColumn => r => r.IsLocked,
-            _ => r => r.Email,
-        };
+            selector = r => r.OrganizationsCount;
+        }
+        else if (sortColumn.EqualsIgnoreCase(IsLockedSortColumn))
+        {
+            selector = r => r.IsLocked;
+        }
+        else
+        {
+            selector = r => r.Email;
+        }
 
         return (descending ? rows.OrderByDescending(selector) : rows.OrderBy(selector)).ToList();
     }
@@ -187,12 +195,21 @@ public class SalesRepSearchService : ISalesRepSearchService
     {
         var sort = sortInfos?.FirstOrDefault();
         var direction = sort?.SortDirection == SortDirection.Descending ? "desc" : "asc";
-        var column = sort?.SortColumn?.ToLowerInvariant() switch
+        var sortColumn = sort?.SortColumn;
+
+        string column;
+        if (sortColumn.EqualsIgnoreCase(nameof(Member.CreatedDate)))
         {
-            "createddate" => "CreatedDate",
-            "modifieddate" => "ModifiedDate",
-            _ => "Name",
-        };
+            column = nameof(Member.CreatedDate);
+        }
+        else if (sortColumn.EqualsIgnoreCase(nameof(Member.ModifiedDate)))
+        {
+            column = nameof(Member.ModifiedDate);
+        }
+        else
+        {
+            column = nameof(Member.Name);
+        }
 
         return $"{column}:{direction}";
     }

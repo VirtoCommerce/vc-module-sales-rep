@@ -12,6 +12,10 @@ export default () => {
   const accountCreatePermission = "platform:security:create";
   const accountManagementPermission = "platform:security:update";
   const accountDeletePermission = "platform:security:delete";
+  // Shared documents library (VCST-5730): module-own permissions. Write implies read on the backend, so
+  // read surfaces are gated on EITHER permission (hasAccess([...]) is any-of; Administrator always passes).
+  const readDocumentsPermission = "sales-rep-documents:read";
+  const writeDocumentsPermission = "sales-rep-documents:write";
 
   return {
     accessSalesRepPermission,
@@ -22,5 +26,7 @@ export default () => {
     accountCreatePermission,
     accountManagementPermission,
     accountDeletePermission,
+    readDocumentsPermission,
+    writeDocumentsPermission,
   };
 };

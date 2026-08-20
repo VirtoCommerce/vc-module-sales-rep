@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,6 +16,9 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.AssetsModule.Core.Events;
+using VirtoCommerce.AssetsModule.Data.Repositories;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.CatalogModule.Data.Repositories;
@@ -23,8 +28,11 @@ using VirtoCommerce.CustomerModule.Data.Handlers;
 using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
+using VirtoCommerce.FileExperienceApi.Core.Models;
+using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Caching;
+using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Security;
@@ -32,12 +40,17 @@ using VirtoCommerce.Platform.Core.Security.Events;
 using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Handlers;
+using VirtoCommerce.SalesRep.Data.Models;
+using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -57,12 +70,16 @@ internal sealed class SalesRepTestContext : IDisposable
     private readonly SqliteConnection _orderConnection;
     private readonly SqliteConnection _cartConnection;
     private readonly SqliteConnection _catalogConnection;
+    private readonly SqliteConnection _assetsConnection;
+    private readonly SqliteConnection _salesRepConnection;
     private readonly ServiceProvider _provider;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
     private readonly DbContextOptions<CustomerDbContext> _customerOptions;
     private readonly DbContextOptions<OrderDbContext> _orderOptions;
     private readonly DbContextOptions<CartDbContext> _cartOptions;
     private readonly DbContextOptions<CatalogDbContext> _catalogOptions;
+    private readonly DbContextOptions<AssetsDbContext> _assetsOptions;
+    private readonly DbContextOptions<SalesRepDbContext> _salesRepOptions;
 
     private SalesRepTestContext(
         SqliteConnection securityConnection,
@@ -70,24 +87,32 @@ internal sealed class SalesRepTestContext : IDisposable
         SqliteConnection orderConnection,
         SqliteConnection cartConnection,
         SqliteConnection catalogConnection,
+        SqliteConnection assetsConnection,
+        SqliteConnection salesRepConnection,
         ServiceProvider provider,
         DbContextOptions<SecurityDbContext> securityOptions,
         DbContextOptions<CustomerDbContext> customerOptions,
         DbContextOptions<OrderDbContext> orderOptions,
         DbContextOptions<CartDbContext> cartOptions,
-        DbContextOptions<CatalogDbContext> catalogOptions)
+        DbContextOptions<CatalogDbContext> catalogOptions,
+        DbContextOptions<AssetsDbContext> assetsOptions,
+        DbContextOptions<SalesRepDbContext> salesRepOptions)
     {
         _securityConnection = securityConnection;
         _customerConnection = customerConnection;
         _orderConnection = orderConnection;
         _cartConnection = cartConnection;
         _catalogConnection = catalogConnection;
+        _assetsConnection = assetsConnection;
+        _salesRepConnection = salesRepConnection;
         _provider = provider;
         _securityOptions = securityOptions;
         _customerOptions = customerOptions;
         _orderOptions = orderOptions;
         _cartOptions = cartOptions;
         _catalogOptions = catalogOptions;
+        _assetsOptions = assetsOptions;
+        _salesRepOptions = salesRepOptions;
     }
 
     /// <param name="configureOverrides">
@@ -106,6 +131,8 @@ internal sealed class SalesRepTestContext : IDisposable
         var orderConnection = SqliteTestDbContextFactory.CreateConnection();
         var cartConnection = SqliteTestDbContextFactory.CreateConnection();
         var catalogConnection = SqliteTestDbContextFactory.CreateConnection();
+        var assetsConnection = SqliteTestDbContextFactory.CreateConnection();
+        var salesRepConnection = SqliteTestDbContextFactory.CreateConnection();
         var securityOptions = SqliteTestDbContextFactory.CreateOptions<SecurityDbContext>(
             securityConnection,
             builder => builder.ReplaceService<IModelCustomizer, LockoutEndSqliteModelCustomizer>());
@@ -113,11 +140,14 @@ internal sealed class SalesRepTestContext : IDisposable
         var orderOptions = SqliteTestDbContextFactory.CreateOptions<OrderDbContext>(orderConnection);
         var cartOptions = SqliteTestDbContextFactory.CreateOptions<CartDbContext>(cartConnection);
         var catalogOptions = SqliteTestDbContextFactory.CreateOptions<CatalogDbContext>(catalogConnection);
+        var assetsOptions = SqliteTestDbContextFactory.CreateOptions<AssetsDbContext>(assetsConnection);
+        var salesRepOptions = SqliteTestDbContextFactory.CreateOptions<SalesRepDbContext>(salesRepConnection);
 
         var services = new ServiceCollection()
             .AddSecuritySlice(securityOptions)
             .AddCustomerSlice(customerOptions)
-            .AddSalesRepSlice()
+            .AddAssetsSlice(assetsOptions)
+            .AddSalesRepSlice(salesRepOptions)
             .AddOrderSlice(orderOptions)
             .AddCartSlice(cartOptions)
             .AddCatalogSlice(catalogOptions)
@@ -133,6 +163,11 @@ internal sealed class SalesRepTestContext : IDisposable
         provider.GetRequiredService<IEventHandlerRegistrar>()
             .RegisterEventHandler<UserChangedEvent>(provider.GetRequiredService<DeleteOrganizationMembershipUserChangedEventHandler>());
 
+        // Subscribe the documents sidecar-cleanup handler — mirrors the module's
+        // appBuilder.RegisterEventHandler<AssetEntryChangedEvent, DeleteDocumentMetadataAssetEntryChangedEventHandler>().
+        provider.GetRequiredService<IEventHandlerRegistrar>()
+            .RegisterEventHandler<AssetEntryChangedEvent>(provider.GetRequiredService<DeleteDocumentMetadataAssetEntryChangedEventHandler>());
+
         // Register the Member search-request builder (done in the customer module's PostInitialize) so keyword
         // member searches — which route to the index and resolve a builder by document type — work in tests.
         provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
@@ -140,7 +175,9 @@ internal sealed class SalesRepTestContext : IDisposable
 
         return new SalesRepTestContext(
             securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
-            provider, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions);
+            assetsConnection, salesRepConnection,
+            provider, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions,
+            assetsOptions, salesRepOptions);
     }
 
     /// <summary>The real REST controller resolved from DI (the REST tests' entry point).</summary>
@@ -207,6 +244,27 @@ internal sealed class SalesRepTestContext : IDisposable
         role.Id = Guid.NewGuid().ToString("N");
         role.Name = name;
         role.Permissions = [new Permission { Name = SalesRep.Core.ModuleConstants.Security.Permissions.Access }];
+
+        var result = await roleManager.CreateAsync(role);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+
+        return role;
+    }
+
+    /// <summary>
+    /// Create a role with an arbitrary permission set (as an admin building custom roles in the Security UI
+    /// would), so permission-set-based role seeding can be exercised against pre-existing roles.
+    /// </summary>
+    public async Task<Role> CreateRoleAsync(string name, params string[] permissions)
+    {
+        using var roleManager = _provider.GetRequiredService<Func<RoleManager<Role>>>()();
+        var role = AbstractTypeFactory<Role>.TryCreateInstance();
+        role.Id = Guid.NewGuid().ToString("N");
+        role.Name = name;
+        role.Permissions = [.. permissions.Select(x => new Permission { Name = x })];
 
         var result = await roleManager.CreateAsync(role);
         if (!result.Succeeded)
@@ -389,9 +447,11 @@ internal sealed class SalesRepTestContext : IDisposable
 
     /// <summary>
     /// Execute a GraphQL query string against the real Sales Rep scoped schema as an authenticated caller.
+    /// <paramref name="permissions"/> become platform "permission" claims (as the auth token carries them);
+    /// <paramref name="isAdministrator"/> adds the platform Administrator role claim.
     /// Returns the serialized GraphQL response (data + errors) for assertions.
     /// </summary>
-    public Task<string> ExecuteGraphQlAsync(string query, string userId = null, string organizationId = null)
+    public Task<string> ExecuteGraphQlAsync(string query, string userId = null, string organizationId = null, string[] permissions = null, bool isAdministrator = false)
     {
         var identity = new ClaimsIdentity(authenticationType: "Test"); // non-null type => IsAuthenticated
         if (!string.IsNullOrEmpty(userId))
@@ -402,6 +462,16 @@ internal sealed class SalesRepTestContext : IDisposable
         if (!string.IsNullOrEmpty(organizationId))
         {
             identity.AddClaim(new Claim("organization_id", organizationId));
+        }
+
+        foreach (var permission in permissions ?? [])
+        {
+            identity.AddClaim(new Claim(PlatformConstants.Security.Claims.PermissionClaimType, permission));
+        }
+
+        if (isAdministrator)
+        {
+            identity.AddClaim(new Claim(identity.RoleClaimType, PlatformConstants.Security.SystemRoles.Administrator));
         }
 
         return ExecuteGraphQlInternalAsync(query, new ClaimsPrincipal(identity));
@@ -454,6 +524,52 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <summary>Fresh DbContext on the catalog DB for seeding/assertions.</summary>
     public CatalogDbContext NewCatalogDbContext() => new(_catalogOptions);
 
+    /// <summary>Fresh DbContext on the assets DB for seeding/assertions.</summary>
+    public AssetsDbContext NewAssetsDbContext() => new(_assetsOptions);
+
+    /// <summary>Fresh DbContext on the sales-rep DB (document metadata) for assertions.</summary>
+    public SalesRepDbContext NewSalesRepDbContext() => new(_salesRepOptions);
+
+    /// <summary>
+    /// Backdate a document's metadata creation date (the documents default sort key) so ordering tests are
+    /// deterministic. Direct UPDATE (no audit re-stamp) + expiry of the metadata CRUD/search cache regions the
+    /// raw write bypasses.
+    /// </summary>
+    public async Task SetDocumentCreatedDateAsync(string documentId, DateTime createdDate)
+    {
+        using var db = NewSalesRepDbContext();
+        await db.Set<DocumentMetadataEntity>()
+            .Where(x => x.Id == documentId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(x => x.CreatedDate, createdDate));
+
+        GenericSearchCachingRegion<SalesRepDocumentMetadata>.ExpireRegion();
+        GenericCachingRegion<SalesRepDocumentMetadata>.ExpireRegion();
+    }
+
+    /// <summary>
+    /// The real two-step document intake: upload the bytes to the sales-rep-documents scope through the REAL
+    /// file-experience-api upload service, then register the uploaded file in the library.
+    /// </summary>
+    public async Task<SalesRepDocument> UploadDocumentAsync(string fileName, string category, SalesRepDocumentMetadata metadata = null, string content = "content")
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+
+        var uploadResult = await GetRequiredService<IFileUploadService>().UploadFileAsync(new FileUploadRequest
+        {
+            Scope = SalesRepModuleConstants.DocumentsScope,
+            UserId = "test-user",
+            FileName = fileName,
+            Stream = stream,
+        });
+
+        if (!uploadResult.Succeeded)
+        {
+            throw new InvalidOperationException(uploadResult.ErrorMessage);
+        }
+
+        return await GetRequiredService<ISalesRepDocumentService>().CreateAsync(uploadResult.Id, category, metadata);
+    }
+
     /// <summary>
     /// Seed catalog categories (under <see cref="TestCatalogId"/>, which every harness store reports as its catalog)
     /// so the real Top Sellers category filter has a tree to list top-level badges from and expand into a subtree.
@@ -502,5 +618,7 @@ internal sealed class SalesRepTestContext : IDisposable
         _orderConnection.Dispose();
         _cartConnection.Dispose();
         _catalogConnection.Dispose();
+        _assetsConnection.Dispose();
+        _salesRepConnection.Dispose();
     }
 }

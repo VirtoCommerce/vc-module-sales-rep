@@ -23,6 +23,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Scope the orders list to an optional created-date **period**
 * Send a push notification and/or email to the members of a customer organization
 * Publish a shopping list (wishlist) to a customer organization the rep serves — its members open it read-only ("Recommended by your Sales Rep") and add items to their cart, with an optional email/push notification
+* Share a curated **documents library** with sales reps — a back-office manager uploads categorized sales materials (price lists, catalogs, guides), optionally pinning one and annotating summary / page count / preview; reps browse, search and download them from the storefront
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -385,6 +386,30 @@ The rep's top-selling products (dashboard *Top Sellers*, and per-customer when a
 }
 ```
 
+#### Documents library
+
+The shared documents library (gated by `sales-rep-documents:read`). `after` is the offset cursor; the default sort is pinned-first then newest (`isPinned:desc;createdDate:desc`); `pinned: true` returns only the pinned document:
+
+```graphql
+{
+  salesRepDocuments(first: 20, after: "0", keyword: "catalog", category: "Catalogs", sort: "name:asc") {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    items {
+      id name displayName category contentType size
+      createdDate modifiedDate url summary pageCount previewUrl isPinned
+    }
+  }
+
+  salesRepDocument(id: "…") { id displayName url isPinned }   # null when missing / not a library entry
+
+  # Counts computed over the keyword-filtered set; zero-count categories omitted.
+  salesRepDocumentCategories(keyword: "catalog") { name count }
+}
+```
+
+The keyword matches the **display name** (the raw file name is internal), and `url` is always the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL.
+
 ### Mutation
 
 Send a communication — a storefront push notification and/or an email — to the members of a customer organization the rep serves (the "My customers" contact action):
@@ -483,6 +508,37 @@ A sales rep can **publish a shopping list to a customer organization**: the list
 
 Implementation-wise the module registers a `SalesRepCartSharingService` (a subclass of X-Cart's `CartSharingService`, last-registration-wins) that teaches the pipeline the `Customer` scope's visibility and write-authorization rules, and a `SalesRepWishlistScopeType` that exposes the new value on the core wishlist schema. The serves-organization gate is a single shared service (`ISalesRepOrganizationAccessService`) used by both the sharing authorization and the query/communication handlers, so *"which organizations does this rep serve"* has one implementation.
 
+### Documents library
+
+A shared library of sales materials: a back-office manager uploads categorized files; storefront reps browse, search and download them. Files live in the **file-experience-api** `sales-rep-documents` scope; the module adds a metadata sidecar table (`SalesRepDocumentMetadata`, unique `FileId` — the module's first EF migration).
+
+* **Two-step intake.** Step 1 uploads the bytes through the shared file-experience-api endpoint (`POST /api/files/sales-rep-documents`); step 2 registers (claims) the file in the library (`POST /api/sales-rep/documents`) — creates the metadata row and stamps the file's owner. A file is a **library document only once claimed**: an uploaded-but-unregistered blob is readable by no one, and the generic `deleteFile` mutation may remove only such unclaimed leftovers — claimed documents are managed exclusively through the module's endpoints. Downloads go through the authorized `GET /api/files/{id}` (the module plugs its rules into file-experience-api's `IFileAuthorizationRequirementFactory`); raw blob URLs are never exposed.
+* **Display name is the search surface.** The keyword filter and the name sort work on the display name; the raw file name is internal. The display name is always stored — it falls back to the file name at registration.
+* **Case-insensitive matching by DB collation, not code.** On PostgreSQL the migration creates the platform's `case_insensitive` ICU collation and applies it to the metadata `Name` and `Category` columns (the VCST-4523 platform approach). On SqlServer and MySql the behavior follows the **server/database default collation** — case-insensitive in their standard configurations, but a database created with a case-sensitive or binary collation makes category filtering and keyword search case-sensitive there; only PostgreSQL is pinned by the module itself. Category values are **not normalized** — each document keeps the casing it was saved with; values differing only by case count as one category for filtering and counting, and the category listing shows one representative casing of the group (typically the first created). ⚠️ **PostgreSQL 17+ is required** for the documents keyword search — older versions reject `LIKE` on nondeterministic collations.
+* **Delete behavior.** A document spans three layers — the physical blob, the file record (`AssetEntry`), and the metadata row. Only the module endpoint manages all three; the generic admin tools each operate on one layer, and the residual orphan cases are deliberate (no self-healing reads, no cleanup jobs):
+
+  | Removal surface | Blob | File record | Metadata |
+  |---|---|---|---|
+  | `DELETE /api/sales-rep/documents?ids=` | deleted | deleted | deleted (converging cleanup: file-store failures are logged and never abort it — the metadata sweep always completes, and the file-experience-api record-delete cascade usually empties it first; a blob can be left behind on a storage failure — tolerated debris, removable with the asset admin tools) |
+  | GraphQL `deleteFile` | deleted | deleted | deleted (event cascade) — denied for claimed documents |
+  | `DELETE /api/assetentries` | survives (orphan blob) | deleted | deleted (event cascade) |
+  | Assets workspace / manual blob deletion | deleted | survives | survives — the document still lists, its download fails |
+
+* **Deployment — required.** The `sales-rep-documents` upload scope is **not** self-registered by the module; it must be declared in the platform's `FileUpload` configuration (`appsettings.json` / deploy config), exactly as every file-experience-api scope is (the Quote module's `quote-attachments` works the same way — file-experience-api binds the whole scope list from `FileUpload` config, and no module contributes scopes in code). Until the entry is present, step-1 upload fails with `INVALID_SCOPE` — returned as **HTTP 200 with `succeeded: false` in the body, not an HTTP error status** — so nothing can be registered and the library stays silently empty on that environment. `MaxFileSize` must exceed the largest document you expect to host. Example:
+
+  ```json
+  "FileUpload": {
+    "Scopes": [
+      {
+        "Scope": "sales-rep-documents",
+        "MaxFileSize": 52428800,
+        "AllowedExtensions": [ ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".png", ".jpg", ".jpeg", ".gif", ".webp" ],
+        "AllowAnonymousUpload": false
+      }
+    ]
+  }
+  ```
+
 ## Administration
 
 The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name, salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
@@ -501,6 +557,18 @@ It is backed by a REST API under `/api/sales-rep`. Managing a rep is a customer-
 | `POST /api/sales-rep/{id}/unblock` | Unlock the rep's account. | `platform:security:update` |
 | `POST /api/sales-rep/{id}/password` | Set a new account password. | `platform:security:update` |
 
+The app also carries a **Documents library** section (list, upload, edit, pin, delete), backed by `/api/sales-rep/documents` with one permission per endpoint (read means read, write means write — see Permissions):
+
+| Method & route | Purpose | Permission |
+|----------------|---------|------------|
+| `POST /api/files/sales-rep-documents` | Step 1: upload the bytes (shared file-experience-api endpoint); returns the file id. | authenticated |
+| `POST /api/sales-rep/documents` | Step 2: register (claim) the uploaded file (+ optional category / name / summary / page count / preview). | `sales-rep-documents:write` |
+| `POST /api/sales-rep/documents/search` | Paged / filterable list. | `sales-rep-documents:read` |
+| `GET /api/sales-rep/documents/categories` | Keyword-filtered category counts. | `sales-rep-documents:read` |
+| `PUT /api/sales-rep/documents/{id}/metadata` | Full-replace metadata (never changes pin state or the file link). | `sales-rep-documents:write` |
+| `POST /api/sales-rep/documents/{id}/pin`, `.../unpin` | Single-pin toggle (at most one pinned document). | `sales-rep-documents:write` |
+| `DELETE /api/sales-rep/documents?ids=` | Remove documents (converging cleanup — see Delete behavior). | `sales-rep-documents:write` |
+
 Full REST documentation is browsable through Swagger on any running platform instance at `https://{platform-host}/docs/index.html?urls.primaryName=VirtoCommerce.SalesRep`.
 
 ## Permissions
@@ -508,8 +576,12 @@ Full REST documentation is browsable through Swagger on any running platform ins
 | Permission | Meaning |
 |------------|---------|
 | `sales-rep:access` | **Defines** a sales rep. Held by the rep via a role — globally and/or per organization. It is *not* an admin permission and does not gate the management API. |
+| `sales-rep-documents:read` | Browse, search and download documents library files (storefront queries + admin read endpoints). |
+| `sales-rep-documents:write` | Manage the documents library (upload/register, edit metadata, pin, delete). |
 
-The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. Admins may freely rename or delete it — reps are identified by the permission, never by this role's id.
+Permissions are granular and composed by **roles** — neither documents permission implies the other (a write-only holder cannot list or download; grant both to managers). Administrators pass every permission check.
+
+The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two documents-library roles: **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) and **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write`). Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may freely rename, edit or delete them (reps are identified by the permission, never by a role's id).
 
 ## Settings
 
@@ -532,6 +604,8 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
 | `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and maps the categories the rep sold in to their top-level ancestor through the categories' outlines (`ICategoryService`, `WithOutlines`), which also covers a virtual store catalog. |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
+| `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
+| `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
 
 ## Documentation
 
@@ -542,6 +616,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
   * [VCST-5309: Sales rep dashboard statistics, sort rules & Top Sellers](https://virtocommerce.atlassian.net/browse/VCST-5309)
   * [VCST-5310 / VCST-5331: Push & email messaging to customer members](https://virtocommerce.atlassian.net/browse/VCST-5310)
   * [VCST-5332: Publish a shopping list to a customer organization](https://virtocommerce.atlassian.net/browse/VCST-5332)
+  * [#12 — VCST-5730: Sales Rep documents library](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/12)
 
 > **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 

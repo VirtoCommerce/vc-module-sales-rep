@@ -6,21 +6,30 @@ namespace VirtoCommerce.SalesRep.Core;
 
 public static class ModuleConstants
 {
+    // The file-experience-api upload scope; must be configured in the FileUpload:Scopes application settings.
+    public const string DocumentsScope = "sales-rep-documents";
+
     public static class Security
     {
         public static class Permissions
         {
             public const string Access = "sales-rep:access";
+            public const string DocumentsRead = "sales-rep-documents:read";
+            public const string DocumentsWrite = "sales-rep-documents:write";
 
             public static string[] AllPermissions { get; } =
             [
                 Access,
+                DocumentsRead,
+                DocumentsWrite,
             ];
         }
 
         public static class Roles
         {
             public const string SalesRepRoleName = "Sales Representative";
+            public const string AdvancedSalesRepRoleName = "Advanced Sales Representative";
+            public const string DocumentsManagerRoleName = "Sales Rep Documents Manager";
         }
     }
 
@@ -31,6 +40,11 @@ public static class ModuleConstants
         // string, and SalesRepCartSharingService teaches the platform this value's visibility rules. The scope also
         // defines the id space of CartSharingSetting.SharedWithId (here: a customer organization id).
         public const string CustomerScope = "Customer";
+    }
+
+    public static class Documents
+    {
+        public const int CategoryMaxLength = 32;
     }
 
     public static class Communication
