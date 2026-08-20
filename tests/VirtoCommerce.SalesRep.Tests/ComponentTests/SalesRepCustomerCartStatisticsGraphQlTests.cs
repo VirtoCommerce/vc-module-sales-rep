@@ -12,15 +12,9 @@ using Xunit;
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// End-to-end component tests for the <c>salesRepCustomerCartStatistics</c> X-API query: seed real carts and line
-/// items into in-memory SQLite, execute real GraphQL through the real scoped schema / MediatR handler / the real
-/// <c>CustomerCartStatisticsService</c>, and assert the aggregated figures. Every figure is aggregated from the LINE
-/// ITEMS — the carts only scope them — so the range bounds each line item's modified date, an item-less cart is
-/// inert whatever its denormalized <c>LineItemsCount</c> says, and <c>count</c> is the distinct carts holding lines
-/// in the range. The cart-level figures (count/total/average) cost an extra COUNT DISTINCT and a currency
-/// conversion, so they are aggregated only when the selection asks for one. The default cart-kind service maps the
-/// built-in "active-carts" kind to carts named <b>"default"</b> — an include-list on the storefront cart name, since
-/// wishlists, saved-for-later and any custom cart kind are Cart rows carrying their own list names.
+/// Component tests for <c>salesRepCustomerCartStatistics</c>: real GraphQL over the real scoped schema,
+/// handler and service, against carts seeded into in-memory SQLite. Every figure is aggregated from the
+/// line items; the built-in "active-carts" kind means carts named <b>"default"</b>.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepCustomerCartStatisticsGraphQlTests
@@ -63,7 +57,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         active.GetProperty("unselectedItemQuantity").GetInt32().Should().Be(0);
         active.GetProperty("count").GetInt32().Should().Be(2);                // the two carts holding lines
 
-        // Baseline without a kind filter: every Cart row, the list included.
         var allCarts = stats.GetProperty("allCarts");
         allCarts.GetProperty("selectedItemQuantity").GetInt32().Should().Be(14); // 2 + 3 + 9
         allCarts.GetProperty("count").GetInt32().Should().Be(3);
@@ -77,9 +70,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedCart(ctx, "full", "org-1", 100m, _feb2026, lineItemsCount: 3);
         SeedCartItem(ctx, "full", "full-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 10m);
-        // Two ways a cart can hold no lines while its denormalized counter disagrees: emptied on checkout (0), and
-        // a stale positive counter left by a row written outside the platform. Neither may move any figure, in a
-        // dated window just as in an undated one (VCST-5648).
         SeedCart(ctx, "emptied", "org-1", 999m, _feb2026, lineItemsCount: 0);
         SeedCart(ctx, "stale-counter", "org-1", 999m, _feb2026, lineItemsCount: 5);
 
@@ -146,8 +136,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // Money mirrors DefaultShoppingCartTotalsCalculator (selected, non-gift only); the quantities deliberately
-        // do not — a parked line is reported separately and a gift still occupies the cart.
         var active = Stats(json).GetProperty("active");
         MoneyAmount(active, "total").Should().Be(50m);
         active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(4);   // 1 + the 3 gift units
@@ -162,7 +150,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedCart(ctx, "contributing", "org-1", 0m, _feb2026);
         SeedCartItem(ctx, "contributing", "picked", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 30m);
-        // Nothing picked for checkout here, and nothing but a gift over there: both hold items, neither adds money.
         SeedCart(ctx, "parked-only", "org-1", 0m, _feb2026);
         SeedCartItem(ctx, "parked-only", "parked", quantity: 5, selectedForCheckout: false, modifiedDate: _feb2026, listPrice: 99m);
         SeedCart(ctx, "gift-only", "org-1", 0m, _feb2026);
@@ -176,8 +163,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // count is the population behind total, so average = total / count exactly; the two non-contributing carts
-        // still report their quantities.
         var active = Stats(json).GetProperty("active");
         active.GetProperty("count").GetInt32().Should().Be(1);
         MoneyAmount(active, "total").Should().Be(60m);
@@ -195,9 +180,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         SeedCart(ctx, "c1", "org-1", 0m, _feb2026);
         SeedCartItem(ctx, "c1", "c1-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 25m);
 
-        // Four selections over the SAME range, each resolving to a different response group: quantities only, money
-        // only, both, and both behind aliases. They share a DataLoader bucket unless the response group is part of
-        // its key — if it is not, whichever ran first answers the rest and the missing family reads 0.
+        // Without the response group in the bucket key, whichever selection ran first answers the rest.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
@@ -212,7 +195,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var stats = Stats(json);
         stats.GetProperty("itemsOnly").GetProperty("selectedItemQuantity").GetInt32().Should().Be(2);
 
-        // Money without any quantity field: the quantities scan is skipped, the money still has to be right.
         var moneyOnly = stats.GetProperty("moneyOnly");
         moneyOnly.GetProperty("count").GetInt32().Should().Be(1);
         MoneyAmount(moneyOnly, "total").Should().Be(50m);
@@ -222,7 +204,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         withMoney.GetProperty("count").GetInt32().Should().Be(1);
         MoneyAmount(withMoney, "total").Should().Be(50m);
 
-        // Selection detection reads field NAMES, so an alias must not hide either family from the aggregator.
         var aliased = stats.GetProperty("aliased");
         aliased.GetProperty("qty").GetInt32().Should().Be(2);
         aliased.GetProperty("c").GetInt32().Should().Be(1);
@@ -240,8 +221,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         SeedCartItem(ctx, "c1", "fresh-line", quantity: 1, selectedForCheckout: true, modifiedDate: _apr2026, listPrice: 10m);
         SeedCartItem(ctx, "c1", "fresh-parked", quantity: 3, selectedForCheckout: false, modifiedDate: _apr2026, listPrice: 10m);
 
-        // The dashboard's shape: a recent slice against the wider one. Deltas ride on the line-item modified date,
-        // so "current" is the April slice (1 selected + 3 parked, $10) against YTD (5 selected, $50).
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
@@ -262,7 +241,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         slice.GetProperty("selectedItemQuantityChangePercent").GetDecimal().Should().Be(-80m);
         slice.GetProperty("unselectedItemQuantityChange").GetInt32().Should().Be(0);         // 3 in both slices
         slice.GetProperty("unselectedItemQuantityChangePercent").GetDecimal().Should().Be(0m);
-        // Both slices see the one cart, so the count is unchanged while the money is not.
         slice.GetProperty("countChange").GetInt32().Should().Be(0);
         MoneyAmount(slice, "totalChange").Should().Be(-40m);                                 // 10 (April) - 50 (YTD)
         slice.GetProperty("totalChangePercent").GetDecimal().Should().Be(-80m);
@@ -278,8 +256,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         SeedCartItem(ctx, "c1", "old-line", quantity: 4, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 10m);
         SeedCartItem(ctx, "c1", "fresh-line", quantity: 1, selectedForCheckout: true, modifiedDate: _apr2026, listPrice: 10m);
 
-        // Same two ranges, three selections: a quantities-only comparison (lean aggregate), a money comparison, and
-        // a plain period. Each must read its own figures correctly whatever order the loader batches them in.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
@@ -406,15 +382,12 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // A gift line counts like any other towards the quantities (to exclude gifts, filter IsGift in BuildItemQuery).
         Stats(json).GetProperty("active").GetProperty("selectedItemQuantity").GetInt32().Should().Be(8); // 2 (gift) + 6 (stale counter)
     }
 
     [Fact]
     public async Task Cart_BuildQueryOverride_NarrowsEveryFigure()
     {
-        // A subclass narrowing the cart set through the BuildQuery seam must narrow both metric families: they run
-        // over that cart set, not over an unfiltered one.
         using var ctx = SalesRepTestContext.Create(services =>
             services.AddTransient<ICustomerCartStatisticsService, MinimumTotalCartStatisticsService>());
         await ctx.SeedOrganizationsAsync("org-1");
@@ -455,9 +428,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // The mirror image of Cart_ItemQuantities_BoundedByLineItemModifiedDate: the CART falls inside the range but
-        // its only line was last touched a year earlier, so the range reports nothing — including no cart — while
-        // the lifetime figure sees it.
         var stats = Stats(json);
         var ytd = stats.GetProperty("ytd");
         ytd.GetProperty("selectedItemQuantity").GetInt32().Should().Be(0);
@@ -487,8 +457,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // The cart's own dates are never filtered: a cart opened last year still reports the line touched this year,
-        // and still counts as a cart with activity in the range.
         var ytd = Stats(json).GetProperty("ytd");
         ytd.GetProperty("selectedItemQuantity").GetInt32().Should().Be(7);
         ytd.GetProperty("count").GetInt32().Should().Be(1);
@@ -537,8 +505,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        // Exactly what a storefront currency switch leaves behind: the same cart, same name, same contents,
-        // stored once per currency (ChangeCartCurrencyCommandHandler copies the lines and keeps both rows).
         SeedCart(ctx, "mirror-usd", "org-1", 0m, _feb2026, currency: "USD");
         SeedCartItem(ctx, "mirror-usd", "usd-line", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 25m, currency: "USD");
         SeedCart(ctx, "mirror-eur", "org-1", 0m, _feb2026, currency: "EUR");
@@ -568,8 +534,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         SeedCart(ctx, "c-usd", "org-1", 0m, _feb2026, currency: "USD");
         SeedCartItem(ctx, "c-usd", "usd-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 10m, currency: "USD");
 
-        // The quantities follow the cart scoping too: a quantity needs no exchange rate, but the other
-        // currency's cart is a mirror of the same intent, so counting it would double the metric.
         var usd = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
@@ -611,7 +575,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // Another currency is out of scope rather than "excluded from the conversion", so no warning is raised -
         // the currency filter runs before the fold ever sees the row.
         var active = Stats(json).GetProperty("active");
         active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(3);
@@ -626,8 +589,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        // ONE cart, two currencies — the platform models this (a line carries its own currency and the calculator
-        // builds a CartTotal per currency), so the per-currency money fold must not turn it into two carts.
         SeedCart(ctx, "mixed", "org-1", 0m, _feb2026, currency: "USD");
         SeedCartItem(ctx, "mixed", "usd-line", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "USD");
         SeedCartItem(ctx, "mixed", "eur-line", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "EUR");
@@ -665,7 +626,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // The unconvertible line drops out of the money, but the cart still has a convertible one, so it counts once.
         var active = Stats(json).GetProperty("active");
         active.GetProperty("count").GetInt32().Should().Be(1);
         MoneyAmount(active, "total").Should().Be(60m);
@@ -681,9 +641,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedCart(ctx, "c-usd", "org-1", 0m, _feb2026, currency: "USD");
         SeedCartItem(ctx, "c-usd", "usd-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "USD");
-        // The foreign line sits inside an IN-SCOPE cart: a whole cart in another currency is filtered out
-        // before the fold ever sees it (Cart_ExcludesCartsInOtherCurrencies_WithoutAWarning), so a line in
-        // an unconfigured currency is what still reaches the exclusion path.
         SeedCartItem(ctx, "c-usd", "gbp-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 999m, currency: "GBP"); // not a configured currency
 
         var json = await ctx.ExecuteGraphQlAsync(
@@ -693,8 +650,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
               """,
             userId: rep.UserId);
 
-        // An unconvertible line drops out of the money figures (and its cart out of count, with a warning), but its
-        // items still count — a quantity needs no exchange rate, so excluding them would only understate the metric.
         var active = Stats(json).GetProperty("active");
         MoneyAmount(active, "total").Should().Be(300m);
         active.GetProperty("count").GetInt32().Should().Be(1);
@@ -831,7 +786,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         SeedCartItem(ctx, "foreign", "foreign-parked", quantity: 4, selectedForCheckout: false, modifiedDate: _feb2026);
 
         // Data-isolation invariant: a rep sees only carts they created — a foreign rep's cart in the same served
-        // organization must never contribute, to any figure.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
@@ -920,9 +874,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             Type = type,
             Status = status,
             Currency = currency,
-            // Neither Total nor LineItemsCount is read by the statistics (the line items are) — they are seeded so
-            // tests can prove that: a stale LineItemsCount cannot suppress or inflate a figure, and the cart's own
-            // Total is only what the BuildQuery-override test filters on.
+            // Total and LineItemsCount are seeded but never read: the tests prove they cannot move a figure.
             Total = total,
             IsDeleted = isDeleted,
             LineItemsCount = lineItemsCount,
