@@ -19,6 +19,7 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
     [StringLength(FileIdLength)]
     public string FileId { get; set; }
 
+    [Required]
     [StringLength(NameLength)]
     public string Name { get; set; }
 

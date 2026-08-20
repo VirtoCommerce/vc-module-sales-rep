@@ -17,7 +17,7 @@ namespace VirtoCommerce.SalesRep.Data.SqlServer.Migrations
                 {
                     Id = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
                     FileId = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
-                    Name = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: true),
+                    Name = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
                     Category = table.Column<string>(type: "nvarchar(32)", maxLength: 32, nullable: false),
                     IsPinned = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
                     Summary = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: true),

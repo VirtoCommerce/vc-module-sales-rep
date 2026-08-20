@@ -22,7 +22,7 @@ namespace VirtoCommerce.SalesRep.Data.MySql.Migrations
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     FileId = table.Column<string>(type: "varchar(128)", maxLength: 128, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
-                    Name = table.Column<string>(type: "varchar(512)", maxLength: 512, nullable: true)
+                    Name = table.Column<string>(type: "varchar(512)", maxLength: 512, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),
                     Category = table.Column<string>(type: "varchar(32)", maxLength: 32, nullable: false)
                         .Annotation("MySql:CharSet", "utf8mb4"),

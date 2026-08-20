@@ -20,7 +20,7 @@ namespace VirtoCommerce.SalesRep.Data.PostgreSql.Migrations
                 {
                     Id = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
                     FileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
-                    Name = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true, collation: "case_insensitive"),
+                    Name = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: false, collation: "case_insensitive"),
                     Category = table.Column<string>(type: "character varying(32)", maxLength: 32, nullable: false, collation: "case_insensitive"),
                     IsPinned = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     Summary = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: true),
