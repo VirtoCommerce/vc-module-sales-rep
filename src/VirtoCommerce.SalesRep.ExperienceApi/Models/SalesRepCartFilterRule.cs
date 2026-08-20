@@ -18,15 +18,12 @@ public class SalesRepCartFilterRule : INamedFilterRule
 
     public IList<string> Statuses { get; set; } = [];
 
-    public bool OnlyNonEmpty { get; set; }
-
     public static SalesRepCartFilterRule Create(
         string name,
         string localizedName,
         IList<string> types = null,
         IList<string> statuses = null,
         IList<string> excludeTypes = null,
-        bool onlyNonEmpty = false,
         IList<string> names = null)
     {
         var result = AbstractTypeFactory<SalesRepCartFilterRule>.TryCreateInstance();
@@ -36,7 +33,6 @@ public class SalesRepCartFilterRule : INamedFilterRule
         result.Types = types ?? [];
         result.Statuses = statuses ?? [];
         result.ExcludeTypes = excludeTypes ?? [];
-        result.OnlyNonEmpty = onlyNonEmpty;
         return result;
     }
 }

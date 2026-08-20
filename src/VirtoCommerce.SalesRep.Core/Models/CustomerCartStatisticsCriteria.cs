@@ -22,11 +22,6 @@ public class CustomerCartStatisticsCriteria : ValueObject
 
     public IList<string> Statuses { get; set; }
 
-    // Carried for the filter-rule contract, deliberately not applied to the query: every figure here is
-    // aggregated from the line items, so a cart with none contributes nothing anyway, and the denormalized
-    // Cart.LineItemsCount it would filter on can be stale enough to drop a cart that does have items.
-    public bool OnlyNonEmpty { get; set; }
-
     public CartStatisticsResponseGroup ResponseGroup { get; set; } = CartStatisticsResponseGroup.Full;
 
     public DateTime? FromDate { get; set; }
