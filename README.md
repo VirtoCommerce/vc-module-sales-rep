@@ -293,19 +293,39 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
 
 #### Cart / project statistics
 
-The same shape for carts/projects (dashboard *Active Projects*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` (non-empty carts that are **not** wishlists) — and `count` is the primary metric:
+The same shape for carts/projects (dashboard *Active carts*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` — non-empty carts **named `"default"`**, i.e. the storefront cart. That is an *include*-list, not an exclude-list: wishlists, saved-for-later and any cart kind a custom project introduces are `Cart` rows too, but they carry their own list names, so a new kind stays out of the metrics without a code change here.
+
+`selectedItemQuantity` is the primary metric (summed quantity of the lines the customer selected for checkout), `unselectedItemQuantity` the parked remainder:
 
 ```graphql
 {
   salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
-    activeCarts: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z", filter: "active-carts") {
+    activeCarts: period(filter: "active-carts") {          # omit both bounds → what is in the carts right now
+      selectedItemQuantity
+      unselectedItemQuantity
       count
       total { amount formattedAmount }
       lastCartDate
     }
+    itemsThisWeek: period(from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z", filter: "active-carts") {
+      selectedItemQuantity
+    }
+    weekVsAll: comparison(                                   # e.g. this week's items against the lifetime figure
+      current:  { from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z" }
+      previous: { from: "2019-01-01T00:00:00Z", to: "2026-08-02T23:59:59Z" }
+      filter: "active-carts"
+    ) {
+      selectedItemQuantityChange
+      selectedItemQuantityChangePercent
+      unselectedItemQuantityChange
+    }
   }
 }
 ```
+
+⚠️ Cart figures are **scoped to the requested currency**, not folded across currencies. The storefront keeps one cart per currency and mirrors the same contents into each on a currency switch (`ChangeCartCurrencyCommandHandler` copies the lines and leaves both rows), so summing every currency would multiply one cart by the number of mirrors. Counting only the requested currency also matches what a rep sees when they open that customer's cart. Orders are different — an order is settled in the currency it was placed in, so order statistics still sum across currencies and convert.
+
+⚠️ The two metric families read **different dates** inside one `period`: `count`/`total`/`average`/`lastCartDate` are bounded by the **cart's created date**, while `selectedItemQuantity`/`unselectedItemQuantity` are bounded by each **line item's modified date** — so a cart opened months ago still reports the items touched inside the range (that is what makes `itemsThisWeek` above "this week's items", not "this week's carts").
 
 ---
 
@@ -436,7 +456,7 @@ graph LR
 
 ### Statistics, filter rules and sort rules
 
-The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. The requested currency is resolved once per query by a shared policy (`ISalesRepCurrencyResolver`, used by every money-bearing query): an explicit `currencyCode` argument if given, else the store's default currency, else the platform primary. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
+The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order currency to the requested one at current rates (cart statistics instead *filter* to the requested currency — see the cart section above). The requested currency is resolved once per query by a shared policy (`ISalesRepCurrencyResolver`, used by every money-bearing query): an explicit `currencyCode` argument if given, else the store's default currency, else the platform primary. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
 
 **Filter rules** are the single, server-owned vocabulary for "which records count". A rule has a stable `name` and resolves to the underlying filter — order statuses, a cart type/status set, or a customer segment — as an overridable mapping (`IFilterRuleResolver`), applied as one optional `filter` argument (omit → the baseline set; unknown name → fail closed). The two data-derived rule sets only offer rules with data behind them, read **in the caller's scope** — served organizations, own created orders, plus the `organizationId` and `period` the storefront's list is using: order statuses come from a `DISTINCT` over those orders (`ISalesRepOrderStatusService`, cached), so an ERP-introduced status shows up and an unused one doesn't; the top-seller badges are the categories that scope's sales actually fall into. Resolvers get the scope as a `SalesRepFilterRuleContext` (built from the query on the discovery path and from the reader's criteria on the apply path), so discovery and resolution always agree and a selectable rule never yields an empty list. Within a domain the **same resolver drives every reader** — the orders list and the order statistics; the customers list and the "my customers" counts — so a filtered list and its matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
 

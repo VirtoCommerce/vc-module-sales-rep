@@ -10,6 +10,8 @@ public class SalesRepCartFilterRule : INamedFilterRule
 
     public string LocalizedName { get; set; }
 
+    public IList<string> Names { get; set; } = [];
+
     public IList<string> Types { get; set; } = [];
 
     public IList<string> ExcludeTypes { get; set; } = [];
@@ -24,11 +26,13 @@ public class SalesRepCartFilterRule : INamedFilterRule
         IList<string> types = null,
         IList<string> statuses = null,
         IList<string> excludeTypes = null,
-        bool onlyNonEmpty = false)
+        bool onlyNonEmpty = false,
+        IList<string> names = null)
     {
         var result = AbstractTypeFactory<SalesRepCartFilterRule>.TryCreateInstance();
         result.Name = name;
         result.LocalizedName = localizedName;
+        result.Names = names ?? [];
         result.Types = types ?? [];
         result.Statuses = statuses ?? [];
         result.ExcludeTypes = excludeTypes ?? [];

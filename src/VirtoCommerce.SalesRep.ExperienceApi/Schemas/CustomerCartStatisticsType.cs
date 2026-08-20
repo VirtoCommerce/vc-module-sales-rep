@@ -35,9 +35,9 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
 
         Field<CustomerCartStatisticsPeriodType>("period")
             .Description("Cart statistics for a single date range. Omit both bounds for lifetime.")
-            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the cart created date (null = no lower bound).")
-            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the cart created date (null = no upper bound).")
-            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); counts only carts matching that rule's type/status/contents filter. Omit for every cart.")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the cart created date (null = no lower bound); the item-quantity fields bound their own line item's modified date instead.")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the cart created date (null = no upper bound); the item-quantity fields bound their own line item's modified date instead.")
+            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); counts only carts matching that rule's name/type/status/contents filter. Omit for every cart row, wishlists and other lists included.")
             .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
@@ -114,6 +114,10 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
         result.CountChangePercent = StatisticsFieldHelper.Percent(previous.Count, current.Count);
         result.AverageChange = current.Average - previous.Average;
         result.AverageChangePercent = StatisticsFieldHelper.Percent(previous.Average, current.Average);
+        result.SelectedItemQuantityChange = current.SelectedItemQuantity - previous.SelectedItemQuantity;
+        result.SelectedItemQuantityChangePercent = StatisticsFieldHelper.Percent(previous.SelectedItemQuantity, current.SelectedItemQuantity);
+        result.UnselectedItemQuantityChange = current.UnselectedItemQuantity - previous.UnselectedItemQuantity;
+        result.UnselectedItemQuantityChangePercent = StatisticsFieldHelper.Percent(previous.UnselectedItemQuantity, current.UnselectedItemQuantity);
 
         return result;
     }
