@@ -52,50 +52,102 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
     {
         using var repository = _cartRepositoryFactory();
 
-        var byCurrency = await AggregateByCurrencyAsync(repository, criteria);
-        var itemQuantities = await AggregateItemQuantitiesAsync(repository, criteria);
+        var itemQuery = BuildItemQuery(repository, criteria);
 
-        var period = await ConvertAndFoldAsync(byCurrency, criteria);
-        period.SelectedItemQuantity = itemQuantities.Where(x => x.SelectedForCheckout).Sum(x => x.Quantity);
-        period.UnselectedItemQuantity = itemQuantities.Where(x => !x.SelectedForCheckout).Sum(x => x.Quantity);
+        var period = AbstractTypeFactory<CustomerCartStatisticsPeriod>.TryCreateInstance();
+        period.CurrencyCode = criteria.CurrencyCode;
+
+        if (criteria.ResponseGroup.HasFlag(CartStatisticsResponseGroup.ItemQuantities))
+        {
+            await AddItemQuantitiesAsync(period, itemQuery);
+        }
+
+        if (criteria.ResponseGroup.HasFlag(CartStatisticsResponseGroup.CartFigures))
+        {
+            await AddCartFiguresAsync(period, itemQuery, criteria);
+        }
 
         return period;
     }
 
-    private async Task<IList<PerCurrencyAggregate>> AggregateByCurrencyAsync(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    private static async Task AddItemQuantitiesAsync(CustomerCartStatisticsPeriod period, IQueryable<LineItemEntity> itemQuery)
     {
-        return await BuildQuery(repository, criteria)
+        var quantities = await itemQuery
+            .GroupBy(x => x.SelectedForCheckout)
+            .Select(g => new { SelectedForCheckout = g.Key, Quantity = g.Sum(x => x.Quantity) })
+            .ToListAsync();
+
+        period.SelectedItemQuantity = quantities.Where(x => x.SelectedForCheckout).Sum(x => x.Quantity);
+        period.UnselectedItemQuantity = quantities.Where(x => !x.SelectedForCheckout).Sum(x => x.Quantity);
+    }
+
+    private async Task AddCartFiguresAsync(
+        CustomerCartStatisticsPeriod period,
+        IQueryable<LineItemEntity> itemQuery,
+        CustomerCartStatisticsCriteria criteria)
+    {
+        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
+        var contributingLines = itemQuery.Where(x => x.SelectedForCheckout && !x.IsGift);
+
+        var priceGroups = await AggregatePriceGroupsAsync(contributingLines);
+
+        var rates = priceGroups
+            .Select(x => x.Currency ?? string.Empty)
+            .DistinctIgnoreCase()
+            .ToDictionary(x => x, x => StatisticsCurrencyConverter.GetRate(x, criteria.CurrencyCode, currencies), StringComparer.OrdinalIgnoreCase);
+
+        var convertibleCurrencies = rates.Where(x => x.Value != 0m).Select(x => x.Key).ToArray();
+
+        var byCurrency = priceGroups
             .GroupBy(x => x.Currency)
-            .Select(g => new PerCurrencyAggregate
+            .Select(g => new CurrencyStatisticAggregate
             {
                 Currency = g.Key,
-                Total = g.Sum(x => x.Total),
-                Count = g.Count(),
-                LastCartDate = g.Max(x => x.CreatedDate),
+                Total = g.Sum(x => (x.ListPrice - x.DiscountAmount) * x.Quantity),
+            });
+
+        var folded = StatisticsCurrencyConverter.Fold(
+            byCurrency, criteria.CurrencyCode, currencies, _logger,
+            await CountContributingCartsAsync(contributingLines, convertibleCurrencies));
+
+        period.Total = folded.Total;
+        period.Count = folded.Count;
+        period.Average = folded.Average;
+        period.CurrencyCode = folded.CurrencyCode;
+        period.Warning = folded.Warning;
+    }
+
+    private static async Task<IList<PriceGroup>> AggregatePriceGroupsAsync(IQueryable<LineItemEntity> contributingLines)
+    {
+        return await contributingLines
+            .GroupBy(x => new { x.Currency, x.ListPrice, x.DiscountAmount })
+            .Select(g => new PriceGroup
+            {
+                Currency = g.Key.Currency,
+                ListPrice = g.Key.ListPrice,
+                DiscountAmount = g.Key.DiscountAmount,
+                Quantity = g.Sum(x => x.Quantity < 1 ? 1 : x.Quantity),
             })
             .ToListAsync();
     }
 
-    private async Task<IList<ItemQuantityAggregate>> AggregateItemQuantitiesAsync(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
+    private static async Task<int> CountContributingCartsAsync(IQueryable<LineItemEntity> contributingLines, string[] convertibleCurrencies)
     {
-        return await BuildItemQuery(repository, criteria)
-            .GroupBy(x => x.SelectedForCheckout)
-            .Select(g => new ItemQuantityAggregate
-            {
-                SelectedForCheckout = g.Key,
-                Quantity = g.Sum(x => x.Quantity),
-            })
-            .ToListAsync();
+        if (convertibleCurrencies.Length == 0)
+        {
+            return 0;
+        }
+
+        return await contributingLines
+            .Where(x => convertibleCurrencies.Contains(x.Currency))
+            .Select(x => x.ShoppingCartId)
+            .Distinct()
+            .CountAsync();
     }
 
     protected virtual IQueryable<LineItemEntity> BuildItemQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
-        var itemCriteria = criteria.CloneTyped();
-        itemCriteria.FromDate = null;
-        itemCriteria.ToDate = null;
-        itemCriteria.OnlyNonEmpty = false;
-
-        var query = BuildQuery(repository, itemCriteria).SelectMany(x => x.Items);
+        var query = BuildQuery(repository, criteria).SelectMany(x => x.Items);
 
         if (criteria.FromDate != null)
         {
@@ -129,6 +181,7 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => x.StoreId == criteria.StoreId);
         }
 
+        // One cart per currency, mirrored on a switch, so folding every currency would report one cart as many.
         if (!string.IsNullOrEmpty(criteria.CurrencyCode))
         {
             var currencyCode = criteria.CurrencyCode.ToUpperInvariant();
@@ -155,59 +208,14 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => criteria.Statuses.Contains(x.Status));
         }
 
-        if (criteria.OnlyNonEmpty)
-        {
-            query = query.Where(x => x.LineItemsCount > 0);
-        }
-
-        if (criteria.FromDate != null)
-        {
-            query = query.Where(x => x.CreatedDate >= criteria.FromDate.Value);
-        }
-
-        if (criteria.ToDate != null)
-        {
-            query = query.Where(x => x.CreatedDate <= criteria.ToDate.Value);
-        }
-
         return query;
     }
 
-    private async Task<CustomerCartStatisticsPeriod> ConvertAndFoldAsync(IList<PerCurrencyAggregate> byCurrency, CustomerCartStatisticsCriteria criteria)
-    {
-        var currencies = (await _currencyService.GetAllCurrenciesAsync()).ToList();
-
-        var aggregates = byCurrency.Select(x => new CurrencyStatisticAggregate
-        {
-            Currency = x.Currency,
-            Total = x.Total,
-            Count = x.Count,
-            LatestDate = x.LastCartDate,
-        });
-
-        var folded = StatisticsCurrencyConverter.Fold(aggregates, criteria.CurrencyCode, currencies, _logger);
-
-        var period = AbstractTypeFactory<CustomerCartStatisticsPeriod>.TryCreateInstance();
-        period.Total = folded.Total;
-        period.Count = folded.Count;
-        period.Average = folded.Average;
-        period.LastCartDate = folded.LatestDate;
-        period.CurrencyCode = folded.CurrencyCode;
-        period.Warning = folded.Warning;
-        return period;
-    }
-
-    private sealed class PerCurrencyAggregate
+    private sealed class PriceGroup
     {
         public string Currency { get; set; }
-        public decimal Total { get; set; }
-        public int Count { get; set; }
-        public DateTime LastCartDate { get; set; }
-    }
-
-    private sealed class ItemQuantityAggregate
-    {
-        public bool SelectedForCheckout { get; set; }
+        public decimal ListPrice { get; set; }
+        public decimal DiscountAmount { get; set; }
         public int Quantity { get; set; }
     }
 }

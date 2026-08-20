@@ -22,7 +22,7 @@ public class CustomerCartStatisticsCriteria : ValueObject
 
     public IList<string> Statuses { get; set; }
 
-    public bool OnlyNonEmpty { get; set; }
+    public CartStatisticsResponseGroup ResponseGroup { get; set; } = CartStatisticsResponseGroup.Full;
 
     public DateTime? FromDate { get; set; }
 

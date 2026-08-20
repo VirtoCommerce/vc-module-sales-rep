@@ -10,6 +10,7 @@ using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi.Filters;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
+using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
@@ -19,34 +20,40 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
     private readonly IDataLoaderContextAccessor _dataLoaderContextAccessor;
     private readonly ICustomerCartStatisticsService _statisticsService;
     private readonly ISalesRepCartFilterRuleResolver _filterRuleResolver;
+    private readonly ISalesRepCartStatisticsResponseGroupParser _responseGroupParser;
 
     public CustomerCartStatisticsType(
         IDataLoaderContextAccessor dataLoaderContextAccessor,
         ICustomerCartStatisticsService statisticsService,
-        ISalesRepCartFilterRuleResolver filterRuleResolver)
+        ISalesRepCartFilterRuleResolver filterRuleResolver,
+        ISalesRepCartStatisticsResponseGroupParser responseGroupParser)
     {
         _dataLoaderContextAccessor = dataLoaderContextAccessor;
         _statisticsService = statisticsService;
         _filterRuleResolver = filterRuleResolver;
+        _responseGroupParser = responseGroupParser;
 
         Name = "CustomerCartStatistics";
 
-        Field(x => x.CurrencyCode, nullable: false).Description("Currency all figures below are converted to.");
+        Field(x => x.CurrencyCode, nullable: false).Description("Currency the money figures below are converted to.");
 
         Field<CustomerCartStatisticsPeriodType>("period")
-            .Description("Cart statistics for a single date range. Omit both bounds for lifetime.")
-            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on the cart created date (null = no lower bound); the item-quantity fields bound their own line item's modified date instead.")
-            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on the cart created date (null = no upper bound); the item-quantity fields bound their own line item's modified date instead.")
-            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"); counts only carts matching that rule's name/type/status/contents filter. Omit for every cart row, wishlists and other lists included.")
+            .Description("Cart figures for a single date range. Omit both bounds for what is in the carts right now.")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.FromArgument, "Inclusive lower bound on each line item's modified date; the carts' own dates are never filtered.")
+            .Argument<DateTimeGraphType>(StatisticsFieldHelper.ToArgument, "Inclusive upper bound on each line item's modified date; the carts' own dates are never filtered.")
+            .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name (a salesRepCartFilterRules 'name', e.g. \"active-carts\"). Omit for every cart row, wishlists and other lists included.")
             .Resolve(context =>
             {
                 var from = context.GetArgument<DateTime?>(StatisticsFieldHelper.FromArgument);
                 var to = context.GetArgument<DateTime?>(StatisticsFieldHelper.ToArgument);
-                return GetPeriodLoader(context).LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context)));
+                var responseGroup = _responseGroupParser.GetResponseGroup(SelectedFields(context));
+
+                return GetPeriodLoader(context)
+                    .LoadAsync((from, to, StatisticsFieldHelper.GetFilter(context), responseGroup));
             });
 
         Field<CustomerCartStatisticsComparisonType>("comparison")
-            .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket shared with a 'period' selection is not queried again.")
+            .Description("Compares two periods (current vs previous). Reuses the period results, so a bucket another selection already asked for is not aggregated again.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.CurrentArgument, "The later period.")
             .Argument<NonNullGraphType<SalesRepStatisticsPeriodInputType>>(StatisticsFieldHelper.PreviousArgument, "The baseline period to compare against.")
             .Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Optional cart-kind rule name applied to both periods (see 'period.filter').")
@@ -56,52 +63,22 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
                 var previous = context.GetArgument<SalesRepStatisticsPeriodInput>(StatisticsFieldHelper.PreviousArgument);
                 var filterKey = StatisticsFieldHelper.GetFilter(context);
 
+                var responseGroup = _responseGroupParser.GetResponseGroup(SelectedFields(context));
+
                 var loader = GetPeriodLoader(context);
 
                 // Queue both loads before chaining so they land in the same batch (one dispatch); a range shared
                 // with a 'period' selection is then aggregated only once.
-                var currentResult = loader.LoadAsync((current.From, current.To, filterKey));
-                var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey));
+                var currentResult = loader.LoadAsync((current.From, current.To, filterKey, responseGroup));
+                var previousResult = loader.LoadAsync((previous.From, previous.To, filterKey, responseGroup));
 
                 return currentResult.Then(currentPeriod =>
                     previousResult.Then(previousPeriod => BuildComparison(currentPeriod, previousPeriod)));
             });
     }
 
-    private IDataLoader<(DateTime? From, DateTime? To, string Filter), CustomerCartStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
-    {
-        var statisticsContext = (CustomerCartStatisticsContext)context.Source;
-
-        var loaderKey = $"{nameof(CustomerCartStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
-
-        // Per-request batch loader shared by 'period' and 'comparison': keyed on the shared context, with the range
-        // in the batch key, so each distinct range is aggregated only once per request (no N+1).
-        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filter), CustomerCartStatisticsPeriod>(
-            loaderKey,
-            async buckets =>
-            {
-                var tasks = buckets.Select(async bucket =>
-                {
-                    var criteria = AbstractTypeFactory<CustomerCartStatisticsCriteria>.TryCreateInstance();
-                    criteria.OrganizationIds = statisticsContext.OrganizationIds;
-                    criteria.CustomerId = statisticsContext.SalesRepUserId;
-                    criteria.StoreId = statisticsContext.StoreId;
-                    criteria.CurrencyCode = statisticsContext.CurrencyCode;
-                    criteria.FromDate = bucket.From;
-                    criteria.ToDate = bucket.To;
-
-                    var filtered = await _filterRuleResolver.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
-
-                    var period = filtered == null
-                        ? StatisticsFieldHelper.EmptyPeriod<CustomerCartStatisticsPeriod>(p => p.CurrencyCode = statisticsContext.CurrencyCode)
-                        : await _statisticsService.GetStatisticsAsync(filtered);
-                    return (bucket, period);
-                });
-
-                var results = await Task.WhenAll(tasks);
-                return results.ToDictionary(x => x.bucket, x => x.period);
-            });
-    }
+    private static string[] SelectedFields(IResolveFieldContext context)
+        => context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
 
     private static CustomerCartStatisticsComparison BuildComparison(CustomerCartStatisticsPeriod current, CustomerCartStatisticsPeriod previous)
     {
@@ -120,5 +97,41 @@ public class CustomerCartStatisticsType : ExtendableGraphType<CustomerCartStatis
         result.UnselectedItemQuantityChangePercent = StatisticsFieldHelper.Percent(previous.UnselectedItemQuantity, current.UnselectedItemQuantity);
 
         return result;
+    }
+
+    private IDataLoader<(DateTime? From, DateTime? To, string Filter, CartStatisticsResponseGroup ResponseGroup), CustomerCartStatisticsPeriod> GetPeriodLoader(IResolveFieldContext context)
+    {
+        var statisticsContext = (CustomerCartStatisticsContext)context.Source;
+
+        var loaderKey = $"{nameof(CustomerCartStatisticsType)}:{statisticsContext.SalesRepUserId}:{string.Join(',', statisticsContext.OrganizationIds)}:{statisticsContext.StoreId}:{statisticsContext.CurrencyCode}";
+
+        // Per-request batch loader shared by 'period' and 'comparison': keyed on the shared context, with the range
+        // and the response group in the batch key, so each distinct bucket is aggregated only once (no N+1).
+        return _dataLoaderContextAccessor.Context.GetOrAddBatchLoader<(DateTime? From, DateTime? To, string Filter, CartStatisticsResponseGroup ResponseGroup), CustomerCartStatisticsPeriod>(
+            loaderKey,
+            async buckets =>
+            {
+                var tasks = buckets.Select(async bucket =>
+                {
+                    var criteria = AbstractTypeFactory<CustomerCartStatisticsCriteria>.TryCreateInstance();
+                    criteria.OrganizationIds = statisticsContext.OrganizationIds;
+                    criteria.CustomerId = statisticsContext.SalesRepUserId;
+                    criteria.StoreId = statisticsContext.StoreId;
+                    criteria.CurrencyCode = statisticsContext.CurrencyCode;
+                    criteria.FromDate = bucket.From;
+                    criteria.ToDate = bucket.To;
+                    criteria.ResponseGroup = bucket.ResponseGroup;
+
+                    var filtered = await _filterRuleResolver.ApplyStatisticsFilterAsync(statisticsContext.StoreId, bucket.Filter, criteria);
+
+                    var period = filtered == null
+                        ? StatisticsFieldHelper.EmptyPeriod<CustomerCartStatisticsPeriod>(p => p.CurrencyCode = statisticsContext.CurrencyCode)
+                        : await _statisticsService.GetStatisticsAsync(filtered);
+                    return (bucket, period);
+                });
+
+                var results = await Task.WhenAll(tasks);
+                return results.ToDictionary(x => x.bucket, x => x.period);
+            });
     }
 }

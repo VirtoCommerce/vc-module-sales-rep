@@ -12,23 +12,24 @@ public class CustomerCartStatisticsPeriodType : ExtendableGraphType<CustomerCart
     {
         Name = "CustomerCartStatisticsPeriod";
 
-        Field<NonNullGraphType<MoneyType>>("total")
-            .Description("Sum of cart totals in the range (amount, formatted amount and currency).")
-            .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Total));
-
-        Field(x => x.Count, nullable: false).Description("Number of carts in the range.");
-
         Field(x => x.SelectedItemQuantity, nullable: false)
-            .Description("Summed quantity of the line items selected for checkout (the primary widget metric, e.g. 'Active carts · items'). Unlike the cart figures, the range bounds each LINE ITEM's modified date, so a cart created earlier still contributes the items touched inside the range.");
+            .Description("Summed quantity of the line items selected for checkout.");
 
         Field(x => x.UnselectedItemQuantity, nullable: false)
-            .Description("Summed quantity of the line items NOT selected for checkout, over the same line-item modified-date range as 'selectedItemQuantity'.");
+            .Description("Summed quantity of the line items NOT selected for checkout.");
+
+        Field(x => x.Count, nullable: false)
+            .Description("Number of distinct carts contributing to 'total'; a cart whose lines are all parked reports quantities but does not count.");
+
+        Field<NonNullGraphType<MoneyType>>("total")
+            .Description("Goods subtotal of the lines picked for checkout in the range (list price less line discount, gifts excluded). Excludes shipping, taxes, fees and cart-level discounts.")
+            .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Total));
 
         Field<NonNullGraphType<MoneyType>>("average")
-            .Description("Average cart value in the range (amount, formatted amount and currency).")
+            .Description("'total' divided by 'count'.")
             .ResolveAsync(context => StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.CurrencyCode, context.GetCultureName(), context.Source.Average));
 
-        Field(x => x.LastCartDate, nullable: true).Description("Date of the most recent cart in the range.");
-        Field(x => x.Warning, nullable: true).Description("Non-null when the figures are partial because some carts were in an unconfigured currency and could not be converted; describes what was excluded.");
+        Field(x => x.Warning, nullable: true)
+            .Description("Non-null when 'count'/'total'/'average' exclude line items in an unconfigured currency; describes what was excluded. Item quantities are never affected.");
     }
 }
