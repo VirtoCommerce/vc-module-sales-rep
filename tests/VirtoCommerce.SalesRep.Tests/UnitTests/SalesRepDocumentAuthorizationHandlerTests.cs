@@ -93,6 +93,30 @@ public class SalesRepDocumentAuthorizationHandlerTests
         (await AuthorizeAsync(CreateUser(DocumentsWrite), DocumentsRead, file)).Should().BeFalse();
     }
 
+    // Defence-in-depth: only the LIBRARY's complete claim (owner id + owner type) opens the read gate — a scope
+    // file carrying some other module's owner stamp, or a half-stamp missing the id, is neither readable nor
+    // deletable through the generic surfaces.
+    [Fact]
+    public async Task Handle_ForeignOwnedFile_IsNeitherReadableNorWritable()
+    {
+        var file = UnclaimedFile();
+        file.OwnerEntityId = "foreign-1";
+        file.OwnerEntityType = "SomeOther.Module.Entity";
+
+        (await AuthorizeAsync(CreateUser(DocumentsRead), DocumentsRead, file)).Should().BeFalse();
+        (await AuthorizeAsync(CreateUser(DocumentsWrite), DocumentsWrite, file)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_OwnerTypeWithoutOwnerId_IsNeitherReadableNorWritable()
+    {
+        var file = UnclaimedFile();
+        file.OwnerEntityType = typeof(SalesRepDocumentMetadata).FullName;
+
+        (await AuthorizeAsync(CreateUser(DocumentsRead), DocumentsRead, file)).Should().BeFalse();
+        (await AuthorizeAsync(CreateUser(DocumentsWrite), DocumentsWrite, file)).Should().BeFalse();
+    }
+
     [Fact]
     public async Task Handle_DeleteOfUnclaimedFile_IsAllowedForWriteHolders()
     {

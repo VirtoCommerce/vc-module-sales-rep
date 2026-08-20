@@ -8,6 +8,7 @@ using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Security.Authorization;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 
@@ -59,9 +60,12 @@ public class SalesRepDocumentAuthorizationHandler : PermissionAuthorizationHandl
     }
 
     // File is null for list-level checks (the GraphQL queries, which are metadata-driven anyway).
+    // The read gate requires the complete claim CreateAsync writes: the owner id AND the library owner type.
     protected virtual bool IsReadableFile(SalesRepDocumentAuthorizationRequirement requirement)
     {
-        return requirement.File == null || !requirement.File.OwnerIsEmpty();
+        var file = requirement.File;
+
+        return file == null || (!string.IsNullOrEmpty(file.OwnerEntityId) && file.OwnerTypeIs<SalesRepDocumentMetadata>());
     }
 
     protected virtual bool IsWritableFile(SalesRepDocumentAuthorizationRequirement requirement)
