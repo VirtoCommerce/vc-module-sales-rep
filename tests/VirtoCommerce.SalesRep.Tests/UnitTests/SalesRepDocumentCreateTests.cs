@@ -219,31 +219,18 @@ public class SalesRepDocumentCreateTests
         _fileUploadService.Files.Should().BeEmpty();
     }
 
-    // Files are deleted first so a file-store failure leaves the document listed and the delete retryable —
-    // the reverse order would leave a readable file unreachable through the module.
-    [Fact]
-    public async Task Delete_FileDeleteFails_KeepsTheDocument()
+    // The delete converges: any file-store failure is logged and never aborts the metadata cleanup. (The real
+    // file service cascades the metadata away before its blob step could even fail — the ordering itself is
+    // pinned at the component level, over the real event bus.)
+    [Theory]
+    [InlineData(typeof(InvalidOperationException))]
+    [InlineData(typeof(FileNotFoundException))]
+    public async Task Delete_FileDeleteFails_StillRemovesTheDocument(Type exceptionType)
     {
         var file = AddFile();
         var service = CreateService();
         var document = await service.CreateAsync(file.Id, "Catalogs");
-        _fileUploadService.FailOnDeleteWith = new InvalidOperationException("File delete failed.");
-
-        var delete = () => service.DeleteAsync([document.Id]);
-
-        await delete.Should().ThrowAsync<InvalidOperationException>().WithMessage("*file delete failed*");
-        _metadataService.Saved.Should().ContainSingle();
-    }
-
-    // A blob already missing from the physical storage (removed directly from disk or the blob container)
-    // must not block the delete — removing the file was the goal anyway.
-    [Fact]
-    public async Task Delete_FileMissingFromStorage_DeletesTheDocument()
-    {
-        var file = AddFile();
-        var service = CreateService();
-        var document = await service.CreateAsync(file.Id, "Catalogs");
-        _fileUploadService.FailOnDeleteWith = new FileNotFoundException("Could not find file.");
+        _fileUploadService.FailOnDeleteWith = (Exception)Activator.CreateInstance(exceptionType);
 
         await service.DeleteAsync([document.Id]);
 

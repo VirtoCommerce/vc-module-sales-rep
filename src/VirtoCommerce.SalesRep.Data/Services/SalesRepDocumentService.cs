@@ -170,9 +170,12 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             return;
         }
 
-        // Files first: if the file store fails, the documents stay listed and the delete stays retryable — the
-        // reverse order would leave readable files unreachable through the module. One file per call so a blob
-        // already missing from the physical storage (deleting it was the goal) doesn't abort the rest.
+        // The delete CONVERGES rather than promising ordering: the file service removes the file record before
+        // the blob and its record deletion cascades into the metadata (AssetEntryChangedEvent) mid-call, so a
+        // propagated storage failure could not keep the document anyway. File-store failures are logged and never
+        // abort the batch; the metadata sweep below is the authoritative cleanup for whatever the cascade did not
+        // already remove. Storage debris (a leaked blob, or a still-claimed file when the record delete itself
+        // failed) is tolerated, as everywhere in the platform, and removable with the asset admin tools.
         foreach (var fileId in documents.Select(x => x.FileId).Where(x => !string.IsNullOrEmpty(x)))
         {
             try
@@ -182,6 +185,10 @@ public class SalesRepDocumentService : ISalesRepDocumentService
             catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
             {
                 _logger.LogWarning(ex, "File '{FileId}' is already missing from the storage; deleting the document anyway.", fileId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete file '{FileId}'; deleting the document anyway.", fileId);
             }
         }
 

@@ -519,12 +519,12 @@ A shared library of sales materials: a back-office manager uploads categorized f
 
   | Removal surface | Blob | File record | Metadata |
   |---|---|---|---|
-  | `DELETE /api/sales-rep/documents?ids=` | deleted | deleted | deleted (an already-missing blob is tolerated; other file-store failures propagate and the delete stays retryable) |
+  | `DELETE /api/sales-rep/documents?ids=` | deleted | deleted | deleted (converging cleanup: file-store failures are logged and never abort it — the metadata sweep always completes, and the file-experience-api record-delete cascade usually empties it first; a blob can be left behind on a storage failure — tolerated debris, removable with the asset admin tools) |
   | GraphQL `deleteFile` | deleted | deleted | deleted (event cascade) — denied for claimed documents |
   | `DELETE /api/assetentries` | survives (orphan blob) | deleted | deleted (event cascade) |
   | Assets workspace / manual blob deletion | deleted | survives | survives — the document still lists, its download fails |
 
-* **Deployment.** The upload scope is declared in environment configuration (no code registration):
+* **Deployment — required.** The `sales-rep-documents` upload scope is **not** self-registered by the module; it must be declared in the platform's `FileUpload` configuration (`appsettings.json` / deploy config), exactly as every file-experience-api scope is (the Quote module's `quote-attachments` works the same way — file-experience-api binds the whole scope list from `FileUpload` config, and no module contributes scopes in code). Until the entry is present, step-1 upload fails with `INVALID_SCOPE` — returned as **HTTP 200 with `succeeded: false` in the body, not an HTTP error status** — so nothing can be registered and the library stays silently empty on that environment. `MaxFileSize` must exceed the largest document you expect to host. Example:
 
   ```json
   "FileUpload": {
@@ -567,7 +567,7 @@ The app also carries a **Documents library** section (list, upload, edit, pin, d
 | `GET /api/sales-rep/documents/categories` | Keyword-filtered category counts. | `sales-rep-documents:read` |
 | `PUT /api/sales-rep/documents/{id}/metadata` | Full-replace metadata (never changes pin state or the file link). | `sales-rep-documents:write` |
 | `POST /api/sales-rep/documents/{id}/pin`, `.../unpin` | Single-pin toggle (at most one pinned document). | `sales-rep-documents:write` |
-| `DELETE /api/sales-rep/documents?ids=` | Remove documents (files first, then metadata). | `sales-rep-documents:write` |
+| `DELETE /api/sales-rep/documents?ids=` | Remove documents (converging cleanup — see Delete behavior). | `sales-rep-documents:write` |
 
 Full REST documentation is browsable through Swagger on any running platform instance at `https://{platform-host}/docs/index.html?urls.primaryName=VirtoCommerce.SalesRep`.
 

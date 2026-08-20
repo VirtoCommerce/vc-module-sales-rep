@@ -20,6 +20,9 @@ internal sealed class InMemoryBlobStorageProvider : IBlobStorageProvider, IBlobU
 
     public IReadOnlyCollection<string> BlobUrls => [.. _blobs.Keys];
 
+    /// <summary>When set, <see cref="RemoveAsync"/> throws this instead of deleting — a storage failure mid-delete.</summary>
+    public Exception FailOnRemoveWith { get; set; }
+
     public bool Exists(string blobUrl) => _blobs.ContainsKey(Normalize(blobUrl));
 
     public Task<BlobEntrySearchResult> SearchAsync(string folderUrl, string keyword)
@@ -43,6 +46,11 @@ internal sealed class InMemoryBlobStorageProvider : IBlobStorageProvider, IBlobU
 
     public Task RemoveAsync(string[] urls)
     {
+        if (FailOnRemoveWith != null)
+        {
+            throw FailOnRemoveWith;
+        }
+
         foreach (var url in urls ?? [])
         {
             _blobs.TryRemove(Normalize(url), out _);

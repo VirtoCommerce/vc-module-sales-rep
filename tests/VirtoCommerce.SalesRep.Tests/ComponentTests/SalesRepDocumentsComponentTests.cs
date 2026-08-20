@@ -170,6 +170,32 @@ public class SalesRepDocumentsComponentTests
         result.TotalCount.Should().Be(0);
     }
 
+    // A storage failure mid-delete cannot keep the document: the file service deletes the record before the blob
+    // and its AssetEntryChangedEvent cascade empties the metadata first, so the delete CONVERGES — the document
+    // is fully gone from the database, the leaked blob is the tolerated debris, and a repeated call is a no-op.
+    // (Runs over the real event bus, so the cascade genuinely fires before the blob step throws.)
+    [Fact]
+    public async Task Delete_BlobRemovalFails_StillRemovesTheDocument()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await ctx.UploadDocumentAsync("Doomed.pdf", "Catalogs");
+
+        var blobProvider = ctx.GetRequiredService<InMemoryBlobStorageProvider>();
+        blobProvider.FailOnRemoveWith = new IOException("Storage offline.");
+
+        var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
+        await documentService.DeleteAsync([document.Id]);
+
+        // Metadata and file record are gone; only the blob remains as debris.
+        (await documentService.GetByIdAsync(document.Id)).Should().BeNull();
+        (await ctx.GetRequiredService<ISalesRepDocumentSearchService>().SearchAsync(new SalesRepDocumentSearchCriteria()))
+            .TotalCount.Should().Be(0);
+        blobProvider.BlobUrls.Should().HaveCount(1);
+
+        // Idempotent: repeating the call finds nothing and succeeds.
+        await documentService.DeleteAsync([document.Id]);
+    }
+
     // Deleting the file record through any IAssetEntryService path (the generic deleteFile mutation, the platform
     // asset admin APIs) raises AssetEntryChangedEvent; the module's handler must drop the sidecar metadata row so
     // no invisible orphan inflates TotalCount.
