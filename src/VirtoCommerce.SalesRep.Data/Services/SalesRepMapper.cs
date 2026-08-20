@@ -49,9 +49,15 @@ public class SalesRepMapper : ISalesRepMapper
             .Where(x => x != null && ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Scope))
             .ToDictionary(x => x.Id);
 
-        return metadataItems
-            .Where(x => filesById.ContainsKey(x.FileId))
-            .Select(x => ToDocument(filesById[x.FileId], x))
-            .ToList();
+        var documents = new List<SalesRepDocument>();
+        foreach (var metadata in metadataItems)
+        {
+            if (!string.IsNullOrEmpty(metadata.FileId) && filesById.TryGetValue(metadata.FileId, out var file))
+            {
+                documents.Add(ToDocument(file, metadata));
+            }
+        }
+
+        return documents;
     }
 }
