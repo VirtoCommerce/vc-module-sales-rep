@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GraphQL;
+using GraphQL.Types;
 using GraphQL.Introspection;
 using GraphQL.MicrosoftDI;
 using Microsoft.EntityFrameworkCore;
@@ -25,6 +26,12 @@ using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.NotificationsModule.Core.Model;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.OrdersModule.Core.Model;
+using VirtoCommerce.PaymentModule.Core.Model;
+using VirtoCommerce.PaymentModule.Core.Model.Search;
+using VirtoCommerce.PaymentModule.Core.Services;
+using VirtoCommerce.Platform.Core.DynamicProperties;
+using VirtoCommerce.Platform.Core.Modularity;
+using VirtoCommerce.Platform.Modules;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
@@ -40,9 +47,25 @@ using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
+using Microsoft.Extensions.Configuration;
+using VirtoCommerce.InventoryModule.Core.Model;
+using VirtoCommerce.InventoryModule.Core.Services;
+using VirtoCommerce.OrdersModule.Core;
+using VirtoCommerce.OrdersModule.Core.Search.Indexed;
+using VirtoCommerce.OrdersModule.Data.Search.Indexed;
+using VirtoCommerce.ShippingModule.Core.Model;
+using VirtoCommerce.ShippingModule.Core.Model.Search;
+using VirtoCommerce.ShippingModule.Core.Services;
+using VirtoCommerce.StoreModule.Core.Services;
+using VirtoCommerce.XOrder.Core;
+using VirtoCommerce.XOrder.Core.Services;
+using VirtoCommerce.XOrder.Data.Mapping;
+using VirtoCommerce.XOrder.Data.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using VirtoCommerce.Xapi.Core.Services;
 using VirtoCommerce.Xapi.Core.Schemas;
+using VirtoCommerce.XOrder.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -82,6 +105,32 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
         services.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
+
+        // Indexed order search (VCST-5733): the REAL Orders indexed search over the in-memory Lucene provider the
+        // customer slice registers, so the new queries' filter phrase, status facet and sort run through the real
+        // request builder and real aggregations — gated by the same configuration key production reads.
+        services.AddSingleton<IConfiguration>(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string> { ["Search:OrderFullTextSearchEnabled"] = "true" })
+            .Build());
+        services.AddTransient<CustomerOrderSearchRequestBuilder>();
+        services.AddTransient<IIndexedCustomerOrderSearchService, IndexedCustomerOrderSearchService>();
+
+        // Order indexation: the REAL document builder, so the fields the filters and facets read are the ones
+        // production writes. Its only unmet dependency names a shipment's fulfillment center, which the seeded
+        // orders carry inline.
+        services.AddSingleton<IFulfillmentCenterService, EmptyFulfillmentCenterService>();
+        services.AddSingleton<CustomerOrderDocumentBuilder>();
+
+        // X-Order aggregates wrap every order salesRepCustomerOrders/salesRepCustomerOrder return: the real
+        // repository, minus the two dependencies only its cart-to-order write path uses.
+        services.AddTransient<Func<CustomerOrderAggregate>>(_ => () => new CustomerOrderAggregate(null, null));
+        services.AddTransient<ICustomerOrderAggregateRepository>(sp => new CustomerOrderAggregateRepository(
+            sp.GetRequiredService<Func<CustomerOrderAggregate>>(),
+            sp.GetRequiredService<ICustomerOrderService>(),
+            sp.GetRequiredService<ICurrencyService>(),
+            customerOrderBuilder: null,
+            fileUploadService: null,
+            sp.GetRequiredService<IStoreService>()));
 
         // "My customers" counts service (VCST dashboard): also aggregates over the same order repository.
         services.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
@@ -143,6 +192,14 @@ internal static class TestGraphQlConfiguration
 
     public static IServiceCollection AddSalesRepGraphQl(this IServiceCollection services)
     {
+        // What the Xapi module sets at startup (Xapi.Web Module.PostInitialize). Legacy naming keeps the "Type"
+        // suffix on object graph types, which is what keeps DynamicPropertyValueType and the DynamicPropertyValue
+        // scalar apart — without it the schema fails to build once a type carrying dynamic properties is exposed.
+#pragma warning disable CS0618 // Type or member is obsolete — mirrors the Xapi module, which sets the same switches.
+        GlobalSwitches.UseLegacyTypeNaming = true;
+        GlobalSwitches.InferFieldNullabilityFromNRTAnnotations = false;
+#pragma warning restore CS0618
+
         // IAuthorizationService is required by the query builders' base constructor.
         services.AddAuthorization();
 
@@ -185,6 +242,20 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
+        // Constructor dependencies of the X-Order graph types the sales-rep schema exposes (CustomerOrderType,
+        // OrderLineItemType). Dynamic properties and available payment methods are outside what these tests assert.
+        services.AddSingleton<IDynamicPropertyResolverService, EmptyDynamicPropertyResolverService>();
+        services.AddSingleton<IPaymentMethodsSearchService, EmptyPaymentMethodsSearchService>();
+
+        // OrderLineItemType carries a `product` field, so the X-Catalog product graph is part of this schema too.
+        // Its measures are empty here; the geo service is genuinely optional and stays absent, exactly as the
+        // platform's own registration resolves it.
+        services.AddSingleton<IMeasureService, EmptyMeasureService>();
+        services.Add(ServiceDescriptor.Singleton(typeof(IOptionalDependency<>), typeof(OptionalDependencyManager<>)));
+        services.AddSingleton<IPropertyGroupService, EmptyPropertyGroupService>();
+        services.AddSingleton<IPickupLocationSearchService, EmptyPickupLocationSearchService>();
+        services.AddSingleton<IDynamicPropertyDictionaryItemsService, EmptyDynamicPropertyDictionaryItemsService>();
+
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
         services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
@@ -208,9 +279,16 @@ internal static class TestGraphQlConfiguration
         {
             builder.AddSchema(services, typeof(XapiAssemblyMarker)); // graph types + MediatR handlers + ISchemaBuilders
             builder.AddGraphTypes(typeof(MoneyType).Assembly);      // Xapi.Core graph types (MoneyType/CurrencyType) — SalesRepOrder.total is MoneyType
+            builder.AddGraphTypes(typeof(CustomerOrderType).Assembly); // XOrder.Core graph types — salesRepCustomerOrders/salesRepCustomerOrder expose CustomerOrderType
+            builder.AddGraphTypes(typeof(VirtoCommerce.XCatalog.Core.Schemas.ProductType).Assembly); // XCatalog.Core — OrderLineItemType carries a `product` field
+            builder.AddGraphTypes(typeof(VirtoCommerce.XCart.Core.Schemas.PickupLocationType).Assembly); // XCart.Core — OrderShipmentType carries a `pickupLocation` field
             builder.AddSystemTextJson();                            // IGraphQLTextSerializer for result assertions
             builder.AddDataLoader();                                // lastOrder batching
         });
+
+        // OrderMappingProfile carries the OrderAggregation -> FacetResult conversion the orders handler uses. One
+        // call so the sales-rep assembly's own maps stay in the same configuration.
+        services.AddAutoMapper(typeof(XapiAssemblyMarker), typeof(OrderMappingProfile));
 
         services.AddSingleton<ScopedSchemaFactory<XapiAssemblyMarker>>();
 
@@ -480,6 +558,60 @@ internal static class TestGraphQlConfiguration
     /// Stub catalog raw-database command: the category search path never touches it (it only reads the Categories
     /// IQueryable and hydrates by id), so every method throws if ever called.
     /// </summary>
+    /// <summary>No dictionary items: the shared dynamic-property graph type only needs this for dictionary-valued properties.</summary>
+    private sealed class EmptyDynamicPropertyDictionaryItemsService : IDynamicPropertyDictionaryItemsService
+    {
+        public Task<DynamicPropertyDictionaryItem[]> GetDynamicPropertyDictionaryItemsAsync(string[] ids) => Task.FromResult<DynamicPropertyDictionaryItem[]>([]);
+        public Task SaveDictionaryItemsAsync(DynamicPropertyDictionaryItem[] items) => throw new NotSupportedException();
+        public Task DeleteDictionaryItemsAsync(string[] itemIds) => throw new NotSupportedException();
+    }
+
+    /// <summary>No property groups: the catalog property graph type only needs this to build its group field.</summary>
+    private sealed class EmptyPropertyGroupService : IPropertyGroupService
+    {
+        public Task<IList<PropertyGroup>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true) => Task.FromResult<IList<PropertyGroup>>([]);
+        public Task SaveChangesAsync(IList<PropertyGroup> models) => throw new NotSupportedException();
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
+    /// <summary>No pickup locations: OrderShipmentType only needs this to resolve a BOPIS shipment's location.</summary>
+    private sealed class EmptyPickupLocationSearchService : IPickupLocationSearchService
+    {
+        public Task<PickupLocationSearchResult> SearchAsync(PickupLocationSearchCriteria criteria, bool clone = true)
+            => Task.FromResult(AbstractTypeFactory<PickupLocationSearchResult>.TryCreateInstance());
+    }
+
+    /// <summary>No fulfillment centers: the order document builder only reads one to name a shipment's center.</summary>
+    private sealed class EmptyFulfillmentCenterService : IFulfillmentCenterService
+    {
+        public Task<IList<FulfillmentCenter>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true) => Task.FromResult<IList<FulfillmentCenter>>([]);
+        public Task<IList<FulfillmentCenter>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => Task.FromResult<IList<FulfillmentCenter>>([]);
+        public Task SaveChangesAsync(IList<FulfillmentCenter> models) => throw new NotSupportedException();
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
+    /// <summary>No measures: the catalog product graph only needs this to build its measure fields.</summary>
+    private sealed class EmptyMeasureService : IMeasureService
+    {
+        public Task<IList<Measure>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true) => Task.FromResult<IList<Measure>>([]);
+        public Task SaveChangesAsync(IList<Measure> models) => throw new NotSupportedException();
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
+    /// <summary>Empty dynamic properties for the X-Order graph types — the fields exist in the schema and resolve to nothing.</summary>
+    private sealed class EmptyDynamicPropertyResolverService : IDynamicPropertyResolverService
+    {
+        public Task<IEnumerable<DynamicPropertyObjectValue>> LoadDynamicPropertyValues(IHasDynamicProperties entity, string cultureName)
+            => Task.FromResult(Enumerable.Empty<DynamicPropertyObjectValue>());
+    }
+
+    /// <summary>No configured payment methods: CustomerOrderType only needs this to build its availablePaymentMethods field.</summary>
+    private sealed class EmptyPaymentMethodsSearchService : IPaymentMethodsSearchService
+    {
+        public Task<PaymentMethodsSearchResult> SearchAsync(PaymentMethodsSearchCriteria criteria, bool clone = true)
+            => Task.FromResult(AbstractTypeFactory<PaymentMethodsSearchResult>.TryCreateInstance());
+    }
+
     private sealed class StubCatalogRawDatabaseCommand : ICatalogRawDatabaseCommand
     {
         public Task<IList<string>> GetAllSeoDuplicatesIdsAsync(CatalogDbContext dbContext) => throw new NotSupportedException();

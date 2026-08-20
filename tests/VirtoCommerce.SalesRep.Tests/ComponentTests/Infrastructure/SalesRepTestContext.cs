@@ -37,6 +37,8 @@ using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
+using VirtoCommerce.OrdersModule.Data.Search.Indexed;
+using OrdersModuleConstants = VirtoCommerce.OrdersModule.Core.ModuleConstants;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -137,6 +139,11 @@ internal sealed class SalesRepTestContext : IDisposable
         // member searches — which route to the index and resolve a builder by document type — work in tests.
         provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
             .Register(KnownDocumentTypes.Member, provider.GetRequiredService<MemberSearchRequestBuilder>);
+
+        // Same for orders (the orders module's PostInitialize): salesRepCustomerOrders resolves its request builder
+        // by document type.
+        provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
+            .Register(OrdersModuleConstants.OrderIndexDocumentType, provider.GetRequiredService<CustomerOrderSearchRequestBuilder>);
 
         return new SalesRepTestContext(
             securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
@@ -385,6 +392,18 @@ internal sealed class SalesRepTestContext : IDisposable
         var documents = await documentBuilder.GetDocumentsAsync(memberIds, CancellationToken.None);
         var searchProvider = _provider.GetRequiredService<ISearchProvider>();
         await searchProvider.IndexAsync(KnownDocumentTypes.Member, documents);
+    }
+
+    /// <summary>
+    /// Populate the (in-memory Lucene) order search index for the given order ids using the real order document
+    /// builder, so the customer-orders queries — which read the index, not the DB — return results.
+    /// </summary>
+    public async Task IndexOrdersAsync(params string[] orderIds)
+    {
+        var documentBuilder = (IIndexDocumentBuilder)_provider.GetRequiredService<CustomerOrderDocumentBuilder>();
+        var documents = await documentBuilder.GetDocumentsAsync(orderIds, CancellationToken.None);
+        var searchProvider = _provider.GetRequiredService<ISearchProvider>();
+        await searchProvider.IndexAsync(OrdersModuleConstants.OrderIndexDocumentType, documents);
     }
 
     /// <summary>

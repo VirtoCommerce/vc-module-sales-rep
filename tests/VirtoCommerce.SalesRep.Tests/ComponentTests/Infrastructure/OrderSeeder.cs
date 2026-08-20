@@ -1,0 +1,63 @@
+using System;
+using VirtoCommerce.OrdersModule.Data.Model;
+
+namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+
+/// <summary>Seeds an order straight into the harness's SQLite order database.</summary>
+internal static class OrderSeeder
+{
+    public static void Seed(
+        SalesRepTestContext ctx,
+        string id,
+        string org,
+        string number,
+        DateTime createdDate,
+        string storeId = "B2B-store",
+        int itemsCount = 0,
+        int quantityPerItem = 1,
+        string status = "New",
+        string organizationName = null,
+        string createdByUserId = null,
+        decimal total = 123.45m)
+    {
+        using var db = ctx.NewOrderDbContext();
+        var order = new CustomerOrderEntity
+        {
+            Id = id,
+            Number = number,
+            OrganizationId = org,
+            OrganizationName = organizationName,
+            // A rep-created order records the rep's user id as CustomerId (the value the queries filter on). Default
+            // to the test's rep so seeded orders count as "created by the rep"; pass createdByUserId to simulate an
+            // order created by someone else.
+            CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
+            CustomerName = "Customer 1",
+            StoreId = storeId,
+            Status = status,
+            Currency = "USD",
+            Total = total,
+            IsPrototype = false,
+            CreatedDate = createdDate,
+            ModifiedDate = createdDate,
+        };
+
+        for (var i = 0; i < itemsCount; i++)
+        {
+            order.Items.Add(new LineItemEntity
+            {
+                Id = $"{id}-li-{i}",
+                Currency = "USD",
+                ProductId = $"prod-{i}",
+                CatalogId = "catalog-1",
+                Sku = $"SKU-{i}",
+                Name = $"Product {i}",
+                Quantity = quantityPerItem,
+                CreatedDate = createdDate,
+                ModifiedDate = createdDate,
+            });
+        }
+
+        db.Add(order);
+        db.SaveChanges();
+    }
+}

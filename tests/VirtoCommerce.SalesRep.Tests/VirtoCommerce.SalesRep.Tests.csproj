@@ -20,11 +20,13 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
     <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1048.0" />
+    <PackageReference Include="VirtoCommerce.Platform.Modules" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Core" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Data" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
     <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
+    <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1008.0" />
     <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0" />
     <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1032.0" />
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
