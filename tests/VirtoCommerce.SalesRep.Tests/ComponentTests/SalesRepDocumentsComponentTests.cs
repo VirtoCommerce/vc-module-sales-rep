@@ -416,19 +416,22 @@ public class SalesRepDocumentsComponentTests
         (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true })).TotalCount.Should().Be(0);
     }
 
-    // The PUT response must carry the STORED audit stamps — a request body that omits them must not
-    // surface as createdDate 0001-01-01 / null modifiedDate in the answer.
+    // The PUT response must carry the STORED audit stamps, which the request body does not have: the created
+    // date is written raw into the row and can only reach the response through the post-save re-read. Noon +
+    // .Date comparison keeps the assertion immune to the harness's local→UTC read shift (CI runs on UTC,
+    // dev boxes usually don't — see the vc-datetime-utc rule).
     [Fact]
     public async Task MetadataPut_ResponseCarriesTheStoredAuditFields()
     {
         using var ctx = SalesRepTestContext.Create();
         var document = await ctx.UploadDocumentAsync("Audited.pdf", "Catalogs");
+        await ctx.SetDocumentCreatedDateAsync(document.Id, new System.DateTime(2026, 3, 1, 12, 0, 0, System.DateTimeKind.Utc));
 
         var updated = (await CreateController(ctx).UpdateMetadata(document.Id, new SalesRepDocumentMetadata { Category = "Catalogs", Name = "Renamed" }))
             .Result.Should().BeOfType<OkObjectResult>()
             .Which.Value.Should().BeOfType<SalesRepDocument>().Subject;
 
-        updated.CreatedDate.Should().NotBe(default);
+        updated.CreatedDate.Date.Should().Be(new System.DateTime(2026, 3, 1));
         updated.ModifiedDate.Should().NotBeNull();
     }
 
