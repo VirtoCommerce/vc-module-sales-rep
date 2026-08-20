@@ -181,6 +181,16 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             query = query.Where(x => x.StoreId == criteria.StoreId);
         }
 
+        // Scoped to the requested currency rather than folded across all of them: the storefront keeps one cart
+        // per currency and mirrors the same lines into each on a switch (ChangeCartCurrencyCommandHandler copies
+        // the lines and leaves both rows), so summing every currency would report one cart as many. Orders are
+        // different - each is settled in the currency it was placed in - so order statistics still fold.
+        if (!string.IsNullOrEmpty(criteria.CurrencyCode))
+        {
+            var currencyCode = criteria.CurrencyCode.ToUpperInvariant();
+            query = query.Where(x => x.Currency == currencyCode);
+        }
+
         if (!criteria.Names.IsNullOrEmpty())
         {
             query = query.Where(x => criteria.Names.Contains(x.Name));

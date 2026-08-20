@@ -321,6 +321,8 @@ Cart/project figures for the dashboard *Active carts* card. **Every figure is ag
 }
 ```
 
+⚠️ Every figure is **scoped to the requested currency**, not folded across currencies. The storefront keeps one cart per currency and mirrors the same contents into each on a switch (`ChangeCartCurrencyCommandHandler` copies the lines and leaves both rows), so summing every currency would report one cart as many. The filter is on the cart, so it bounds the item quantities too — a quantity needs no exchange rate, but the other currency's cart is a mirror of the same intent. Counting only the requested currency also matches what a rep sees when they open that customer's cart. Orders are different — an order is settled in the currency it was placed in — so order statistics still fold and convert. A line item in an unconfigured currency *inside* an in-scope cart is the one case the fold still excludes, and `warning` names it.
+
 ⚠️ The range bounds each **line item's modified date**, never the cart's own dates — so a cart opened months ago still reports the items touched inside the range (that is what makes `itemsThisWeek` above "this week's items", not "this week's carts"). For the same reason a cart holding no line items is inert whatever its denormalized `Cart.LineItemsCount` says.
 
 Two things to know about the money figures:

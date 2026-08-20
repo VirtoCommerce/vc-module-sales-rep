@@ -18,6 +18,7 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
             SalesRepCartFilterRule.Create(
                 ActiveCartsKind,
                 "Active carts",
+                onlyNonEmpty: true,
                 names: [ModuleConstants.DefaultCartName]),
         ];
 
@@ -60,6 +61,8 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
         {
             criteria.Statuses = kind.Statuses;
         }
+
+        criteria.OnlyNonEmpty = kind.OnlyNonEmpty;
 
         return criteria;
     }

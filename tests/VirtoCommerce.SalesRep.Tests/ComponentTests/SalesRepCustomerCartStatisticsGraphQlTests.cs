@@ -495,7 +495,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
     }
 
     [Fact]
-    public async Task Cart_FoldsMultipleCurrencies_IntoRequestedUsd()
+    public async Task Cart_CountsOnlyTheRequestedCurrency()
     {
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
@@ -503,20 +503,121 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         SeedCart(ctx, "c-usd", "org-1", 0m, _feb2026, currency: "USD");
         SeedCartItem(ctx, "c-usd", "usd-item", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "USD");
         SeedCart(ctx, "c-eur", "org-1", 0m, _feb2026, currency: "EUR");
-        SeedCartItem(ctx, "c-eur", "eur-item", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "EUR");
+        SeedCartItem(ctx, "c-eur", "eur-item", quantity: 1, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 200m, currency: "EUR");
+
+        // The storefront keeps one cart per currency and mirrors the same contents into each, so the figures
+        // follow the requested currency rather than folding every mirror together.
+        var usd = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count average { amount } } } }
+              """,
+            userId: rep.UserId);
+
+        var usdActive = Stats(usd).GetProperty("active");
+        MoneyAmount(usdActive, "total").Should().Be(100m); // the EUR cart is out of scope, not converted in
+        usdActive.GetProperty("count").GetInt32().Should().Be(1);
+        MoneyAmount(usdActive, "average").Should().Be(100m);
+
+        var eur = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "EUR") {
+                active: period({{Ytd}}, filter: "active-carts") { total { amount } count } } }
+              """,
+            userId: rep.UserId);
+
+        var eurActive = Stats(eur).GetProperty("active");
+        MoneyAmount(eurActive, "total").Should().Be(200m); // reported in EUR, the requested currency
+        eurActive.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cart_CurrencyMirrors_DoNotDoubleCount()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        // Exactly what a storefront currency switch leaves behind: the same cart, same name, same contents,
+        // stored once per currency (ChangeCartCurrencyCommandHandler copies the lines and keeps both rows).
+        SeedCart(ctx, "mirror-usd", "org-1", 0m, _feb2026, currency: "USD");
+        SeedCartItem(ctx, "mirror-usd", "usd-line", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 25m, currency: "USD");
+        SeedCart(ctx, "mirror-eur", "org-1", 0m, _feb2026, currency: "EUR");
+        SeedCartItem(ctx, "mirror-eur", "eur-line", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 20m, currency: "EUR");
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
-                active: period({{Ytd}}, filter: "active-carts") { total { amount } count average { amount } selectedItemQuantity } } }
+                active: period({{Ytd}}, filter: "active-carts") { count selectedItemQuantity total { amount } } } }
               """,
             userId: rep.UserId);
 
         var active = Stats(json).GetProperty("active");
-        MoneyAmount(active, "total").Should().Be(225m); // 100 USD + 100 EUR * 1.25
-        active.GetProperty("count").GetInt32().Should().Be(2);
-        MoneyAmount(active, "average").Should().Be(112.5m);
-        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2); // quantities sum straight, no conversion
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(3); // one intent, counted once
+        active.GetProperty("count").GetInt32().Should().Be(1);
+        MoneyAmount(active, "total").Should().Be(75m); // the USD mirror alone
+    }
+
+    [Fact]
+    public async Task Cart_ItemQuantities_CountOnlyTheRequestedCurrency()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "c-eur", "org-1", 0m, _feb2026, currency: "EUR");
+        SeedCartItem(ctx, "c-eur", "eur-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 10m, currency: "EUR");
+        SeedCart(ctx, "c-usd", "org-1", 0m, _feb2026, currency: "USD");
+        SeedCartItem(ctx, "c-usd", "usd-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 10m, currency: "USD");
+
+        // The quantities follow the cart scoping too: a quantity needs no exchange rate, but the other
+        // currency's cart is a mirror of the same intent, so counting it would double the metric.
+        var usd = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { count selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        var usdActive = Stats(usd).GetProperty("active");
+        usdActive.GetProperty("selectedItemQuantity").GetInt32().Should().Be(3); // not 5 - the EUR cart is another mirror
+        usdActive.GetProperty("count").GetInt32().Should().Be(1);
+
+        var eur = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "EUR") {
+                active: period({{Ytd}}, filter: "active-carts") { count selectedItemQuantity } } }
+              """,
+            userId: rep.UserId);
+
+        var eurActive = Stats(eur).GetProperty("active");
+        eurActive.GetProperty("selectedItemQuantity").GetInt32().Should().Be(2);
+        eurActive.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Cart_ExcludesCartsInOtherCurrencies_WithoutAWarning()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedCart(ctx, "c-usd", "org-1", 0m, _feb2026, currency: "USD");
+        SeedCartItem(ctx, "c-usd", "usd-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "USD");
+        SeedCart(ctx, "c-gbp", "org-1", 0m, _feb2026, currency: "GBP"); // not a configured currency either
+        SeedCartItem(ctx, "c-gbp", "gbp-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 999m, currency: "GBP");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $$"""
+              query { salesRepCustomerCartStatistics(organizationId:"org-1", currencyCode: "USD") {
+                active: period({{Ytd}}, filter: "active-carts") { count total { amount } selectedItemQuantity warning } } }
+              """,
+            userId: rep.UserId);
+
+        // Another currency is out of scope rather than "excluded from the conversion", so no warning is raised -
+        // the currency filter runs before the fold ever sees the row.
+        var active = Stats(json).GetProperty("active");
+        active.GetProperty("selectedItemQuantity").GetInt32().Should().Be(3);
+        active.GetProperty("count").GetInt32().Should().Be(1);
+        MoneyAmount(active, "total").Should().Be(300m);
+        active.GetProperty("warning").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]
@@ -580,8 +681,10 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedCart(ctx, "c-usd", "org-1", 0m, _feb2026, currency: "USD");
         SeedCartItem(ctx, "c-usd", "usd-item", quantity: 3, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 100m, currency: "USD");
-        SeedCart(ctx, "c-gbp", "org-1", 0m, _feb2026, currency: "GBP"); // not a configured currency
-        SeedCartItem(ctx, "c-gbp", "gbp-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 999m, currency: "GBP");
+        // The foreign line sits inside an IN-SCOPE cart: a whole cart in another currency is filtered out
+        // before the fold ever sees it (Cart_ExcludesCartsInOtherCurrencies_WithoutAWarning), so a line in
+        // an unconfigured currency is what still reaches the exclusion path.
+        SeedCartItem(ctx, "c-usd", "gbp-item", quantity: 2, selectedForCheckout: true, modifiedDate: _feb2026, listPrice: 999m, currency: "GBP"); // not a configured currency
 
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
