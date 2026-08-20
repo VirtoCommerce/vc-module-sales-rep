@@ -96,12 +96,7 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
             .DistinctIgnoreCase()
             .ToDictionary(x => x, x => StatisticsCurrencyConverter.GetRate(x, criteria.CurrencyCode, currencies), StringComparer.OrdinalIgnoreCase);
 
-        // The SQL IN is case-sensitive on PostgreSQL — carry every actual spelling whose rate resolved.
-        var convertibleCurrencies = priceGroups
-            .Select(x => x.Currency ?? string.Empty)
-            .Distinct()
-            .Where(x => rates[x] != 0m)
-            .ToArray();
+        var convertibleCurrencies = rates.Where(x => x.Value != 0m).Select(x => x.Key).ToArray();
 
         var byCurrency = priceGroups
             .GroupBy(x => x.Currency)
@@ -167,7 +162,6 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         return query;
     }
 
-    // Deliberately time-unbounded (the cart set); the FromDate/ToDate window belongs to BuildItemQuery.
     protected virtual IQueryable<ShoppingCartEntity> BuildQuery(ICartRepository repository, CustomerCartStatisticsCriteria criteria)
     {
         var query = repository.ShoppingCarts.Where(x => !x.IsDeleted);
@@ -185,6 +179,13 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         if (!string.IsNullOrEmpty(criteria.StoreId))
         {
             query = query.Where(x => x.StoreId == criteria.StoreId);
+        }
+
+        // One cart per currency, mirrored on a switch, so folding every currency would report one cart as many.
+        if (!string.IsNullOrEmpty(criteria.CurrencyCode))
+        {
+            var currencyCode = criteria.CurrencyCode.ToUpperInvariant();
+            query = query.Where(x => x.Currency == currencyCode);
         }
 
         if (!criteria.Names.IsNullOrEmpty())
