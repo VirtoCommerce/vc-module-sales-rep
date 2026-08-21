@@ -287,9 +287,8 @@ public class SalesRepCustomerOrdersGraphQlTests
         RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.Full);
     }
 
-    // A narrowed load without WithPrices comes back with the money zeroed, so the two lists showing the same order
-    // would disagree about its total. (The harness reads orders straight from the repository, so this covers the
-    // repository's own price reset, not the totals recalculation CustomerOrderService layers on top.)
+    // A group without WithPrices comes back with the money zeroed — by ResetPrices on the entity and again by
+    // ReduceDetails on the model — so the two lists showing the same order would disagree about its total.
     [Fact]
     public async Task CustomerOrders_ReportTheSameTotalAsMyRecentOrders()
     {
@@ -311,6 +310,30 @@ public class SalesRepCustomerOrdersGraphQlTests
         all.Should().NotContain("\"errors\"");
         mine.Should().Contain("\"amount\":123.45");
         all.Should().Contain("\"amount\":123.45");
+    }
+
+    // A collection the group did not ask for comes back empty, and unlike zeroed money that failure is invisible
+    // in the response shape. Two flags with two different mechanisms behind them: the repository never loads the
+    // addresses, while the discounts are always loaded and only ReduceDetails drops them.
+    [Theory]
+    [InlineData("addresses { line1 }", "ONE INFINITE LOOP")]
+    [InlineData("discounts { coupon }", "SAVE2")]
+    public async Task CustomerOrders_SelectingACollection_ReturnsIt(string selection, string expected)
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june,
+            createdByUserId: "buyer-1", addressLine1: "One Infinite Loop", couponCode: "SAVE2");
+        await ctx.IndexOrdersAsync("o-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepCustomerOrders {{ items {{ number {selection} }} }} }}",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.ToUpperInvariant().Should().Contain(expected);
     }
 
     private static CustomerOrderResponseGroup RecordedResponseGroup(SalesRepTestContext ctx)

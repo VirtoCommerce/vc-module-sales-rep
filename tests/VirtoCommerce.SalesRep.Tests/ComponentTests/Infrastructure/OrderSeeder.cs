@@ -18,7 +18,9 @@ internal static class OrderSeeder
         string status = "New",
         string organizationName = null,
         string createdByUserId = null,
-        decimal total = 123.45m)
+        decimal total = 123.45m,
+        string addressLine1 = null,
+        string couponCode = null)
     {
         using var db = ctx.NewOrderDbContext();
         var order = new CustomerOrderEntity
@@ -40,6 +42,32 @@ internal static class OrderSeeder
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
         };
+
+        if (addressLine1 != null)
+        {
+            order.Addresses.Add(new AddressEntity
+            {
+                Id = $"{id}-addr",
+                AddressType = "BillingAndShipping",
+                CountryCode = "USA",
+                CountryName = "United States",
+                City = "Los Angeles",
+                PostalCode = "90001",
+                Line1 = addressLine1,
+            });
+        }
+
+        if (couponCode != null)
+        {
+            order.Discounts.Add(new DiscountEntity
+            {
+                Id = $"{id}-disc",
+                Currency = "USD",
+                CouponCode = couponCode,
+                PromotionId = "promo-1",
+                DiscountAmount = 2m,
+            });
+        }
 
         for (var i = 0; i < itemsCount; i++)
         {

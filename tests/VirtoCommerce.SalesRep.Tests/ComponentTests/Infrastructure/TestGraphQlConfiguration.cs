@@ -297,9 +297,14 @@ internal static class TestGraphQlConfiguration
 
     /// <summary>
     /// Minimal <see cref="ICustomerOrderService"/> for the harness: hydrates orders straight from the order
-    /// repository, passing the response group through so <c>WithPrices</c> still governs the grand total (the
-    /// repository zeroes prices for lighter groups). Only the read path is exercised — by the real
-    /// <see cref="CustomerOrderSearchService"/> under test; write/outer-id methods are not used.
+    /// repository. It reproduces both halves of the real read path's response-group handling, so a component
+    /// test sees what production would return — <c>GetCustomerOrdersByIdsAsync</c> gates which child tables load
+    /// and calls <c>CustomerOrderEntity.ResetPrices</c> for a group without <c>WithPrices</c>, and
+    /// <c>ReduceDetails</c> then blanks whatever the group did not ask for (the collections, and the money
+    /// again, on the model). The one thing it leaves out is <c>CustomerOrderService.ProcessModel</c>'s
+    /// recalculation of the derived money, which runs only for the exactly-Full group.
+    /// Only the read path is exercised — by the real <see cref="CustomerOrderSearchService"/> under test;
+    /// write/outer-id methods are not used.
     /// </summary>
     private sealed class RepositoryBackedCustomerOrderService : ICustomerOrderService
     {
@@ -319,7 +324,14 @@ internal static class TestGraphQlConfiguration
 
             using var repository = _repositoryFactory();
             var entities = await repository.GetCustomerOrdersByIdsAsync(ids.ToArray(), responseGroup);
-            return entities.Select(x => x.ToModel(AbstractTypeFactory<CustomerOrder>.TryCreateInstance())).ToList();
+
+            var models = entities
+                .Select(x => x.ToModel(AbstractTypeFactory<CustomerOrder>.TryCreateInstance()))
+                .ToList();
+
+            models.Apply(x => x.ReduceDetails(responseGroup));
+
+            return models;
         }
 
         public Task<IList<CustomerOrder>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true)
