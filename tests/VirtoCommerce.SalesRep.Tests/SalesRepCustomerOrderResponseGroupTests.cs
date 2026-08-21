@@ -67,6 +67,30 @@ public class SalesRepCustomerOrderResponseGroupTests
         Group(includeField).Should().Be(expected);
     }
 
+    // Apollo injects __typename into every selection set, so this is what a real client's paths look like.
+    // Treating one as an unrecognized field would send every live page to Full and the mapping would be inert.
+    [Fact]
+    public void MetaFields_DoNotLoadAnything()
+    {
+        Group("__typename", "items.__typename", "edges.node.__typename")
+            .Should().Be(CustomerOrderResponseGroup.Default);
+
+        // A meta field under a real one is still a claim on that field: "total { __typename }" selects total.
+        Group("items.total.__typename").Should().Be(CustomerOrderResponseGroup.WithPrices);
+    }
+
+    [Fact]
+    public void StorefrontListSelectionAsApolloSendsIt_LoadsPricesAndNothingElse()
+    {
+        Group(
+            "__typename", "totalCount",
+            "items.__typename", "items.id", "items.number", "items.organizationName", "items.customerId",
+            "items.createdDate", "items.status", "items.statusDisplayValue",
+            "items.total.__typename", "items.total.formattedAmount",
+            "term_facets.__typename", "term_facets.terms.term")
+            .Should().Be(CustomerOrderResponseGroup.WithPrices);
+    }
+
     [Fact]
     public void PageFields_DoNotLoadAnything()
     {

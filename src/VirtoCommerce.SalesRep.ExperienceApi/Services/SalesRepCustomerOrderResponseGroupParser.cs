@@ -18,6 +18,7 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
 
     private const string ItemsPrefix = "items.";
     private const string EdgeNodePrefix = "edges.node.";
+    private const string MetaFieldPrefix = "__";
 
     // The page's own fields, which say nothing about how much of an order to load. Anything else at this level
     // is kept and looked up like an order field, so an unknown one still falls back to Full.
@@ -200,6 +201,12 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
             return null;
         }
 
-        return path.Split('.')[0];
+        var field = path.Split('.')[0];
+
+        // GraphQL reserves the "__" prefix for meta fields, and Apollo injects __typename into every selection
+        // set it sends. They resolve without touching the order, but they are not order fields either, so
+        // without this every request from a real client would fall through to Full and the mapping would never
+        // do anything. Checked after the wrapper comes off: __typename arrives at both levels.
+        return field.StartsWith(MetaFieldPrefix, StringComparison.Ordinal) ? null : field;
     }
 }

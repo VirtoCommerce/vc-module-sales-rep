@@ -268,6 +268,28 @@ public class SalesRepCustomerOrdersGraphQlTests
         RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.WithPrices);
     }
 
+    // Apollo injects __typename into every selection set and the storefront does not turn that off, so a
+    // meta-field the parser does not recognize would send every real list page back to the full graph.
+    [Fact]
+    public async Task CustomerOrders_ListSelectionWithTypename_StillLoadsTheOrderRowOnly()
+    {
+        using var ctx = SalesRepTestContext.Create(IndexedOrderSearchOverride.Recording);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, itemsCount: 2, createdByUserId: "buyer-1");
+        await ctx.IndexOrdersAsync("o-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders { __typename totalCount items { __typename number status " +
+            "total { __typename formattedAmount } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("ORD-1");
+        RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.WithPrices);
+    }
+
     [Fact]
     public async Task CustomerOrders_SelectingLineItems_LoadsTheFullGraph()
     {
