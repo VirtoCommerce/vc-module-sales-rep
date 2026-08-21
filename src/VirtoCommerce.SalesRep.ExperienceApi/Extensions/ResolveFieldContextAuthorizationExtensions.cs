@@ -1,16 +1,34 @@
+using System;
+using System.Threading.Tasks;
 using GraphQL;
+using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
+using VirtoCommerce.Xapi.Core.Services;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 
 public static class ResolveFieldContextAuthorizationExtensions
 {
-    public static void EnsureAuthenticated(this IResolveFieldContext context)
+    // Claims cannot see that the account behind a still-valid token was locked, deleted or expired, and
+    // membership scoping does not either: OrganizationMembership.IsLocked is the membership, not the account.
+    public static async Task EnsureAuthenticatedAsync(this IResolveFieldContext context)
     {
+        // Fast path: CheckCurrentUserState reaches the same refusal, but only after a user lookup.
         if (!context.IsAuthenticated())
         {
             throw AuthorizationError.AnonymousAccessDenied();
         }
+
+        if (context.RequestServices == null)
+        {
+            throw new InvalidOperationException(
+                "Cannot verify the caller's account state: IResolveFieldContext.RequestServices is null. " +
+                "The GraphQL HTTP middleware populates it - in tests, set ExecutionOptions.RequestServices explicitly.");
+        }
+
+        var userManagerCore = context.RequestServices.GetRequiredService<IUserManagerCore>();
+
+        await userManagerCore.CheckCurrentUserState(context, allowAnonymous: false);
     }
 }

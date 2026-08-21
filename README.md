@@ -178,6 +178,97 @@ The orders the rep created for their customers, paged, ordered by an optional **
 
 ---
 
+#### Customer orders (VCST-5733)
+
+`salesRepOrders` answers "orders **I** placed" and backs the dashboard's *My recent orders* widget and the
+statistics. `salesRepCustomerOrders` answers a different question — **every** order of the customers the rep
+serves, whoever placed it — and `salesRepCustomerOrder` opens one of them read-only. Both are scoped by the
+same gate as the rest of the module (`sales-rep:access` memberships); `organizationId` only ever narrows that
+set, and an organization the rep does not serve returns nothing rather than falling back to all of them.
+
+Unlike the rule-based lists above, these two follow **X-Order's** shape: `filter` is a search phrase, `facet`
+names index fields, and `sort` takes index field expressions. They read the order **index**, not the database.
+
+```graphql
+{
+  salesRepCustomerOrders(
+    organizationId: "org-1"          # omit for every served customer
+    storeId: "B2B-store"
+    cultureName: "en-US"
+    filter: "status:\"New\",\"Completed\" createddate:[2026-05-01 TO 2026-05-31]"
+    facet: "status organizationname"
+    sort: "createdDate:desc"
+    first: 10
+    after: "0"
+  ) {
+    totalCount
+    items { id number organizationName createdDate status statusDisplayValue total { formattedAmount } }
+    term_facets { name terms { term label count } }
+  }
+
+  salesRepCustomerOrder(id: "…", cultureName: "en-US") { number status statusDisplayValue items { sku } }
+}
+```
+
+⚠️ **Requires indexed order search.** `Search:OrderFullTextSearchEnabled` must be `true` and the
+`CustomerOrder` index built — the Orders module throws when it is off (it defaults to off). The rule-based
+`salesRepOrders` is database-backed and keeps working either way, so a deployment that has not enabled the
+flag gets a working dashboard and a failing customer-orders page.
+
+**Every query and mutation on this endpoint re-checks the caller's account, not just their claims.** A token
+stays valid for its whole lifetime (30 minutes by default) after the account behind it is locked, deleted or
+its password expires, and the membership scoping does not cover that — `OrganizationMembership.IsLocked` is
+the membership, not the account. So the three builder roots (`SalesRepQueryBuilder`,
+`SalesRepSearchQueryBuilder`, `SalesRepCommandBuilder`) call `EnsureAuthenticatedAsync`, which adds
+`IUserManagerCore.CheckCurrentUserState` to the claims check. `IUserManagerCore` is resolved per request from
+`context.RequestServices`, the way X-API resolves the mediator, so no builder carries it in its constructor.
+
+Note what this endpoint deliberately does **not** do: it never applies X-Order's
+`CanAccessOrderAuthorizationRequirement`. That requirement grants on "you placed this order" or "your contact
+belongs to the buying organization", plus an administrator bypass — a rep is none of those for a customer's
+order, so it would return nothing. Its handler reads no permission claim either, despite the name, so there is
+no X-Order permission to require alongside `sales-rep:access`.
+
+⚠️ **`facet` is whitelisted to `status` and `organizationname`.** `ApplyMultiSelectFacetSearch` ANDs the whole
+search filter onto every aggregation, **minus the child filters whose field name the aggregated field name
+starts with** — that subtraction is what lets a facet still count the buckets its own selection excludes. The
+rep's scope travels in that same filter, as a term filter on `organizationid` (plus `storeid` when one is
+supplied), so aggregating a field whose name *begins with* a scoping field's name strips the scope and counts
+across the entire index — `facet:"organizationid"` would enumerate every organization in it. `status` and
+`organizationname` begin with neither, so their counts stay inside the rep's book; anything else is dropped
+rather than honoured. **A field may be added only if no scoping filter's field name is a prefix of it.**
+
+**How much of each order is loaded follows the selection.** `salesRepCustomerOrders` returns X-Order's full
+`CustomerOrderType`, so a caller *may* ask for the whole order graph — but a list that prints a few columns
+should not pay for it. `SalesRepCustomerOrderResponseGroupParser` maps the selected fields to a
+`CustomerOrderResponseGroup`: the storefront's list selection resolves to `WithPrices`, which the Orders
+repository answers with four queries per page instead of up to thirty-three. It reads the paths as the
+connection reports them — `items.…` / `edges.node.…` wrap the order, so the same word `items` means the page
+in one position and the order's line items in the other.
+
+A field the parser does not recognize — including one another module added to `CustomerOrderType` — resolves
+to `Full`, so an unmapped selection over-fetches instead of coming back empty. `items`, `shipments`,
+`inPayments`, `orderTotals` and the order's derived money (`subTotalDiscount`, `shippingSubTotal`,
+`paymentTaxTotal`, …) are deliberately mapped to `Full` as well: those values are not stored, they are
+computed by `DefaultCustomerOrderTotalsCalculator`, and `CustomerOrderService` runs it only when the response
+group is *exactly* `Full`. Before adding a field to the map, check it against
+`OrderRepository.GetCustomerOrdersByIdsAsync`, `CustomerOrder.ReduceDetails` and
+`CustomerOrderService.ProcessModel`.
+
+⚠️ **A narrowed selection answers the money from the stored columns, a Full one recomputes it.** A field that
+needs a heavier flag resolves to `Full` outright rather than accumulating into the group, so a narrowed group
+is never *exactly* `Full` and the totals calculator never runs on that path. `{ total }` therefore answers
+from `CustomerOrder.Total` as stored, while `{ total items { sku } }` — and `salesRepCustomerOrder` — answer
+with the value recomputed from the line items. The two agree for every order the platform wrote, because
+`CustomerOrderService.SaveChanges` calculates the totals and persists them; they can differ for a row whose
+stored totals no longer match its own children. Worth knowing before comparing a list total against a detail
+total.
+
+`salesRepCustomerOrder` (the read-only detail) stays on `Full` — the storefront selects nearly the whole
+order there, so the mapping would resolve to `Full` anyway.
+
+---
+
 #### Filter rules
 
 Lists and statistics blocks are filtered by a single, optional **named filter rule**, not by raw statuses/types. The storefront reads the selectable rules from a discovery query and sends back one rule `name` in the unified `filter` argument; the server resolves it to the underlying filter — order statuses, a cart type/status set, a customer segment, or a product category — and a rule can be a composite (e.g. a business `"inactive"` → `Cancelled` + `Failed`). Omit `filter` for the baseline set (everything the rep may see, minus soft-deleted/prototype); an unrecognized name fails **closed** (no data), never "return everything". Rule sets are overridable per project.

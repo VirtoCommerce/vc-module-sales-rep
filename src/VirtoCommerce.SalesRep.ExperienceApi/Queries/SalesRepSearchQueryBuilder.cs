@@ -1,7 +1,7 @@
+using System;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
-using System;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.Platform.Core.Common;
@@ -33,7 +33,7 @@ public abstract class SalesRepSearchQueryBuilder<TQuery, TResult, TItem, TItemGr
     {
         await base.BeforeMediatorSend(context, request);
 
-        context.EnsureAuthenticated();
+        await context.EnsureAuthenticatedAsync();
 
         context.CopyArgumentsToUserContext();
     }

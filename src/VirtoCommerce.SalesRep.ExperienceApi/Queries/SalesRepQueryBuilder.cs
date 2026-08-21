@@ -1,7 +1,7 @@
+using System;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
-using System;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
@@ -30,6 +30,6 @@ public abstract class SalesRepQueryBuilder<TQuery, TResult, TResultGraphType>
     {
         await base.BeforeMediatorSend(context, request);
 
-        context.EnsureAuthenticated();
+        await context.EnsureAuthenticatedAsync();
     }
 }
