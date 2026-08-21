@@ -11,7 +11,6 @@
     <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
     <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1029.0" />
-    <!-- .Data by necessity: IXOrderMapper, which SalesRepMapper composes, is declared in XOrder.Data. -->
     <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1009.0" />
   </ItemGroup>
   <ItemGroup>
