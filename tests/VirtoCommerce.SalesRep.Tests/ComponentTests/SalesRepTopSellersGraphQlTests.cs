@@ -482,6 +482,7 @@ public class SalesRepTopSellersGraphQlTests
         // authenticated caller with no granting membership (a regular B2B buyer) must not enumerate the vocabulary —
         // which for the top-seller filter rules would leak the store's top-level catalog category IDs/names.
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedCategoriesAsync(
             ("cat-electronics", "Electronics", null, true),
             ("cat-apparel", "Apparel", null, true));
@@ -491,7 +492,7 @@ public class SalesRepTopSellersGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepTopSellerFilterRules(storeId: \"B2B-store\") { name } }",
-            userId: "regular-buyer");
+            userId: caller);
 
         json.Should().NotContain("\"errors\"");
         json.Should().NotContain("cat-electronics").And.NotContain("cat-apparel");

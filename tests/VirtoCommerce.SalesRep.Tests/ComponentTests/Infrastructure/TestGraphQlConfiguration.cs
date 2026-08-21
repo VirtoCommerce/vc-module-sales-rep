@@ -61,6 +61,7 @@ using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.Xapi.Core.Schemas;
 using VirtoCommerce.Xapi.Core.Services;
+using VirtoCommerce.Xapi.Data.Services;
 using VirtoCommerce.XOrder.Core;
 using VirtoCommerce.XOrder.Core.Schemas;
 using VirtoCommerce.XOrder.Core.Services;
@@ -201,6 +202,11 @@ internal static class TestGraphQlConfiguration
 
         // IAuthorizationService is required by the query builders' base constructor.
         services.AddAuthorization();
+
+        // The REAL account-state check every sales-rep query and mutation runs (registered by Xapi.Data in
+        // production). Its only dependency is the platform UserManager the security slice already provides, so
+        // locking or deleting a user in a test is seen by the gate exactly as it would be in production.
+        services.AddSingleton<IUserManagerCore, UserManagerCore>();
 
         // ScopedSchemaFactory depends on ISchemaFilter (registered by Xapi.Data in production).
         services.AddSingleton<ISchemaFilter, DefaultSchemaFilter>();

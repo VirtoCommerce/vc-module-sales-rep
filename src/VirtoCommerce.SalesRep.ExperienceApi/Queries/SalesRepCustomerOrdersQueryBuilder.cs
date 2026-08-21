@@ -22,8 +22,13 @@ public class SalesRepCustomerOrdersQueryBuilder : SalesRepOrderQueryBuilder<Sale
     }
 
     // IMPORTANT: this repeats X-Order's BaseSearchOrderQueryBuilder.GetFieldType on purpose — do not replace it
-    // with a subclass. That base lives in XOrder.Data (this module references .Core only) and it authorizes with
-    // CanAccessOrderAuthorizationRequirement, which answers for the signed-in buyer rather than for the rep.
+    // with a subclass. That base authorizes with CanAccessOrderAuthorizationRequirement, whose handler grants on
+    // "you placed this order" or "your contact belongs to the buying organization" (plus an administrator
+    // bypass). A rep is none of those for a customer's order — they serve the organization rather than belong
+    // to it — so inheriting that gate would return nothing. This endpoint answers to the module's own gate
+    // instead: an unlocked OrganizationMembership carrying sales-rep:access, scoping the results to exactly
+    // those organizations, and no administrator bypass. The half of the base worth keeping is its account-state
+    // check, which SalesRepQueryBuilder now applies module-wide.
     // Keep in step with the base if X-Order changes the connection shape.
     protected override FieldType GetFieldType()
     {

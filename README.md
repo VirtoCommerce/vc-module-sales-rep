@@ -215,6 +215,20 @@ names index fields, and `sort` takes index field expressions. They read the orde
 `salesRepOrders` is database-backed and keeps working either way, so a deployment that has not enabled the
 flag gets a working dashboard and a failing customer-orders page.
 
+**Every query and mutation on this endpoint re-checks the caller's account, not just their claims.** A token
+stays valid for its whole lifetime (30 minutes by default) after the account behind it is locked, deleted or
+its password expires, and the membership scoping does not cover that — `OrganizationMembership.IsLocked` is
+the membership, not the account. So the three builder roots (`SalesRepQueryBuilder`,
+`SalesRepSearchQueryBuilder`, `SalesRepCommandBuilder`) call `EnsureAuthenticatedAsync`, which adds
+`IUserManagerCore.CheckCurrentUserState` to the claims check. `IUserManagerCore` is resolved per request from
+`context.RequestServices`, the way X-API resolves the mediator, so no builder carries it in its constructor.
+
+Note what this endpoint deliberately does **not** do: it never applies X-Order's
+`CanAccessOrderAuthorizationRequirement`. That requirement grants on "you placed this order" or "your contact
+belongs to the buying organization", plus an administrator bypass — a rep is none of those for a customer's
+order, so it would return nothing. Its handler reads no permission claim either, despite the name, so there is
+no X-Order permission to require alongside `sales-rep:access`.
+
 ⚠️ **`facet` is whitelisted to `status` and `organizationname`.** `ApplyMultiSelectFacetSearch` ANDs the whole
 search filter onto every aggregation, **minus the child filters whose field name the aggregated field name
 starts with** — that subtraction is what lets a facet still count the buckets its own selection excludes. The

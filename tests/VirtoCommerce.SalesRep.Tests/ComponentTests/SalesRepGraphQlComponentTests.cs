@@ -22,6 +22,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_ReturnsRepsServingCallerOrganization()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         // A rep serving only org-2 must NOT appear for an org-1 member.
@@ -30,7 +31,7 @@ public class SalesRepGraphQlComponentTests
         // Caller is a member of org-1 (organization_id claim).
         var json = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps { totalCount items { id fullName emails phones } } }",
-            userId: "any-member",
+            userId: caller,
             organizationId: "org-1");
 
         json.Should().NotContain("\"errors\"");
@@ -203,6 +204,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_SupportsPagingKeywordAndSort()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
         var alice = await ctx.CreateRepAsync("Alice", "Anderson", "alice@test.com", "AcmeOrg");
         var bob = await ctx.CreateRepAsync("Bob", "Brown", "bob@test.com", "AcmeOrg");
@@ -211,6 +213,7 @@ public class SalesRepGraphQlComponentTests
         // Page 1 (name asc): Alice Anderson, Bob Brown
         var page1 = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps(first:2, after:\"0\", sort:\"name:asc\") { totalCount pageInfo{ hasNextPage } items{ fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
         page1.Should().Contain("\"totalCount\":3").And.Contain("\"hasNextPage\":true");
         page1.Should().Contain("Alice Anderson").And.Contain("Bob Brown");
@@ -219,6 +222,7 @@ public class SalesRepGraphQlComponentTests
         // Page 2 (after:2): Carol Clark — last page
         var page2 = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps(first:2, after:\"2\", sort:\"name:asc\") { pageInfo{ hasNextPage } items{ fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
         page2.Should().Contain("Carol Clark").And.Contain("\"hasNextPage\":false");
         page2.Should().NotContain("Alice Anderson");
@@ -227,6 +231,7 @@ public class SalesRepGraphQlComponentTests
         await ctx.IndexMembersAsync(alice.Id, bob.Id, carol.Id);
         var keyword = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps(keyword:\"Brown\") { totalCount items{ fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
         keyword.Should().Contain("\"totalCount\":1").And.Contain("Bob Brown");
         keyword.Should().NotContain("Alice Anderson");
@@ -234,6 +239,7 @@ public class SalesRepGraphQlComponentTests
         // Sort desc: first item must be Carol Clark
         var desc = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps(first:1, sort:\"name:desc\") { items{ fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
         desc.Should().Contain("Carol Clark").And.NotContain("Alice Anderson");
     }
@@ -242,6 +248,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_ExcludesBlockedAccounts()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
         await ctx.CreateRepAsync("Active", "Rep", "active@test.com", "AcmeOrg");
         var blocked = await ctx.CreateRepAsync("Blocked", "Rep", "blocked@test.com", "AcmeOrg");
@@ -252,6 +259,7 @@ public class SalesRepGraphQlComponentTests
         // VCST-4907 #5: only active accounts (not blocked/disabled/deleted) are returned.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps { totalCount items{ fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
 
         json.Should().NotContain("\"errors\"");
@@ -264,6 +272,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_ExcludesPerOrgLockedReps()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
         await ctx.CreateRepAsync("Active", "Rep", "active@test.com", "AcmeOrg");
         var locked = await ctx.CreateRepAsync("Locked", "Rep", "locked@test.com", "AcmeOrg");
@@ -274,6 +283,7 @@ public class SalesRepGraphQlComponentTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps { totalCount items{ fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
 
         json.Should().NotContain("\"errors\"");
@@ -494,6 +504,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_AreScopedByStore()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
         // Two reps serve the SAME org, but their accounts belong to DIFFERENT stores. A rep's account is
         // store-bound, so scoping must include one store's rep and exclude the other's.
@@ -503,6 +514,7 @@ public class SalesRepGraphQlComponentTests
         // Scoped to B2B-store: only the B2B rep.
         var b2b = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps(storeId:\"B2B-store\") { totalCount items { fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
         b2b.Should().NotContain("\"errors\"");
         b2b.Should().Contain("\"totalCount\":1").And.Contain("Bea B2B");
@@ -511,6 +523,7 @@ public class SalesRepGraphQlComponentTests
         // Scoped to the other store: only that store's rep — proves the filter keys on the value, not a fixed side.
         var other = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps(storeId:\"OtherStore\") { totalCount items { fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
         other.Should().Contain("\"totalCount\":1").And.Contain("Otto Other");
         other.Should().NotContain("Bea B2B");
@@ -518,6 +531,7 @@ public class SalesRepGraphQlComponentTests
         // No store filter: both reps (confirms the data really spans stores and that null = all stores).
         var all = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps { totalCount items { fullName } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
         all.Should().Contain("\"totalCount\":2").And.Contain("Bea B2B").And.Contain("Otto Other");
     }
@@ -526,6 +540,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_LoadsEmailsAndPhonesWhenSelected()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("AcmeOrg");
         // CreateRep seeds the rep contact with an email + phone.
         await ctx.CreateRepAsync("Bea", "B2B", "bea@test.com", "AcmeOrg");
@@ -534,6 +549,7 @@ public class SalesRepGraphQlComponentTests
         // only scalar fields (see CustomerSalesReps_AreScopedByStore) leaves them on Default.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps { items { fullName emails phones } } }",
+            userId: caller,
             organizationId: "AcmeOrg");
 
         json.Should().NotContain("\"errors\"");
@@ -1161,6 +1177,7 @@ public class SalesRepGraphQlComponentTests
     public async Task SalesRepCustomers_ForNonRepCaller_ReturnsEmpty()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1"); // data exists, but not for this caller
 
@@ -1168,7 +1185,7 @@ public class SalesRepGraphQlComponentTests
         // empty result, not an error.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomers { totalCount items { organizationId } } }",
-            userId: "not-a-rep");
+            userId: caller);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":0");
@@ -1179,6 +1196,7 @@ public class SalesRepGraphQlComponentTests
     public async Task SalesRepOrders_ForNonRepCaller_ReturnsEmpty()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         // The order belongs to the rep's org; the non-rep caller below must not see it.
@@ -1186,7 +1204,7 @@ public class SalesRepGraphQlComponentTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrders { totalCount items { number } } }",
-            userId: "not-a-rep");
+            userId: caller);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":0");
@@ -1197,6 +1215,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_WithoutOrganizationClaim_ReturnsEmpty()
     {
         using var ctx = SalesRepTestContext.Create();
+        var caller = await ctx.CreateCustomerAccountAsync();
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
@@ -1204,7 +1223,7 @@ public class SalesRepGraphQlComponentTests
         // Must yield an empty list, not an error.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { customerSalesReps { totalCount items { id } } }",
-            userId: "private-customer");
+            userId: caller);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"totalCount\":0");

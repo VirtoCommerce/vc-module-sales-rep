@@ -268,6 +268,35 @@ internal sealed class SalesRepTestContext : IDisposable
     }
 
     /// <summary>
+    /// A signed-in account with no contact, roles or memberships - an ordinary customer reaching the endpoint.
+    /// Every sales-rep entry point verifies that the account behind the token still exists, so a caller that
+    /// exists only as a claim is not a state production can reach.
+    /// </summary>
+    public Task<string> CreateCustomerAccountAsync(string email = "customer@test.com")
+    {
+        return CreateAccountWithoutRolesAsync(memberId: null, email);
+    }
+
+    /// <summary>Lock the login account out, the way the platform does after failed sign-ins or an admin action.</summary>
+    public async Task LockAccountAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+        var user = await userManager.FindByIdAsync(userId);
+
+        await userManager.SetLockoutEnabledAsync(user, enabled: true);
+        await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddHours(1));
+    }
+
+    /// <summary>Delete the login account, leaving any member and membership rows behind.</summary>
+    public async Task DeleteAccountAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+        var user = await userManager.FindByIdAsync(userId);
+
+        await userManager.DeleteAsync(user);
+    }
+
+    /// <summary>
     /// Add an organization membership carrying the given role for a user directly through the customer module's
     /// membership service (as an org-membership admin action outside the Sales Rep module would).
     /// </summary>
