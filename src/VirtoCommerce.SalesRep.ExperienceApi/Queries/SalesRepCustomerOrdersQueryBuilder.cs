@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
@@ -13,18 +14,19 @@ using static VirtoCommerce.Xapi.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomerOrdersQueryBuilder : SalesRepQueryBuilder<SalesRepCustomerOrdersQuery, SearchOrderResponse, CustomerOrderType>
+public class SalesRepCustomerOrdersQueryBuilder : SalesRepOrderQueryBuilder<SalesRepCustomerOrdersQuery, SearchOrderResponse>
 {
     protected override string Name => "salesRepCustomerOrders";
 
-    private readonly ICurrencyService _currencyService;
-
     public SalesRepCustomerOrdersQueryBuilder(IAuthorizationService authorizationService, ICurrencyService currencyService)
-        : base(authorizationService)
+        : base(authorizationService, currencyService)
     {
-        _currencyService = currencyService;
     }
 
+    // IMPORTANT: this repeats X-Order's BaseSearchOrderQueryBuilder.GetFieldType on purpose — do not replace it
+    // with a subclass. That base lives in XOrder.Data (this module references .Core only) and it authorizes with
+    // CanAccessOrderAuthorizationRequirement, which answers for the signed-in buyer rather than for the rep.
+    // Keep in step with the base if X-Order changes the connection shape.
     protected override FieldType GetFieldType()
     {
         var builder = GraphTypeExtensionHelper
@@ -46,23 +48,14 @@ public class SalesRepCustomerOrdersQueryBuilder : SalesRepQueryBuilder<SalesRepC
         return builder.FieldType;
     }
 
+    protected override string GetCultureName(SalesRepCustomerOrdersQuery request) => request.CultureName;
+
+    protected override IEnumerable<CustomerOrderAggregate> GetOrderAggregates(SearchOrderResponse response) => response.Results;
+
     protected override async Task BeforeMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerOrdersQuery request)
     {
         await base.BeforeMediatorSend(context, request);
 
         context.CopyArgumentsToUserContext();
-
-        var currencies = await _currencyService.GetAllCurrenciesAsync();
-        context.SetCurrencies(currencies, request.CultureName);
-    }
-
-    protected override Task AfterMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerOrdersQuery request, SearchOrderResponse response)
-    {
-        foreach (var aggregate in response.Results)
-        {
-            context.SetExpandedObjectGraph(aggregate);
-        }
-
-        return Task.CompletedTask;
     }
 }

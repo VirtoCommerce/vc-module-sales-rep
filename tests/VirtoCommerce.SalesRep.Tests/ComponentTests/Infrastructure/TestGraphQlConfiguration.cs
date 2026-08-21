@@ -3,17 +3,18 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using GraphQL;
-using GraphQL.Types;
 using GraphQL.Introspection;
 using GraphQL.MicrosoftDI;
+using GraphQL.Types;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VirtoCommerce.CartModule.Data.Model;
 using VirtoCommerce.CartModule.Data.Repositories;
-using VirtoCommerce.CatalogModule.Core.Model;
 using VirtoCommerce.CatalogModule.Core.Extensions;
+using VirtoCommerce.CatalogModule.Core.Model;
 using VirtoCommerce.CatalogModule.Core.Model.Search;
 using VirtoCommerce.CatalogModule.Core.Outlines;
 using VirtoCommerce.CatalogModule.Core.Search;
@@ -23,20 +24,25 @@ using VirtoCommerce.CatalogModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Data.Search;
 using VirtoCommerce.CoreModule.Core.Common;
 using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.InventoryModule.Core.Model;
+using VirtoCommerce.InventoryModule.Core.Services;
 using VirtoCommerce.NotificationsModule.Core.Model;
 using VirtoCommerce.NotificationsModule.Core.Services;
+using VirtoCommerce.OrdersModule.Core;
 using VirtoCommerce.OrdersModule.Core.Model;
+using VirtoCommerce.OrdersModule.Core.Search.Indexed;
+using VirtoCommerce.OrdersModule.Core.Services;
+using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.OrdersModule.Data.Search.Indexed;
 using VirtoCommerce.PaymentModule.Core.Model;
 using VirtoCommerce.PaymentModule.Core.Model.Search;
 using VirtoCommerce.PaymentModule.Core.Services;
-using VirtoCommerce.Platform.Core.DynamicProperties;
-using VirtoCommerce.Platform.Core.Modularity;
-using VirtoCommerce.Platform.Modules;
-using VirtoCommerce.OrdersModule.Core.Services;
-using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.Platform.Core.GenericCrud;
+using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.Platform.Modules;
 using VirtoCommerce.PushMessages.Core.Models;
 using VirtoCommerce.PushMessages.Core.Services;
 using VirtoCommerce.SalesRep.Core.Notifications;
@@ -47,25 +53,18 @@ using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
-using Microsoft.Extensions.Configuration;
-using VirtoCommerce.InventoryModule.Core.Model;
-using VirtoCommerce.InventoryModule.Core.Services;
-using VirtoCommerce.OrdersModule.Core;
-using VirtoCommerce.OrdersModule.Core.Search.Indexed;
-using VirtoCommerce.OrdersModule.Data.Search.Indexed;
 using VirtoCommerce.ShippingModule.Core.Model;
 using VirtoCommerce.ShippingModule.Core.Model.Search;
 using VirtoCommerce.ShippingModule.Core.Services;
 using VirtoCommerce.StoreModule.Core.Services;
-using VirtoCommerce.XOrder.Core;
-using VirtoCommerce.XOrder.Core.Services;
-using VirtoCommerce.XOrder.Data.Mapping;
-using VirtoCommerce.XOrder.Data.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
-using VirtoCommerce.Xapi.Core.Services;
 using VirtoCommerce.Xapi.Core.Schemas;
+using VirtoCommerce.Xapi.Core.Services;
+using VirtoCommerce.XOrder.Core;
 using VirtoCommerce.XOrder.Core.Schemas;
+using VirtoCommerce.XOrder.Core.Services;
+using VirtoCommerce.XOrder.Data.Services;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -206,6 +205,10 @@ internal static class TestGraphQlConfiguration
         // ScopedSchemaFactory depends on ISchemaFilter (registered by Xapi.Data in production).
         services.AddSingleton<ISchemaFilter, DefaultSchemaFilter>();
 
+        // The REAL module mapper: it converts the index aggregations the orders list returns into the facets
+        // its connection exposes.
+        services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
+
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
@@ -285,10 +288,6 @@ internal static class TestGraphQlConfiguration
             builder.AddSystemTextJson();                            // IGraphQLTextSerializer for result assertions
             builder.AddDataLoader();                                // lastOrder batching
         });
-
-        // OrderMappingProfile carries the OrderAggregation -> FacetResult conversion the orders handler uses. One
-        // call so the sales-rep assembly's own maps stay in the same configuration.
-        services.AddAutoMapper(typeof(XapiAssemblyMarker), typeof(OrderMappingProfile));
 
         services.AddSingleton<ScopedSchemaFactory<XapiAssemblyMarker>>();
 

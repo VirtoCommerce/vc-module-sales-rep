@@ -24,6 +24,7 @@ using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.OrdersModule.Data.Search.Indexed;
 using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
@@ -37,9 +38,8 @@ using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
-using VirtoCommerce.OrdersModule.Data.Search.Indexed;
-using OrdersModuleConstants = VirtoCommerce.OrdersModule.Core.ModuleConstants;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using OrdersModuleConstants = VirtoCommerce.OrdersModule.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 

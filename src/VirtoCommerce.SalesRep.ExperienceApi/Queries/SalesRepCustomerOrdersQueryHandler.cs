@@ -2,7 +2,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using AutoMapper;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.OrdersModule.Core.Search.Indexed;
 using VirtoCommerce.Platform.Core.Common;
@@ -20,13 +19,13 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 
     private readonly IIndexedCustomerOrderSearchService _indexedOrderSearchService;
     private readonly ICustomerOrderAggregateRepository _orderAggregateRepository;
-    private readonly IMapper _mapper;
+    private readonly ISalesRepMapper _mapper;
 
     public SalesRepCustomerOrdersQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
         IIndexedCustomerOrderSearchService indexedOrderSearchService,
         ICustomerOrderAggregateRepository orderAggregateRepository,
-        IMapper mapper)
+        ISalesRepMapper mapper)
         : base(organizationAccessService)
     {
         _indexedOrderSearchService = indexedOrderSearchService;
@@ -57,7 +56,7 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 
         result.TotalCount = searchResult.TotalCount;
         result.Results = await _orderAggregateRepository.GetAggregatesFromOrdersAsync(searchResult.Results, request.CultureName);
-        result.Facets = ConvertFacets(searchResult.Aggregations, request.CultureName);
+        result.Facets = _mapper.ToFacets(searchResult.Aggregations, request.CultureName);
 
         return result;
     }
@@ -77,12 +76,5 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         criteria.Sort = request.Sort.EmptyToNull() ?? DefaultSort;
 
         return criteria;
-    }
-
-    protected virtual IList<FacetResult> ConvertFacets(IList<OrderAggregation> aggregations, string cultureName)
-    {
-        return aggregations?
-            .Select(x => _mapper.Map<FacetResult>(x, options => options.Items["cultureName"] = cultureName))
-            .ToList() ?? [];
     }
 }
