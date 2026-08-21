@@ -29,7 +29,7 @@ public class Module : IModule, IHasConfiguration
 
     public void Initialize(IServiceCollection serviceCollection)
     {
-        serviceCollection.AddTransient<ISalesRepMapper, SalesRepMapper>();
+        serviceCollection.AddSingleton<ISalesRepMapper, SalesRepMapper>();
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();

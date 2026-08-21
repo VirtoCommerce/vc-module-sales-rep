@@ -178,6 +178,51 @@ The orders the rep created for their customers, paged, ordered by an optional **
 
 ---
 
+#### Customer orders (VCST-5733)
+
+`salesRepOrders` answers "orders **I** placed" and backs the dashboard's *My recent orders* widget and the
+statistics. `salesRepCustomerOrders` answers a different question — **every** order of the customers the rep
+serves, whoever placed it — and `salesRepCustomerOrder` opens one of them read-only. Both are scoped by the
+same gate as the rest of the module (`sales-rep:access` memberships); `organizationId` only ever narrows that
+set, and an organization the rep does not serve returns nothing rather than falling back to all of them.
+
+Unlike the rule-based lists above, these two follow **X-Order's** shape: `filter` is a search phrase, `facet`
+names index fields, and `sort` takes index field expressions. They read the order **index**, not the database.
+
+```graphql
+{
+  salesRepCustomerOrders(
+    organizationId: "org-1"          # omit for every served customer
+    storeId: "B2B-store"
+    cultureName: "en-US"
+    filter: "status:\"New\",\"Completed\" createddate:[2026-05-01 TO 2026-05-31]"
+    facet: "status organizationname"
+    sort: "createdDate:desc"
+    first: 10
+    after: "0"
+  ) {
+    totalCount
+    items { id number organizationName createdDate status statusDisplayValue total { formattedAmount } }
+    term_facets { name terms { term label count } }
+  }
+
+  salesRepCustomerOrder(id: "…", cultureName: "en-US") { number status statusDisplayValue items { sku } }
+}
+```
+
+⚠️ **Requires indexed order search.** `Search:OrderFullTextSearchEnabled` must be `true` and the
+`CustomerOrder` index built — the Orders module throws when it is off (it defaults to off). The rule-based
+`salesRepOrders` is database-backed and keeps working either way, so a deployment that has not enabled the
+flag gets a working dashboard and a failing customer-orders page.
+
+⚠️ **`facet` is whitelisted to `status` and `organizationname`.** Aggregation buckets are *not* narrowed by
+the search filter — the provider counts each bucket with the aggregation's own filter, and the multi-select
+facet mechanism first strips from it every filter naming that same field. Faceting on a field that carries
+the rep's scope (`organizationid`, `storeid`, `customerid`) would therefore count across the whole index, so
+those are dropped rather than honoured. Widen the list only for fields that carry no part of the scope.
+
+---
+
 #### Filter rules
 
 Lists and statistics blocks are filtered by a single, optional **named filter rule**, not by raw statuses/types. The storefront reads the selectable rules from a discovery query and sends back one rule `name` in the unified `filter` argument; the server resolves it to the underlying filter — order statuses, a cart type/status set, a customer segment, or a product category — and a rule can be a composite (e.g. a business `"inactive"` → `Cancelled` + `Failed`). Omit `filter` for the baseline set (everything the rep may see, minus soft-deleted/prototype); an unrecognized name fails **closed** (no data), never "return everything". Rule sets are overridable per project.

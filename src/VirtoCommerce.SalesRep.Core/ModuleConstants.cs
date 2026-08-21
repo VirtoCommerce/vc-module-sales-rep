@@ -24,6 +24,18 @@ public static class ModuleConstants
         }
     }
 
+    /// <summary>
+    /// Order-index fields the customer-orders list may aggregate. A field carrying part of the rep's scope
+    /// must never appear here — see SalesRepCustomerOrdersQueryHandler.SanitizeFacet.
+    /// </summary>
+    public static class OrderFacets
+    {
+        public const string Status = "status";
+        public const string CustomerName = "organizationname";
+
+        public static string[] All { get; } = [Status, CustomerName];
+    }
+
     public static class Sharing
     {
         // Wishlist sharing scope used when a Sales Rep publishes a list to specific customer organizations

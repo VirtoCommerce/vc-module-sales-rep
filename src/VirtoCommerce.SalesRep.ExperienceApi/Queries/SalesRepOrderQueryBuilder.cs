@@ -34,6 +34,10 @@ public abstract class SalesRepOrderQueryBuilder<TQuery, TResult> : SalesRepQuery
     {
         await base.BeforeMediatorSend(context, request);
 
+        // CustomerOrderType's localized fields (statusDisplayValue, dynamic properties) declare no cultureName
+        // argument of their own — they read it from the user context, so the arguments have to be copied there.
+        context.CopyArgumentsToUserContext();
+
         var currencies = await CurrencyService.GetAllCurrenciesAsync();
         context.SetCurrencies(currencies, GetCultureName(request));
     }

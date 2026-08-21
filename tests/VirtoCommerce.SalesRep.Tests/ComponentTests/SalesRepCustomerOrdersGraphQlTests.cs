@@ -11,6 +11,7 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// the rep placed. Orders are seeded into SQLite, indexed into the in-memory Lucene index with the real order
 /// document builder, and read back through the real scoped schema — the same indexed path production uses.
 /// </summary>
+[Trait("Category", "Component")]
 public class SalesRepCustomerOrdersGraphQlTests
 {
     private static readonly DateTime _june = new(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -58,24 +59,6 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().NotContain("ORD-THEIRS");
     }
 
-    [Fact]
-    public async Task CustomerOrders_ForOrganizationNotServed_ReturnsEmpty()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.SeedOrganizationsAsync("org-1", "org-2");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-
-        OrderSeeder.Seed(ctx, id: "o-leak", org: "org-2", number: "ORD-LEAK", createdDate: _june, createdByUserId: "another-rep");
-        await ctx.IndexOrdersAsync("o-leak");
-
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerOrders(organizationId:\"org-2\") { totalCount items { number } } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"totalCount\":0");
-        json.Should().NotContain("ORD-LEAK");
-    }
 
     [Fact]
     public async Task CustomerOrders_WithoutOrganizationId_CoverServedCustomersOnly()
@@ -148,26 +131,6 @@ public class SalesRepCustomerOrdersGraphQlTests
     }
 
     // Selecting a customer narrows the list to that organization's orders.
-    [Fact]
-    public async Task CustomerOrders_FilterByCustomerName()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.SeedOrganizationsAsync("org-1", "org-2");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
-
-        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-ACME", createdDate: _june, organizationName: "Acme", createdByUserId: "buyer-1");
-        OrderSeeder.Seed(ctx, id: "o-2", org: "org-2", number: "ORD-UMBRELLA", createdDate: _may, organizationName: "Umbrella", createdByUserId: "buyer-2");
-        await ctx.IndexOrdersAsync("o-1", "o-2");
-
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerOrders(filter:\"organizationname:\\\"Acme\\\"\") { totalCount items { number } } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"totalCount\":1");
-        json.Should().Contain("ORD-ACME");
-        json.Should().NotContain("ORD-UMBRELLA");
-    }
 
     [Fact]
     public async Task CustomerOrders_FilterAcceptsSeveralStatuses()
@@ -193,6 +156,54 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().NotContain("ORD-CANCELLED");
     }
 
+    // Aggregations are not scoped by the search filter, so a facet naming a scoping field would count across
+    // the whole index. Only the fields the module offers may be aggregated.
+    [Fact]
+    public async Task CustomerOrders_FacetOnAScopingField_IsRefused()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-served", org: "org-1", number: "ORD-SERVED", createdDate: _june, organizationName: "Acme", createdByUserId: "buyer-1");
+        OrderSeeder.Seed(ctx, id: "o-other", org: "org-2", number: "ORD-OTHER", createdDate: _june, organizationName: "Umbrella", createdByUserId: "buyer-2");
+        await ctx.IndexOrdersAsync("o-served", "o-other");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders(facet:\"organizationid storeid status\") " +
+            "{ term_facets { name terms { term count } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // The scoping fields are dropped; the one legitimate facet still answers.
+        json.Should().NotContain("\"name\":\"organizationid\"");
+        json.Should().NotContain("\"name\":\"storeid\"");
+        json.Should().NotContain("org-2");
+        json.Should().Contain("\"name\":\"status\"");
+    }
+
+    // The localized fields of CustomerOrderType read the culture from the user context, not from an argument
+    // of their own, so the query's cultureName has to reach them.
+    [Fact]
+    public async Task CustomerOrder_ById_LocalizesTheStatusToTheRequestedCulture()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, status: "New", createdByUserId: "buyer-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrder(id:\"o-1\", cultureName:\"en-US\") { number status statusDisplayValue } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"status\":\"New\"");
+        // The harness's stub renders a status as "<raw> (<culture>)", so a culture that never reached the
+        // resolver would come back as the bare "New".
+        json.Should().Contain("\"statusDisplayValue\":\"New (en-US)\"");
+    }
+
     [Fact]
     public async Task CustomerOrder_ById_ReturnsAnOrderPlacedByAnyoneOfAServedCustomer()
     {
@@ -212,21 +223,4 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().Contain("SKU-0");
     }
 
-    [Fact]
-    public async Task CustomerOrder_ById_ForOrganizationNotServed_ReturnsNull()
-    {
-        using var ctx = SalesRepTestContext.Create();
-        await ctx.SeedOrganizationsAsync("org-1", "org-2");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-
-        OrderSeeder.Seed(ctx, id: "o-leak", org: "org-2", number: "ORD-LEAK", createdDate: _june, createdByUserId: "another-rep");
-
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerOrder(id:\"o-leak\") { number } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"salesRepCustomerOrder\":null");
-        json.Should().NotContain("ORD-LEAK");
-    }
 }

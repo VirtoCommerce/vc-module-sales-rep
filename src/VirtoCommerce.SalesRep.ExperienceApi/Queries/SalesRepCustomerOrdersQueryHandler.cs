@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -5,6 +6,7 @@ using System.Threading.Tasks;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.OrdersModule.Core.Search.Indexed;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.Xapi.Core.Models.Facets;
@@ -16,6 +18,9 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerOrdersQuery, SearchOrderResponse>
 {
     private const string DefaultSort = "createdDate:desc";
+
+    private static readonly HashSet<string> AllowedFacets =
+        new(ModuleConstants.OrderFacets.All, StringComparer.OrdinalIgnoreCase);
 
     private readonly IIndexedCustomerOrderSearchService _indexedOrderSearchService;
     private readonly ICustomerOrderAggregateRepository _orderAggregateRepository;
@@ -39,6 +44,8 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         result.Results = [];
         result.Facets = [];
 
+        // Both are replaced wholesale on the success path; they exist so an early return still answers with
+        // empty collections rather than nulls the connection would have to guard.
         if (string.IsNullOrEmpty(request.UserId))
         {
             return result;
@@ -72,9 +79,31 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         criteria.LanguageCode = request.CultureName;
         criteria.Keyword = request.Filter;
-        criteria.Facet = request.Facet;
+        criteria.Facet = SanitizeFacet(request.Facet);
         criteria.Sort = request.Sort.EmptyToNull() ?? DefaultSort;
 
         return criteria;
+    }
+
+    /// <summary>
+    /// IMPORTANT: aggregations are NOT scoped by the search filter — do not widen this whitelist without
+    /// re-reading why. The provider counts each bucket with the aggregation's own filter alone, and
+    /// ApplyMultiSelectFacetSearch first strips from it every filter whose field the aggregation names. So
+    /// faceting on a field that carries the scope (organizationid, storeid, customerid) drops that scope and
+    /// counts across the whole index. Only fields that carry no part of the rep's scope may be aggregated.
+    /// </summary>
+    protected virtual string SanitizeFacet(string facet)
+    {
+        if (string.IsNullOrEmpty(facet))
+        {
+            return facet;
+        }
+
+        var fields = facet
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => AllowedFacets.Contains(x))
+            .ToArray();
+
+        return fields.Length == 0 ? null : string.Join(' ', fields);
     }
 }

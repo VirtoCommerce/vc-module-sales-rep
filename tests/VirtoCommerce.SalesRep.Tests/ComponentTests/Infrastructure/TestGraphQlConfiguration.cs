@@ -553,10 +553,6 @@ internal static class TestGraphQlConfiguration
         public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
     }
 
-    /// <summary>
-    /// Stub catalog raw-database command: the category search path never touches it (it only reads the Categories
-    /// IQueryable and hydrates by id), so every method throws if ever called.
-    /// </summary>
     /// <summary>No dictionary items: the shared dynamic-property graph type only needs this for dictionary-valued properties.</summary>
     private sealed class EmptyDynamicPropertyDictionaryItemsService : IDynamicPropertyDictionaryItemsService
     {
@@ -611,6 +607,10 @@ internal static class TestGraphQlConfiguration
             => Task.FromResult(AbstractTypeFactory<PaymentMethodsSearchResult>.TryCreateInstance());
     }
 
+    /// <summary>
+    /// Stub catalog raw-database command: the category search path never touches it (it only reads the Categories
+    /// IQueryable and hydrates by id), so every method throws if ever called.
+    /// </summary>
     private sealed class StubCatalogRawDatabaseCommand : ICatalogRawDatabaseCommand
     {
         public Task<IList<string>> GetAllSeoDuplicatesIdsAsync(CatalogDbContext dbContext) => throw new NotSupportedException();

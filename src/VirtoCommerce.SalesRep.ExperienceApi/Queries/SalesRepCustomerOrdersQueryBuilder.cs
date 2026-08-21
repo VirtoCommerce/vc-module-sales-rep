@@ -1,11 +1,9 @@
 using System.Collections.Generic;
-using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Types;
 using GraphQL.Types.Relay;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.CoreModule.Core.Currency;
-using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Helpers;
 using VirtoCommerce.XOrder.Core;
 using VirtoCommerce.XOrder.Core.Queries;
@@ -51,11 +49,4 @@ public class SalesRepCustomerOrdersQueryBuilder : SalesRepOrderQueryBuilder<Sale
     protected override string GetCultureName(SalesRepCustomerOrdersQuery request) => request.CultureName;
 
     protected override IEnumerable<CustomerOrderAggregate> GetOrderAggregates(SearchOrderResponse response) => response.Results;
-
-    protected override async Task BeforeMediatorSend(IResolveFieldContext<object> context, SalesRepCustomerOrdersQuery request)
-    {
-        await base.BeforeMediatorSend(context, request);
-
-        context.CopyArgumentsToUserContext();
-    }
 }
