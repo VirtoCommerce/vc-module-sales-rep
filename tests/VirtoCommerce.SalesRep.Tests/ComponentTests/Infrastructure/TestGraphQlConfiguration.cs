@@ -206,7 +206,8 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISchemaFilter, DefaultSchemaFilter>();
 
         // The REAL module mapper: it converts the index aggregations the orders list returns into the facets
-        // its connection exposes.
+        // its connection exposes, over X-Order's real mapper (registered here as AddXOrder would).
+        services.AddSingleton<IXOrderMapper, XOrderMapper>();
         services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
 
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.

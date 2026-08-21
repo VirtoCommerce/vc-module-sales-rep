@@ -16,7 +16,7 @@
     <dependency id="VirtoCommerce.Store" version="3.1006.0" />
     <dependency id="VirtoCommerce.Xapi" version="3.1016.0" />
     <dependency id="VirtoCommerce.XCart" version="3.1029.0" />
-    <dependency id="VirtoCommerce.XOrder" version="3.1008.0" />
+    <dependency id="VirtoCommerce.XOrder" version="3.1009.0" />
   </dependencies>
 
   <apps>
