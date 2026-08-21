@@ -20,6 +20,8 @@ public static class ResolveFieldContextAuthorizationExtensions
     /// </summary>
     public static async Task EnsureAuthenticatedAsync(this IResolveFieldContext context)
     {
+        // CheckCurrentUserState below reaches the same refusal for a claimless caller, by looking the anonymous
+        // user up and failing to find it. This is the fast path that skips that lookup.
         if (!context.IsAuthenticated())
         {
             throw AuthorizationError.AnonymousAccessDenied();

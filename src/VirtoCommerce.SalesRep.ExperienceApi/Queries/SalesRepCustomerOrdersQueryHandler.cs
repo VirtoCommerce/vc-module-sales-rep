@@ -20,8 +20,8 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 {
     private const string DefaultSort = "createdDate:desc";
 
-    private static readonly Dictionary<string, string> _allowedFacets =
-        ModuleConstants.OrderFacets.All.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
+    private static readonly HashSet<string> _allowedFacets =
+        new(ModuleConstants.OrderFacets.All, StringComparer.OrdinalIgnoreCase);
 
     private readonly IIndexedCustomerOrderSearchService _indexedOrderSearchService;
     private readonly ICustomerOrderAggregateRepository _orderAggregateRepository;
@@ -112,10 +112,9 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         // facet arrives under a different name each time it is asked for.
         var fields = facet
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => _allowedFacets.GetValueOrDefault(x))
-            .Where(x => x != null)
-            .ToArray();
+            .Select(x => _allowedFacets.TryGetValue(x, out var allowed) ? allowed : null)
+            .Where(x => x != null);
 
-        return fields.Length == 0 ? null : string.Join(' ', fields);
+        return string.Join(' ', fields).EmptyToNull();
     }
 }

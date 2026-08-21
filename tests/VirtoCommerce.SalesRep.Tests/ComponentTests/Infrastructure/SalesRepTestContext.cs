@@ -277,16 +277,6 @@ internal sealed class SalesRepTestContext : IDisposable
         return CreateAccountWithoutRolesAsync(memberId: null, email);
     }
 
-    /// <summary>Lock the login account out, the way the platform does after failed sign-ins or an admin action.</summary>
-    public async Task LockAccountAsync(string userId)
-    {
-        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
-        var user = await userManager.FindByIdAsync(userId);
-
-        await userManager.SetLockoutEnabledAsync(user, enabled: true);
-        await userManager.SetLockoutEndDateAsync(user, DateTimeOffset.UtcNow.AddHours(1));
-    }
-
     /// <summary>Delete the login account, leaving any member and membership rows behind.</summary>
     public async Task DeleteAccountAsync(string userId)
     {

@@ -1,45 +1,44 @@
-using System.Collections.Generic;
+using System;
 using System.Linq;
 using FluentAssertions;
-using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Commands;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
-using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 using Xunit;
 
-namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
+namespace VirtoCommerce.SalesRep.Tests;
 
 /// <summary>
 /// The module's gate — signed in, account still usable, then membership scoping — lives in three builder bases,
 /// so it protects an endpoint only if that endpoint derives from one of them. SalesRepAccountStateGraphQlTests
 /// proves the gate works; this one proves nothing escapes it, including endpoints added later.
 /// </summary>
-[Trait("Category", "Component")]
+[Trait("Category", "Unit")]
 public class SalesRepEndpointGateTests
 {
-    private static readonly string[] _gateRoots =
+    private static readonly Type[] _gateRoots =
     [
-        typeof(SalesRepQueryBuilder<,,>).Name,
-        typeof(SalesRepSearchQueryBuilder<,,,>).Name,
-        typeof(SalesRepCommandBuilder<,,,>).Name,
+        typeof(SalesRepQueryBuilder<,,>),
+        typeof(SalesRepSearchQueryBuilder<,,,>),
+        typeof(SalesRepCommandBuilder<,,,>),
     ];
 
     [Fact]
     public void EverySchemaBuilder_DerivesFromAGatedBase()
     {
-        using var ctx = SalesRepTestContext.Create();
-
-        var builders = ctx.GetRequiredService<IEnumerable<ISchemaBuilder>>()
-            .Where(x => x.GetType().Assembly == typeof(XapiAssemblyMarker).Assembly)
+        // Scanned rather than resolved from DI: this also catches a builder that exists but was never
+        // registered, and needs no harness to read a static property.
+        var builders = typeof(XapiAssemblyMarker).Assembly.GetTypes()
+            .Where(x => !x.IsAbstract && typeof(ISchemaBuilder).IsAssignableFrom(x))
             .ToList();
 
-        builders.Should().NotBeEmpty("the module registers its endpoints as schema builders");
+        builders.Should().NotBeEmpty("the module exposes its endpoints as schema builders");
 
         var ungated = builders
-            .Where(x => !IsGated(x.GetType()))
-            .Select(x => x.GetType().Name)
+            .Where(x => !IsGated(x))
+            .Select(x => x.Name)
             .ToList();
 
         ungated.Should().BeEmpty(
@@ -47,16 +46,9 @@ public class SalesRepEndpointGateTests
             "SalesRepQueryBuilder, SalesRepSearchQueryBuilder or SalesRepCommandBuilder");
     }
 
-    private static bool IsGated(System.Type type)
+    private static bool IsGated(Type type)
     {
-        for (var current = type; current != null; current = current.BaseType)
-        {
-            if (_gateRoots.Contains(current.Name))
-            {
-                return true;
-            }
-        }
-
-        return false;
+        return type.GetTypeInheritanceChain()
+            .Any(x => x.IsGenericType && _gateRoots.Contains(x.GetGenericTypeDefinition()));
     }
 }

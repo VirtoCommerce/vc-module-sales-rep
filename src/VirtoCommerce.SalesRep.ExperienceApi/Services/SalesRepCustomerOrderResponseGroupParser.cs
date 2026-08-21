@@ -171,8 +171,7 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
     {
         return (includeFields ?? [])
             .Select(GetOrderField)
-            .Where(x => x != null)
-            .Distinct(StringComparer.OrdinalIgnoreCase);
+            .Where(x => x != null);
     }
 
     /// <summary>
@@ -196,17 +195,24 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
         {
             path = path[EdgeNodePrefix.Length..];
         }
-        else if (_connectionFields.Contains(path.Split('.')[0]))
+        else if (_connectionFields.Contains(Head(path)))
         {
             return null;
         }
 
-        var field = path.Split('.')[0];
+        var field = Head(path);
 
         // GraphQL reserves the "__" prefix for meta fields, and Apollo injects __typename into every selection
         // set it sends. They resolve without touching the order, but they are not order fields either, so
         // without this every request from a real client would fall through to Full and the mapping would never
         // do anything. Checked after the wrapper comes off: __typename arrives at both levels.
         return field.StartsWith(MetaFieldPrefix, StringComparison.Ordinal) ? null : field;
+    }
+
+    private static string Head(string path)
+    {
+        var dot = path.IndexOf('.');
+
+        return dot < 0 ? path : path[..dot];
     }
 }

@@ -34,6 +34,7 @@ using VirtoCommerce.OrdersModule.Core.Search.Indexed;
 using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.OrdersModule.Data.Search.Indexed;
+using VirtoCommerce.OrdersModule.Data.Services;
 using VirtoCommerce.PaymentModule.Core.Model;
 using VirtoCommerce.PaymentModule.Core.Model.Search;
 using VirtoCommerce.PaymentModule.Core.Services;
@@ -104,6 +105,10 @@ internal static class TestGraphQlConfiguration
         // so the conversion/fold math is deterministic and asserted directly.
         services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
+
+        // The REAL totals calculator, so the harness reproduces the half of the read path that recomputes the
+        // derived money for the exactly-Full group. Its only dependency is the currency service above.
+        services.AddTransient<ICustomerOrderTotalsCalculator, DefaultCustomerOrderTotalsCalculator>();
         services.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
 
         // Indexed order search (VCST-5733): the REAL Orders indexed search over the in-memory Lucene provider the
@@ -206,7 +211,7 @@ internal static class TestGraphQlConfiguration
         // The REAL account-state check every sales-rep query and mutation runs (registered by Xapi.Data in
         // production). Its only dependency is the platform UserManager the security slice already provides, so
         // locking or deleting a user in a test is seen by the gate exactly as it would be in production.
-        services.AddSingleton<IUserManagerCore, UserManagerCore>();
+        services.AddTransient<IUserManagerCore, UserManagerCore>();
 
         // ScopedSchemaFactory depends on ISchemaFilter (registered by Xapi.Data in production).
         services.AddSingleton<ISchemaFilter, DefaultSchemaFilter>();
@@ -308,18 +313,20 @@ internal static class TestGraphQlConfiguration
     /// test sees what production would return — <c>GetCustomerOrdersByIdsAsync</c> gates which child tables load
     /// and calls <c>CustomerOrderEntity.ResetPrices</c> for a group without <c>WithPrices</c>, and
     /// <c>ReduceDetails</c> then blanks whatever the group did not ask for (the collections, and the money
-    /// again, on the model). The one thing it leaves out is <c>CustomerOrderService.ProcessModel</c>'s
-    /// recalculation of the derived money, which runs only for the exactly-Full group.
-    /// Only the read path is exercised — by the real <see cref="CustomerOrderSearchService"/> under test;
-    /// write/outer-id methods are not used.
+    /// again, on the model), and the real <see cref="DefaultCustomerOrderTotalsCalculator"/> recomputes the
+    /// derived money for the exactly-Full group — the same three steps, in the same order, as
+    /// <c>CustomerOrderService.ProcessModel</c>. Only the read path is exercised — by the real
+    /// <see cref="CustomerOrderSearchService"/> under test; write/outer-id methods are not used.
     /// </summary>
     private sealed class RepositoryBackedCustomerOrderService : ICustomerOrderService
     {
         private readonly Func<IOrderRepository> _repositoryFactory;
+        private readonly ICustomerOrderTotalsCalculator _totalsCalculator;
 
-        public RepositoryBackedCustomerOrderService(Func<IOrderRepository> repositoryFactory)
+        public RepositoryBackedCustomerOrderService(Func<IOrderRepository> repositoryFactory, ICustomerOrderTotalsCalculator totalsCalculator)
         {
             _repositoryFactory = repositoryFactory;
+            _totalsCalculator = totalsCalculator;
         }
 
         public async Task<IList<CustomerOrder>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
@@ -335,6 +342,11 @@ internal static class TestGraphQlConfiguration
             var models = entities
                 .Select(x => x.ToModel(AbstractTypeFactory<CustomerOrder>.TryCreateInstance()))
                 .ToList();
+
+            if (EnumUtility.SafeParseFlags(responseGroup, CustomerOrderResponseGroup.Full) == CustomerOrderResponseGroup.Full)
+            {
+                models.Apply(_totalsCalculator.CalculateTotals);
+            }
 
             models.Apply(x => x.ReduceDetails(responseGroup));
 

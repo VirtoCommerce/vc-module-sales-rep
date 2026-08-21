@@ -98,13 +98,6 @@ public class SalesRepCustomerOrderResponseGroupTests
             .Should().Be(CustomerOrderResponseGroup.Default);
     }
 
-    [Fact]
-    public void UnknownConnectionField_FallsBackToFull()
-    {
-        // A field added to the connection rather than to the order is not a page field we know to be free.
-        Group("items.number", "someConnectionExtension.value").Should().Be(CustomerOrderResponseGroup.Full);
-    }
-
     [Theory]
     [InlineData("addresses.line1", CustomerOrderResponseGroup.WithAddresses)]
     [InlineData("discounts.amount", CustomerOrderResponseGroup.WithDiscounts)]
@@ -148,11 +141,14 @@ public class SalesRepCustomerOrderResponseGroupTests
         Group(includeField).Should().Be(CustomerOrderResponseGroup.Full);
     }
 
-    [Fact]
-    public void UnknownField_FallsBackToFull()
+    [Theory]
+    // A field another module added to CustomerOrderType can read anything; over-fetching is the safe answer.
+    [InlineData("number", "someExtensionField.value")]
+    // A field added to the connection rather than to the order is not a page field we know to be free.
+    [InlineData("items.number", "someConnectionExtension.value")]
+    public void UnknownField_FallsBackToFull(string known, string unknown)
     {
-        // A field another module added to CustomerOrderType can read anything; over-fetching is the safe answer.
-        Group("number", "someExtensionField.value").Should().Be(CustomerOrderResponseGroup.Full);
+        Group(known, unknown).Should().Be(CustomerOrderResponseGroup.Full);
     }
 
     [Fact]

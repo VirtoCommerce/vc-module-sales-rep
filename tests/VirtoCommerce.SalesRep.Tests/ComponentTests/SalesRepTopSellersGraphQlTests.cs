@@ -482,7 +482,7 @@ public class SalesRepTopSellersGraphQlTests
         // authenticated caller with no granting membership (a regular B2B buyer) must not enumerate the vocabulary —
         // which for the top-seller filter rules would leak the store's top-level catalog category IDs/names.
         using var ctx = SalesRepTestContext.Create();
-        var caller = await ctx.CreateCustomerAccountAsync();
+        var caller = await ctx.CreateCustomerAccountAsync("regular-buyer@test.com");
         await ctx.SeedCategoriesAsync(
             ("cat-electronics", "Electronics", null, true),
             ("cat-apparel", "Apparel", null, true));

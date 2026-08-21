@@ -1177,7 +1177,7 @@ public class SalesRepGraphQlComponentTests
     public async Task SalesRepCustomers_ForNonRepCaller_ReturnsEmpty()
     {
         using var ctx = SalesRepTestContext.Create();
-        var caller = await ctx.CreateCustomerAccountAsync();
+        var caller = await ctx.CreateCustomerAccountAsync("not-a-rep@test.com");
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1"); // data exists, but not for this caller
 
@@ -1196,7 +1196,7 @@ public class SalesRepGraphQlComponentTests
     public async Task SalesRepOrders_ForNonRepCaller_ReturnsEmpty()
     {
         using var ctx = SalesRepTestContext.Create();
-        var caller = await ctx.CreateCustomerAccountAsync();
+        var caller = await ctx.CreateCustomerAccountAsync("not-a-rep@test.com");
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         // The order belongs to the rep's org; the non-rep caller below must not see it.
@@ -1215,7 +1215,7 @@ public class SalesRepGraphQlComponentTests
     public async Task CustomerSalesReps_WithoutOrganizationClaim_ReturnsEmpty()
     {
         using var ctx = SalesRepTestContext.Create();
-        var caller = await ctx.CreateCustomerAccountAsync();
+        var caller = await ctx.CreateCustomerAccountAsync("private-customer@test.com");
         await ctx.SeedOrganizationsAsync("org-1");
         await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 

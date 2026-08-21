@@ -245,11 +245,21 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().Contain("SKU-0");
     }
 
-    // The response group the selection produces is asserted where production computes it — over the real schema —
-    // because the raw field paths arrive wrapped in the connection ("items.total.formattedAmount"), and reading
-    // that wrapper as the order's own line items would put every list back on the full graph.
-    [Fact]
-    public async Task CustomerOrders_ListSelection_LoadsTheOrderRowOnly()
+    // The response group a selection produces is asserted where production computes it - over the real schema -
+    // because the raw paths arrive wrapped in the connection, so the same word "items" means the page in one
+    // position and the order's line items in the other.
+    [Theory]
+    // The storefront's own columns.
+    [InlineData("totalCount items { number status statusDisplayValue createdDate organizationName total { formattedAmount } }",
+        CustomerOrderResponseGroup.WithPrices, "ORD-1")]
+    // The same, as Apollo sends it: it injects __typename into every selection set and the storefront does not
+    // turn that off, so a meta field the parser did not recognize would send every real page to the full graph.
+    [InlineData("__typename totalCount items { __typename number status total { __typename formattedAmount } }",
+        CustomerOrderResponseGroup.WithPrices, "ORD-1")]
+    // The order's own line items - the wrapper's "items" one level deeper.
+    [InlineData("items { number items { sku } }", CustomerOrderResponseGroup.Full, "SKU-0")]
+    public async Task CustomerOrders_Selection_ProducesTheExpectedResponseGroup(
+        string selection, CustomerOrderResponseGroup expected, string expectedContent)
     {
         using var ctx = SalesRepTestContext.Create(IndexedOrderSearchOverride.Recording);
         await ctx.SeedOrganizationsAsync("org-1");
@@ -259,54 +269,12 @@ public class SalesRepCustomerOrdersGraphQlTests
         await ctx.IndexOrdersAsync("o-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerOrders { totalCount items { number status statusDisplayValue createdDate " +
-            "organizationName total { formattedAmount } } } }",
+            $"query {{ salesRepCustomerOrders {{ {selection} }} }}",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("ORD-1");
-        RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.WithPrices);
-    }
-
-    // Apollo injects __typename into every selection set and the storefront does not turn that off, so a
-    // meta-field the parser does not recognize would send every real list page back to the full graph.
-    [Fact]
-    public async Task CustomerOrders_ListSelectionWithTypename_StillLoadsTheOrderRowOnly()
-    {
-        using var ctx = SalesRepTestContext.Create(IndexedOrderSearchOverride.Recording);
-        await ctx.SeedOrganizationsAsync("org-1");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-
-        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, itemsCount: 2, createdByUserId: "buyer-1");
-        await ctx.IndexOrdersAsync("o-1");
-
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerOrders { __typename totalCount items { __typename number status " +
-            "total { __typename formattedAmount } } } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("ORD-1");
-        RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.WithPrices);
-    }
-
-    [Fact]
-    public async Task CustomerOrders_SelectingLineItems_LoadsTheFullGraph()
-    {
-        using var ctx = SalesRepTestContext.Create(IndexedOrderSearchOverride.Recording);
-        await ctx.SeedOrganizationsAsync("org-1");
-        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-
-        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, itemsCount: 2, createdByUserId: "buyer-1");
-        await ctx.IndexOrdersAsync("o-1");
-
-        var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerOrders { items { number items { sku } } } }",
-            userId: rep.UserId);
-
-        json.Should().NotContain("\"errors\"");
-        json.Should().Contain("SKU-0");
-        RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.Full);
+        json.Should().Contain(expectedContent);
+        RecordedResponseGroup(ctx).Should().Be(expected);
     }
 
     // A group without WithPrices comes back with the money zeroed — by ResetPrices on the entity and again by
