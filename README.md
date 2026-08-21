@@ -225,7 +225,7 @@ those are dropped rather than honoured. Widen the list only for fields that carr
 `CustomerOrderType`, so a caller *may* ask for the whole order graph — but a list that prints a few columns
 should not pay for it. `SalesRepCustomerOrderResponseGroupParser` maps the selected fields to a
 `CustomerOrderResponseGroup`: the storefront's list selection resolves to `WithPrices`, which the Orders
-repository answers with four queries per page instead of up to thirty-one. It reads the paths as the
+repository answers with four queries per page instead of up to thirty-three. It reads the paths as the
 connection reports them — `items.…` / `edges.node.…` wrap the order, so the same word `items` means the page
 in one position and the order's line items in the other.
 

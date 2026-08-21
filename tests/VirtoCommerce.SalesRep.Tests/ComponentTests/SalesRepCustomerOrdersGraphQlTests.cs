@@ -133,8 +133,6 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().Contain("\"term\":\"Umbrella\",\"count\":1");
     }
 
-    // Selecting a customer narrows the list to that organization's orders.
-
     [Fact]
     public async Task CustomerOrders_FilterAcceptsSeveralStatuses()
     {
@@ -183,6 +181,27 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().NotContain("\"name\":\"storeid\"");
         json.Should().NotContain("org-2");
         json.Should().Contain("\"name\":\"status\"");
+    }
+
+    [Fact]
+    public async Task CustomerOrders_FacetName_ComesBackInTheModuleSpelling()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, createdByUserId: "buyer-1");
+        await ctx.IndexOrdersAsync("o-1");
+
+        // The field name is echoed back as the facet name, and the providers match it case-insensitively, so the
+        // caller's casing must not decide what the same facet is called from one request to the next.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders(facet:\"STATUS\") { term_facets { name } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"name\":\"status\"");
+        json.Should().NotContain("\"name\":\"STATUS\"");
     }
 
     // The localized fields of CustomerOrderType read the culture from the user context, not from an argument

@@ -20,8 +20,8 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 {
     private const string DefaultSort = "createdDate:desc";
 
-    private static readonly HashSet<string> AllowedFacets =
-        new(ModuleConstants.OrderFacets.All, StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, string> _allowedFacets =
+        ModuleConstants.OrderFacets.All.ToDictionary(x => x, StringComparer.OrdinalIgnoreCase);
 
     private readonly IIndexedCustomerOrderSearchService _indexedOrderSearchService;
     private readonly ICustomerOrderAggregateRepository _orderAggregateRepository;
@@ -104,9 +104,13 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
             return facet;
         }
 
+        // Answer in the module's own spelling rather than the caller's: the field name comes back as the facet
+        // name, and both providers match it case-insensitively, so echoing "STATUS" would only mean the same
+        // facet arrives under a different name each time it is asked for.
         var fields = facet
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(x => AllowedFacets.Contains(x))
+            .Select(x => _allowedFacets.GetValueOrDefault(x))
+            .Where(x => x != null)
             .ToArray();
 
         return fields.Length == 0 ? null : string.Join(' ', fields);

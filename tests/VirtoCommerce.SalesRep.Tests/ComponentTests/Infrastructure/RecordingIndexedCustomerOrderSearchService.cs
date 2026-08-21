@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.OrdersModule.Core.Search.Indexed;
 using VirtoCommerce.OrdersModule.Core.Services;
@@ -35,20 +34,5 @@ internal sealed class RecordingIndexedCustomerOrderSearchService : IndexedCustom
         ResponseGroups.Add(criteria.ResponseGroup);
 
         return base.SearchCustomerOrdersAsync(criteria);
-    }
-}
-
-/// <summary>Harness override hook for <see cref="SalesRepTestContext.Create"/>.</summary>
-internal static class IndexedOrderSearchOverride
-{
-    /// <summary>
-    /// Shadows the default indexed order search with <see cref="RecordingIndexedCustomerOrderSearchService"/>,
-    /// which behaves identically and additionally records every response group it was called with.
-    /// </summary>
-    public static void Recording(IServiceCollection services)
-    {
-        services.AddSingleton<RecordingIndexedCustomerOrderSearchService>();
-        services.AddSingleton<IIndexedCustomerOrderSearchService>(sp =>
-            sp.GetRequiredService<RecordingIndexedCustomerOrderSearchService>());
     }
 }
