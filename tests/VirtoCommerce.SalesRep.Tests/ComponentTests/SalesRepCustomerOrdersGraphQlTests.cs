@@ -123,6 +123,52 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().Contain("\"term\":\"New\",\"count\":1");
     }
 
+    // The all-customers page facets on the owning organization as well, to offer a customer filter.
+    [Fact]
+    public async Task CustomerOrders_CustomerFacet_CountsOrdersPerOrganization()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, organizationName: "Acme", createdByUserId: "buyer-1");
+        OrderSeeder.Seed(ctx, id: "o-2", org: "org-1", number: "ORD-2", createdDate: _may, organizationName: "Acme", createdByUserId: "buyer-1");
+        OrderSeeder.Seed(ctx, id: "o-3", org: "org-2", number: "ORD-3", createdDate: _may, organizationName: "Umbrella", createdByUserId: "buyer-2");
+        await ctx.IndexOrdersAsync("o-1", "o-2", "o-3");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders(facet:\"status organizationname\") " +
+            "{ totalCount term_facets { name terms { term count } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"name\":\"organizationname\"");
+        json.Should().Contain("\"term\":\"Acme\",\"count\":2");
+        json.Should().Contain("\"term\":\"Umbrella\",\"count\":1");
+    }
+
+    // Selecting a customer narrows the list to that organization's orders.
+    [Fact]
+    public async Task CustomerOrders_FilterByCustomerName()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-ACME", createdDate: _june, organizationName: "Acme", createdByUserId: "buyer-1");
+        OrderSeeder.Seed(ctx, id: "o-2", org: "org-2", number: "ORD-UMBRELLA", createdDate: _may, organizationName: "Umbrella", createdByUserId: "buyer-2");
+        await ctx.IndexOrdersAsync("o-1", "o-2");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders(filter:\"organizationname:\\\"Acme\\\"\") { totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("ORD-ACME");
+        json.Should().NotContain("ORD-UMBRELLA");
+    }
+
     [Fact]
     public async Task CustomerOrders_FilterAcceptsSeveralStatuses()
     {
