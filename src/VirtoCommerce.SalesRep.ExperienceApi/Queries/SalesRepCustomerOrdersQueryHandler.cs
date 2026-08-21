@@ -91,11 +91,14 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
     }
 
     /// <summary>
-    /// IMPORTANT: aggregations are NOT scoped by the search filter — do not widen this whitelist without
-    /// re-reading why. The provider counts each bucket with the aggregation's own filter alone, and
-    /// ApplyMultiSelectFacetSearch first strips from it every filter whose field the aggregation names. So
-    /// faceting on a field that carries the scope (organizationid, storeid, customerid) drops that scope and
-    /// counts across the whole index. Only fields that carry no part of the rep's scope may be aggregated.
+    /// IMPORTANT: do not widen this whitelist without re-reading why it exists.
+    /// ApplyMultiSelectFacetSearch ANDs the whole search filter onto every aggregation, minus the child filters
+    /// whose field name the aggregated field name *starts with* — that is what lets a facet count the buckets
+    /// its own selection excludes. The rep's scope rides in that same filter, as a term filter on
+    /// "organizationid" (plus "storeid" when the caller supplies one), so aggregating a field whose name begins
+    /// with a scoping field's name strips the scope and counts across the entire index. "status" and
+    /// "organizationname" begin with neither, which is precisely why they are safe to offer.
+    /// A candidate field qualifies only if no scoping filter's field name is a prefix of it.
     /// </summary>
     protected virtual string SanitizeFacet(string facet)
     {

@@ -36,8 +36,10 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
     // IMPORTANT: a field missing from here means "load the full graph" — that is the safe answer, and it is the
     // same answer the Full entries below get. Adding a field is a claim that a narrower load still answers it
     // correctly; check that claim against OrderRepository.GetCustomerOrdersByIdsAsync (which flags gate a
-    // query), CustomerOrder.ReduceDetails (which values a missing flag blanks) and CustomerOrderService
-    // .ProcessModel (which recalculates the derived money, and only when the group is *exactly* Full).
+    // query), CustomerOrder.ReduceDetails (which values a missing flag blanks), CustomerOrderService
+    // .ProcessModel (which recalculates the derived money, and only when the group is *exactly* Full) and the
+    // field's own resolver on CustomerOrderType — the entries that need no flag at all are the ones whose
+    // resolver never touches the order graph.
     //
     // Note the shape that gives: a field needing a heavier flag returns Full outright instead of accumulating,
     // so a narrowed group is never exactly Full and the totals calculator never runs on that path. Its money

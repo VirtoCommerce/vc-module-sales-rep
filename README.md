@@ -215,11 +215,14 @@ names index fields, and `sort` takes index field expressions. They read the orde
 `salesRepOrders` is database-backed and keeps working either way, so a deployment that has not enabled the
 flag gets a working dashboard and a failing customer-orders page.
 
-⚠️ **`facet` is whitelisted to `status` and `organizationname`.** Aggregation buckets are *not* narrowed by
-the search filter — the provider counts each bucket with the aggregation's own filter, and the multi-select
-facet mechanism first strips from it every filter naming that same field. Faceting on a field that carries
-the rep's scope (`organizationid`, `storeid`, `customerid`) would therefore count across the whole index, so
-those are dropped rather than honoured. Widen the list only for fields that carry no part of the scope.
+⚠️ **`facet` is whitelisted to `status` and `organizationname`.** `ApplyMultiSelectFacetSearch` ANDs the whole
+search filter onto every aggregation, **minus the child filters whose field name the aggregated field name
+starts with** — that subtraction is what lets a facet still count the buckets its own selection excludes. The
+rep's scope travels in that same filter, as a term filter on `organizationid` (plus `storeid` when one is
+supplied), so aggregating a field whose name *begins with* a scoping field's name strips the scope and counts
+across the entire index — `facet:"organizationid"` would enumerate every organization in it. `status` and
+`organizationname` begin with neither, so their counts stay inside the rep's book; anything else is dropped
+rather than honoured. **A field may be added only if no scoping filter's field name is a prefix of it.**
 
 **How much of each order is loaded follows the selection.** `salesRepCustomerOrders` returns X-Order's full
 `CustomerOrderType`, so a caller *may* ask for the whole order graph — but a list that prints a few columns
