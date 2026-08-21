@@ -5,11 +5,6 @@ using VirtoCommerce.OrdersModule.Core.Model;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
-/// <summary>
-/// Maps the fields selected on X-Order's CustomerOrderType to the order response group that loads exactly
-/// those, so a list showing a handful of columns no longer pulls the whole order graph. Takes the selected
-/// paths as the connection reports them (see <see cref="GetOrderField"/>).
-/// </summary>
 public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderResponseGroupParser
 {
     private const string StatusDisplayValueField = nameof(CustomerOrder.Status) + "DisplayValue";
@@ -20,8 +15,7 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
     private const string EdgeNodePrefix = "edges.node.";
     private const string MetaFieldPrefix = "__";
 
-    // The page's own fields, which say nothing about how much of an order to load. Anything else at this level
-    // is kept and looked up like an order field, so an unknown one still falls back to Full.
+    // The page's own fields. Anything else here is looked up as an order field, so it falls back to Full.
     private static readonly HashSet<string> _connectionFields = new(StringComparer.OrdinalIgnoreCase)
     {
         "items",
@@ -34,21 +28,14 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
         "filter_facets",
     };
 
-    // IMPORTANT: a field missing from here means "load the full graph" — that is the safe answer, and it is the
-    // same answer the Full entries below get. Adding a field is a claim that a narrower load still answers it
-    // correctly; check that claim against OrderRepository.GetCustomerOrdersByIdsAsync (which flags gate a
-    // query), CustomerOrder.ReduceDetails (which values a missing flag blanks), CustomerOrderService
-    // .ProcessModel (which recalculates the derived money, and only when the group is *exactly* Full) and the
-    // field's own resolver on CustomerOrderType — the entries that need no flag at all are the ones whose
-    // resolver never touches the order graph.
-    //
-    // Note the shape that gives: a field needing a heavier flag returns Full outright instead of accumulating,
-    // so a narrowed group is never exactly Full and the totals calculator never runs on that path. Its money
-    // is therefore the stored columns, while a selection that reaches the graph gets the recomputed values —
-    // the same field, answered from two sources. They agree for any order SaveChanges wrote.
+    // IMPORTANT: a missing field means "load the full graph" — the safe answer. Adding one claims a narrower
+    // load still answers it; check that against OrderRepository.GetCustomerOrdersByIdsAsync,
+    // CustomerOrder.ReduceDetails, CustomerOrderService.ProcessModel and the field's own CustomerOrderType
+    // resolver. A field needing a heavier flag returns Full outright rather than accumulating, so a narrowed
+    // group is never exactly Full — its money is the stored columns, never the recomputed ones.
     private static readonly Dictionary<string, CustomerOrderResponseGroup> _responseGroupByField = new(StringComparer.OrdinalIgnoreCase)
     {
-        // The order row and the values stored on it — loaded by every response group.
+        // Stored on the order row, loaded by every response group.
         [nameof(CustomerOrder.Id)] = CustomerOrderResponseGroup.Default,
         [nameof(CustomerOrder.OperationType)] = CustomerOrderResponseGroup.Default,
         [nameof(CustomerOrder.ParentOperationId)] = CustomerOrderResponseGroup.Default,
@@ -85,12 +72,11 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
         [nameof(CustomerOrder.Currency)] = CustomerOrderResponseGroup.Default,
         [nameof(CustomerOrder.TaxDetails)] = CustomerOrderResponseGroup.Default,
 
-        // Resolved without touching the order graph: coupons searches promotion usages by order id, and the
-        // available payment methods come from the store the order was placed in.
+        // Resolved without touching the order graph.
         [CouponsField] = CustomerOrderResponseGroup.Default,
         [AvailablePaymentMethodsField] = CustomerOrderResponseGroup.Default,
 
-        // Stored on the order row too, but blanked by ReduceDetails unless the group asks for prices.
+        // Stored too, but blanked by ReduceDetails without WithPrices.
         [nameof(CustomerOrder.Total)] = CustomerOrderResponseGroup.WithPrices,
         [nameof(CustomerOrder.SubTotal)] = CustomerOrderResponseGroup.WithPrices,
         [nameof(CustomerOrder.SubTotalWithTax)] = CustomerOrderResponseGroup.WithPrices,
@@ -113,9 +99,8 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
         [nameof(CustomerOrder.Discounts)] = CustomerOrderResponseGroup.WithDiscounts,
         [nameof(CustomerOrder.DynamicProperties)] = CustomerOrderResponseGroup.WithDynamicProperties,
 
-        // Stored nowhere: DefaultCustomerOrderTotalsCalculator derives these from the line items, shipments and
-        // payments, and CustomerOrderService runs it for the exactly-Full group only. A narrower group answers
-        // them with zeros, so they have to ask for the whole graph.
+        // Stored nowhere: DefaultCustomerOrderTotalsCalculator derives these, and only for exactly-Full.
+        // A narrower group answers them with zeros.
         [nameof(CustomerOrder.SubTotalDiscount)] = CustomerOrderResponseGroup.Full,
         [nameof(CustomerOrder.SubTotalDiscountWithTax)] = CustomerOrderResponseGroup.Full,
         [nameof(CustomerOrder.SubTotalTaxTotal)] = CustomerOrderResponseGroup.Full,
@@ -131,8 +116,7 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
         [nameof(CustomerOrder.PaymentTaxTotal)] = CustomerOrderResponseGroup.Full,
         [nameof(CustomerOrder.OrderTotals)] = CustomerOrderResponseGroup.Full,
 
-        // The same reason one level down: the line item, shipment and payment types expose their own derived
-        // money (ExtendedPrice, PlacedPrice, ListTotal, Total, Sum), which again only exactly-Full fills in.
+        // Same reason one level down: their types expose derived money (ExtendedPrice, ListTotal, Sum, ...).
         [nameof(CustomerOrder.Items)] = CustomerOrderResponseGroup.Full,
         [nameof(CustomerOrder.Shipments)] = CustomerOrderResponseGroup.Full,
         [nameof(CustomerOrder.InPayments)] = CustomerOrderResponseGroup.Full,
@@ -163,10 +147,6 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
             : CustomerOrderResponseGroup.Full;
     }
 
-    /// <summary>
-    /// The order fields themselves, taken from the head of each selected path: "total { formattedAmount }"
-    /// arrives as "total.formattedAmount" and is a claim on "total", not on "formattedAmount".
-    /// </summary>
     protected virtual IEnumerable<string> GetSelectedFields(IList<string> includeFields)
     {
         return (includeFields ?? [])
@@ -174,12 +154,9 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
             .Where(x => x != null);
     }
 
-    /// <summary>
-    /// The order field a selected path names, or null for a path that describes the page instead. Paths arrive
-    /// as the connection sees them, and a connection exposes its page both flattened ("items") and Relay-style
-    /// ("edges { node }") — so an order's own items arrive as "items.items.sku", and reading that head
-    /// literally would put every list back on the full graph.
-    /// </summary>
+    // The order field a path names, or null when it names the page. A connection wraps the node both flattened
+    // and Relay-style, so an order's own items arrive as "items.items.sku" — reading that head literally would
+    // put every list back on the full graph.
     protected virtual string GetOrderField(string path)
     {
         if (string.IsNullOrEmpty(path))
@@ -202,10 +179,8 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
 
         var field = Head(path);
 
-        // GraphQL reserves the "__" prefix for meta fields, and Apollo injects __typename into every selection
-        // set it sends. They resolve without touching the order, but they are not order fields either, so
-        // without this every request from a real client would fall through to Full and the mapping would never
-        // do anything. Checked after the wrapper comes off: __typename arrives at both levels.
+        // Apollo injects __typename into every selection set; treating it as an unknown field would send every
+        // real request to Full. Checked after the wrapper comes off — it arrives at both levels.
         return field.StartsWith(MetaFieldPrefix, StringComparison.Ordinal) ? null : field;
     }
 

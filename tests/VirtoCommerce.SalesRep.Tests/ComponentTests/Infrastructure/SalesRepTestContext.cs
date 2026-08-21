@@ -267,11 +267,7 @@ internal sealed class SalesRepTestContext : IDisposable
         return user.Id;
     }
 
-    /// <summary>
-    /// A signed-in account with no contact, roles or memberships - an ordinary customer reaching the endpoint.
-    /// Every sales-rep entry point verifies that the account behind the token still exists, so a caller that
-    /// exists only as a claim is not a state production can reach.
-    /// </summary>
+    /// <summary>A signed-in account with no contact, roles or memberships - an ordinary customer.</summary>
     public Task<string> CreateCustomerAccountAsync(string email = "customer@test.com")
     {
         return CreateAccountWithoutRolesAsync(memberId: null, email);

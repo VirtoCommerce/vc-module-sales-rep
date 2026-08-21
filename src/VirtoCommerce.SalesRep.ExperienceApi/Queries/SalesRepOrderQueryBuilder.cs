@@ -11,10 +11,6 @@ using VirtoCommerce.XOrder.Core.Schemas;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-/// <summary>
-/// Shared plumbing for the queries answering with X-Order's CustomerOrderType: its money fields read the
-/// currencies off the user context, and every returned aggregate has to be registered for field expansion.
-/// </summary>
 public abstract class SalesRepOrderQueryBuilder<TQuery, TResult> : SalesRepQueryBuilder<TQuery, TResult, CustomerOrderType>
     where TQuery : IQuery<TResult>, IExtendableQuery, IHasArguments
 {
@@ -34,8 +30,7 @@ public abstract class SalesRepOrderQueryBuilder<TQuery, TResult> : SalesRepQuery
     {
         await base.BeforeMediatorSend(context, request);
 
-        // CustomerOrderType's localized fields (statusDisplayValue, dynamic properties) declare no cultureName
-        // argument of their own — they read it from the user context, so the arguments have to be copied there.
+        // CustomerOrderType's localized fields take no cultureName argument; they read the user context.
         context.CopyArgumentsToUserContext();
 
         var currencies = await CurrencyService.GetAllCurrenciesAsync();

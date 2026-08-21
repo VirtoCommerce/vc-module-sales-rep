@@ -6,12 +6,6 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests;
 
-/// <summary>
-/// Pure-logic tests for <see cref="SalesRepCustomerOrderResponseGroupParser"/> — the CustomerOrderType field
-/// selection → order response-group mapping behind salesRepCustomerOrders. The mapping trades round trips for a
-/// correctness risk in one direction only, so the cases below pin both halves: a list selection must come out
-/// narrow, and anything that a narrowed load would answer with zeros (or not at all) must come out Full.
-/// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepCustomerOrderResponseGroupTests
 {

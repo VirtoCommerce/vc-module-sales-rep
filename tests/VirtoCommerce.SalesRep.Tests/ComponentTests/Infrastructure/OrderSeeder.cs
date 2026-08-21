@@ -3,7 +3,6 @@ using VirtoCommerce.OrdersModule.Data.Model;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
-/// <summary>Seeds an order straight into the harness's SQLite order database.</summary>
 internal static class OrderSeeder
 {
     public static void Seed(
@@ -29,9 +28,7 @@ internal static class OrderSeeder
             Number = number,
             OrganizationId = org,
             OrganizationName = organizationName,
-            // A rep-created order records the rep's user id as CustomerId (the value the queries filter on). Default
-            // to the test's rep so seeded orders count as "created by the rep"; pass createdByUserId to simulate an
-            // order created by someone else.
+            // A rep-created order records the rep's user id as CustomerId - the value the queries filter on.
             CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
             CustomerName = "Customer 1",
             StoreId = storeId,

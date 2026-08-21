@@ -106,8 +106,7 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
 
-        // The REAL totals calculator, so the harness reproduces the half of the read path that recomputes the
-        // derived money for the exactly-Full group. Its only dependency is the currency service above.
+        // Recomputes the derived money for the exactly-Full group, as the real read path does.
         services.AddTransient<ICustomerOrderTotalsCalculator, DefaultCustomerOrderTotalsCalculator>();
         services.AddTransient<ICustomerOrderStatisticsService, CustomerOrderStatisticsService>();
 
@@ -208,9 +207,7 @@ internal static class TestGraphQlConfiguration
         // IAuthorizationService is required by the query builders' base constructor.
         services.AddAuthorization();
 
-        // The REAL account-state check every sales-rep query and mutation runs (registered by Xapi.Data in
-        // production). Its only dependency is the platform UserManager the security slice already provides, so
-        // locking or deleting a user in a test is seen by the gate exactly as it would be in production.
+        // The REAL account-state check every sales-rep query and mutation runs.
         services.AddTransient<IUserManagerCore, UserManagerCore>();
 
         // ScopedSchemaFactory depends on ISchemaFilter (registered by Xapi.Data in production).
@@ -309,14 +306,9 @@ internal static class TestGraphQlConfiguration
 
     /// <summary>
     /// Minimal <see cref="ICustomerOrderService"/> for the harness: hydrates orders straight from the order
-    /// repository. It reproduces both halves of the real read path's response-group handling, so a component
-    /// test sees what production would return — <c>GetCustomerOrdersByIdsAsync</c> gates which child tables load
-    /// and calls <c>CustomerOrderEntity.ResetPrices</c> for a group without <c>WithPrices</c>, and
-    /// <c>ReduceDetails</c> then blanks whatever the group did not ask for (the collections, and the money
-    /// again, on the model), and the real <see cref="DefaultCustomerOrderTotalsCalculator"/> recomputes the
-    /// derived money for the exactly-Full group — the same three steps, in the same order, as
-    /// <c>CustomerOrderService.ProcessModel</c>. Only the read path is exercised — by the real
-    /// <see cref="CustomerOrderSearchService"/> under test; write/outer-id methods are not used.
+    /// repository, running the same three response-group steps as <c>CustomerOrderService.ProcessModel</c>:
+    /// the repository gates the child loads and resets prices, <c>ReduceDetails</c> blanks what the group did
+    /// not ask for, and the totals calculator recomputes the derived money for exactly-Full.
     /// </summary>
     private sealed class RepositoryBackedCustomerOrderService : ICustomerOrderService
     {

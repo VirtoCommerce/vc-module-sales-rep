@@ -10,18 +10,11 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 
 public static class ResolveFieldContextAuthorizationExtensions
 {
-    /// <summary>
-    /// The gate every sales-rep query and mutation passes through: the caller is signed in, and the account
-    /// behind the token is still usable. The claims alone do not answer the second half — a token stays valid
-    /// for its full lifetime after the account is locked, deleted or its password expires, and the module's
-    /// membership scoping does not cover it either (OrganizationMembership.IsLocked is the membership, not the
-    /// account). IUserManagerCore is resolved per request the way Xapi resolves the mediator, so no builder has
-    /// to carry it through its constructor.
-    /// </summary>
+    // Claims cannot see that the account behind a still-valid token was locked, deleted or expired, and
+    // membership scoping does not either: OrganizationMembership.IsLocked is the membership, not the account.
     public static async Task EnsureAuthenticatedAsync(this IResolveFieldContext context)
     {
-        // CheckCurrentUserState below reaches the same refusal for a claimless caller, by looking the anonymous
-        // user up and failing to find it. This is the fast path that skips that lookup.
+        // Fast path: CheckCurrentUserState reaches the same refusal, but only after a user lookup.
         if (!context.IsAuthenticated())
         {
             throw AuthorizationError.AnonymousAccessDenied();

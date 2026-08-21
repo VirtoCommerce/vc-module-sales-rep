@@ -9,11 +9,6 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
-/// <summary>
-/// The data-isolation invariant for orders: a rep reads the orders of the customers they serve, and nothing
-/// else. Every order-returning surface of the Sales Rep endpoint is asserted, including the by-id read — an
-/// order the rep must not see must stay unreadable even when its id is known.
-/// </summary>
 [Trait("Category", "Component")]
 public class SalesRepOrderIsolationGraphQlTests
 {

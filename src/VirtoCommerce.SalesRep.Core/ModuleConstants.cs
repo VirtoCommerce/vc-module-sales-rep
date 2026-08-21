@@ -24,10 +24,7 @@ public static class ModuleConstants
         }
     }
 
-    /// <summary>
-    /// Order-index fields the customer-orders list may aggregate. A field carrying part of the rep's scope
-    /// must never appear here — see SalesRepCustomerOrdersQueryHandler.SanitizeFacet.
-    /// </summary>
+    // A field carrying part of the rep's scope must never appear here - see SanitizeFacet.
     public static class OrderFacets
     {
         public const string Status = "status";

@@ -10,11 +10,7 @@ using VirtoCommerce.SearchModule.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
-/// <summary>
-/// The REAL indexed order search, recording the response group each search asked for. It is the last point that
-/// still sees the criteria a GraphQL selection produced, so a test can assert the selection → response-group
-/// mapping over the real schema (including the connection wrapper the raw field paths carry).
-/// </summary>
+// The last point that still sees the criteria a GraphQL selection produced.
 internal sealed class RecordingIndexedCustomerOrderSearchService : IndexedCustomerOrderSearchService
 {
     public RecordingIndexedCustomerOrderSearchService(

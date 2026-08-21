@@ -16,8 +16,7 @@ public class SalesRepMapper : ISalesRepMapper
         _orderMapper = orderMapper;
     }
 
-    // Delegates rather than reimplements, so the facets this module returns keep the shape X-Order's own order
-    // queries return - including whatever a project registered in place of IXOrderMapper.
+    // Delegates so the facets match X-Order's own, including a project's own IXOrderMapper registration.
     public virtual IList<FacetResult> ToFacets(IList<OrderAggregation> aggregations, string cultureName)
     {
         return (aggregations ?? [])

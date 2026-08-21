@@ -10,11 +10,7 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests;
 
-/// <summary>
-/// The module's gate — signed in, account still usable, then membership scoping — lives in three builder bases,
-/// so it protects an endpoint only if that endpoint derives from one of them. SalesRepAccountStateGraphQlTests
-/// proves the gate works; this one proves nothing escapes it, including endpoints added later.
-/// </summary>
+// The gate lives in three builder bases, so it protects an endpoint only if that endpoint derives from one.
 [Trait("Category", "Unit")]
 public class SalesRepEndpointGateTests
 {

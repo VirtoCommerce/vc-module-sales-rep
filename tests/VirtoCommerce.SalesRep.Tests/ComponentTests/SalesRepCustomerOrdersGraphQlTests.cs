@@ -9,11 +9,8 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
-/// <summary>
-/// salesRepCustomerOrders / salesRepCustomerOrder (VCST-5733): every order of a served customer, not only the ones
-/// the rep placed. Orders are seeded into SQLite, indexed into the in-memory Lucene index with the real order
-/// document builder, and read back through the real scoped schema — the same indexed path production uses.
-/// </summary>
+// Orders are seeded into SQLite, indexed into the in-memory Lucene index with the real order document builder,
+// and read back through the real scoped schema - the same indexed path production uses.
 [Trait("Category", "Component")]
 public class SalesRepCustomerOrdersGraphQlTests
 {
@@ -61,7 +58,6 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().Contain("ORD-MINE");
         json.Should().NotContain("ORD-THEIRS");
     }
-
 
     [Fact]
     public async Task CustomerOrders_WithoutOrganizationId_CoverServedCustomersOnly()

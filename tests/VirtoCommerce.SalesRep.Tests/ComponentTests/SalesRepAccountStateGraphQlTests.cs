@@ -8,12 +8,8 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
-/// <summary>
-/// The account behind a token can be locked, deleted or have its password expire while the token is still
-/// valid - access tokens live 30 minutes. Claims alone cannot see any of that, and the module's membership
-/// scoping does not either: OrganizationMembership.IsLocked is the membership, not the account. So every entry
-/// point re-checks the account, and these tests hold each of the three roots to it.
-/// </summary>
+// A token stays valid for its full lifetime after the account is locked or deleted, and membership scoping
+// does not see that: OrganizationMembership.IsLocked is the membership, not the account.
 [Trait("Category", "Component")]
 public class SalesRepAccountStateGraphQlTests
 {
@@ -61,11 +57,8 @@ public class SalesRepAccountStateGraphQlTests
         json.Should().NotContain("\"errors\"");
     }
 
-    /// <summary>
-    /// salesRepCustomerOrders is the one endpoint that overrides GetFieldType with a resolver of its own, so
-    /// deriving from a gated base - which SalesRepEndpointGateTests asserts - does not by itself prove it is
-    /// gated. This drives it, over the largest data surface the module exposes.
-    /// </summary>
+    // salesRepCustomerOrders overrides GetFieldType with its own resolver, so deriving from a gated base -
+    // which SalesRepEndpointGateTests asserts - does not by itself prove it is gated.
     [Fact]
     public async Task LockedAccount_CannotReadCustomerOrders()
     {

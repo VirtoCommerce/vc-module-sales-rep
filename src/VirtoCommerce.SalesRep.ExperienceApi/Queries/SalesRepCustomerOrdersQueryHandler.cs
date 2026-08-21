@@ -48,8 +48,7 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         result.Results = [];
         result.Facets = [];
 
-        // Both are replaced wholesale on the success path; they exist so an early return still answers with
-        // empty collections rather than nulls the connection would have to guard.
+        // So an early return answers with empty collections rather than nulls the connection must guard.
         if (string.IsNullOrEmpty(request.UserId))
         {
             return result;
@@ -76,9 +75,8 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
     {
         var criteria = request.GetSearchCriteria<CustomerOrderIndexedSearchCriteria>();
 
-        // The served organizations are the security boundary. `organizationId` only narrows that set, and the
-        // caller's phrase filter is ANDed with this term filter, so a phrase naming another organization can
-        // only intersect to nothing — it can never widen the scope.
+        // The security boundary. The caller's phrase filter is ANDed with this term filter, so naming another
+        // organization can only intersect to nothing.
         criteria.OrganizationIds = organizationIds.ToArray();
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         criteria.LanguageCode = request.CultureName;
@@ -90,16 +88,12 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         return criteria;
     }
 
-    /// <summary>
-    /// IMPORTANT: do not widen this whitelist without re-reading why it exists.
-    /// ApplyMultiSelectFacetSearch ANDs the whole search filter onto every aggregation, minus the child filters
-    /// whose field name the aggregated field name *starts with* — that is what lets a facet count the buckets
-    /// its own selection excludes. The rep's scope rides in that same filter, as a term filter on
-    /// "organizationid" (plus "storeid" when the caller supplies one), so aggregating a field whose name begins
-    /// with a scoping field's name strips the scope and counts across the entire index. "status" and
-    /// "organizationname" begin with neither, which is precisely why they are safe to offer.
-    /// A candidate field qualifies only if no scoping filter's field name is a prefix of it.
-    /// </summary>
+    // IMPORTANT: do not widen this whitelist without re-reading why it exists.
+    // ApplyMultiSelectFacetSearch ANDs the search filter onto every aggregation minus the child filters whose
+    // field name the aggregated field *starts with*. The rep's scope rides in that filter as a term filter on
+    // "organizationid" (plus "storeid"), so aggregating a field beginning with a scoping field's name strips
+    // the scope and counts across the whole index. A candidate qualifies only if no scoping filter's field
+    // name is a prefix of it.
     protected virtual string SanitizeFacet(string facet)
     {
         if (string.IsNullOrEmpty(facet))
@@ -107,9 +101,7 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
             return facet;
         }
 
-        // Answer in the module's own spelling rather than the caller's: the field name comes back as the facet
-        // name, and both providers match it case-insensitively, so echoing "STATUS" would only mean the same
-        // facet arrives under a different name each time it is asked for.
+        // Answer in the module's spelling: the field name comes back as the facet name.
         var fields = facet
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(x => _allowedFacets.TryGetValue(x, out var allowed) ? allowed : null)
