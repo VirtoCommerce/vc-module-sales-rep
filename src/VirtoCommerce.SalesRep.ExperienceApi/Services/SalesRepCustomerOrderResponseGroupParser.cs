@@ -38,6 +38,11 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
     // correctly; check that claim against OrderRepository.GetCustomerOrdersByIdsAsync (which flags gate a
     // query), CustomerOrder.ReduceDetails (which values a missing flag blanks) and CustomerOrderService
     // .ProcessModel (which recalculates the derived money, and only when the group is *exactly* Full).
+    //
+    // Note the shape that gives: a field needing a heavier flag returns Full outright instead of accumulating,
+    // so a narrowed group is never exactly Full and the totals calculator never runs on that path. Its money
+    // is therefore the stored columns, while a selection that reaches the graph gets the recomputed values —
+    // the same field, answered from two sources. They agree for any order SaveChanges wrote.
     private static readonly Dictionary<string, CustomerOrderResponseGroup> _responseGroupByField = new(StringComparer.OrdinalIgnoreCase)
     {
         // The order row and the values stored on it — loaded by every response group.

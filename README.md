@@ -238,6 +238,15 @@ group is *exactly* `Full`. Before adding a field to the map, check it against
 `OrderRepository.GetCustomerOrdersByIdsAsync`, `CustomerOrder.ReduceDetails` and
 `CustomerOrderService.ProcessModel`.
 
+⚠️ **A narrowed selection answers the money from the stored columns, a Full one recomputes it.** A field that
+needs a heavier flag resolves to `Full` outright rather than accumulating into the group, so a narrowed group
+is never *exactly* `Full` and the totals calculator never runs on that path. `{ total }` therefore answers
+from `CustomerOrder.Total` as stored, while `{ total items { sku } }` — and `salesRepCustomerOrder` — answer
+with the value recomputed from the line items. The two agree for every order the platform wrote, because
+`CustomerOrderService.SaveChanges` calculates the totals and persists them; they can differ for a row whose
+stored totals no longer match its own children. Worth knowing before comparing a list total against a detail
+total.
+
 `salesRepCustomerOrder` (the read-only detail) stays on `Full` — the storefront selects nearly the whole
 order there, so the mapping would resolve to `Full` anyway.
 
