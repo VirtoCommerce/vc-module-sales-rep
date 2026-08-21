@@ -1,6 +1,9 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using VirtoCommerce.OrdersModule.Core.Model;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
@@ -223,4 +226,78 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().Contain("SKU-0");
     }
 
+    // The response group the selection produces is asserted where production computes it — over the real schema —
+    // because the raw field paths arrive wrapped in the connection ("items.total.formattedAmount"), and reading
+    // that wrapper as the order's own line items would put every list back on the full graph.
+    [Fact]
+    public async Task CustomerOrders_ListSelection_LoadsTheOrderRowOnly()
+    {
+        using var ctx = SalesRepTestContext.Create(IndexedOrderSearchOverride.Recording);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, itemsCount: 2, createdByUserId: "buyer-1");
+        await ctx.IndexOrdersAsync("o-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders { totalCount items { number status statusDisplayValue createdDate " +
+            "organizationName total { formattedAmount } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("ORD-1");
+        RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.WithPrices);
+    }
+
+    [Fact]
+    public async Task CustomerOrders_SelectingLineItems_LoadsTheFullGraph()
+    {
+        using var ctx = SalesRepTestContext.Create(IndexedOrderSearchOverride.Recording);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, itemsCount: 2, createdByUserId: "buyer-1");
+        await ctx.IndexOrdersAsync("o-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders { items { number items { sku } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("SKU-0");
+        RecordedResponseGroup(ctx).Should().Be(CustomerOrderResponseGroup.Full);
+    }
+
+    // A narrowed load without WithPrices comes back with the money zeroed, so the two lists showing the same order
+    // would disagree about its total. (The harness reads orders straight from the repository, so this covers the
+    // repository's own price reset, not the totals recalculation CustomerOrderService layers on top.)
+    [Fact]
+    public async Task CustomerOrders_ReportTheSameTotalAsMyRecentOrders()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, itemsCount: 2, total: 123.45m);
+        await ctx.IndexOrdersAsync("o-1");
+
+        var mine = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepOrders { items { number total { amount } } } }",
+            userId: rep.UserId);
+        var all = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders { items { number total { amount } } } }",
+            userId: rep.UserId);
+
+        mine.Should().NotContain("\"errors\"");
+        all.Should().NotContain("\"errors\"");
+        mine.Should().Contain("\"amount\":123.45");
+        all.Should().Contain("\"amount\":123.45");
+    }
+
+    private static CustomerOrderResponseGroup RecordedResponseGroup(SalesRepTestContext ctx)
+    {
+        var responseGroup = ctx.GetRequiredService<RecordingIndexedCustomerOrderSearchService>().ResponseGroups.Single();
+
+        return EnumUtility.SafeParseFlags(responseGroup, CustomerOrderResponseGroup.Full);
+    }
 }

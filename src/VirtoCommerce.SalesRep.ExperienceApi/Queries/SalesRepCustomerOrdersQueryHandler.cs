@@ -8,6 +8,7 @@ using VirtoCommerce.OrdersModule.Core.Search.Indexed;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.Xapi.Core.Models.Facets;
 using VirtoCommerce.XOrder.Core.Queries;
@@ -24,17 +25,20 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 
     private readonly IIndexedCustomerOrderSearchService _indexedOrderSearchService;
     private readonly ICustomerOrderAggregateRepository _orderAggregateRepository;
+    private readonly ISalesRepCustomerOrderResponseGroupParser _responseGroupParser;
     private readonly ISalesRepMapper _mapper;
 
     public SalesRepCustomerOrdersQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
         IIndexedCustomerOrderSearchService indexedOrderSearchService,
         ICustomerOrderAggregateRepository orderAggregateRepository,
+        ISalesRepCustomerOrderResponseGroupParser responseGroupParser,
         ISalesRepMapper mapper)
         : base(organizationAccessService)
     {
         _indexedOrderSearchService = indexedOrderSearchService;
         _orderAggregateRepository = orderAggregateRepository;
+        _responseGroupParser = responseGroupParser;
         _mapper = mapper;
     }
 
@@ -78,6 +82,7 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         criteria.OrganizationIds = organizationIds.ToArray();
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         criteria.LanguageCode = request.CultureName;
+        criteria.ResponseGroup = _responseGroupParser.GetResponseGroup(request.IncludeFields);
         criteria.Keyword = request.Filter;
         criteria.Facet = SanitizeFacet(request.Facet);
         criteria.Sort = request.Sort.EmptyToNull() ?? DefaultSort;

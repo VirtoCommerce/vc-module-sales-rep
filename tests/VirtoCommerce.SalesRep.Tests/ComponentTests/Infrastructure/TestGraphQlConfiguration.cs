@@ -211,6 +211,7 @@ internal static class TestGraphQlConfiguration
 
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
+        services.AddSingleton<ISalesRepCustomerOrderResponseGroupParser, SalesRepCustomerOrderResponseGroupParser>();
 
         // Field-selection → member response group, injected into the customer list/details + customerSalesReps handlers.
         services.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();

@@ -221,6 +221,26 @@ facet mechanism first strips from it every filter naming that same field. Faceti
 the rep's scope (`organizationid`, `storeid`, `customerid`) would therefore count across the whole index, so
 those are dropped rather than honoured. Widen the list only for fields that carry no part of the scope.
 
+**How much of each order is loaded follows the selection.** `salesRepCustomerOrders` returns X-Order's full
+`CustomerOrderType`, so a caller *may* ask for the whole order graph — but a list that prints a few columns
+should not pay for it. `SalesRepCustomerOrderResponseGroupParser` maps the selected fields to a
+`CustomerOrderResponseGroup`: the storefront's list selection resolves to `WithPrices`, which the Orders
+repository answers with four queries per page instead of up to thirty-one. It reads the paths as the
+connection reports them — `items.…` / `edges.node.…` wrap the order, so the same word `items` means the page
+in one position and the order's line items in the other.
+
+A field the parser does not recognize — including one another module added to `CustomerOrderType` — resolves
+to `Full`, so an unmapped selection over-fetches instead of coming back empty. `items`, `shipments`,
+`inPayments`, `orderTotals` and the order's derived money (`subTotalDiscount`, `shippingSubTotal`,
+`paymentTaxTotal`, …) are deliberately mapped to `Full` as well: those values are not stored, they are
+computed by `DefaultCustomerOrderTotalsCalculator`, and `CustomerOrderService` runs it only when the response
+group is *exactly* `Full`. Before adding a field to the map, check it against
+`OrderRepository.GetCustomerOrdersByIdsAsync`, `CustomerOrder.ReduceDetails` and
+`CustomerOrderService.ProcessModel`.
+
+`salesRepCustomerOrder` (the read-only detail) stays on `Full` — the storefront selects nearly the whole
+order there, so the mapping would resolve to `Full` anyway.
+
 ---
 
 #### Filter rules

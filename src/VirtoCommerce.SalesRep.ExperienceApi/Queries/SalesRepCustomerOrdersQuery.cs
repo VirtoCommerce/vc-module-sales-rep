@@ -1,13 +1,15 @@
 using System.Collections.Generic;
+using System.Linq;
 using GraphQL;
 using GraphQL.Types;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
+using VirtoCommerce.Xapi.Core.Index;
 using VirtoCommerce.XOrder.Core.Queries;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepCustomerOrdersQuery : SearchQuery<SearchOrderResponse>
+public class SalesRepCustomerOrdersQuery : SearchQuery<SearchOrderResponse>, IHasIncludeFields
 {
     public string OrganizationId { get; set; }
 
@@ -20,6 +22,8 @@ public class SalesRepCustomerOrdersQuery : SearchQuery<SearchOrderResponse>
     public string Facet { get; set; }
 
     public string UserId { get; set; }
+
+    public IList<string> IncludeFields { get; set; } = [];
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
@@ -41,5 +45,7 @@ public class SalesRepCustomerOrdersQuery : SearchQuery<SearchOrderResponse>
         Filter = context.GetArgument<string>(nameof(Filter));
         Facet = context.GetArgument<string>(nameof(Facet));
         UserId = context.GetCurrentUserId();
+
+        IncludeFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
     }
 }
