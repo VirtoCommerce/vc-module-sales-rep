@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Core.Model;
@@ -177,6 +178,29 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().NotContain("\"name\":\"storeid\"");
         json.Should().NotContain("org-2");
         json.Should().Contain("\"name\":\"status\"");
+    }
+
+    // Canonicalizing the caller's spelling makes repeated tokens collide: the request builder emits one
+    // aggregation per token keyed on the field name, and a keyed provider (Elasticsearch) throws on the second.
+    [Fact]
+    public async Task CustomerOrders_RepeatedFacetField_IsRequestedOnce()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, createdByUserId: "buyer-1");
+        await ctx.IndexOrdersAsync("o-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders(facet:\"status STATUS status\") { term_facets { name } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        SalesRepTestContext.Node(json, "salesRepCustomerOrders")
+            .GetProperty("term_facets")
+            .EnumerateArray()
+            .Should().ContainSingle();
     }
 
     [Fact]

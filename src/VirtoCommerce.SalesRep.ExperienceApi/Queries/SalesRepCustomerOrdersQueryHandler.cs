@@ -110,11 +110,14 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
             return facet;
         }
 
-        // Answer in the module's spelling: the field name comes back as the facet name.
+        // Answer in the module's spelling: the field name comes back as the facet name. Deduplicated because
+        // the request builder emits one aggregation per token keyed on that name, and a provider that keys them
+        // (Elasticsearch) throws on the second - canonicalizing makes "status STATUS" one such repeat.
         var fields = facet
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(x => _allowedFacets.TryGetValue(x, out var allowed) ? allowed : null)
-            .Where(x => x != null);
+            .Where(x => x != null)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
 
         return string.Join(' ', fields).EmptyToNull();
     }
