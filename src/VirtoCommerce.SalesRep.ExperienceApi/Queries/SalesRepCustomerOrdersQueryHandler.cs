@@ -107,7 +107,7 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
     {
         if (string.IsNullOrEmpty(facet))
         {
-            return facet;
+            return null;
         }
 
         // Answer in the module's spelling: the field name comes back as the facet name. Deduplicated because
