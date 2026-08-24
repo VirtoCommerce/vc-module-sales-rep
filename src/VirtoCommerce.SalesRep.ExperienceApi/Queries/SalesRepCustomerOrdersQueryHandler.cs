@@ -51,7 +51,6 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         result.Results = [];
         result.Facets = [];
 
-        // So an early return answers with empty collections rather than nulls the connection must guard.
         if (string.IsNullOrEmpty(request.UserId))
         {
             return result;
@@ -67,10 +66,8 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 
         var searchResult = await _indexedOrderSearchService.SearchCustomerOrdersAsync(criteria);
 
-        // The index decided which orders to load; the loaded rows decide which the rep may see. An order whose
-        // OrganizationId changed after it was indexed still matches the old organization's term filter, so the
-        // scope is re-applied to what came back. TotalCount stays the index count, which makes it an upper
-        // bound in exactly that case.
+        // The index chose the rows; the loaded rows decide what the rep may see. TotalCount stays the index
+        // count, so it is an upper bound while a document is stale.
         var orders = await _orderVisibilityService.FilterVisibleAsync(request.UserId, searchResult.Results);
 
         result.TotalCount = searchResult.TotalCount;
@@ -84,8 +81,7 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
     {
         var criteria = request.GetSearchCriteria<CustomerOrderIndexedSearchCriteria>();
 
-        // The security boundary. The caller's phrase filter is ANDed with this term filter, so naming another
-        // organization can only intersect to nothing.
+        // The security boundary: the caller's phrase filter is ANDed with this term filter.
         criteria.OrganizationIds = organizationIds.ToArray();
         criteria.StoreIds = string.IsNullOrEmpty(request.StoreId) ? null : [request.StoreId];
         criteria.LanguageCode = request.CultureName;
@@ -97,12 +93,10 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         return criteria;
     }
 
-    // IMPORTANT: do not widen this whitelist without re-reading why it exists.
-    // ApplyMultiSelectFacetSearch ANDs the search filter onto every aggregation minus the child filters whose
-    // field name the aggregated field *starts with*. The rep's scope rides in that filter as a term filter on
-    // "organizationid" (plus "storeid"), so aggregating a field beginning with a scoping field's name strips
-    // the scope and counts across the whole index. A candidate qualifies only if no scoping filter's field
-    // name is a prefix of it.
+    // IMPORTANT: do not widen this whitelist without re-reading why it exists. ApplyMultiSelectFacetSearch
+    // ANDs the search filter onto every aggregation minus the child filters whose field name the aggregated
+    // field *starts with*. The rep's scope rides in that filter as a term filter on "organizationid" (plus
+    // "storeid"), so a field beginning with a scoping field's name strips the scope and counts the whole index.
     protected virtual string SanitizeFacet(string facet)
     {
         if (string.IsNullOrEmpty(facet))
@@ -110,9 +104,8 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
             return null;
         }
 
-        // Answer in the module's spelling: the field name comes back as the facet name. Deduplicated because
-        // the request builder emits one aggregation per token keyed on that name, and a provider that keys them
-        // (Elasticsearch) throws on the second - canonicalizing makes "status STATUS" one such repeat.
+        // Answer in the module's spelling, deduplicated: the request builder emits one aggregation per token
+        // keyed on the field name, and Elasticsearch throws on the second.
         var fields = facet
             .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(x => _allowedFacets.TryGetValue(x, out var allowed) ? allowed : null)

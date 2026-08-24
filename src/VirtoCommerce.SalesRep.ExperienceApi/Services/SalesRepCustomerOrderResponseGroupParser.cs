@@ -28,11 +28,9 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
         "filter_facets",
     };
 
-    // IMPORTANT: a missing field means "load the full graph" — the safe answer. Adding one claims a narrower
+    // IMPORTANT: a missing field means "load the full graph" - the safe answer. Mapping one claims a narrower
     // load still answers it; check that against OrderRepository.GetCustomerOrdersByIdsAsync,
-    // CustomerOrder.ReduceDetails, CustomerOrderService.ProcessModel and the field's own CustomerOrderType
-    // resolver. A field needing a heavier flag returns Full outright rather than accumulating, so a narrowed
-    // group is never exactly Full — its money is the stored columns, never the recomputed ones.
+    // CustomerOrder.ReduceDetails and CustomerOrderService.ProcessModel before adding it.
     private static readonly Dictionary<string, CustomerOrderResponseGroup> _responseGroupByField = new(StringComparer.OrdinalIgnoreCase)
     {
         // Stored on the order row, loaded by every response group.
@@ -100,7 +98,6 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
         [nameof(CustomerOrder.DynamicProperties)] = CustomerOrderResponseGroup.WithDynamicProperties,
 
         // Stored nowhere: DefaultCustomerOrderTotalsCalculator derives these, and only for exactly-Full.
-        // A narrower group answers them with zeros.
         [nameof(CustomerOrder.SubTotalDiscount)] = CustomerOrderResponseGroup.Full,
         [nameof(CustomerOrder.SubTotalDiscountWithTax)] = CustomerOrderResponseGroup.Full,
         [nameof(CustomerOrder.SubTotalTaxTotal)] = CustomerOrderResponseGroup.Full,
@@ -155,8 +152,7 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
     }
 
     // The order field a path names, or null when it names the page. A connection wraps the node both flattened
-    // and Relay-style, so an order's own items arrive as "items.items.sku" — reading that head literally would
-    // put every list back on the full graph.
+    // and Relay-style, so an order's own items arrive as "items.items.sku".
     protected virtual string GetOrderField(string path)
     {
         if (string.IsNullOrEmpty(path))
@@ -179,8 +175,7 @@ public class SalesRepCustomerOrderResponseGroupParser : ISalesRepCustomerOrderRe
 
         var field = Head(path);
 
-        // Apollo injects __typename into every selection set; treating it as an unknown field would send every
-        // real request to Full. Checked after the wrapper comes off — it arrives at both levels.
+        // Apollo injects __typename into every selection set; treating it as unknown would send every request to Full.
         return field.StartsWith(MetaFieldPrefix, StringComparison.Ordinal) ? null : field;
     }
 

@@ -10,8 +10,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 
 public static class ResolveFieldContextAuthorizationExtensions
 {
-    // Claims cannot see that the account behind a still-valid token was locked, deleted or expired, and
-    // membership scoping does not either: OrganizationMembership.IsLocked is the membership, not the account.
+    // Claims cannot see that the account behind a still-valid token was locked, deleted or expired.
     public static async Task EnsureAuthenticatedAsync(this IResolveFieldContext context)
     {
         // Fast path: CheckCurrentUserState reaches the same refusal, but only after a user lookup.

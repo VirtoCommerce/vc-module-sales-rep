@@ -31,8 +31,7 @@ public class SalesRepCustomerOrderQueryHandler : SalesRepQueryHandlerBase, IQuer
 
         var aggregate = await _orderAggregateRepository.GetOrderByIdAsync(request.Id);
 
-        // An order outside the rep's served organizations reads as "not found", the same way salesRepCustomer
-        // answers for an organization the rep does not serve.
+        // An order outside the rep's served organizations reads as "not found".
         return await _orderVisibilityService.IsVisibleAsync(request.UserId, aggregate?.Order)
             ? aggregate
             : null;

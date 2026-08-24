@@ -30,8 +30,7 @@ public class Module : IModule, IHasConfiguration
     public void Initialize(IServiceCollection serviceCollection)
     {
         serviceCollection.AddSingleton<ISalesRepMapper, SalesRepMapper>();
-        // Scoped, not transient: the resolver memoizes the granting roles per instance, and a transient one
-        // reloads them for every consumer in the same request.
+        // Scoped so the resolver's memoized granting roles are shared across a request.
         serviceCollection.AddScoped<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         serviceCollection.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();

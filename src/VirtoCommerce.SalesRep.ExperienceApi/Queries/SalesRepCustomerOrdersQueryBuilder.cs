@@ -20,10 +20,9 @@ public class SalesRepCustomerOrdersQueryBuilder : SalesRepOrderQueryBuilder<Sale
     {
     }
 
-    // IMPORTANT: repeats X-Order's BaseSearchOrderQueryBuilder.GetFieldType on purpose — do not subclass it.
-    // That base authorizes with CanAccessOrderAuthorizationRequirement, which grants on order ownership or
-    // membership of the buying organization; a rep has neither, so inheriting it would return nothing. Keep in
-    // step with the base if X-Order changes the connection shape.
+    // IMPORTANT: repeats X-Order's BaseSearchOrderQueryBuilder.GetFieldType on purpose - do not subclass it.
+    // That base authorizes with CanAccessOrderAuthorizationRequirement, which a rep never satisfies, so
+    // inheriting it would return nothing. Keep in step if X-Order changes the connection shape.
     protected override FieldType GetFieldType()
     {
         var builder = GraphTypeExtensionHelper

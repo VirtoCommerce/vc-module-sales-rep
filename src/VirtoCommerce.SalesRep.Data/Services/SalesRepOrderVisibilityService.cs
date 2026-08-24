@@ -8,10 +8,8 @@ using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Whether a rep may read an order, decided on the loaded order rather than on whatever the search index said
-// about it. An order's OrganizationId is mutable (CustomerOrderEntity.Patch copies it, and the orders REST
-// update persists a whole order), so a document indexed before such a change still matches the old
-// organization's term filter. Both order surfaces answer through here so they cannot drift apart.
+// An order's OrganizationId is mutable, so a document indexed before such a change still matches the old
+// organization's term filter - visibility is decided on the loaded order, not on the index.
 public class SalesRepOrderVisibilityService : ISalesRepOrderVisibilityService
 {
     private readonly ISalesRepOrganizationAccessService _organizationAccessService;
@@ -28,9 +26,7 @@ public class SalesRepOrderVisibilityService : ISalesRepOrderVisibilityService
         return visible.Count > 0;
     }
 
-    // Resolves the served organizations itself, from the same access service the single-order case uses, so an
-    // override of the membership rule reaches both. It asks only about the organizations present on this page,
-    // which is one membership query bounded by the page size rather than by the size of the rep's book.
+    // Resolves the served organizations itself, so an override of the membership rule reaches both surfaces.
     public virtual async Task<IList<CustomerOrder>> FilterVisibleAsync(string userId, IList<CustomerOrder> orders)
     {
         if (string.IsNullOrEmpty(userId) || orders.IsNullOrEmpty())
