@@ -519,10 +519,14 @@ A shared library of sales materials: a back-office manager uploads categorized f
 
   | Removal surface | Blob | File record | Metadata |
   |---|---|---|---|
-  | `DELETE /api/sales-rep/documents?ids=` | deleted | deleted | deleted (converging cleanup: file-store failures are logged and never abort it — the metadata sweep always completes, and the file-experience-api record-delete cascade usually empties it first; a blob can be left behind on a storage failure — tolerated debris, removable with the asset admin tools) |
+  | `DELETE /api/sales-rep/documents?ids=` | deleted | deleted | deleted (converging cleanup: file-store failures are logged and never abort it — the metadata sweep always completes, and the file-experience-api record-delete cascade usually empties it first; see the residuals note below the table) |
   | GraphQL `deleteFile` | deleted | deleted | deleted (event cascade) — denied for claimed documents |
   | `DELETE /api/assetentries` | survives (orphan blob) | deleted | deleted (event cascade) |
   | Assets workspace / manual blob deletion | deleted | survives | survives — the document still lists, its download fails |
+
+  The module delete's converging cleanup has two residual cases, both tolerated debris (as everywhere in the platform):
+  - **Leaked blob** — the file record was deleted but the blob removal failed. Invisible to the application (nothing references it); removable with the asset admin tools.
+  - **Still-claimed file** — the file-record delete itself failed, and the metadata sweep removed the document anyway. The file keeps its owner stamp, so it stays downloadable through `GET /api/files/{id}` by any `sales-rep-documents:read` holder while appearing in no listing; the module delete can no longer reach it (no metadata row) and the generic `deleteFile` refuses it (still claimed). Recourse: delete its `AssetEntry` via the assets admin tools (`DELETE /api/assetentries`) — that removes the record, and any blob it leaves behind is the first case.
 
 * **Deployment — required.** The `sales-rep-documents` upload scope is **not** self-registered by the module; it must be declared in the platform's `FileUpload` configuration (`appsettings.json` / deploy config), exactly as every file-experience-api scope is (the Quote module's `quote-attachments` works the same way — file-experience-api binds the whole scope list from `FileUpload` config, and no module contributes scopes in code). Until the entry is present, step-1 upload fails with `INVALID_SCOPE` — returned as **HTTP 200 with `succeeded: false` in the body, not an HTTP error status** — so nothing can be registered and the library stays silently empty on that environment. `MaxFileSize` must exceed the largest document you expect to host. Example:
 
