@@ -158,6 +158,11 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
     public virtual async Task DeleteAsync(IList<string> ids, bool softDelete = false)
     {
+        if (softDelete)
+        {
+            throw new NotSupportedException("Soft delete is not supported: a document delete is always permanent.");
+        }
+
         if (ids.IsNullOrEmpty())
         {
             return;

@@ -237,6 +237,16 @@ public class SalesRepDocumentCreateTests
         _metadataService.Saved.Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Delete_SoftDelete_IsNotSupported()
+    {
+        var service = CreateService();
+
+        var softDelete = () => service.DeleteAsync(["doc-1"], softDelete: true);
+
+        await softDelete.Should().ThrowAsync<NotSupportedException>();
+    }
+
     private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, new SalesRepMapper(), NullLogger<SalesRepDocumentService>.Instance);
 
     private File AddFile(string scope = ModuleConstants.DocumentsScope, string name = "list.pdf", string contentType = "application/pdf", long size = 1)
