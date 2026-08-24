@@ -12,6 +12,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.Xapi.Data.Services;
 using Xunit;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
@@ -253,7 +254,7 @@ public class SalesRepDocumentCreateTests
         await softDelete.Should().ThrowAsync<NotSupportedException>();
     }
 
-    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, new SalesRepMapper(), NullLogger<SalesRepDocumentService>.Instance);
+    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, new SalesRepMapper(), new InMemoryLockService(), NullLogger<SalesRepDocumentService>.Instance);
 
     private File AddFile(string scope = ModuleConstants.DocumentsScope, string name = "list.pdf", string contentType = "application/pdf", long size = 1)
     {

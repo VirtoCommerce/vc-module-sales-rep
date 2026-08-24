@@ -6,7 +6,6 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.Domain;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Data.GenericCrud;
 using VirtoCommerce.SalesRep.Core;
