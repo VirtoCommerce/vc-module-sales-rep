@@ -210,6 +210,12 @@ names index fields, and `sort` takes index field expressions. They read the orde
 }
 ```
 
+**`after` is an offset, not an opaque cursor.** `SearchQuery.Map` parses it with `int.TryParse` into `Skip`,
+so page by `pageInfo.endCursor` and never by the last `edges { cursor }` — an edge's cursor is that row's own
+index, so following it repeats the row, and a non-numeric cursor falls back to `0` and silently restarts the
+list. The scope re-check described below shortens a page after load while edge cursors keep counting from the
+unfiltered offset; `endCursor` is pure `skip`/`take` arithmetic and stays correct either way.
+
 ⚠️ **Requires indexed order search.** `Search:OrderFullTextSearchEnabled` must be `true` and the
 `CustomerOrder` index built — the Orders module throws when it is off (it defaults to off). The rule-based
 `salesRepOrders` is database-backed and keeps working either way, so a deployment that has not enabled the
