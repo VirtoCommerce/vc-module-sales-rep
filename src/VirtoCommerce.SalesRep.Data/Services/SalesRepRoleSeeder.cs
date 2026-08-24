@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -42,7 +43,7 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
 
     protected virtual async Task<IList<Role>> LoadRolesAsync(RoleManager<Role> roleManager)
     {
-        var roleIds = roleManager.Roles.Select(x => x.Id).ToList();
+        var roleIds = await roleManager.Roles.Select(x => x.Id).ToListAsync();
 
         List<Role> roles = [];
         foreach (var roleId in roleIds)
@@ -73,12 +74,20 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
         role.Id = Guid.NewGuid().ToString("N");
         role.Name = name;
         role.Description = description;
-        role.Permissions = [.. permissions.Select(x => new Permission { Name = x })];
+        role.Permissions = [.. permissions.Select(CreatePermission)];
 
         var result = await roleManager.CreateAsync(role);
         if (!result.Succeeded)
         {
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
+    }
+
+    private static Permission CreatePermission(string name)
+    {
+        var permission = AbstractTypeFactory<Permission>.TryCreateInstance();
+        permission.Name = name;
+
+        return permission;
     }
 }
