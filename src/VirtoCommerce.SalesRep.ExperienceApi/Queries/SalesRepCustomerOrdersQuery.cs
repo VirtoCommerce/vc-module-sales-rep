@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using GraphQL;
 using GraphQL.Types;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Index;
@@ -31,7 +32,7 @@ public class SalesRepCustomerOrdersQuery : SearchQuery<SearchOrderResponse>, IHa
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the orders to (defaults to all stores).");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized statusDisplayValue field and the facet labels (\"en-US\").");
         yield return Argument<StringGraphType>(nameof(Filter), "Search phrase applied to the results — a free-text keyword and/or field terms, e.g. 'status:\"New\",\"Completed\" createddate:[2026-01-01 TO 2026-02-01]'.");
-        yield return Argument<StringGraphType>(nameof(Facet), "Space-separated fields to aggregate over the same results, e.g. 'status'. Counts come back in term_facets.");
+        yield return Argument<StringGraphType>(nameof(Facet), $"Space-separated fields to aggregate over the same results. Supported fields: {string.Join(", ", ModuleConstants.OrderFacets.All)} — any other is ignored rather than rejected. Counts come back in term_facets.");
         yield return Argument<StringGraphType>(nameof(Sort), "The sort expression, e.g. 'createdDate:desc'.");
     }
 
