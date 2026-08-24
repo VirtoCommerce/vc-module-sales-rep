@@ -26,6 +26,7 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
     private readonly IIndexedCustomerOrderSearchService _indexedOrderSearchService;
     private readonly ICustomerOrderAggregateRepository _orderAggregateRepository;
     private readonly ISalesRepCustomerOrderResponseGroupParser _responseGroupParser;
+    private readonly ISalesRepOrderVisibilityService _orderVisibilityService;
     private readonly ISalesRepMapper _mapper;
 
     public SalesRepCustomerOrdersQueryHandler(
@@ -33,12 +34,14 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
         IIndexedCustomerOrderSearchService indexedOrderSearchService,
         ICustomerOrderAggregateRepository orderAggregateRepository,
         ISalesRepCustomerOrderResponseGroupParser responseGroupParser,
+        ISalesRepOrderVisibilityService orderVisibilityService,
         ISalesRepMapper mapper)
         : base(organizationAccessService)
     {
         _indexedOrderSearchService = indexedOrderSearchService;
         _orderAggregateRepository = orderAggregateRepository;
         _responseGroupParser = responseGroupParser;
+        _orderVisibilityService = orderVisibilityService;
         _mapper = mapper;
     }
 
@@ -64,8 +67,14 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 
         var searchResult = await _indexedOrderSearchService.SearchCustomerOrdersAsync(criteria);
 
+        // The index decided which orders to load; the loaded rows decide which the rep may see. An order whose
+        // OrganizationId changed after it was indexed still matches the old organization's term filter, so the
+        // scope is re-applied to what came back. TotalCount stays the index count, which makes it an upper
+        // bound in exactly that case.
+        var orders = await _orderVisibilityService.FilterVisibleAsync(request.UserId, searchResult.Results);
+
         result.TotalCount = searchResult.TotalCount;
-        result.Results = await _orderAggregateRepository.GetAggregatesFromOrdersAsync(searchResult.Results, request.CultureName);
+        result.Results = await _orderAggregateRepository.GetAggregatesFromOrdersAsync(orders, request.CultureName);
         result.Facets = _mapper.ToFacets(searchResult.Aggregations, request.CultureName);
 
         return result;

@@ -229,6 +229,17 @@ belongs to the buying organization", plus an administrator bypass — a rep is n
 order, so it would return nothing. Its handler reads no permission claim either, despite the name, so there is
 no X-Order permission to require alongside `sales-rep:access`.
 
+**The index selects the orders; the loaded rows decide which of them the rep may see.** An order's
+`OrganizationId` is mutable — `CustomerOrderEntity.Patch` copies it and the orders REST update persists a whole
+order — so a document indexed before such a change still matches the old organization's term filter. Both order
+surfaces therefore re-apply the scope to the loaded order through `ISalesRepOrderVisibilityService`, which
+resolves the served organizations from `ISalesRepOrganizationAccessService` for both the list and the by-id
+query — one overridable rule, asked only about the organizations present on the page. The
+accepted trade is that `totalCount` stays the index count, so it is an **upper bound** until the reindex and a
+page can come back a row short. User-chosen filters (status, dates, keyword) are *not* re-applied — a stale
+document there shows an order the rep is entitled to see, in a list it no longer belongs in, with its current
+values; the scope is the only criterion whose staleness would show data that is not theirs.
+
 ⚠️ **`facet` is whitelisted to `status` and `organizationname`.** `ApplyMultiSelectFacetSearch` ANDs the whole
 search filter onto every aggregation, **minus the child filters whose field name the aggregated field name
 starts with** — that subtraction is what lets a facet still count the buckets its own selection excludes. The

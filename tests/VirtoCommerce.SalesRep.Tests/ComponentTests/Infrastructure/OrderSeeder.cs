@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using VirtoCommerce.OrdersModule.Data.Model;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -83,6 +84,17 @@ internal static class OrderSeeder
         }
 
         db.Add(order);
+        db.SaveChanges();
+    }
+
+    // Reproduces what the orders REST update can do to an already-indexed order: the row moves organization,
+    // the document does not.
+    public static void MoveToOrganization(SalesRepTestContext ctx, string id, string organizationId)
+    {
+        using var db = ctx.NewOrderDbContext();
+        var order = db.Set<CustomerOrderEntity>().First(x => x.Id == id);
+
+        order.OrganizationId = organizationId;
         db.SaveChanges();
     }
 }

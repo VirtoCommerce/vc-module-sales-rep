@@ -99,6 +99,9 @@ internal static class TestGraphQlConfiguration
         // actually use, read as a DISTINCT over the same order repository.
         services.AddTransient<ISalesRepOrderStatusService, SalesRepOrderStatusService>();
 
+        // Post-load order scoping, shared by both order surfaces.
+        services.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
+
         // Sales statistics service under test (VCST-5309): the REAL CustomerOrderStatisticsService aggregating
         // over the same order repository. Its currency data source is a fixed double (USD primary; EUR at 1.25);
         // the store lookup is the shared TestServicesConfiguration.TestStoreService (every store's default = EUR),

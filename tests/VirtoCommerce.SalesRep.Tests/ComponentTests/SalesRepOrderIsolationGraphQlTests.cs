@@ -141,6 +141,55 @@ public class SalesRepOrderIsolationGraphQlTests
         json.Should().NotContain("ORD-OTHER");
     }
 
+    // The index decides which orders to load, the loaded rows decide which the rep may see. An order that left
+    // the rep's book after it was indexed still matches the old organization's term filter, so without the
+    // post-load check the stale document would serve it - with its current, freshly loaded contents.
+    [Fact]
+    public async Task OrderMovedOutOfTheRepsBookAfterIndexing_IsNotServedFromTheStaleDocument()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-MOVED", createdDate: _june, createdByUserId: "buyer-1");
+        await ctx.IndexOrdersAsync("o-1");
+
+        (await ctx.ExecuteGraphQlAsync(AllCustomerOrders, rep.UserId)).Should().Contain("ORD-MOVED");
+
+        OrderSeeder.MoveToOrganization(ctx, "o-1", "org-2");
+
+        var list = await ctx.ExecuteGraphQlAsync(AllCustomerOrders, rep.UserId);
+        list.Should().NotContain("\"errors\"");
+        list.Should().NotContain("ORD-MOVED");
+        // The accepted trade: TotalCount is the index count, so it stays an upper bound until the reindex.
+        list.Should().Contain("\"totalCount\":1");
+
+        (await ctx.ExecuteGraphQlAsync(OrderById("o-1"), rep.UserId)).Should().NotContain("ORD-MOVED");
+    }
+
+    // Both order surfaces resolve the membership rule through the same access-service primitive, so a project
+    // that overrides it changes what the list returns and what the by-id query answers together. Before they
+    // shared one rule, the list scoped from a set the caller had resolved separately.
+    [Fact]
+    public async Task OverridingTheMembershipRule_ChangesBothOrderSurfaces()
+    {
+        using var ctx = SalesRepTestContext.Create(SalesRepAccessOverride.HidingOneOrganization);
+        await ctx.SeedOrganizationsAsync("org-1", OrganizationAccessOverride.HiddenOrganizationId);
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", OrganizationAccessOverride.HiddenOrganizationId);
+
+        OrderSeeder.Seed(ctx, id: "o-kept", org: "org-1", number: "ORD-KEPT", createdDate: _june, createdByUserId: "buyer-1");
+        OrderSeeder.Seed(ctx, id: "o-hidden", org: OrganizationAccessOverride.HiddenOrganizationId, number: "ORD-HIDDEN", createdDate: _june, createdByUserId: "buyer-2");
+        await ctx.IndexOrdersAsync("o-kept", "o-hidden");
+
+        var list = await ctx.ExecuteGraphQlAsync(AllCustomerOrders, rep.UserId);
+        list.Should().NotContain("\"errors\"");
+        list.Should().Contain("ORD-KEPT");
+        list.Should().NotContain("ORD-HIDDEN");
+
+        (await ctx.ExecuteGraphQlAsync(OrderById("o-kept"), rep.UserId)).Should().Contain("ORD-KEPT");
+        (await ctx.ExecuteGraphQlAsync(OrderById("o-hidden"), rep.UserId)).Should().NotContain("ORD-HIDDEN");
+    }
+
     private static async Task AssertUnreadableAsync(
         SalesRepTestContext ctx,
         string userId,
