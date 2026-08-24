@@ -220,8 +220,13 @@ stays valid for its whole lifetime (30 minutes by default) after the account beh
 its password expires, and the membership scoping does not cover that — `OrganizationMembership.IsLocked` is
 the membership, not the account. So the three builder roots (`SalesRepQueryBuilder`,
 `SalesRepSearchQueryBuilder`, `SalesRepCommandBuilder`) call `EnsureAuthenticatedAsync`, which adds
-`IUserManagerCore.CheckCurrentUserState` to the claims check. `IUserManagerCore` is resolved per request from
-`context.RequestServices`, the way X-API resolves the mediator, so no builder carries it in its constructor.
+`IUserManagerCore.CheckCurrentUserState` to the claims check.
+
+A schema builder is constructed once, at schema build time, so **anything a builder needs per request is
+resolved from `context.RequestServices`** — via `ResolveFieldContextServiceExtensions.GetRequiredService<T>()`,
+the way X-API resolves the mediator — rather than captured in a constructor, where it would come from the root
+provider and be held for the application's lifetime. That covers `IUserManagerCore` and `ICurrencyService`; a
+builder constructor takes only what the X-API base requires.
 
 Note what this endpoint deliberately does **not** do: it never applies X-Order's
 `CanAccessOrderAuthorizationRequirement`. That requirement grants on "you placed this order" or "your contact

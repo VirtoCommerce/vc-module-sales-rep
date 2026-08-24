@@ -20,15 +20,6 @@ public static class ResolveFieldContextAuthorizationExtensions
             throw AuthorizationError.AnonymousAccessDenied();
         }
 
-        if (context.RequestServices == null)
-        {
-            throw new InvalidOperationException(
-                "Cannot verify the caller's account state: IResolveFieldContext.RequestServices is null. " +
-                "The GraphQL HTTP middleware populates it - in tests, set ExecutionOptions.RequestServices explicitly.");
-        }
-
-        var userManagerCore = context.RequestServices.GetRequiredService<IUserManagerCore>();
-
-        await userManagerCore.CheckCurrentUserState(context, allowAnonymous: false);
+        await context.GetRequiredService<IUserManagerCore>().CheckCurrentUserState(context, allowAnonymous: false);
     }
 }

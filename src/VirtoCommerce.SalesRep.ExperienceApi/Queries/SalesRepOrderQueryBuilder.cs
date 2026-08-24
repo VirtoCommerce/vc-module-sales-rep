@@ -3,6 +3,7 @@ using System.Threading.Tasks;
 using GraphQL;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.CoreModule.Core.Currency;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -14,13 +15,10 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 public abstract class SalesRepOrderQueryBuilder<TQuery, TResult> : SalesRepQueryBuilder<TQuery, TResult, CustomerOrderType>
     where TQuery : IQuery<TResult>, IExtendableQuery, IHasArguments
 {
-    protected SalesRepOrderQueryBuilder(IAuthorizationService authorizationService, ICurrencyService currencyService)
+    protected SalesRepOrderQueryBuilder(IAuthorizationService authorizationService)
         : base(authorizationService)
     {
-        CurrencyService = currencyService;
     }
-
-    protected ICurrencyService CurrencyService { get; }
 
     protected abstract string GetCultureName(TQuery request);
 
@@ -33,7 +31,7 @@ public abstract class SalesRepOrderQueryBuilder<TQuery, TResult> : SalesRepQuery
         // CustomerOrderType's localized fields take no cultureName argument; they read the user context.
         context.CopyArgumentsToUserContext();
 
-        var currencies = await CurrencyService.GetAllCurrenciesAsync();
+        var currencies = await context.GetRequiredService<ICurrencyService>().GetAllCurrenciesAsync();
         context.SetCurrencies(currencies, GetCultureName(request));
     }
 

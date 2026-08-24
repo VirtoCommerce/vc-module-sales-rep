@@ -3,7 +3,6 @@ using GraphQL;
 using GraphQL.Types;
 using GraphQL.Types.Relay;
 using Microsoft.AspNetCore.Authorization;
-using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.Xapi.Core.Helpers;
 using VirtoCommerce.XOrder.Core;
 using VirtoCommerce.XOrder.Core.Queries;
@@ -16,8 +15,8 @@ public class SalesRepCustomerOrdersQueryBuilder : SalesRepOrderQueryBuilder<Sale
 {
     protected override string Name => "salesRepCustomerOrders";
 
-    public SalesRepCustomerOrdersQueryBuilder(IAuthorizationService authorizationService, ICurrencyService currencyService)
-        : base(authorizationService, currencyService)
+    public SalesRepCustomerOrdersQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
     {
     }
 

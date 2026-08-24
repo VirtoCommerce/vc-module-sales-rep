@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Authorization;
-using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.XOrder.Core;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
@@ -9,8 +8,8 @@ public class SalesRepCustomerOrderQueryBuilder : SalesRepOrderQueryBuilder<Sales
 {
     protected override string Name => "salesRepCustomerOrder";
 
-    public SalesRepCustomerOrderQueryBuilder(IAuthorizationService authorizationService, ICurrencyService currencyService)
-        : base(authorizationService, currencyService)
+    public SalesRepCustomerOrderQueryBuilder(IAuthorizationService authorizationService)
+        : base(authorizationService)
     {
     }
 
