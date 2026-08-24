@@ -222,7 +222,7 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepRepository, SalesRepRepository>();
         services.AddSingleton<Func<ISalesRepRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
-        services.AddTransient<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
+        services.AddSingleton<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
         // The platform's non-Redis default: pass-through locking (the pin lock is exercised, not simulated).
         services.AddSingleton<IDistributedLockService, NoLockService>();
         services.AddSingleton<ISalesRepMapper, SalesRepMapper>();

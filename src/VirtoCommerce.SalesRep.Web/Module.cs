@@ -71,7 +71,7 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddSingleton<Func<ISalesRepRepository>>(provider => () => provider.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
         serviceCollection.AddSingleton<ISalesRepMapper, SalesRepMapper>();
-        serviceCollection.AddTransient<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
+        serviceCollection.AddSingleton<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
         serviceCollection.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         serviceCollection.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
         serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
