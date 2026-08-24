@@ -6,7 +6,6 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.DistributedLock;
 using VirtoCommerce.Platform.Core.Domain;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Data.GenericCrud;
@@ -16,6 +15,7 @@ using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Models;
 using VirtoCommerce.SalesRep.Data.Repositories;
+using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
@@ -32,9 +32,6 @@ public class SalesRepDocumentMetadataService(
     ISalesRepDocumentMetadataService
 {
     private const string PinLockKey = ModuleConstants.DocumentsScope + ":pin";
-
-    private static readonly TimeSpan _pinTryLockTimeout = TimeSpan.FromSeconds(5);
-    private static readonly TimeSpan _pinRetryInterval = TimeSpan.FromMilliseconds(100);
 
     protected override Task<IList<DocumentMetadataEntity>> LoadEntities(IRepository repository, IList<string> ids, string responseGroup)
     {
@@ -63,15 +60,13 @@ public class SalesRepDocumentMetadataService(
     }
 
     // The lock serializes the read-modify-write; filtered unique indexes are not portable across the three providers.
+    // The x-api IDistributedLockService (unlike the platform one, whose non-Redis binding is a pass-through) falls
+    // back to a real per-key in-process lock without Redis, so single-instance deployments stay guarded too.
     public virtual Task<bool> SetPinnedAsync(string id, bool isPinned)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return distributedLockService.ExecuteAsync(
-            PinLockKey,
-            () => SetPinnedInternalAsync(id, isPinned),
-            tryLockTimeout: _pinTryLockTimeout,
-            retryInterval: _pinRetryInterval);
+        return distributedLockService.ExecuteAsync(PinLockKey, () => SetPinnedInternalAsync(id, isPinned));
     }
 
     protected virtual async Task<bool> SetPinnedInternalAsync(string id, bool isPinned)

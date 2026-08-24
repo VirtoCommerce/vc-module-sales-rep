@@ -33,7 +33,6 @@ using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Bus;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.DistributedLock;
 using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.GenericCrud;
@@ -41,7 +40,6 @@ using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Data.Common;
-using VirtoCommerce.Platform.DistributedLock.NoLock;
 using VirtoCommerce.Platform.Security;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.Platform.Security.Services;
@@ -58,6 +56,8 @@ using VirtoCommerce.SearchModule.Data.SearchPhraseParsing;
 using VirtoCommerce.SearchModule.Data.Services;
 using VirtoCommerce.StoreModule.Core.Model;
 using VirtoCommerce.StoreModule.Core.Services;
+using VirtoCommerce.Xapi.Core.Infrastructure;
+using VirtoCommerce.Xapi.Data.Services;
 using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
@@ -223,8 +223,9 @@ internal static class TestServicesConfiguration
         services.AddSingleton<Func<ISalesRepRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
 
         services.AddSingleton<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
-        // The platform's non-Redis default: pass-through locking (the pin lock is exercised, not simulated).
-        services.AddSingleton<IDistributedLockService, NoLockService>();
+        // The x-api non-Redis default: a REAL per-key in-process lock (bounded 10s wait), exactly what
+        // AddDistributedLockService binds without Redis — the pin lock is exercised, not simulated.
+        services.AddSingleton<IDistributedLockService, InMemoryLockService>();
         services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
         services.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
         services.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
