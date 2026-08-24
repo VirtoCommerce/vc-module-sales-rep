@@ -110,7 +110,10 @@ public class SalesRepDocumentService : ISalesRepDocumentService
 
         await _metadataService.SaveChangesAsync([metadata]);
 
-        // The audit stamps land only on the stored row; re-read so the response carries them.
+        // IMPORTANT (keep): not redundant — SaveChangesAsync never syncs a non-transient input model. The platform's
+        // CrudService.ToModel(entity, model) ignores `model` (rebuilds the changed entry from the entity), and
+        // PrimaryKeyResolvingMap syncs id/audit back only for transient models. Re-read so the response carries
+        // the stored audit stamps (create needs no re-read for the same reason).
         var saved = await _metadataService.GetNoCloneAsync(id);
 
         return _mapper.ToDocument(file, saved);
