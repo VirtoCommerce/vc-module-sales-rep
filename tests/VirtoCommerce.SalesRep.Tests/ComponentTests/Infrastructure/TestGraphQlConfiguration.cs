@@ -559,7 +559,7 @@ internal static class TestGraphQlConfiguration
 
             foreach (var category in categories)
             {
-                var path = new List<OutlineItem>();
+                List<OutlineItem> path = [];
                 var current = category.Id;
 
                 while (!string.IsNullOrEmpty(current))
