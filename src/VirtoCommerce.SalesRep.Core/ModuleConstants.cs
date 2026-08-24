@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using VirtoCommerce.Platform.Core.Settings;
 
@@ -12,10 +13,7 @@ public static class ModuleConstants
         {
             public const string Access = "sales-rep:access";
 
-            public static string[] AllPermissions { get; } =
-            [
-                Access,
-            ];
+            public static ReadOnlyCollection<string> AllPermissions { get; } = new([Access]);
         }
 
         public static class Roles
@@ -30,7 +28,7 @@ public static class ModuleConstants
         public const string Status = "status";
         public const string CustomerName = "organizationname";
 
-        public static string[] All { get; } = [Status, CustomerName];
+        public static ReadOnlyCollection<string> All { get; } = new([Status, CustomerName]);
     }
 
     public static class Sharing
