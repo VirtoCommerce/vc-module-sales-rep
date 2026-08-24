@@ -408,7 +408,7 @@ The shared documents library (gated by `sales-rep-documents:read`). `after` is t
 }
 ```
 
-The keyword matches the **display name** (the raw file name is internal), and `url` is always the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL.
+The keyword matches the **display name** (the raw file name is internal), and `url` is the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL. The listing is **metadata-authoritative**: `totalCount` always matches the returned rows. A document whose file record is missing (out-of-band corruption — raw SQL, a mid-cascade failure) still lists with its metadata fields; the file-derived fields (`name`, `contentType`, `size`) degrade to null, while `url` stays resolvable (it is deterministic) — attempting the download yields the server's 404, uniformly with every other corruption class, and the document stays visible and deletable.
 
 ### Mutation
 

@@ -216,6 +216,36 @@ public class SalesRepDocumentsComponentTests
         result.TotalCount.Should().Be(0);
     }
 
+    // The metadata list is authoritative for search: when the file record vanished WITHOUT the event cascade
+    // (raw SQL, a mid-cascade failure), the document still lists — file-derived fields degrade to null instead
+    // of the row silently dropping while TotalCount keeps counting it. The orphan stays visible and deletable.
+    [Fact]
+    public async Task Search_FileRecordGoneWithoutTheCascade_KeepsTheRowWithDegradedFileFields()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var intact = await ctx.UploadDocumentAsync("Intact.pdf", "Catalogs");
+        var orphaned = await ctx.UploadDocumentAsync("Orphaned.pdf", "Catalogs");
+
+        await ctx.DeleteAssetEntryRowAsync(orphaned.FileId);
+
+        var result = await ctx.GetRequiredService<ISalesRepDocumentSearchService>().SearchAsync(new SalesRepDocumentSearchCriteria());
+
+        result.TotalCount.Should().Be(2);
+        result.Results.Should().HaveCount(2);
+
+        var degraded = result.Results.Single(x => x.Id == orphaned.Id);
+        degraded.DisplayName.Should().Be("Orphaned.pdf");
+        degraded.Name.Should().BeNull();
+        // The download URL stays resolvable — attempting it yields the server's 404, uniformly with blob loss.
+        degraded.Url.Should().Be($"/api/files/{orphaned.FileId}");
+
+        result.Results.Single(x => x.Id == intact.Id).Url.Should().Be($"/api/files/{intact.FileId}");
+
+        // The visible orphan converges away through the ordinary module delete.
+        await ctx.GetRequiredService<ISalesRepDocumentService>().DeleteAsync([orphaned.Id]);
+        (await ctx.GetRequiredService<ISalesRepDocumentSearchService>().SearchAsync(new SalesRepDocumentSearchCriteria())).TotalCount.Should().Be(1);
+    }
+
     [Fact]
     public async Task Delete_ToleratesAnAlreadyMissingBlob()
     {

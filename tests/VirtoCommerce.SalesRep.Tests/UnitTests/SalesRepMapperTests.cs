@@ -70,7 +70,7 @@ public class SalesRepMapperTests
     }
 
     [Fact]
-    public void ToDocuments_PairsByFileId_SkipsMissingAndForeignScopeFiles()
+    public void ToDocuments_MapsEveryMetadataRow_EnrichesOnlyFromLibraryScopeFiles()
     {
         var libraryFile = CreateFile("file-1");
         var foreignFile = CreateFile("file-2", scope: "product-images");
@@ -80,9 +80,26 @@ public class SalesRepMapperTests
 
         var documents = _mapper.ToDocuments([libraryFile, foreignFile], [paired, foreign, orphan]);
 
-        // Pairing is exact on the file id (machine-generated, stored verbatim — same rule as the DB unique
-        // index and the delete cascade); a foreign-scope or missing file drops its row.
-        documents.Should().ContainSingle().Which.FileId.Should().Be("file-1");
+        // The metadata list is authoritative — no row is dropped, so search counts always match page contents.
+        // Enrichment pairs exactly on the file id (machine-generated, stored verbatim — same rule as the DB
+        // unique index and the delete cascade); a foreign-scope or missing file only degrades the file-derived
+        // fields, while the metadata-owned fields (display name included) stay populated and the deterministic
+        // download URL stays resolvable (the download then fails with the server's 404).
+        documents.Select(x => x.FileId).Should().Equal("file-1", "file-2", "file-3");
+
+        var enriched = documents[0];
+        enriched.Name.Should().Be("list.pdf");
+        enriched.Url.Should().Be("/api/files/file-1");
+
+        foreach (var degraded in new[] { documents[1], documents[2] })
+        {
+            degraded.Name.Should().BeNull();
+            degraded.ContentType.Should().BeNull();
+            degraded.Size.Should().Be(0);
+            degraded.Url.Should().Be($"/api/files/{degraded.FileId}");
+            degraded.DisplayName.Should().Be("Pretty name");
+            degraded.Category.Should().Be("Catalogs");
+        }
     }
 
     [Fact]

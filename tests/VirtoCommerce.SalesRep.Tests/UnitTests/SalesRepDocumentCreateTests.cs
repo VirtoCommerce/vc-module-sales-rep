@@ -153,14 +153,20 @@ public class SalesRepDocumentCreateTests
     }
 
     [Fact]
-    public async Task Get_MissingMetadataOrFile_ReturnsNull()
+    public async Task Get_MissingMetadata_ReturnsNull_MissingFile_DegradesTheDocument()
     {
         var service = CreateService();
         (await service.GetByIdAsync("missing")).Should().BeNull();
 
-        // Metadata whose file has vanished from the store must not surface as a document.
-        _metadataService.Saved.Add(new SalesRepDocumentMetadata { Id = "orphan", FileId = "gone", Category = "Catalogs" });
-        (await service.GetByIdAsync("orphan")).Should().BeNull();
+        // Metadata is authoritative: a document whose file has vanished from the store still surfaces —
+        // file-derived fields degrade to null instead of the document silently disappearing.
+        _metadataService.Saved.Add(new SalesRepDocumentMetadata { Id = "orphan", FileId = "gone", Name = "Orphan.pdf", Category = "Catalogs" });
+
+        var degraded = await service.GetByIdAsync("orphan");
+
+        degraded.DisplayName.Should().Be("Orphan.pdf");
+        degraded.Name.Should().BeNull();
+        degraded.Url.Should().Be("/api/files/gone");
     }
 
     [Fact]

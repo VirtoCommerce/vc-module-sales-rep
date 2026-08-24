@@ -547,6 +547,20 @@ internal sealed class SalesRepTestContext : IDisposable
     }
 
     /// <summary>
+    /// Simulate out-of-band corruption: the AssetEntry row vanishes WITHOUT AssetEntryChangedEvent (raw SQL /
+    /// a mid-cascade failure), so the metadata cascade never runs. Raw DELETE + expiry of the AssetEntry
+    /// CRUD/search cache regions the raw write bypasses.
+    /// </summary>
+    public async Task DeleteAssetEntryRowAsync(string fileId)
+    {
+        using var db = NewAssetsDbContext();
+        await db.Database.ExecuteSqlAsync($"""DELETE FROM "AssetEntry" WHERE "Id" = {fileId}""");
+
+        GenericSearchCachingRegion<AssetEntry>.ExpireRegion();
+        GenericCachingRegion<AssetEntry>.ExpireRegion();
+    }
+
+    /// <summary>
     /// The real two-step document intake: upload the bytes to the sales-rep-documents scope through the REAL
     /// file-experience-api upload service, then register the uploaded file in the library.
     /// </summary>
