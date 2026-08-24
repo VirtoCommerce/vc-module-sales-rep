@@ -30,8 +30,6 @@ public class SalesRepDocumentMetadataService(
         eventPublisher),
     ISalesRepDocumentMetadataService
 {
-    private const string PinLockKey = ModuleConstants.DocumentsScope + ":pin";
-
     protected override Task<IList<DocumentMetadataEntity>> LoadEntities(IRepository repository, IList<string> ids, string responseGroup)
     {
         return ((ISalesRepRepository)repository).GetDocumentMetadataByIdsAsync(ids, responseGroup);
@@ -65,7 +63,7 @@ public class SalesRepDocumentMetadataService(
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return distributedLockService.ExecuteAsync(PinLockKey, () => SetPinnedInternalAsync(id, isPinned));
+        return distributedLockService.ExecuteAsync(ModuleConstants.Documents.PinLockKey, () => SetPinnedInternalAsync(id, isPinned));
     }
 
     protected virtual async Task<bool> SetPinnedInternalAsync(string id, bool isPinned)
