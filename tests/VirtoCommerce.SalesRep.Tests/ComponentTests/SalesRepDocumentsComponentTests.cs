@@ -503,6 +503,27 @@ public class SalesRepDocumentsComponentTests
         pinnedRows.Results.Single().Id.Should().Be(pinned.Id);
     }
 
+    // SetPinnedAsync writes through a set-based UPDATE that bypasses the CrudService pipeline, so it must
+    // expire the CRUD cache region itself: a by-id read cached BEFORE the pin flip must not serve the old
+    // state after it. (The search region gets the same treatment — Pin_PinningOneDocumentUnpinsEveryOther
+    // exercises that side by re-running cached criteria across pin and unpin.)
+    [Fact]
+    public async Task Pin_ExpiresCachedByIdReads()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var document = await ctx.UploadDocumentAsync("Cached.pdf", "Catalogs");
+
+        var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
+
+        (await metadataService.GetAsync([document.Id])).Single().IsPinned.Should().BeFalse();
+
+        (await metadataService.SetPinnedAsync(document.Id, isPinned: true)).Should().BeTrue();
+        (await metadataService.GetAsync([document.Id])).Single().IsPinned.Should().BeTrue("the pin must expire the cached by-id read");
+
+        (await metadataService.SetPinnedAsync(document.Id, isPinned: false)).Should().BeTrue();
+        (await metadataService.GetAsync([document.Id])).Single().IsPinned.Should().BeFalse("the unpin must expire it too");
+    }
+
     // The PUT response must carry the STORED audit stamps, which the request body does not have: the created
     // date is written raw into the row and can only reach the response through the post-save re-read. Noon +
     // .Date comparison keeps the assertion immune to the harness's local→UTC read shift (CI runs on UTC,
