@@ -4,15 +4,16 @@
     <SonarQubeTestProject>false</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0" />
     <PackageReference Include="VirtoCommerce.CoreModule.Core" Version="3.1007.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
-    <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0" />
-    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
-    <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1029.0" />
     <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1048.0" />
+    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1006.0" />
+    <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1029.0" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\vc-module-google-ecommerce-analytics\src\VirtoCommerce.GoogleEcommerceAnalyticsModule.Core\VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.csproj" />
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
   </ItemGroup>
 </Project>

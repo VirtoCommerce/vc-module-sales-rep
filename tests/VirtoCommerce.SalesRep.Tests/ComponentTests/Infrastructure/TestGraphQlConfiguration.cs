@@ -29,6 +29,7 @@ using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.GenericCrud;
+using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.PushMessages.Core.Models;
 using VirtoCommerce.PushMessages.Core.Services;
@@ -36,6 +37,7 @@ using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -138,6 +140,12 @@ internal static class TestGraphQlConfiguration
         services.AddTransient<ICategoryService, RepositoryBackedCategoryService>();
         services.AddTransient<ICategorySearchService, CategorySearchService>();
 
+        // The REAL product-by-code search (the activity feed's productView resolution reads codes GA tracked and
+        // resolves them through IProductSearchService). Product hydration goes through a thin repo-backed
+        // IItemService double — the real ItemService needs ~10 cross-module deps and is not the code under test.
+        services.AddTransient<IItemService, RepositoryBackedItemService>();
+        services.AddTransient<IProductSearchService, ProductSearchService>();
+
         return services;
     }
 
@@ -184,6 +192,18 @@ internal static class TestGraphQlConfiguration
         // selected badge narrows the ranking to that subtree's categories. Requires AddCatalogSlice.
         services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
+
+        // Activity feed (VCST-5337): the real aggregation service over the real sources. The analytics module is
+        // OPTIONAL — TestOptionalDependency reports it present only when a test override registers IAnalyticsService
+        // (FakeAnalyticsService), so the default harness models the module being absent.
+        services.AddSingleton(typeof(IOptionalDependency<>), typeof(TestOptionalDependency<>));
+        services.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
+        services.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
+        services.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
+        services.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
+        services.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
+        services.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
+        services.AddTransient<ISalesRepProductResolver, SalesRepProductResolver>();
 
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
@@ -473,6 +493,42 @@ internal static class TestGraphQlConfiguration
         public Task<IDictionary<string, string>> GetIdsByCodes(string catalogId, IList<string> codes) => throw new NotSupportedException();
         public Task<IList<Category>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => throw new NotSupportedException();
         public Task SaveChangesAsync(IList<Category> models) => throw new NotSupportedException();
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
+    /// <summary>
+    /// Thin repo-backed <see cref="IItemService"/> for the harness: hydrates products straight from the catalog
+    /// repository (the real ItemService needs ~10 cross-module deps and is not the code under test). Only the read
+    /// path is exercised — by the real <see cref="ProductSearchService"/> behind the activity feed's product-by-code
+    /// resolution; write / code / outer-id methods are not used.
+    /// </summary>
+    private sealed class RepositoryBackedItemService : IItemService
+    {
+        private readonly Func<ICatalogRepository> _repositoryFactory;
+
+        public RepositoryBackedItemService(Func<ICatalogRepository> repositoryFactory)
+        {
+            _repositoryFactory = repositoryFactory;
+        }
+
+        public async Task<IList<CatalogProduct>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            if (ids == null || ids.Count == 0)
+            {
+                return [];
+            }
+
+            using var repository = _repositoryFactory();
+            var entities = await repository.GetItemByIdsAsync(ids, responseGroup);
+            return entities.Select(x => x.ToModel(AbstractTypeFactory<CatalogProduct>.TryCreateInstance())).ToList();
+        }
+
+        public Task<IList<CatalogProduct>> GetByIdsAsync(IList<string> ids, string responseGroup, string catalogId) => GetAsync(ids, responseGroup);
+        public async Task<CatalogProduct> GetByIdAsync(string itemId, string responseGroup, string catalogId) => (await GetAsync([itemId], responseGroup)).FirstOrDefault();
+        public Task<IList<CatalogProduct>> GetByCodes(string catalogId, IList<string> codes, string responseGroup) => throw new NotSupportedException();
+        public Task<IDictionary<string, string>> GetIdsByCodes(string catalogId, IList<string> codes) => throw new NotSupportedException();
+        public Task<IList<CatalogProduct>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => throw new NotSupportedException();
+        public Task SaveChangesAsync(IList<CatalogProduct> models) => throw new NotSupportedException();
         public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
     }
 

@@ -33,6 +33,46 @@ public static class ModuleConstants
         public const string CustomerScope = "Customer";
     }
 
+    public static class Activities
+    {
+        public static class Categories
+        {
+            public const string Orders = "orders";
+            public const string Customers = "customers";
+            public const string Searches = "searches";
+            public const string ProductViews = "productViews";
+            public const string Logins = "logins";
+        }
+
+        public static class Types
+        {
+            public const string OrderPlaced = "orderPlaced";
+            public const string CustomerAssigned = "customerAssigned";
+            public const string Search = "search";
+            public const string ProductView = "productView";
+            public const string Login = "login";
+        }
+
+        public static class Precision
+        {
+            public const string Exact = "exact";
+            public const string Hour = "hour";
+        }
+    }
+
+    public static class Insights
+    {
+        public const int DefaultTake = 5;
+        public const int MinTake = 1;
+        public const int MaxTake = 20;
+
+        public static class Sort
+        {
+            public const string Count = "count";
+            public const string Date = "date";
+        }
+    }
+
     public static class Communication
     {
         public const int MaxTitleLength = 128;

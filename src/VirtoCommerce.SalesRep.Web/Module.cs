@@ -12,6 +12,7 @@ using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
@@ -46,6 +47,15 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
 
         serviceCollection.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
+
+        serviceCollection.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
 
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
