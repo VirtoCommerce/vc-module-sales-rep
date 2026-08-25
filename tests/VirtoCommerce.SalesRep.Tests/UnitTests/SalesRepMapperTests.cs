@@ -95,7 +95,7 @@ public class SalesRepMapperTests
         {
             degraded.Name.Should().BeNull();
             degraded.ContentType.Should().BeNull();
-            degraded.Size.Should().Be(0);
+            degraded.Size.Should().BeNull();
             degraded.Url.Should().Be($"/api/files/{degraded.FileId}");
             degraded.DisplayName.Should().Be("Pretty name");
             degraded.Category.Should().Be("Catalogs");

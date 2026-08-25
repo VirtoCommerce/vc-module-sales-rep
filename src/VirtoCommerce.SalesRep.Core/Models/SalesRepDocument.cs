@@ -17,7 +17,7 @@ public class SalesRepDocument : AuditableEntity, ICloneable
 
     public string ContentType { get; set; }
 
-    public long Size { get; set; }
+    public long? Size { get; set; }
 
     public string Url { get; set; }
 

@@ -236,6 +236,8 @@ public class SalesRepDocumentsComponentTests
         var degraded = result.Results.Single(x => x.Id == orphaned.Id);
         degraded.DisplayName.Should().Be("Orphaned.pdf");
         degraded.Name.Should().BeNull();
+        degraded.ContentType.Should().BeNull();
+        degraded.Size.Should().BeNull();
         // The download URL stays resolvable — attempting it yields the server's 404, uniformly with blob loss.
         degraded.Url.Should().Be($"/api/files/{orphaned.FileId}");
 

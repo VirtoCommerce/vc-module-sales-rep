@@ -16,7 +16,7 @@ public class SalesRepDocumentType : ExtendableGraphType<SalesRepDocument>
         Field(x => x.Category, nullable: true).Description("Category from the document metadata — a salesRepDocumentCategories 'name'.");
         Field(x => x.IsPinned, nullable: false).Description("Whether this is the single pinned document of the library.");
         Field(x => x.ContentType, nullable: true).Description("MIME content type of the file.");
-        Field(x => x.Size, nullable: false).Description("File size in bytes.");
+        Field(x => x.Size, nullable: true).Description("File size in bytes; null when the file record is missing (out-of-band corruption).");
         Field(x => x.CreatedDate, nullable: false).Description("Upload date (the default sort key, newest first).");
         Field(x => x.ModifiedDate, nullable: true).Description("Last modification date.");
         Field(x => x.Url, nullable: false).Description("Authorized download URL (the file-experience-api endpoint — never a raw blob URL); always resolvable — for a corrupted document the download returns the server error (404).");
