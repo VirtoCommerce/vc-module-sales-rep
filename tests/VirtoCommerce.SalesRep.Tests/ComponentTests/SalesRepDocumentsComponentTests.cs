@@ -474,6 +474,35 @@ public class SalesRepDocumentsComponentTests
         (await searchService.SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true })).TotalCount.Should().Be(0);
     }
 
+    // The pin column has exactly one writer — SetPinnedAsync's atomic set-based UPDATE. IsPinned is absent from
+    // the entity's FromModel AND Patch, so the published ICrudService surface can neither change an existing
+    // row's pin nor insert a pre-pinned row: the invariant holds structurally, with no lock and no concurrency
+    // harness needed.
+    [Fact]
+    public async Task MetadataSave_CannotTouchThePinColumn()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var pinned = await ctx.UploadDocumentAsync("Pinned.pdf", "Catalogs");
+        var other = await ctx.UploadDocumentAsync("Other.pdf", "Catalogs");
+
+        var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
+        (await metadataService.SetPinnedAsync(pinned.Id, isPinned: true)).Should().BeTrue();
+
+        // A downstream consumer saves contradictory pin flags through the inherited SaveChangesAsync…
+        var models = await metadataService.GetAsync([pinned.Id, other.Id]);
+        models.Single(x => x.Id == pinned.Id).IsPinned = false;
+        models.Single(x => x.Id == other.Id).IsPinned = true;
+        await metadataService.SaveChangesAsync(models);
+
+        // …and inserts a brand-new row already carrying IsPinned = true.
+        var prePinned = new SalesRepDocumentMetadata { FileId = Guid.NewGuid().ToString("N"), Name = "Sneaky.pdf", Category = "Catalogs", IsPinned = true };
+        await metadataService.SaveChangesAsync([prePinned]);
+
+        var pinnedRows = await ctx.GetRequiredService<ISalesRepDocumentSearchService>()
+            .SearchAsync(new SalesRepDocumentSearchCriteria { IsPinned = true });
+        pinnedRows.Results.Single().Id.Should().Be(pinned.Id);
+    }
+
     // The PUT response must carry the STORED audit stamps, which the request body does not have: the created
     // date is written raw into the row and can only reach the response through the post-save re-read. Noon +
     // .Date comparison keeps the assertion immune to the harness's local→UTC read shift (CI runs on UTC,

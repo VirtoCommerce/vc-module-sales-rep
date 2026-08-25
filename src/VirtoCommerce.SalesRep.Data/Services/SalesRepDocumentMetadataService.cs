@@ -1,20 +1,17 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using FluentValidation;
-using Microsoft.EntityFrameworkCore;
+using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Data.GenericCrud;
-using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Events;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Models;
 using VirtoCommerce.SalesRep.Data.Repositories;
-using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
@@ -22,8 +19,7 @@ public class SalesRepDocumentMetadataService(
         Func<ISalesRepRepository> repositoryFactory,
         IPlatformMemoryCache platformMemoryCache,
         IEventPublisher eventPublisher,
-        AbstractValidator<SalesRepDocumentMetadata> validator,
-        IDistributedLockService distributedLockService)
+        AbstractValidator<SalesRepDocumentMetadata> validator)
     : CrudService<SalesRepDocumentMetadata, DocumentMetadataEntity, DocumentMetadataChangingEvent, DocumentMetadataChangedEvent>(
         repositoryFactory,
         platformMemoryCache,
@@ -56,53 +52,24 @@ public class SalesRepDocumentMetadataService(
         }
     }
 
-    // The lock serializes the read-modify-write; filtered unique indexes are not portable across the three providers.
-    // The x-api IDistributedLockService (unlike the platform one, whose non-Redis binding is a pass-through) falls
-    // back to a real per-key in-process lock without Redis, so single-instance deployments stay guarded too.
-    public virtual Task<bool> SetPinnedAsync(string id, bool isPinned)
+    // The single-pin invariant is enforced by the database — the repository pins the target and clears every
+    // other pin in ONE atomic UPDATE, so no lock is needed and concurrent pins converge. This is the pin
+    // column's only writer: the entity's FromModel/Patch never copy IsPinned, so no metadata save can touch it.
+    public virtual async Task<bool> SetPinnedAsync(string id, bool isPinned)
     {
         ArgumentException.ThrowIfNullOrEmpty(id);
 
-        return distributedLockService.ExecuteAsync(ModuleConstants.Documents.PinLockKey, () => SetPinnedInternalAsync(id, isPinned));
-    }
+        using var repository = repositoryFactory();
 
-    protected virtual async Task<bool> SetPinnedInternalAsync(string id, bool isPinned)
-    {
-        var target = (await GetAsync([id])).FirstOrDefault();
-        if (target == null)
+        var found = await repository.SetDocumentPinnedAsync(id, isPinned);
+
+        if (found)
         {
-            return false;
+            // The set-based write bypasses the CrudService pipeline, so expire the cache regions it would have.
+            GenericCachingRegion<SalesRepDocumentMetadata>.ExpireRegion();
+            GenericSearchCachingRegion<SalesRepDocumentMetadata>.ExpireRegion();
         }
 
-        target.IsPinned = isPinned;
-        var toSave = new List<SalesRepDocumentMetadata> { target };
-
-        // At most one document is pinned: pinning one clears the pin on every other row.
-        if (isPinned)
-        {
-            List<string> otherPinnedIds;
-            using (var repository = repositoryFactory())
-            {
-                otherPinnedIds = await repository.DocumentMetadata
-                    .Where(x => x.IsPinned && x.Id != id)
-                    .Select(x => x.Id)
-                    .ToListAsync();
-            }
-
-            if (otherPinnedIds.Count > 0)
-            {
-                var others = await GetAsync(otherPinnedIds);
-                foreach (var other in others)
-                {
-                    other.IsPinned = false;
-                }
-
-                toSave.AddRange(others);
-            }
-        }
-
-        await SaveChangesAsync(toSave);
-
-        return true;
+        return found;
     }
 }

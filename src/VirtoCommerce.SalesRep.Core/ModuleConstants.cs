@@ -45,10 +45,6 @@ public static class ModuleConstants
     public static class Documents
     {
         public const int CategoryMaxLength = 32;
-
-        // Shared by every writer of the pin flag: SetPinnedAsync's read-modify-write and the metadata update
-        // (whose Patch round-trips the pin state) serialize on this key, so a stale pin cannot be written back.
-        public const string PinLockKey = DocumentsScope + ":pin";
     }
 
     public static class Communication

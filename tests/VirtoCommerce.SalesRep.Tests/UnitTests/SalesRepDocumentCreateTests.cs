@@ -12,7 +12,6 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
-using VirtoCommerce.Xapi.Data.Services;
 using Xunit;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
@@ -254,7 +253,7 @@ public class SalesRepDocumentCreateTests
         await softDelete.Should().ThrowAsync<NotSupportedException>();
     }
 
-    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, new SalesRepMapper(), new InMemoryLockService(), NullLogger<SalesRepDocumentService>.Instance);
+    private SalesRepDocumentService CreateService() => new(_fileUploadService, _metadataService, new SalesRepMapper(), NullLogger<SalesRepDocumentService>.Instance);
 
     private File AddFile(string scope = ModuleConstants.DocumentsScope, string name = "list.pdf", string contentType = "application/pdf", long size = 1)
     {
@@ -336,6 +335,11 @@ public class SalesRepDocumentCreateTests
             {
                 // The persistence layer generates the primary key for new rows.
                 model.Id ??= Guid.NewGuid().ToString("N");
+
+                // Mirrors the real pipeline: the entity's FromModel/Patch never copy IsPinned, so a save can
+                // neither pin a new row nor change an existing row's pin — only SetPinnedAsync writes it.
+                var existing = Saved.Find(x => x.Id == model.Id);
+                model.IsPinned = existing?.IsPinned ?? false;
 
                 Saved.RemoveAll(x => x.Id == model.Id);
                 Saved.Add(model);

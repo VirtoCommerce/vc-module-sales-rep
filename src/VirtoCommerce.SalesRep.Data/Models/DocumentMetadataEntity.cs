@@ -51,7 +51,6 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
         FileId = model.FileId;
         Name = model.Name;
         Category = model.Category;
-        IsPinned = model.IsPinned;
         Summary = model.Summary;
         PageCount = model.PageCount;
         PreviewUrl = model.PreviewUrl;
@@ -79,12 +78,12 @@ public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetad
         return model;
     }
 
-    // FileId is not patched: the file link is immutable.
+    // FileId is not patched (the file link is immutable). IsPinned is read-only for model saves — absent from
+    // FromModel AND Patch — so the pin column has exactly one writer: SetPinnedAsync's atomic set-based UPDATE.
     public virtual void Patch(DocumentMetadataEntity target)
     {
         target.Name = Name;
         target.Category = Category;
-        target.IsPinned = IsPinned;
         target.Summary = Summary;
         target.PageCount = PageCount;
         target.PreviewUrl = PreviewUrl;

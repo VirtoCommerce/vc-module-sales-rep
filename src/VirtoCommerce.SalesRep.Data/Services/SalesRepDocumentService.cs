@@ -11,7 +11,6 @@ using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Extensions;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
-using VirtoCommerce.Xapi.Core.Infrastructure;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
@@ -22,20 +21,17 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     private readonly IFileUploadService _fileUploadService;
     private readonly ISalesRepDocumentMetadataService _metadataService;
     private readonly ISalesRepMapper _mapper;
-    private readonly IDistributedLockService _distributedLockService;
     private readonly ILogger<SalesRepDocumentService> _logger;
 
     public SalesRepDocumentService(
         IFileUploadService fileUploadService,
         ISalesRepDocumentMetadataService metadataService,
         ISalesRepMapper mapper,
-        IDistributedLockService distributedLockService,
         ILogger<SalesRepDocumentService> logger)
     {
         _fileUploadService = fileUploadService;
         _metadataService = metadataService;
         _mapper = mapper;
-        _distributedLockService = distributedLockService;
         _logger = logger;
     }
 
@@ -59,10 +55,10 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         metadata ??= AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
         metadata.Id = null;
         metadata.FileId = file.Id;
-        // The display name is the search surface, so it is always stored.
+        // The display name is the search surface, so it is always stored. Pin state needs no reset: the entity
+        // never reads IsPinned from a saved model — the column is written only by SetPinnedAsync.
         metadata.Name = NormalizeName(metadata.Name, file.Name);
         metadata.Category = category;
-        metadata.IsPinned = false;
 
         await _metadataService.SaveChangesAsync([metadata]);
 
@@ -89,18 +85,10 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         return _mapper.ToDocument(file, metadata);
     }
 
-    public virtual Task<SalesRepDocument> UpdateMetadataAsync(string id, SalesRepDocumentMetadata metadata)
+    public virtual async Task<SalesRepDocument> UpdateMetadataAsync(string id, SalesRepDocumentMetadata metadata)
     {
         ArgumentNullException.ThrowIfNull(metadata);
 
-        // The pin state round-trips through this update (read below, written back by Patch), so the whole
-        // read-restore-save runs under the same lock as SetPinnedAsync — a concurrent pin cannot interleave
-        // and be undone by a stale write-back.
-        return _distributedLockService.ExecuteAsync(ModuleConstants.Documents.PinLockKey, () => UpdateMetadataInternalAsync(id, metadata));
-    }
-
-    protected virtual async Task<SalesRepDocument> UpdateMetadataInternalAsync(string id, SalesRepDocumentMetadata metadata)
-    {
         var existing = await _metadataService.GetNoCloneAsync(id);
         if (existing == null)
         {
@@ -114,10 +102,9 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         }
 
         metadata.Id = id;
-        // The file link is immutable, and pin state is exclusively SetPinnedAsync's concern —
-        // a full-replace metadata PUT must not change either.
+        // The file link is immutable — a full-replace metadata PUT must not change it. (Pin state is already
+        // untouchable here: the entity never reads IsPinned from a saved model.)
         metadata.FileId = existing.FileId;
-        metadata.IsPinned = existing.IsPinned;
         metadata.Name = NormalizeName(metadata.Name, file.Name);
 
         await _metadataService.SaveChangesAsync([metadata]);
