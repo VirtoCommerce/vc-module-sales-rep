@@ -1,20 +1,38 @@
+using System;
 using System.IO;
+using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.AssetsModule.Core.Events;
+using VirtoCommerce.FileExperienceApi.Core.Authorization;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
+using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.Platform.Data.MySql.Extensions;
+using VirtoCommerce.Platform.Data.PostgreSql.Extensions;
+using VirtoCommerce.Platform.Data.SqlServer.Extensions;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
+using VirtoCommerce.SalesRep.Data.Handlers;
+using VirtoCommerce.SalesRep.Data.MySql;
+using VirtoCommerce.SalesRep.Data.PostgreSql;
+using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
+using VirtoCommerce.SalesRep.Data.SqlServer;
+using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
@@ -30,7 +48,43 @@ public class Module : IModule, IHasConfiguration
 
     public void Initialize(IServiceCollection serviceCollection)
     {
+        serviceCollection.AddDbContext<SalesRepDbContext>(options =>
+        {
+            var databaseProvider = Configuration.GetValue("DatabaseProvider", "SqlServer");
+            var connectionString = Configuration.GetConnectionString(ModuleInfo.Id) ?? Configuration.GetConnectionString("VirtoCommerce");
+
+            switch (databaseProvider)
+            {
+                case "MySql":
+                    options.UseMySqlDatabase(connectionString, typeof(MySqlDataAssemblyMarker), Configuration);
+                    break;
+                case "PostgreSql":
+                    options.UsePostgreSqlDatabase(connectionString, typeof(PostgreSqlDataAssemblyMarker), Configuration);
+                    break;
+                default:
+                    options.UseSqlServerDatabase(connectionString, typeof(SqlServerDataAssemblyMarker), Configuration);
+                    break;
+            }
+        });
+
+        serviceCollection.AddTransient<ISalesRepRepository, SalesRepRepository>();
+        serviceCollection.AddSingleton<Func<ISalesRepRepository>>(provider => () => provider.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
+
+        serviceCollection.AddSingleton<ISalesRepMapper, SalesRepMapper>();
+        serviceCollection.AddSingleton<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
+        serviceCollection.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
+        serviceCollection.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
+        serviceCollection.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
+        serviceCollection.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
+
+        // One fail-closed handler for every document surface: the GraphQL builders run it directly, the factory
+        // routes the generic file surfaces (GET /api/files/{id}, deleteFile) to it.
+        serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
+        serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
+        serviceCollection.AddSingleton<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
@@ -76,6 +130,12 @@ public class Module : IModule, IHasConfiguration
     {
         var serviceProvider = appBuilder.ApplicationServices;
 
+        using (var serviceScope = serviceProvider.CreateScope())
+        {
+            using var dbContext = serviceScope.ServiceProvider.GetRequiredService<SalesRepDbContext>();
+            dbContext.Database.Migrate();
+        }
+
         var settingsRegistrar = serviceProvider.GetRequiredService<ISettingsRegistrar>();
         settingsRegistrar.RegisterSettings(ModuleConstants.Settings.AllSettings, ModuleInfo.Id);
         // "Store" is nameof(StoreModule's Store entity), inlined as a literal to avoid a StoreModule dependency just
@@ -91,13 +151,17 @@ public class Module : IModule, IHasConfiguration
 
         appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
 
-        // Seed the default "Sales Representative" role once (create-if-none). No distributed lock is needed:
+        appBuilder.RegisterEventHandler<AssetEntryChangedEvent, DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+
+        // Seed the default roles once (create-if-none, matched by permission set). No distributed lock is needed:
         // PostInitialize runs inside the platform's startup critical section (ExecuteSynchronized(nameof(Startup))),
         // which already serializes it across instances, so the "two instances both create one" race can't occur.
         using var scope = serviceProvider.CreateScope();
         var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
+        var roleSeeder = scope.ServiceProvider.GetRequiredService<ISalesRepRoleSeeder>();
 #pragma warning disable S4462 // one-shot startup seeding in a sync PostInitialize — the platform's standard pattern
         roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
+        roleSeeder.EnsureDocumentRolesAsync().GetAwaiter().GetResult();
 #pragma warning restore S4462
     }
 
