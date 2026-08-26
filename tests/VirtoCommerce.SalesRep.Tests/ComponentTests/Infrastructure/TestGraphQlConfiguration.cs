@@ -314,8 +314,8 @@ internal static class TestGraphQlConfiguration
     /// <summary>
     /// Minimal <see cref="ICustomerOrderService"/> for the harness: hydrates orders straight from the order
     /// repository, running the same three response-group steps as <c>CustomerOrderService.ProcessModel</c>:
-    /// the repository gates the child loads and resets prices, <c>ReduceDetails</c> blanks what the group did
-    /// not ask for, and the totals calculator recomputes the derived money for exactly-Full.
+    /// the repository gates the child loads, <c>ReduceDetails</c> blanks what the group did not ask for -
+    /// prices included - and the totals calculator recomputes the derived money for exactly-Full.
     /// </summary>
     private sealed class RepositoryBackedCustomerOrderService : ICustomerOrderService
     {

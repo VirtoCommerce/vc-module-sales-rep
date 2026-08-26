@@ -154,6 +154,33 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.Should().NotContain("ORD-CANCELLED");
     }
 
+    // The documented createddate window. The bounds are read as the index's own wall clock, so the orders sit
+    // at mid-month noon: whatever a kind-less round trip does to them, they cannot cross a month boundary.
+    [Fact]
+    public async Task CustomerOrders_FilterAcceptsACreatedDateRange()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var inMay = new DateTime(2026, 5, 15, 12, 0, 0, DateTimeKind.Utc);
+        var inJune = new DateTime(2026, 6, 15, 12, 0, 0, DateTimeKind.Utc);
+
+        OrderSeeder.Seed(ctx, id: "o-may", org: "org-1", number: "ORD-MAY", createdDate: inMay, createdByUserId: "buyer-1");
+        OrderSeeder.Seed(ctx, id: "o-june", org: "org-1", number: "ORD-JUNE", createdDate: inJune, createdByUserId: "buyer-1");
+        await ctx.IndexOrdersAsync("o-may", "o-june");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerOrders(organizationId:\"org-1\", filter:\"createddate:[2026-05-01 TO 2026-05-31]\") " +
+            "{ totalCount items { number } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"totalCount\":1");
+        json.Should().Contain("ORD-MAY");
+        json.Should().NotContain("ORD-JUNE");
+    }
+
     // Aggregations are not scoped by the search filter, so a facet naming a scoping field would count across
     // the whole index. Only the fields the module offers may be aggregated.
     [Fact]
