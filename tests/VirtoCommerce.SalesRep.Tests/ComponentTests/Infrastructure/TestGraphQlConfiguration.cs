@@ -6,6 +6,7 @@ using GraphQL;
 using GraphQL.Introspection;
 using GraphQL.MicrosoftDI;
 using GraphQL.Types;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -52,6 +53,7 @@ using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
+using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.ShippingModule.Core.Model;
@@ -207,8 +209,10 @@ internal static class TestGraphQlConfiguration
         GlobalSwitches.InferFieldNullabilityFromNRTAnnotations = false;
 #pragma warning restore CS0618
 
-        // IAuthorizationService is required by the query builders' base constructor.
+        // IAuthorizationService is required by the query builders' base constructor; the document query builders
+        // authorize through the module's requirement handler.
         services.AddAuthorization();
+        services.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
 
         // The REAL account-state check every sales-rep query and mutation runs.
         services.AddTransient<IUserManagerCore, UserManagerCore>();

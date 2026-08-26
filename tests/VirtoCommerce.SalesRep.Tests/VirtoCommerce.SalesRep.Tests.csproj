@@ -3,7 +3,6 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <SonarQubeTestProject>true</SonarQubeTestProject>
-    <NoWarn>NU1608;xUnit1051</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="8.0.1">
@@ -14,12 +13,15 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
+    <PackageReference Include="VirtoCommerce.AssetsModule.Data" Version="3.1005.0" />
     <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1008.0" />
     <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1032.0" />
     <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0" />
+    <PackageReference Include="VirtoCommerce.FileExperienceApi.Data" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1048.0" />
+    <PackageReference Include="VirtoCommerce.Platform.DistributedLock" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.Platform.Modules" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Core" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Data" Version="3.1004.0" />
