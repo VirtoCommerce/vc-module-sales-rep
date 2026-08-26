@@ -66,9 +66,10 @@ public class SalesRepCustomerOrdersQueryHandler : SalesRepQueryHandlerBase, IQue
 
         var searchResult = await _indexedOrderSearchService.SearchCustomerOrdersAsync(criteria);
 
-        // The index chose the rows; the loaded rows decide what the rep may see. TotalCount stays the index
-        // count, so it is an upper bound while a document is stale.
-        var orders = await _orderVisibilityService.FilterVisibleAsync(request.UserId, searchResult.Results);
+        // The index chose the rows; the loaded rows decide what the rep may see, re-checked against the same
+        // set the search was scoped by. TotalCount stays the index count, so it is an upper bound while a
+        // document is stale.
+        var orders = _orderVisibilityService.FilterVisible(organizationIds, searchResult.Results);
 
         result.TotalCount = searchResult.TotalCount;
         result.Results = await _orderAggregateRepository.GetAggregatesFromOrdersAsync(orders, request.CultureName);

@@ -26,7 +26,8 @@ public class SalesRepOrderVisibilityService : ISalesRepOrderVisibilityService
         return visible.Count > 0;
     }
 
-    // Resolves the served organizations itself, so an override of the membership rule reaches both surfaces.
+    // Resolves the served organizations for a caller that has not; both paths ask the same access-service
+    // primitive, so an override of the membership rule reaches every order surface.
     public virtual async Task<IList<CustomerOrder>> FilterVisibleAsync(string userId, IList<CustomerOrder> orders)
     {
         if (string.IsNullOrEmpty(userId) || orders.IsNullOrEmpty())
@@ -47,8 +48,18 @@ public class SalesRepOrderVisibilityService : ISalesRepOrderVisibilityService
 
         var memberships = await _organizationAccessService.GetGrantingMembershipsAsync([userId], organizationIds);
 
-        var served = memberships
-            .Select(x => x.OrganizationId)
+        return FilterVisible(memberships.Select(x => x.OrganizationId).ToList(), orders);
+    }
+
+    // For a caller that already holds the served organizations - the set it scoped the search by.
+    public virtual IList<CustomerOrder> FilterVisible(IList<string> servedOrganizationIds, IList<CustomerOrder> orders)
+    {
+        if (servedOrganizationIds.IsNullOrEmpty() || orders.IsNullOrEmpty())
+        {
+            return [];
+        }
+
+        var served = servedOrganizationIds
             .Where(x => !string.IsNullOrEmpty(x))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
