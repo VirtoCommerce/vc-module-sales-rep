@@ -111,6 +111,8 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
 
+        serviceCollection.AddTransient<ISalesRepAnalyticsDiagnosticsService, SalesRepAnalyticsDiagnosticsService>();
+
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
         serviceCollection.AddTransient<ILayoutService, LayoutService>();

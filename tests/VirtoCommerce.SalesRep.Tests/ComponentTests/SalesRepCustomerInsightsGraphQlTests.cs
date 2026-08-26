@@ -15,7 +15,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// End-to-end component tests for the <c>salesRepCustomerInsights</c> X-API query (VCST-5337 customer insights):
 /// top/recent search terms and browsed products from the (fake) analytics service, product resolution from the
 /// catalog, lazy per-collection fetches shared with dataAsOf, and the same organization authorization plus
-/// null-when-unavailable semantics as the activity summary.
+/// null-when-unavailable semantics as the activity summary. The organizationId argument is optional: omitted, the
+/// scope is all the rep's assigned organizations (same resolution as salesRepActivities).
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepCustomerInsightsGraphQlTests
@@ -301,6 +302,92 @@ public class SalesRepCustomerInsightsGraphQlTests
     }
 
     [Fact]
+    public async Task Insights_OmittedOrganizationId_AggregatesAcrossAssignedOrganizations()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _feb, count: 2, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 3, "org-2",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 4, "org-2",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "valves"));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepCustomerInsights {{ searchTerms {{ {TermFields} }} }} }}",
+            userId: rep.UserId);
+
+        var terms = Insights(json).GetProperty("searchTerms").EnumerateArray().ToList();
+        terms.Select(x => (x.GetProperty("term").GetString(), x.GetProperty("count").GetInt32()))
+            .Should().Equal(("pumps", 5), ("valves", 4)); // both assigned orgs' events aggregate together
+
+        var criteria = analytics.ReceivedSearchCriteria.Should().ContainSingle().Subject;
+        var organizationFilter = criteria.DimensionFilters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.OrganizationId);
+        organizationFilter.Values.Should().BeEquivalentTo("org-1", "org-2"); // the full assigned-org scope
+    }
+
+    [Fact]
+    public async Task Insights_OmittedOrganizationId_ForeignAndImpersonatedEventsNeverLeak()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-2",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "own-term"));
+        // Another rep's org and impersonated events sit in the pool but MUST stay outside the rep-wide scope.
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-3",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "leak-term"));
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _apr, count: 9, "org-3",
+            dimensions: [(AnalyticsConstants.Dimensions.ItemId, "LEAK-CODE"), (AnalyticsConstants.Dimensions.ItemName, "Leak Product")]);
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-1", sessionKind: AnalyticsConstants.SessionKinds.Impersonated,
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "impersonated-term"));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepCustomerInsights {{ dataAsOf searchTerms(sort: \"date\") {{ {TermFields} }} browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
+            userId: rep.UserId);
+
+        json.Should().NotContain("leak");
+        json.Should().NotContain("impersonated-term");
+
+        var insights = Insights(json);
+        insights.GetProperty("searchTerms").EnumerateArray().Select(x => x.GetProperty("term").GetString()).Should().Equal("own-term");
+        insights.GetProperty("browsedProducts").GetArrayLength().Should().Be(0);
+        insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar); // the foreign april events never count
+
+        // Every analytics read carries the mandatory scope: own sessions only, and only the rep's assigned organizations.
+        analytics.ReceivedSearchCriteria.Should().NotBeEmpty();
+        foreach (var criteria in analytics.ReceivedSearchCriteria)
+        {
+            var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
+            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(AnalyticsConstants.SessionKinds.Self);
+            filters[AnalyticsConstants.UserDimensions.OrganizationId].Should().BeEquivalentTo("org-1", "org-2");
+        }
+    }
+
+    [Fact]
+    public async Task Insights_OmittedOrganizationId_NonRepCaller_ReturnsNull()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights { searchTerms { term } } }",
+            userId: "not-a-rep");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepCustomerInsights\":null");
+        analytics.ReceivedSearchCriteria.Should().BeEmpty(); // empty rep scope short-circuits before any read
+    }
+
+    [Fact]
     public async Task Insights_AnalyticsAbsent_ReturnsNull()
     {
         using var ctx = SalesRepTestContext.Create(); // no IAnalyticsService registered = module absent
@@ -359,7 +446,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { salesRepCustomerInsights(organizationId: \"org-1\") { dataAsOf } }");
+            "query { salesRepCustomerInsights { dataAsOf } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");

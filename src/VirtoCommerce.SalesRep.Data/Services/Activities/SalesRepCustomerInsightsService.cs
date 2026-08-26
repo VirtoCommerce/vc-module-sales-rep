@@ -106,7 +106,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
         string[] eventNames,
         string[] dimensionNames)
     {
-        if (!_analyticsService.HasValue || string.IsNullOrEmpty(criteria.OrganizationId) || criteria.Take <= 0)
+        if (!_analyticsService.HasValue || criteria.OrganizationIds.IsNullOrEmpty() || criteria.Take <= 0)
         {
             return [];
         }
@@ -117,7 +117,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
         searchCriteria.StoreId = criteria.StoreId;
         searchCriteria.EventNames = eventNames;
         searchCriteria.DimensionNames = dimensionNames;
-        searchCriteria.DimensionFilters = SalesRepAnalyticsScope.CreateScopeFilters([criteria.OrganizationId]);
+        searchCriteria.DimensionFilters = SalesRepAnalyticsScope.CreateScopeFilters(criteria.OrganizationIds);
         searchCriteria.From = criteria.From;
         searchCriteria.To = criteria.To;
         searchCriteria.SortBy = isDateSort ? AnalyticsConstants.SortBy.Date : AnalyticsConstants.SortBy.Count;

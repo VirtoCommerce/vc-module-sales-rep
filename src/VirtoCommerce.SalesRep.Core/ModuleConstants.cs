@@ -14,12 +14,14 @@ public static class ModuleConstants
         public static class Permissions
         {
             public const string Access = "sales-rep:access";
+            public const string Diagnostics = "sales-rep:diagnostics";
             public const string DocumentsRead = "sales-rep-documents:read";
             public const string DocumentsWrite = "sales-rep-documents:write";
 
             public static string[] AllPermissions { get; } =
             [
                 Access,
+                Diagnostics,
                 DocumentsRead,
                 DocumentsWrite,
             ];
@@ -80,6 +82,12 @@ public static class ModuleConstants
             public const string Count = "count";
             public const string Date = "date";
         }
+    }
+
+    public static class Diagnostics
+    {
+        // The sales-rep stage appended after the analytics module's own diagnostics stages.
+        public const string FeatureQueryStage = "featureQuery";
     }
 
     public static class Documents

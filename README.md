@@ -458,6 +458,34 @@ Recipients are resolved **once** and fed to both channels, so the audience is id
 
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
+## Google Analytics-based metrics
+
+Some metrics are **not** computed from platform data — they are read from **Google Analytics 4** (Data API `runReport`) through the `IAnalyticsService` abstraction of the optional [VirtoCommerce.GoogleEcommerceAnalytics](https://github.com/VirtoCommerce/vc-module-google-ecommerce-analytics) module. When that module is absent or not configured for the store, these fields return `null` / zero / empty — never an error.
+
+| Metric (GraphQL field) | GA4 source | Notes |
+|---|---|---|
+| `salesRepActivities` → category `searches` rows | event `search` + `view_search_results`; dimension `searchTerm`; metric `eventCount` | one row per search term per hour bucket |
+| `salesRepActivities` → category `productViews` rows | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | `itemId` holds the product **code**, resolved server-side to a catalog product |
+| `salesRepActivities` → category `logins` rows | event `login`; metric `eventCount` | |
+| `salesRepCustomerActivitySummary.visitsCount` | event `login`; metric `eventCount` over the period | a proxy for "number of visits"; only tracked sign-ins count |
+| `salesRepCustomerActivitySummary.lastWebLogin` | event `login`; latest `dateHour` bucket | hour precision |
+| `salesRepCustomerActivitySummary.lastSearchTerm` | event `search`; latest `dateHour` bucket with a `searchTerm` | |
+| `salesRepCustomerActivitySummary.lastViewedProduct` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/slug/image |
+| `salesRepCustomerInsights.searchTerms` (term, count, lastSearchedDate) | event `search`; dimension `searchTerm`; metric `eventCount` | `sort: "count"` = GA-aggregated top; `sort: "date"` = per-hour rows aggregated per term. Only `search` is counted — `view_search_results` describes the same user action and would double-count |
+| `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; unresolvable codes are returned as-is (`productId` falls back to the code) |
+| `salesRepCustomerInsights.dataAsOf` | latest `dateHour` bucket observed in the returned payload | **not** "now" — see latency below |
+
+(`salesRepCustomerActivitySummary.createdOn` and the `orders`/`customers` activity categories come from platform data, not GA.)
+
+Every GA query is constrained by two **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too), and `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own.
+
+Caveats inherent to the source, by design:
+
+* **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity. `dataAsOf` reports how fresh the data actually is.
+* **Hour precision** — GA reports are aggregates; all `last*Date` values are UTC hour-bucket starts, not event timestamps. The storefront renders them as approximate.
+* **Sample, not record** — ad blockers, consent and untracked channels mean GA sees a subset of real activity; the UI carries a "based on tracked activity" caveat.
+* **Caching** — responses are cached per store/criteria (TTL from `GoogleAnalytics4.DataApi.CacheTtlMinutes`, default 60 min); failures are negative-cached for 60 s and degrade to empty.
+
 ## How it works
 
 A sales rep is not a new entity — the module composes three pieces of existing platform data, so it owns **no database tables** and adds **no EF migrations**:

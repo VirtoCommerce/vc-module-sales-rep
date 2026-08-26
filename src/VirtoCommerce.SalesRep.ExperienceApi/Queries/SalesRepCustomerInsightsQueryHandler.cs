@@ -21,12 +21,13 @@ public class SalesRepCustomerInsightsQueryHandler : SalesRepQueryHandlerBase, IQ
 
     public virtual async Task<SalesRepCustomerInsightsContext> Handle(SalesRepCustomerInsightsQuery request, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.OrganizationId))
+        if (string.IsNullOrEmpty(request.UserId))
         {
             return null;
         }
 
-        if (!await OrganizationAccessService.ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
+        if (organizationIds.Count == 0)
         {
             return null;
         }
@@ -38,7 +39,7 @@ public class SalesRepCustomerInsightsQueryHandler : SalesRepQueryHandlerBase, IQ
         }
 
         var result = AbstractTypeFactory<SalesRepCustomerInsightsContext>.TryCreateInstance();
-        result.OrganizationId = request.OrganizationId;
+        result.OrganizationIds = organizationIds;
         result.StoreId = request.StoreId;
         result.CultureName = request.CultureName;
         result.From = request.Period?.From;

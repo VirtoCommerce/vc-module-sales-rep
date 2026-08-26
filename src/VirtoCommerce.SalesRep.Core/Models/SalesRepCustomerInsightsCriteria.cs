@@ -1,10 +1,11 @@
 using System;
+using System.Collections.Generic;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
 public class SalesRepCustomerInsightsCriteria
 {
-    public string OrganizationId { get; set; }
+    public IList<string> OrganizationIds { get; set; }
 
     public string StoreId { get; set; }
 

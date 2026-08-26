@@ -7,7 +7,8 @@
       "UNASSIGNED": "Not assigned Sales Reps",
       "ORGANIZATIONS": "Organizations",
       "UNASSIGNED_ORGANIZATIONS": "Not assigned Organizations",
-      "DOCUMENTS": "Documents library"
+      "DOCUMENTS": "Documents library",
+      "ANALYTICS_DIAGNOSTICS": "Analytics diagnostics"
     },
     "PAGES": {
       "DASHBOARD": {
@@ -178,6 +179,40 @@
         },
         "TOOLBAR": {
           "UPLOAD": "Upload"
+        }
+      },
+      "ANALYTICS_DIAGNOSTICS": {
+        "TITLE": "Analytics diagnostics",
+        "BLOCKS": {
+          "SETTINGS": "Run settings",
+          "RESULTS": "Checklist"
+        },
+        "FORM": {
+          "STORE": "Store",
+          "DEEP_CHECK": "Deep check",
+          "DEEP_CHECK_HINT": "Also queries live Google Analytics data. Spends GA API quota.",
+          "RUN": "Run diagnostics"
+        },
+        "DETAIL": {
+          "SHOW": "Show details",
+          "HIDE": "Hide details"
+        },
+        "EMPTY": "The diagnostics run returned no checks.",
+        "STAGES": {
+          "CONFIGURATION": "Configuration",
+          "CREDENTIALS": "Credentials",
+          "API_ACCESS": "API access",
+          "CUSTOM_DIMENSIONS": "Custom dimensions",
+          "REPORT_COMPATIBILITY": "Report compatibility",
+          "REALTIME": "Realtime data",
+          "PROCESSED_DATA": "Processed data",
+          "FEATURE_QUERY": "Feature query"
+        },
+        "STATUSES": {
+          "PASSED": "Passed",
+          "WARNING": "Warning",
+          "FAILED": "Failed",
+          "SKIPPED": "Skipped"
         }
       }
     }

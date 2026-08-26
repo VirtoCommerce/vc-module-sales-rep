@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -9,7 +10,7 @@ public class SalesRepCustomerInsightsContext
 {
     private readonly ConcurrentDictionary<string, Lazy<Task<object>>> _slices = new();
 
-    public string OrganizationId { get; set; }
+    public IList<string> OrganizationIds { get; set; }
 
     public string StoreId { get; set; }
 

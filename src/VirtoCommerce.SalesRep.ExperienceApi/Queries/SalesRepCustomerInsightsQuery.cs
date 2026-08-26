@@ -22,7 +22,7 @@ public class SalesRepCustomerInsightsQuery : Query<SalesRepCustomerInsightsConte
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        yield return Argument<NonNullGraphType<StringGraphType>>(nameof(OrganizationId), "Organization (customer) id whose tracked activity to read.");
+        yield return Argument<StringGraphType>(nameof(OrganizationId), "Organization (customer) id whose tracked activity to read; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store whose analytics configuration and events to read (defaults to all stores).");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional date range for the analytics figures (omit for all dates).");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the product slug resolution (\"en-US\").");

@@ -148,7 +148,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
     {
         var criteria = AbstractTypeFactory<SalesRepCustomerInsightsCriteria>.TryCreateInstance();
 
-        criteria.OrganizationId = insights.OrganizationId;
+        criteria.OrganizationIds = insights.OrganizationIds;
         criteria.StoreId = insights.StoreId;
         criteria.From = insights.From;
         criteria.To = insights.To;
