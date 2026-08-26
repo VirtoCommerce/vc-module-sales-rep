@@ -12,7 +12,8 @@ namespace VirtoCommerce.SalesRep.Tests;
 
 /// <summary>
 /// The aggregation contract of <see cref="SalesRepActivityService"/> over stub sources: fan-out only to sources whose
-/// categories intersect the filter, per-category Take=0 counts, and the per-source top-Skip+Take merge/sort/slice.
+/// categories intersect the filter, per-category counts taken from the same row fetch (Take=0 only for count-only
+/// requests), and the per-category top-Skip+Take merge/sort/slice.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepActivityServiceTests
@@ -38,7 +39,7 @@ public class SalesRepActivityServiceTests
     }
 
     [Fact]
-    public async Task Search_ReturnsPerCategoryCounts_ViaTakeZero()
+    public async Task Search_ReturnsPerCategoryCounts_FromRowFetch()
     {
         var orders = new StubActivitySource("orders", Event("orders", _t1), Event("orders", _t2));
         var customers = new StubActivitySource("customers", Event("customers", _t3));
@@ -48,7 +49,25 @@ public class SalesRepActivityServiceTests
 
         result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("orders", 2), ("customers", 1));
         result.TotalCount.Should().Be(3);
-        orders.ReceivedCriteria.Should().Contain(x => x.Take == 0 && x.Categories.Single() == "orders");
+        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10 && x.Categories.Single() == "orders");
+        customers.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10 && x.Categories.Single() == "customers");
+    }
+
+    [Fact]
+    public async Task Search_MultiCategorySource_CountsPerCategoryFromOwnFetch()
+    {
+        var analytics = new StubActivitySource(
+            ["searches", "logins"],
+            Event("searches", _t1), Event("searches", _t2), Event("logins", _t3));
+        var service = new SalesRepActivityService([analytics]);
+
+        var result = await service.SearchActivitiesAsync(Criteria(take: 10));
+
+        result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("searches", 2), ("logins", 1));
+        result.TotalCount.Should().Be(3);
+        analytics.ReceivedCriteria.Should().HaveCount(2);
+        analytics.ReceivedCriteria.Should().OnlyContain(x => x.Take == 10 && x.Categories.Count == 1);
+        analytics.ReceivedCriteria.Select(x => x.Categories.Single()).Should().Equal("searches", "logins");
     }
 
     [Fact]
@@ -64,10 +83,11 @@ public class SalesRepActivityServiceTests
         result.CategoryCounts.Select(x => x.Category).Should().Equal("customers");
         result.Results.Single().Category.Should().Be("customers");
         orders.ReceivedCriteria.Should().BeEmpty();
+        customers.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10);
     }
 
     [Fact]
-    public async Task Search_TakeZero_ReturnsCountsWithoutItems()
+    public async Task Search_TakeZero_ReturnsCountsWithoutItems_ViaTakeZero()
     {
         var orders = new StubActivitySource("orders", Event("orders", _t1));
         var service = new SalesRepActivityService([orders]);
@@ -75,8 +95,9 @@ public class SalesRepActivityServiceTests
         var result = await service.SearchActivitiesAsync(Criteria(take: 0));
 
         result.TotalCount.Should().Be(1);
+        result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("orders", 1));
         result.Results.Should().BeEmpty();
-        orders.ReceivedCriteria.Should().OnlyContain(x => x.Take == 0);
+        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == 0 && x.Skip == 0);
     }
 
     [Fact]
@@ -87,7 +108,7 @@ public class SalesRepActivityServiceTests
 
         await service.SearchActivitiesAsync(Criteria(take: 5, skip: 15));
 
-        orders.ReceivedCriteria.Should().Contain(x => x.Take == 20 && x.Skip == 0);
+        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == 20 && x.Skip == 0);
     }
 
     private static SalesRepActivitySearchCriteria Criteria(int take, int skip = 0, IList<string> categories = null)
@@ -108,8 +129,13 @@ public class SalesRepActivityServiceTests
         private readonly List<SalesRepActivityEvent> _events;
 
         public StubActivitySource(string category, params SalesRepActivityEvent[] events)
+            : this([category], events)
         {
-            Categories = [category];
+        }
+
+        public StubActivitySource(IList<string> categories, params SalesRepActivityEvent[] events)
+        {
+            Categories = categories;
             _events = [.. events];
         }
 

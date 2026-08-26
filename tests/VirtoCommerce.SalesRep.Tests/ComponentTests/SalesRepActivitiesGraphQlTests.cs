@@ -167,8 +167,11 @@ public class SalesRepActivitiesGraphQlTests
 
         json.Should().NotContain("leak");
 
+        // One GA read per fetched category — its count reuses the fetch's TotalCount, no extra Take=0 read.
+        analytics.ReceivedSearchCriteria.Should().HaveCount(3);
+        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.Take > 0);
+
         // Every analytics read carries the mandatory scope: own sessions only, and only the rep's organizations.
-        analytics.ReceivedSearchCriteria.Should().NotBeEmpty();
         foreach (var criteria in analytics.ReceivedSearchCriteria)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);

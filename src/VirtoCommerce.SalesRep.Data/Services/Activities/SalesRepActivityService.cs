@@ -24,8 +24,8 @@ public class SalesRepActivityService : ISalesRepActivityService
         var result = AbstractTypeFactory<SalesRepActivitySearchResult>.TryCreateInstance();
 
         var plans = _sources
-            .Select(source => (Source: source, Categories: criteria.GetEffectiveCategories(source.Categories)))
-            .Where(x => x.Categories.Count > 0)
+            .SelectMany(source => criteria.GetEffectiveCategories(source.Categories)
+                .Select(category => (Source: source, Category: category)))
             .ToList();
 
         if (plans.Count == 0)
@@ -33,60 +33,69 @@ public class SalesRepActivityService : ISalesRepActivityService
             return result;
         }
 
-        result.CategoryCounts = await GetCategoryCountsAsync(criteria, plans);
-        result.TotalCount = result.CategoryCounts.Sum(x => x.Count);
-
         if (criteria.Take > 0)
         {
-            result.Results = await GetPageAsync(criteria, plans);
+            // Counts come from the same per-category fetch as the rows, so a tab's count always matches its own list
+            // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
+            var fetchResults = await FetchCategoriesAsync(criteria, plans);
+            result.CategoryCounts = plans
+                .Select((plan, index) => CreateCategoryCount(plan.Category, fetchResults[index].TotalCount))
+                .ToList();
+            result.Results = GetPage(criteria, fetchResults);
         }
+        else
+        {
+            result.CategoryCounts = await GetCategoryCountsAsync(criteria, plans);
+        }
+
+        result.TotalCount = result.CategoryCounts.Sum(x => x.Count);
 
         return result;
     }
 
     protected virtual async Task<IList<SalesRepActivityCategoryCount>> GetCategoryCountsAsync(
         SalesRepActivitySearchCriteria criteria,
-        IList<(ISalesRepActivitySource Source, IList<string> Categories)> plans)
+        IList<(ISalesRepActivitySource Source, string Category)> plans)
     {
-        var countTasks = plans
-            .SelectMany(plan => plan.Categories.Select(category => (plan.Source, Category: category)))
-            .Select(async x =>
-            {
-                var countCriteria = criteria.CloneTyped();
-                countCriteria.Categories = [x.Category];
-                countCriteria.Take = 0;
-                countCriteria.Skip = 0;
+        var countTasks = plans.Select(async plan =>
+        {
+            var countCriteria = criteria.CloneTyped();
+            countCriteria.Categories = [plan.Category];
+            countCriteria.Take = 0;
+            countCriteria.Skip = 0;
 
-                var countResult = await x.Source.SearchAsync(countCriteria);
+            var countResult = await plan.Source.SearchAsync(countCriteria);
 
-                var categoryCount = AbstractTypeFactory<SalesRepActivityCategoryCount>.TryCreateInstance();
-                categoryCount.Category = x.Category;
-                categoryCount.Count = countResult.TotalCount;
-                return categoryCount;
-            });
+            return CreateCategoryCount(plan.Category, countResult.TotalCount);
+        });
 
         return await Task.WhenAll(countTasks);
     }
 
-    // Pagination v1: every source returns its top Skip+Take rows and the page is sliced from the merge,
+    // Pagination v1: every category returns its top Skip+Take rows and the page is sliced from the merge,
     // so deep pages over-fetch proportionally — acceptable for feed-sized reads.
-    protected virtual async Task<IList<SalesRepActivityEvent>> GetPageAsync(
+    protected virtual async Task<IList<SalesRepActivitySearchResult>> FetchCategoriesAsync(
         SalesRepActivitySearchCriteria criteria,
-        IList<(ISalesRepActivitySource Source, IList<string> Categories)> plans)
+        IList<(ISalesRepActivitySource Source, string Category)> plans)
     {
         var fetchTasks = plans.Select(plan =>
         {
             var fetchCriteria = criteria.CloneTyped();
-            fetchCriteria.Categories = plan.Categories;
+            fetchCriteria.Categories = [plan.Category];
             fetchCriteria.Take = criteria.Skip + criteria.Take;
             fetchCriteria.Skip = 0;
 
             return plan.Source.SearchAsync(fetchCriteria);
         });
 
-        var results = await Task.WhenAll(fetchTasks);
+        return await Task.WhenAll(fetchTasks);
+    }
 
-        return results
+    protected virtual IList<SalesRepActivityEvent> GetPage(
+        SalesRepActivitySearchCriteria criteria,
+        IList<SalesRepActivitySearchResult> fetchResults)
+    {
+        return fetchResults
             .SelectMany(x => x.Results ?? [])
             .OrderByDescending(x => x.OccurredAt)
             .ThenBy(x => x.Category, StringComparer.Ordinal)
@@ -98,5 +107,15 @@ public class SalesRepActivityService : ISalesRepActivityService
             .Skip(criteria.Skip)
             .Take(criteria.Take)
             .ToList();
+    }
+
+    protected static SalesRepActivityCategoryCount CreateCategoryCount(string category, int count)
+    {
+        var result = AbstractTypeFactory<SalesRepActivityCategoryCount>.TryCreateInstance();
+
+        result.Category = category;
+        result.Count = count;
+
+        return result;
     }
 }
