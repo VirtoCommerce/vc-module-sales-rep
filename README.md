@@ -248,7 +248,8 @@ surfaces therefore re-apply the scope to the loaded order through `ISalesRepOrde
 resolves the served organizations from `ISalesRepOrganizationAccessService` for both the list and the by-id
 query — one overridable rule, asked only about the organizations present on the page. The
 accepted trade is that `totalCount` stays the index count, so it is an **upper bound** until the reindex and a
-page can come back a row short. User-chosen filters (status, dates, keyword) are *not* re-applied — a stale
+page can come back a row short; the facet counts are aggregated on that same index, so they share the same
+staleness. User-chosen filters (status, dates, keyword) are *not* re-applied — a stale
 document there shows an order the rep is entitled to see, in a list it no longer belongs in, with its current
 values; the scope is the only criterion whose staleness would show data that is not theirs.
 
