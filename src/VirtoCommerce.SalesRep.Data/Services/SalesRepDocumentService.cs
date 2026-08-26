@@ -226,9 +226,8 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         return file != null && ModuleConstants.DocumentsScope.EqualsIgnoreCase(file.Scope) ? file : null;
     }
 
-    private static string NormalizeName(string name, string fileName)
+    protected static string NormalizeName(string name, string fileName)
     {
         return string.IsNullOrWhiteSpace(name) ? fileName : name.Trim();
     }
-
 }

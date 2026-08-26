@@ -33,7 +33,7 @@ public class DeleteDocumentMetadataAssetEntryChangedEventHandler : IEventHandler
         var deletedFileIds = message.ChangedEntries
             .Where(x => x.EntryState == EntryState.Deleted)
             .Select(x => x.OldEntry ?? x.NewEntry)
-            .Where(x => x != null && ModuleConstants.DocumentsScope.EqualsIgnoreCase(x.Group))
+            .Where(x => x != null && x.Group.EqualsIgnoreCase(ModuleConstants.DocumentsScope))
             .Select(x => x.Id)
             .ToArray();
 

@@ -10,7 +10,6 @@ using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.FileExperienceApi.Core.Authorization;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
@@ -81,7 +80,7 @@ public class Module : IModule, IHasConfiguration
         // routes the generic file surfaces (GET /api/files/{id}, deleteFile) to it.
         serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
         serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
-        serviceCollection.AddTransient<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+        serviceCollection.AddSingleton<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
 
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
