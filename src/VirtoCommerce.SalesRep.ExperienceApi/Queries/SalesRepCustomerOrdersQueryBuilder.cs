@@ -21,8 +21,9 @@ public class SalesRepCustomerOrdersQueryBuilder : SalesRepOrderQueryBuilder<Sale
     }
 
     // IMPORTANT: repeats X-Order's BaseSearchOrderQueryBuilder.GetFieldType on purpose - do not subclass it.
-    // That base authorizes with CanAccessOrderAuthorizationRequirement, which a rep never satisfies, so
-    // inheriting it would return nothing. Keep in step if X-Order changes the connection shape.
+    // Its authorization is not the obstacle, that seam is overridable: the base is constrained to
+    // SearchOrderQuery, whose Map pins OrganizationId to the caller's own organization, and it lives in
+    // XOrder.Data while this project references .Core. Keep in step if X-Order changes the connection shape.
     protected override FieldType GetFieldType()
     {
         var builder = GraphTypeExtensionHelper
