@@ -8,6 +8,9 @@ public interface ISalesRepMapper
 {
     SalesRepDocument ToDocument(File file, SalesRepDocumentMetadata metadata);
 
-    // Pairs metadata rows with their library files; rows whose file is missing or outside the library scope are skipped.
+    // The metadata list is authoritative: every row maps; a missing or foreign-scope file only degrades the
+    // file-derived fields to null.
     IList<SalesRepDocument> ToDocuments(IList<File> files, IList<SalesRepDocumentMetadata> metadataItems);
+
+    SalesRepDocumentMetadata ToMetadata(SalesRepDocument document);
 }

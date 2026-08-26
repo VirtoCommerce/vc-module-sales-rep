@@ -132,7 +132,7 @@ public class SalesRepDocumentService : ISalesRepDocumentService
     {
         ArgumentNullException.ThrowIfNull(document);
 
-        var metadata = ToMetadata(document);
+        var metadata = _mapper.ToMetadata(document);
 
         if (string.IsNullOrEmpty(document.Id))
         {
@@ -143,19 +143,6 @@ public class SalesRepDocumentService : ISalesRepDocumentService
         {
             await UpdateMetadataAsync(document.Id, metadata);
         }
-    }
-
-    protected virtual SalesRepDocumentMetadata ToMetadata(SalesRepDocument document)
-    {
-        var metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
-
-        metadata.Name = document.DisplayName;
-        metadata.Category = document.Category;
-        metadata.Summary = document.Summary;
-        metadata.PageCount = document.PageCount;
-        metadata.PreviewUrl = document.PreviewUrl;
-
-        return metadata;
     }
 
     public virtual async Task DeleteAsync(IList<string> ids, bool softDelete = false)

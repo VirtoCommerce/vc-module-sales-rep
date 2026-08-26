@@ -41,6 +41,24 @@ public class SalesRepMapper : ISalesRepMapper
             .ToList();
     }
 
+    public virtual SalesRepDocumentMetadata ToMetadata(SalesRepDocument document)
+    {
+        if (document == null)
+        {
+            return null;
+        }
+
+        var metadata = AbstractTypeFactory<SalesRepDocumentMetadata>.TryCreateInstance();
+
+        metadata.Name = document.DisplayName;
+        metadata.Category = document.Category;
+        metadata.Summary = document.Summary;
+        metadata.PageCount = document.PageCount;
+        metadata.PreviewUrl = document.PreviewUrl;
+
+        return metadata;
+    }
+
     protected virtual SalesRepDocument MapDocument(File file, SalesRepDocumentMetadata metadata)
     {
         var document = AbstractTypeFactory<SalesRepDocument>.TryCreateInstance();

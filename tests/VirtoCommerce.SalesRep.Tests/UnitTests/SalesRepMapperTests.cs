@@ -103,6 +103,38 @@ public class SalesRepMapperTests
     }
 
     [Fact]
+    public void ToMetadata_MapsTheEditableFields_NullSourceReturnsNull()
+    {
+        var document = new SalesRepDocument
+        {
+            Id = "doc-1",
+            FileId = "file-1",
+            Name = "list.pdf",
+            DisplayName = "Pretty name",
+            Category = "Catalogs",
+            IsPinned = true,
+            Summary = "summary",
+            PageCount = 7,
+            PreviewUrl = "preview.png",
+        };
+
+        var metadata = _mapper.ToMetadata(document);
+
+        // Only the editable metadata fields travel; identity, the file link and the pin flag are owned by
+        // the service/pin flows (id and FileId are (re)assigned there; IsPinned has its dedicated mutation).
+        metadata.Name.Should().Be("Pretty name");
+        metadata.Category.Should().Be("Catalogs");
+        metadata.Summary.Should().Be("summary");
+        metadata.PageCount.Should().Be(7);
+        metadata.PreviewUrl.Should().Be("preview.png");
+        metadata.Id.Should().BeNull();
+        metadata.FileId.Should().BeNull();
+        metadata.IsPinned.Should().BeFalse();
+
+        _mapper.ToMetadata(null).Should().BeNull();
+    }
+
+    [Fact]
     public void ToDocuments_NullSource_Throws()
     {
         var nullFiles = () => _mapper.ToDocuments(null, [CreateMetadata("file-1")]);
