@@ -6,7 +6,8 @@
       "BLOCKED": "Blocked Sales Reps",
       "UNASSIGNED": "Not assigned Sales Reps",
       "ORGANIZATIONS": "Organizations",
-      "UNASSIGNED_ORGANIZATIONS": "Not assigned Organizations"
+      "UNASSIGNED_ORGANIZATIONS": "Not assigned Organizations",
+      "DOCUMENTS": "Documents library"
     },
     "PAGES": {
       "DASHBOARD": {
@@ -95,6 +96,88 @@
         },
         "VALIDATION": {
           "PASSWORD_MIN": "Password must be at least {min} characters."
+        }
+      },
+      "DOCUMENTS": {
+        "SEARCH": {
+          "PLACEHOLDER": "Search by file name"
+        },
+        "TOOLBAR": {
+          "REFRESH": "Refresh",
+          "UPLOAD": "Upload",
+          "DELETE": "Delete"
+        },
+        "TABLE": {
+          "HEADER": {
+            "NAME": "Name",
+            "CATEGORY": "Category",
+            "SIZE": "Size",
+            "MODIFIED_DATE": "Modified date",
+            "CREATED_DATE": "Created date"
+          }
+        },
+        "ALERTS": {
+          "DELETE_SELECTED_CONFIRMATION_MESSAGE": "Are you sure you want to delete {count} document(s)? This removes the files from the shared library."
+        }
+      },
+      "DOCUMENT_DETAILS": {
+        "TITLE": "Document",
+        "BLOCKS": {
+          "INFO": "Document",
+          "METADATA": "Metadata"
+        },
+        "FORM": {
+          "FILE_NAME": "File name",
+          "CATEGORY": "Category",
+          "CATEGORY_PLACEHOLDER": "Select an existing category",
+          "NEW_CATEGORY": "New category",
+          "NEW_CATEGORY_PLACEHOLDER": "Or type a name to create a new category",
+          "NEW_CATEGORY_HINT": "New category has priority over selection",
+          "SIZE": "Size",
+          "CONTENT_TYPE": "Content type",
+          "CREATED_DATE": "Created",
+          "MODIFIED_DATE": "Modified",
+          "DISPLAY_NAME": "Display name",
+          "DISPLAY_NAME_HINT": "Shown instead of the file name. Leave empty to use the file name.",
+          "SUMMARY": "Summary",
+          "PAGE_COUNT": "Page count",
+          "PREVIEW_URL": "Preview URL"
+        },
+        "TOOLBAR": {
+          "SAVE": "Save",
+          "RESET": "Reset",
+          "PIN": "Pin",
+          "UNPIN": "Unpin",
+          "DOWNLOAD": "Download",
+          "DELETE": "Delete"
+        },
+        "ALERTS": {
+          "CLOSE_CONFIRMATION": "You have unsaved changes. Do you want to discard them?",
+          "DELETE_CONFIRMATION": "Are you sure you want to delete \"{name}\"? This removes the file from the shared library."
+        }
+      },
+      "DOCUMENT_UPLOAD": {
+        "TITLE": "Upload documents",
+        "BLOCKS": {
+          "FILES": "Files",
+          "DETAILS": "Category & metadata",
+          "DETAILS_HINT": "Applied to every uploaded file."
+        },
+        "FORM": {
+          "CATEGORY": "Category",
+          "CATEGORY_PLACEHOLDER": "Select an existing category",
+          "NEW_CATEGORY": "New category",
+          "NEW_CATEGORY_PLACEHOLDER": "Or type a name to create a new category",
+          "NEW_CATEGORY_HINT": "New category has priority over selection",
+          "DISPLAY_NAME": "Display name",
+          "DISPLAY_NAME_PLACEHOLDER": "Optional name shown instead of the file name",
+          "SUMMARY": "Summary",
+          "PAGE_COUNT": "Page count",
+          "PREVIEW_URL": "Preview URL",
+          "FILE_TYPE_NOT_ALLOWED": "File type not allowed: {files}. Allowed types: {types}"
+        },
+        "TOOLBAR": {
+          "UPLOAD": "Upload"
         }
       }
     }

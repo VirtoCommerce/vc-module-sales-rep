@@ -4,13 +4,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentValidation;
-using VirtoCommerce.CoreModule.Core.Currency;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using VirtoCommerce.AssetsModule.Core.Assets;
+using VirtoCommerce.AssetsModule.Core.Services;
+using VirtoCommerce.AssetsModule.Data.Repositories;
+using VirtoCommerce.AssetsModule.Data.Services;
+using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.CustomerModule.Core.Services.Indexed;
@@ -19,32 +23,41 @@ using VirtoCommerce.CustomerModule.Data.Repositories;
 using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.CustomerModule.Data.Services;
-using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.CustomerModule.Data.Validation;
+using VirtoCommerce.FileExperienceApi.Core.Models;
+using VirtoCommerce.FileExperienceApi.Core.Services;
+using VirtoCommerce.FileExperienceApi.Data.Services;
 using VirtoCommerce.LuceneSearchModule.Data;
 using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Bus;
 using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.Platform.Core.Events;
+using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
+using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Data.Common;
 using VirtoCommerce.Platform.Security;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.Platform.Security.Services;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Data.Handlers;
+using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.SearchModule.Data.SearchPhraseParsing;
 using VirtoCommerce.SearchModule.Data.Services;
-using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.StoreModule.Core.Model;
 using VirtoCommerce.StoreModule.Core.Services;
 using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
+using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -164,10 +177,59 @@ internal static class TestServicesConfiguration
         return services;
     }
 
-    /// <summary>The module under test: real SalesRep services + the REST controller (ported from Module.Initialize).</summary>
-    public static IServiceCollection AddSalesRepSlice(this IServiceCollection services)
+    /// <summary>
+    /// Assets domain on SQLite: the REAL AssetEntry CRUD/search services + repository (the documents library's
+    /// listing backbone), plus the real platform file-extension validator. Only the binary storage is a double —
+    /// <see cref="InMemoryBlobStorageProvider"/> (registered as both provider and URL resolver) so tests can
+    /// assert blob existence without a file system.
+    /// </summary>
+    public static IServiceCollection AddAssetsSlice(this IServiceCollection services, DbContextOptions<AssetsDbContext> assetsDbOptions)
     {
+        services.AddSingleton(assetsDbOptions);
+        services.AddScoped<AssetsDbContext>();
+        services.AddTransient<IAssetsRepository, AssetsRepository>();
+        services.AddSingleton<Func<IAssetsRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<IAssetsRepository>());
+
+        services.Configure<CrudOptions>(_ => { });
+        services.AddTransient<IAssetEntryService, AssetEntryService>();
+        services.AddTransient<IAssetEntrySearchService, AssetEntrySearchService>();
+        services.AddTransient<IFileExtensionService, FileExtensionService>();
+
+        services.AddSingleton<InMemoryBlobStorageProvider>();
+        services.AddSingleton<IBlobStorageProvider>(sp => sp.GetRequiredService<InMemoryBlobStorageProvider>());
+        services.AddSingleton<IBlobUrlResolver>(sp => sp.GetRequiredService<InMemoryBlobStorageProvider>());
+
+        // The REAL file-experience-api upload service over the same assets slice, with the documents scope
+        // configured the way a deployment configures it in FileUpload:Scopes.
+        services.Configure<FileUploadOptions>(options => options.Scopes.Add(new FileUploadScopeOptions
+        {
+            Scope = SalesRepModuleConstants.DocumentsScope,
+            MaxFileSize = 50 * 1024 * 1024,
+            AllowedExtensions = [],
+        }));
+        services.AddTransient<IFileUploadService, FileUploadService>();
+
+        return services;
+    }
+
+    /// <summary>The module under test: real SalesRep services + the REST controller (ported from Module.Initialize).</summary>
+    public static IServiceCollection AddSalesRepSlice(this IServiceCollection services, DbContextOptions<SalesRepDbContext> salesRepDbOptions)
+    {
+        services.AddSingleton(salesRepDbOptions);
+        services.AddScoped<SalesRepDbContext>();
+        services.AddTransient<ISalesRepRepository, SalesRepRepository>();
+        services.AddSingleton<Func<ISalesRepRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<ISalesRepRepository>());
+
+        services.AddSingleton<AbstractValidator<SalesRepDocumentMetadata>, SalesRepDocumentMetadataValidator>();
+        services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
+        services.AddTransient<ISalesRepDocumentMetadataService, SalesRepDocumentMetadataService>();
+        services.AddTransient<ISalesRepDocumentMetadataSearchService, SalesRepDocumentMetadataSearchService>();
+        services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
+        services.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
+        services.AddTransient<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        services.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         services.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         services.AddTransient<ISalesRepService, SalesRepService>();
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
@@ -224,7 +286,9 @@ internal static class TestServicesConfiguration
             var setting = new ObjectSettingEntry
             {
                 Name = name,
-                AllowedValues = name == PlatformConstants.Settings.General.Languages.Name ? ["en-US", "de-DE"] : null,
+                // Non-null AllowedValues everywhere: FileExtensionService unions the white/blacklist settings'
+                // AllowedValues without a null guard.
+                AllowedValues = name == PlatformConstants.Settings.General.Languages.Name ? ["en-US", "de-DE"] : [],
             };
             return Task.FromResult(setting);
         }
