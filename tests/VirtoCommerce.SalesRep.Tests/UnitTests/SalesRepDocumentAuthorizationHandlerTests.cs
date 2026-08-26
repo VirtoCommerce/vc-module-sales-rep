@@ -40,10 +40,12 @@ public class SalesRepDocumentAuthorizationHandlerTests
     }
 
     [Fact]
-    public async Task Handle_NonReadRequirement_FailsClosedToTheWriteBranch()
+    public async Task Handle_UnknownPermissionRequirement_IsDenied()
     {
-        // Any non-read permission requires documents:write.
-        (await AuthorizeAsync(CreateUser(DocumentsWrite), "unknown:permission")).Should().BeTrue();
+        // The factory normalizes every non-read file permission to documents:write before a requirement is
+        // created, so an unknown permission means a foreign/malformed requirement — denied outright, even for
+        // holders of both document permissions.
+        (await AuthorizeAsync(CreateUser(DocumentsWrite), "unknown:permission")).Should().BeFalse();
         (await AuthorizeAsync(CreateUser(DocumentsRead), "unknown:permission")).Should().BeFalse();
     }
 
@@ -73,6 +75,17 @@ public class SalesRepDocumentAuthorizationHandlerTests
 
         (await AuthorizeAsync(user, DocumentsRead)).Should().BeFalse();
         (await AuthorizeAsync(user, DocumentsWrite)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Handle_WithoutThePermission_FileStateNeverGrants()
+    {
+        // The file gate can only veto — a passing file state (claimed for reads, unclaimed for writes) must
+        // never substitute for the missing permission.
+        var user = new ClaimsPrincipal(new ClaimsIdentity(claims: [], authenticationType: "Test"));
+
+        (await AuthorizeAsync(user, DocumentsRead, ClaimedFile())).Should().BeFalse();
+        (await AuthorizeAsync(user, DocumentsWrite, UnclaimedFile())).Should().BeFalse();
     }
 
     [Fact]
@@ -178,8 +191,8 @@ public class SalesRepDocumentAuthorizationHandlerTests
     private static async Task<bool> AuthorizeAsync(ClaimsPrincipal user, string permission, File file = null)
     {
         var handler = new SalesRepDocumentAuthorizationHandler();
-        var requirement = new SalesRepDocumentAuthorizationRequirement(file, permission);
-        var context = new AuthorizationHandlerContext([requirement], user, resource: null);
+        var requirement = new SalesRepDocumentAuthorizationRequirement(permission);
+        var context = new AuthorizationHandlerContext([requirement], user, resource: file);
 
         await handler.HandleAsync(context);
 

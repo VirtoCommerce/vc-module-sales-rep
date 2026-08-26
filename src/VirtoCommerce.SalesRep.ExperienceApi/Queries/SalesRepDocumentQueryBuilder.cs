@@ -21,6 +21,6 @@ public class SalesRepDocumentQueryBuilder : SalesRepQueryBuilder<SalesRepDocumen
     {
         await base.BeforeMediatorSend(context, request);
 
-        await Authorize(context, request, new SalesRepDocumentAuthorizationRequirement(file: null, ModuleConstants.Security.Permissions.DocumentsRead));
+        await Authorize(context, request, new SalesRepDocumentAuthorizationRequirement(ModuleConstants.Security.Permissions.DocumentsRead));
     }
 }

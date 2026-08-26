@@ -32,7 +32,6 @@ public class SalesRepDocumentAuthorizationRequirementFactoryTests
 
         var documentRequirement = requirement.Should().BeOfType<SalesRepDocumentAuthorizationRequirement>().Subject;
         documentRequirement.Permission.Should().Be(ModuleConstants.Security.Permissions.DocumentsRead);
-        documentRequirement.File.Should().BeSameAs(file);
     }
 
     [Theory]

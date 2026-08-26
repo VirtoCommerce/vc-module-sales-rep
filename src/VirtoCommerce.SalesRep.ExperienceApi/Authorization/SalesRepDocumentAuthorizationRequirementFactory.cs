@@ -19,6 +19,6 @@ public class SalesRepDocumentAuthorizationRequirementFactory : IFileAuthorizatio
             ? ModuleConstants.Security.Permissions.DocumentsRead
             : ModuleConstants.Security.Permissions.DocumentsWrite;
 
-        return new SalesRepDocumentAuthorizationRequirement(file, documentPermission);
+        return new SalesRepDocumentAuthorizationRequirement(documentPermission);
     }
 }

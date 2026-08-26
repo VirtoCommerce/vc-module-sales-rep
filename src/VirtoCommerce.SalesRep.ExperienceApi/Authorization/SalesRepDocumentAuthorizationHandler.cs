@@ -1,10 +1,9 @@
 using System;
-using System.Security.Claims;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.FileExperienceApi.Core.Extensions;
-using VirtoCommerce.Platform.Core;
-using VirtoCommerce.Platform.Core.Security;
+using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.Platform.Security.Authorization;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -19,56 +18,48 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 // through the module's own endpoints, which keep the metadata row and the file in step.
 public class SalesRepDocumentAuthorizationHandler : PermissionAuthorizationHandlerBase<SalesRepDocumentAuthorizationRequirement>
 {
-    protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, SalesRepDocumentAuthorizationRequirement requirement)
+    protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, SalesRepDocumentAuthorizationRequirement requirement)
     {
-        // Any non-read permission fails closed to the write branch.
-        var authorized = requirement.Permission == ModuleConstants.Security.Permissions.DocumentsRead
-            ? HasPermission(context.User, ModuleConstants.Security.Permissions.DocumentsRead) && IsReadableFile(requirement)
-            : HasPermission(context.User, ModuleConstants.Security.Permissions.DocumentsWrite) && IsWritableFile(requirement);
+        await base.HandleRequirementAsync(context, requirement);
 
-        if (authorized)
+        if (context.PendingRequirements.Contains(requirement))
         {
-            context.Succeed(requirement);
+            // No permission — fail decisively: the platform default handler also processes this requirement
+            // type, and its Succeed cannot outvote a Fail.
+            context.Fail();
+            return;
         }
-        else
+
+        // Null for list-level checks (the GraphQL queries) — the permission alone decides. The generic file
+        // surfaces pass the file as the resource (FileAuthorizationService); the gate below can only veto.
+        if (context.Resource is not File file)
+        {
+            return;
+        }
+
+        var authorized = requirement.Permission == ModuleConstants.Security.Permissions.DocumentsRead
+            ? IsReadableFile(file)
+            : IsWritableFile(file);
+
+        if (!authorized)
         {
             context.Fail();
         }
-
-        return Task.CompletedTask;
     }
 
-    // Mirrors the platform permission handler: a limited token grants only its listed permissions
-    // (even for Administrators); otherwise Administrator passes everything.
-    protected virtual bool HasPermission(ClaimsPrincipal user, string permission)
+    // The read gate requires the complete claim CreateAsync writes — the owner id AND the library owner type
+    // (a half-claim is not a document).
+    protected virtual bool IsReadableFile(File file)
     {
-        if (user.Identity?.IsAuthenticated != true)
-        {
-            return false;
-        }
+        ArgumentNullException.ThrowIfNull(file);
 
-        var limitedPermissionsClaim = user.FindFirstValue(PlatformConstants.Security.Claims.LimitedPermissionsClaimType);
-        if (limitedPermissionsClaim != null)
-        {
-            return limitedPermissionsClaim
-                .Split(PlatformConstants.Security.Claims.PermissionClaimTypeDelimiter, StringSplitOptions.RemoveEmptyEntries)
-                .Contains(permission);
-        }
-
-        return user.HasGlobalPermission(permission);
+        return !string.IsNullOrEmpty(file.OwnerEntityId) && file.OwnerTypeIs<SalesRepDocumentMetadata>();
     }
 
-    // File is null for list-level checks (the GraphQL queries, which are metadata-driven anyway).
-    // The read gate requires the complete claim CreateAsync writes: the owner id AND the library owner type.
-    protected virtual bool IsReadableFile(SalesRepDocumentAuthorizationRequirement requirement)
+    protected virtual bool IsWritableFile(File file)
     {
-        var file = requirement.File;
+        ArgumentNullException.ThrowIfNull(file);
 
-        return file == null || (!string.IsNullOrEmpty(file.OwnerEntityId) && file.OwnerTypeIs<SalesRepDocumentMetadata>());
-    }
-
-    protected virtual bool IsWritableFile(SalesRepDocumentAuthorizationRequirement requirement)
-    {
-        return requirement.File == null || requirement.File.OwnerIsEmpty();
+        return file.OwnerIsEmpty();
     }
 }
