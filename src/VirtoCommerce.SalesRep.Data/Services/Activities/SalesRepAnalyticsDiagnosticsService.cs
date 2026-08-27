@@ -168,7 +168,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
 
     protected static AnalyticsDiagnosticsCheck CreateFeatureQueryCheck(string status, string message, string detail = null)
     {
-        return CreateCheck(ModuleConstants.Diagnostics.FeatureQueryStage, status, message, detail);
+        return CreateCheck(ModuleConstants.DiagnosticsStages.FeatureQueryStage, status, message, detail);
     }
 
     protected static AnalyticsDiagnosticsCheck CreateCheck(string stage, string status, string message, string detail = null)

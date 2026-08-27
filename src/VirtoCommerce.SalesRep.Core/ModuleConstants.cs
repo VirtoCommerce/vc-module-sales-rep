@@ -84,7 +84,7 @@ public static class ModuleConstants
         }
     }
 
-    public static class Diagnostics
+    public static class DiagnosticsStages
     {
         // The sales-rep stage appended after the analytics module's own diagnostics stages.
         public const string FeatureQueryStage = "featureQuery";

@@ -139,7 +139,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         return insights.GetOrAddSliceAsync($"{BrowsedProductsField}:{sortBy}:{take}", async () =>
         {
             var products = await _insightsService.GetBrowsedProductsAsync(CreateCriteria(insights, sortBy, take));
-            await ResolveProductsAsync(products, insights);
+            await ResolveProductsAsync(products);
             return products;
         });
     }
@@ -158,7 +158,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         return criteria;
     }
 
-    private async Task ResolveProductsAsync(IList<SalesRepBrowsedProduct> products, SalesRepCustomerInsightsContext insights)
+    private async Task ResolveProductsAsync(IList<SalesRepBrowsedProduct> products)
     {
         if (products.Count == 0)
         {
