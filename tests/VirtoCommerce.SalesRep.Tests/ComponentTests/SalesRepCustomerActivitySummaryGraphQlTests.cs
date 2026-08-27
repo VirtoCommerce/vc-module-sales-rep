@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
@@ -50,7 +51,11 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
 
         var summary = Summary(json);
         summary.GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeTrue();
-        summary.GetProperty("createdOn").GetDateTime().Should().BeAfter(DateTime.MinValue); // stamped by the member service on seed
+        // createdOn passes the organization's own creation date through, so compare it with the member record:
+        // the value is stamped by the platform's auditable triggers, which a test host does not always wire up.
+        var organization = await ctx.GetRequiredService<IMemberService>().GetByIdAsync("org-1");
+        summary.GetProperty("createdOn").GetDateTime().ToUniversalTime()
+            .Should().BeCloseTo(DateTime.SpecifyKind(organization.CreatedDate, DateTimeKind.Utc), TimeSpan.FromSeconds(1));
         summary.GetProperty("visitsCount").GetInt32().Should().Be(5); // 2 + 3, org-1 logins only
         summary.GetProperty("lastWebLogin").GetDateTime().ToUniversalTime().Should().Be(_mar);
         summary.GetProperty("lastSearchTerm").GetString().Should().Be("pumps");
