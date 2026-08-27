@@ -26,7 +26,7 @@ public class SalesRepCustomerActivitySummaryQuery : Query<SalesRepCustomerActivi
         yield return Argument<NonNullGraphType<StringGraphType>>(nameof(OrganizationId), "Organization (customer) id to summarize the activity of.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store whose analytics configuration and events to read (defaults to all stores).");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional date range for the analytics figures (omit for all dates).");
-        yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the product slug resolution (\"en-US\").");
+        yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized fields (\"en-US\").");
     }
 
     public override void Map(IResolveFieldContext context)

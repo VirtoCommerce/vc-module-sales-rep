@@ -23,9 +23,10 @@ public class SalesRepActivityService : ISalesRepActivityService
 
         var result = AbstractTypeFactory<SalesRepActivitySearchResult>.TryCreateInstance();
 
+        // Every registered category is planned, filter or no filter: the counts feed the storefront's category tabs,
+        // which must keep showing their own totals while one of them is selected.
         var plans = _sources
-            .SelectMany(source => criteria.GetEffectiveCategories(source.Categories)
-                .Select(category => (Source: source, Category: category)))
+            .SelectMany(source => (source.Categories ?? []).Select(category => (Source: source, Category: category)))
             .ToList();
 
         if (plans.Count == 0)
@@ -33,40 +34,59 @@ public class SalesRepActivityService : ISalesRepActivityService
             return result;
         }
 
-        if (criteria.Take > 0)
+        var fetchIndexes = new List<int>();
+        var countIndexes = new List<int>();
+
+        for (var index = 0; index < plans.Count; index++)
         {
-            // Counts come from the same per-category fetch as the rows, so a tab's count always matches its own list
-            // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
-            var fetchResults = await FetchCategoriesAsync(criteria, plans);
-            result.CategoryCounts = plans
-                .Select((plan, index) => CreateCategoryCount(plan.Category, fetchResults[index].TotalCount))
-                .ToList();
-            result.Results = GetPage(criteria, fetchResults);
-        }
-        else
-        {
-            result.CategoryCounts = await GetCategoryCountsAsync(criteria, plans);
+            var fetchesRows = criteria.Take > 0 && criteria.IsCategoryRequested(plans[index].Category);
+            (fetchesRows ? fetchIndexes : countIndexes).Add(index);
         }
 
-        result.TotalCount = result.CategoryCounts.Sum(x => x.Count);
+        var fetchPlans = fetchIndexes.Select(x => plans[x]).ToList();
+        var countPlans = countIndexes.Select(x => plans[x]).ToList();
+
+        // A fetched category takes its count from its own row fetch, so a tab's count always matches its own list
+        // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
+        var fetchTask = FetchCategoriesAsync(criteria, fetchPlans);
+        var countTask = CountCategoriesAsync(criteria, countPlans);
+        await Task.WhenAll(fetchTask, countTask);
+
+        var fetchResults = await fetchTask;
+        var countResults = await countTask;
+
+        var categoryCounts = new SalesRepActivityCategoryCount[plans.Count];
+
+        for (var index = 0; index < fetchIndexes.Count; index++)
+        {
+            categoryCounts[fetchIndexes[index]] = CreateCategoryCount(fetchPlans[index].Category, fetchResults[index].TotalCount);
+        }
+
+        for (var index = 0; index < countIndexes.Count; index++)
+        {
+            categoryCounts[countIndexes[index]] = CreateCategoryCount(countPlans[index].Category, countResults[index].TotalCount);
+        }
+
+        result.CategoryCounts = [.. categoryCounts];
+        result.Results = GetPage(criteria, fetchResults);
+        // The pager is per-tab: only the requested categories add up to the total.
+        result.TotalCount = result.CategoryCounts.Where(x => criteria.IsCategoryRequested(x.Category)).Sum(x => x.Count);
 
         return result;
     }
 
-    protected virtual async Task<IList<SalesRepActivityCategoryCount>> GetCategoryCountsAsync(
+    protected virtual async Task<IList<SalesRepActivitySearchResult>> CountCategoriesAsync(
         SalesRepActivitySearchCriteria criteria,
         IList<(ISalesRepActivitySource Source, string Category)> plans)
     {
-        var countTasks = plans.Select(async plan =>
+        var countTasks = plans.Select(plan =>
         {
             var countCriteria = criteria.CloneTyped();
             countCriteria.Categories = [plan.Category];
             countCriteria.Take = 0;
             countCriteria.Skip = 0;
 
-            var countResult = await plan.Source.SearchAsync(countCriteria);
-
-            return CreateCategoryCount(plan.Category, countResult.TotalCount);
+            return plan.Source.SearchAsync(countCriteria);
         });
 
         return await Task.WhenAll(countTasks);

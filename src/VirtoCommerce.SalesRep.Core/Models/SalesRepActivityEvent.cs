@@ -36,7 +36,5 @@ public class SalesRepActivityEvent
 
     public string ProductName { get; set; }
 
-    public string ProductSlug { get; set; }
-
     public string ProductImageUrl { get; set; }
 }

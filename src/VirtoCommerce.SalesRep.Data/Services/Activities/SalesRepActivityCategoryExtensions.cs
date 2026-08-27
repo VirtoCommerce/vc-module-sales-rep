@@ -10,10 +10,11 @@ public static class SalesRepActivityCategoryExtensions
 {
     public static IList<string> GetEffectiveCategories(this SalesRepActivitySearchCriteria criteria, IList<string> sourceCategories)
     {
-        var categories = sourceCategories ?? [];
+        return (sourceCategories ?? []).Where(criteria.IsCategoryRequested).ToList();
+    }
 
-        return criteria.Categories.IsNullOrEmpty()
-            ? categories.ToList()
-            : categories.Where(x => criteria.Categories.Contains(x, StringComparer.OrdinalIgnoreCase)).ToList();
+    public static bool IsCategoryRequested(this SalesRepActivitySearchCriteria criteria, string category)
+    {
+        return criteria.Categories.IsNullOrEmpty() || criteria.Categories.Contains(category, StringComparer.OrdinalIgnoreCase);
     }
 }

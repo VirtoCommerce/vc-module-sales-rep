@@ -24,7 +24,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
 
     private const string AllFields =
         "createdOn lastWebLogin visitsCount lastSearchTerm isAnalyticsConfigured " +
-        "lastViewedProduct { code productId name slug imageUrl }";
+        "lastViewedProduct { code productId name imageUrl }";
 
     [Fact]
     public async Task Summary_ReturnsAnalyticsFiguresAndResolvedProduct()
@@ -33,7 +33,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", slug: "catalog-pump", imageUrl: "https://img/pump.png");
+        SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png");
 
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _feb, count: 2, "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 3, "org-1");
@@ -59,7 +59,6 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         product.GetProperty("code").GetString().Should().Be("CODE-1");
         product.GetProperty("productId").GetString().Should().Be("prod-1");
         product.GetProperty("name").GetString().Should().Be("Catalog Pump");
-        product.GetProperty("slug").GetString().Should().Be("catalog-pump");
         product.GetProperty("imageUrl").GetString().Should().Be("https://img/pump.png");
 
         // Every analytics read is scoped to the single organization and to the customer's own sessions.
@@ -89,7 +88,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         product.GetProperty("code").GetString().Should().Be("GONE-1");
         product.GetProperty("name").GetString().Should().Be("Deleted Pump");
         product.GetProperty("productId").ValueKind.Should().Be(JsonValueKind.Null);
-        product.GetProperty("slug").ValueKind.Should().Be(JsonValueKind.Null);
+        product.GetProperty("imageUrl").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]

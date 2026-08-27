@@ -166,7 +166,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         }
 
         var codes = products.Select(x => x.Code).ToList();
-        var productsByCode = await _productResolver.ResolveByCodesAsync(codes, insights.StoreId, insights.CultureName);
+        var productsByCode = await _productResolver.ResolveByCodesAsync(codes);
 
         foreach (var row in products)
         {
@@ -176,7 +176,6 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             }
 
             row.ProductId = product.ProductId;
-            row.Slug = product.Slug;
             row.ImageUrl = product.ImageUrl;
 
             if (!string.IsNullOrEmpty(product.Name))

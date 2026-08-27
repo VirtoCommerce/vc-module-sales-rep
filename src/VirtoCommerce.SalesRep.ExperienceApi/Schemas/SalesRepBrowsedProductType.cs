@@ -16,7 +16,6 @@ public class SalesRepBrowsedProductType : ExtendableGraphType<SalesRepBrowsedPro
         Field(x => x.Name, nullable: true).Description("Product name (resolved from the catalog, falling back to the tracked name).");
         Field("sku", x => x.Code, nullable: true).Description("Product code (SKU) as tracked by analytics.");
         Field(x => x.ImageUrl, nullable: true).Description("Product image URL (null when unresolved).");
-        Field(x => x.Slug, nullable: true).Description("Product SEO slug for deep-linking (null when unresolved; resolving it requires a storeId).");
         Field(x => x.ViewCount, nullable: false).Description("Number of tracked views of the product in the period.");
         Field(x => x.LastViewedDate, nullable: true).Description("Latest tracked view (UTC hour-bucket start); null under sort 'count' — the aggregate rows carry no dates.");
     }

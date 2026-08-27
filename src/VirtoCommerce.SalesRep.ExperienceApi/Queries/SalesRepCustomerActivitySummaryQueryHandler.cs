@@ -65,14 +65,13 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
             return;
         }
 
-        var productsByCode = await _productResolver.ResolveByCodesAsync([code], request.StoreId, request.CultureName);
+        var productsByCode = await _productResolver.ResolveByCodesAsync([code]);
         if (!productsByCode.TryGetValue(code, out var product))
         {
             return;
         }
 
         result.LastViewedProduct.ProductId = product.ProductId;
-        result.LastViewedProduct.Slug = product.Slug;
         result.LastViewedProduct.ImageUrl = product.ImageUrl;
 
         if (!string.IsNullOrEmpty(product.Name))

@@ -55,7 +55,6 @@ public class SalesRepActivityEventType : ExtendableGraphType<SalesRepActivityEve
         Field(x => x.ProductId, nullable: true).Description("Resolved product id (productView rows; null when the code no longer matches a product).");
         Field(x => x.ProductCode, nullable: true).Description("Product code as tracked by analytics (productView rows).");
         Field(x => x.ProductName, nullable: true).Description("Product name (productView rows; resolved from the catalog, falling back to the tracked name).");
-        Field(x => x.ProductSlug, nullable: true).Description("Product SEO slug for deep-linking (productView rows; null when unresolved; resolving it requires a storeId).");
         Field(x => x.ProductImageUrl, nullable: true).Description("Product image URL (productView rows; null when unresolved).");
 
         Field<StringGraphType>("organizationName")

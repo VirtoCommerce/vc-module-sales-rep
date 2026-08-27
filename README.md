@@ -470,7 +470,7 @@ Some metrics are **not** computed from platform data — they are read from **Go
 | `salesRepCustomerActivitySummary.visitsCount` | event `login`; metric `eventCount` over the period | a proxy for "number of visits"; only tracked sign-ins count |
 | `salesRepCustomerActivitySummary.lastWebLogin` | event `login`; latest `dateHour` bucket | hour precision |
 | `salesRepCustomerActivitySummary.lastSearchTerm` | event `search`; latest `dateHour` bucket with a `searchTerm` | |
-| `salesRepCustomerActivitySummary.lastViewedProduct` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/slug/image |
+| `salesRepCustomerActivitySummary.lastViewedProduct` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/image |
 | `salesRepCustomerInsights.searchTerms` (term, count, lastSearchedDate) | event `search`; dimension `searchTerm`; metric `eventCount` | `sort: "count"` = GA-aggregated top; `sort: "date"` = per-hour rows aggregated per term. Only `search` is counted — `view_search_results` describes the same user action and would double-count |
 | `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; unresolvable codes are returned as-is (`productId` falls back to the code) |
 | `salesRepCustomerInsights.dataAsOf` | latest `dateHour` bucket observed in the returned payload | **not** "now" — see latency below |

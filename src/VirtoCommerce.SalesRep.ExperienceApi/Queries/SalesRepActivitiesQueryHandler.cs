@@ -69,7 +69,7 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         }
 
         var codes = productViewRows.Select(x => x.ProductCode).ToList();
-        var productsByCode = await _productResolver.ResolveByCodesAsync(codes, request.StoreId, request.CultureName);
+        var productsByCode = await _productResolver.ResolveByCodesAsync(codes);
 
         foreach (var row in productViewRows)
         {
@@ -79,7 +79,6 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
             }
 
             row.ProductId = product.ProductId;
-            row.ProductSlug = product.Slug;
             row.ProductImageUrl = product.ImageUrl;
 
             if (!string.IsNullOrEmpty(product.Name))

@@ -31,7 +31,7 @@ public class SalesRepActivitiesGraphQlTests
     private const string AllFields =
         "totalCount categoryCounts { category count } items { category type occurredAt precision count organizationId organizationName " +
         "orderId orderNumber orderStatus orderStatusDisplayValue orderTotal { amount currency { code } } " +
-        "searchTerm productId productCode productName productSlug productImageUrl }";
+        "searchTerm productId productCode productName productImageUrl }";
 
     [Fact]
     public async Task Activities_MergesOrdersAndCustomers_NewestFirst()
@@ -88,8 +88,9 @@ public class SalesRepActivitiesGraphQlTests
             userId: rep.UserId);
 
         var connection = Connection(json);
-        connection.GetProperty("totalCount").GetInt32().Should().Be(3);
-        CategoryCounts(connection).Should().Equal(("orders", 3));
+        connection.GetProperty("totalCount").GetInt32().Should().Be(3); // the selected category only
+        // The unselected tabs keep their own badges instead of collapsing to 0.
+        CategoryCounts(connection).Should().Equal(("orders", 3), ("customers", 1), ("searches", 0), ("productViews", 0), ("logins", 0));
 
         var items = connection.GetProperty("items").EnumerateArray().ToList();
         items.Should().HaveCount(1);
@@ -126,7 +127,7 @@ public class SalesRepActivitiesGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
         await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-1", _jan);
         await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-2", _jan);
-        SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", slug: "catalog-pump", imageUrl: "https://img/pump.png");
+        SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png");
 
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _feb, count: 2, "org-1",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
@@ -144,7 +145,7 @@ public class SalesRepActivitiesGraphQlTests
 
         var connection = Connection(json);
         connection.GetProperty("totalCount").GetInt32().Should().Be(3);
-        CategoryCounts(connection).Should().Equal(("searches", 1), ("productViews", 1), ("logins", 1));
+        CategoryCounts(connection).Should().Equal(("orders", 0), ("customers", 2), ("searches", 1), ("productViews", 1), ("logins", 1));
 
         var items = connection.GetProperty("items").EnumerateArray().ToList();
         items.Select(x => x.GetProperty("type").GetString()).Should().Equal("login", "productView", "search");
@@ -158,7 +159,6 @@ public class SalesRepActivitiesGraphQlTests
         productView.GetProperty("productCode").GetString().Should().Be("CODE-1");
         productView.GetProperty("productId").GetString().Should().Be("prod-1");
         productView.GetProperty("productName").GetString().Should().Be("Catalog Pump"); // catalog name wins over the GA snapshot
-        productView.GetProperty("productSlug").GetString().Should().Be("catalog-pump");
         productView.GetProperty("productImageUrl").GetString().Should().Be("https://img/pump.png");
 
         var search = items[2];
@@ -198,7 +198,7 @@ public class SalesRepActivitiesGraphQlTests
         row.GetProperty("productCode").GetString().Should().Be("GONE-1");
         row.GetProperty("productName").GetString().Should().Be("Deleted Pump"); // GA snapshot survives
         row.GetProperty("productId").ValueKind.Should().Be(JsonValueKind.Null);
-        row.GetProperty("productSlug").ValueKind.Should().Be(JsonValueKind.Null);
+        row.GetProperty("productImageUrl").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]
@@ -214,7 +214,7 @@ public class SalesRepActivitiesGraphQlTests
 
         var connection = Connection(json);
         connection.GetProperty("totalCount").GetInt32().Should().Be(0);
-        CategoryCounts(connection).Should().Equal(("searches", 0), ("productViews", 0), ("logins", 0));
+        CategoryCounts(connection).Should().Equal(("orders", 0), ("customers", 1), ("searches", 0), ("productViews", 0), ("logins", 0));
         connection.GetProperty("items").GetArrayLength().Should().Be(0);
     }
 
@@ -309,7 +309,7 @@ public class SalesRepActivitiesGraphQlTests
     }
 
     internal static void SeedProduct(
-        SalesRepTestContext ctx, string id, string code, string name, string slug = null, string imageUrl = null)
+        SalesRepTestContext ctx, string id, string code, string name, string imageUrl = null)
     {
         var seedDate = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
@@ -330,14 +330,6 @@ public class SalesRepActivitiesGraphQlTests
             CreatedDate = seedDate,
             ModifiedDate = seedDate,
         };
-
-        if (slug != null)
-        {
-            item.SeoInfos = new ObservableCollection<SeoInfoEntity>(
-            [
-                new SeoInfoEntity { Id = $"{id}-seo", Keyword = slug, IsActive = true, Language = "en-US", CreatedDate = seedDate, ModifiedDate = seedDate },
-            ]);
-        }
 
         if (imageUrl != null)
         {

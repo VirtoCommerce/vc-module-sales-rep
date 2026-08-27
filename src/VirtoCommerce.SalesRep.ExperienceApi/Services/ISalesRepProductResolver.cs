@@ -6,5 +6,5 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 public interface ISalesRepProductResolver
 {
-    Task<IDictionary<string, SalesRepActivityProduct>> ResolveByCodesAsync(IList<string> codes, string storeId, string cultureName);
+    Task<IDictionary<string, SalesRepActivityProduct>> ResolveByCodesAsync(IList<string> codes);
 }

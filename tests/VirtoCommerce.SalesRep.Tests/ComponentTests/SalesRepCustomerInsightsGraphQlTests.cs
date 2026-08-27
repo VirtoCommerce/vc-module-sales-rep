@@ -26,7 +26,7 @@ public class SalesRepCustomerInsightsGraphQlTests
     private static readonly DateTime _apr = new(2026, 4, 10, 13, 0, 0, DateTimeKind.Utc);
 
     private const string TermFields = "term count lastSearchedDate";
-    private const string ProductFields = "productId name sku imageUrl slug viewCount lastViewedDate";
+    private const string ProductFields = "productId name sku imageUrl viewCount lastViewedDate";
 
     [Fact]
     public async Task Insights_SearchTerms_DefaultSortIsTopByCount_CountsSearchEventOnly()
@@ -105,7 +105,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
-        SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", slug: "catalog-pump", imageUrl: "https://img/pump.png");
+        SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png");
 
         analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _feb, count: 2, "org-1",
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
@@ -125,7 +125,6 @@ public class SalesRepCustomerInsightsGraphQlTests
         resolved.GetProperty("productId").GetString().Should().Be("prod-1");
         resolved.GetProperty("sku").GetString().Should().Be("CODE-1");
         resolved.GetProperty("name").GetString().Should().Be("Catalog Pump"); // catalog name wins over the GA snapshot
-        resolved.GetProperty("slug").GetString().Should().Be("catalog-pump");
         resolved.GetProperty("imageUrl").GetString().Should().Be("https://img/pump.png");
         resolved.GetProperty("viewCount").GetInt32().Should().Be(5);
         resolved.GetProperty("lastViewedDate").ValueKind.Should().Be(JsonValueKind.Null); // count-mode rows carry no dates
@@ -134,7 +133,6 @@ public class SalesRepCustomerInsightsGraphQlTests
         unresolved.GetProperty("productId").GetString().Should().Be("GONE-1"); // code fallback keeps the field non-null
         unresolved.GetProperty("sku").GetString().Should().Be("GONE-1");
         unresolved.GetProperty("name").GetString().Should().Be("Deleted Pump"); // GA snapshot survives
-        unresolved.GetProperty("slug").ValueKind.Should().Be(JsonValueKind.Null);
         unresolved.GetProperty("imageUrl").ValueKind.Should().Be(JsonValueKind.Null);
         unresolved.GetProperty("viewCount").GetInt32().Should().Be(4);
     }

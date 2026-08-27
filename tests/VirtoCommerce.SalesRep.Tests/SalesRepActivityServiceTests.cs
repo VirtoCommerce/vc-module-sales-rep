@@ -11,9 +11,10 @@ using Xunit;
 namespace VirtoCommerce.SalesRep.Tests;
 
 /// <summary>
-/// The aggregation contract of <see cref="SalesRepActivityService"/> over stub sources: fan-out only to sources whose
-/// categories intersect the filter, per-category counts taken from the same row fetch (Take=0 only for count-only
-/// requests), and the per-category top-Skip+Take merge/sort/slice.
+/// The aggregation contract of <see cref="SalesRepActivityService"/> over stub sources: every registered category is
+/// counted regardless of the filter (the storefront's tab badges), rows and the total cover the requested categories
+/// only, a requested category's count comes from its own row fetch (Take=0 only for the categories not fetched), and
+/// the per-category top-Skip+Take merge/sort/slice.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepActivityServiceTests
@@ -71,19 +72,27 @@ public class SalesRepActivityServiceTests
     }
 
     [Fact]
-    public async Task Search_CategoryFilter_SkipsForeignSources()
+    public async Task Search_CategoryFilter_CountsEveryCategory_ButFetchesOnlyRequested()
     {
-        var orders = new StubActivitySource("orders", Event("orders", _t1));
-        var customers = new StubActivitySource("customers", Event("customers", _t2));
-        var service = new SalesRepActivityService([orders, customers]);
+        var orders = new StubActivitySource("orders", Event("orders", _t1), Event("orders", _t4));
+        var analytics = new StubActivitySource(
+            ["searches", "logins"],
+            Event("searches", _t2), Event("logins", _t3));
+        var service = new SalesRepActivityService([orders, analytics]);
 
-        var result = await service.SearchActivitiesAsync(Criteria(take: 10, categories: ["customers"]));
+        var result = await service.SearchActivitiesAsync(Criteria(take: 10, categories: ["logins"]));
 
+        // Every tab badge keeps its own unfiltered total while one tab is selected.
+        result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("orders", 2), ("searches", 1), ("logins", 1));
+        // The pager is per-tab: rows and total cover the selected category only.
         result.TotalCount.Should().Be(1);
-        result.CategoryCounts.Select(x => x.Category).Should().Equal("customers");
-        result.Results.Single().Category.Should().Be("customers");
-        orders.ReceivedCriteria.Should().BeEmpty();
-        customers.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10);
+        result.Results.Should().ContainSingle().Which.Category.Should().Be("logins");
+
+        // The fetched category reuses its row fetch; the rest are counted with Take=0.
+        analytics.ReceivedCriteria.Should().HaveCount(2);
+        analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "logins" && x.Take == 10);
+        analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "searches" && x.Take == 0);
+        orders.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "orders" && x.Take == 0 && x.Skip == 0);
     }
 
     [Fact]
