@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "sales-rep:access": "Apri il menu Rappresentante commerciale",
+    "sales-rep:diagnostics": "Esegui la diagnostica analitica del Rappresentante commerciale",
+    "sales-rep:create": "Crea dati del Rappresentante commerciale",
+    "sales-rep:read": "Visualizza dati del Rappresentante commerciale",
+    "sales-rep:update": "Aggiorna dati del Rappresentante commerciale",
+    "sales-rep:delete": "Elimina dati del Rappresentante commerciale",
+    "sales-rep-documents:read": "Visualizza la libreria documenti del Rappresentante commerciale",
+    "sales-rep-documents:write": "Gestisci la libreria documenti del Rappresentante commerciale"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "Rappresentante commerciale abilitato",
+        "description": "Abilita l'interfaccia Rappresentante commerciale nel negozio"
+      }
+    }
+  }
+}

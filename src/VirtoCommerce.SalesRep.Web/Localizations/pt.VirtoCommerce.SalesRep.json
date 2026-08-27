@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "sales-rep:access": "Abrir o menu Representante de vendas",
+    "sales-rep:diagnostics": "Executar o diagnóstico de análise do Representante de vendas",
+    "sales-rep:create": "Criar dados do Representante de vendas",
+    "sales-rep:read": "Visualizar dados do Representante de vendas",
+    "sales-rep:update": "Atualizar dados do Representante de vendas",
+    "sales-rep:delete": "Excluir dados do Representante de vendas",
+    "sales-rep-documents:read": "Visualizar a biblioteca de documentos do Representante de vendas",
+    "sales-rep-documents:write": "Gerenciar a biblioteca de documentos do Representante de vendas"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "Representante de vendas ativado",
+        "description": "Ativa a interface de Representante de vendas na loja"
+      }
+    }
+  }
+}
