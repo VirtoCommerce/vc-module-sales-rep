@@ -278,20 +278,47 @@ public class SalesRepActivitiesGraphQlTests
     }
 
     [Fact]
-    public async Task Activities_DeepSkip_IsClamped()
+    public async Task Activities_SkipPastThePagingWindow_ReturnsNoRowsAndReadsNothing()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _feb, count: 3, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"logins\"], skip: {ModuleConstants.Activities.MaxSkip + 1}, take: 20) {{ totalCount categoryCounts {{ category count }} items {{ type }} }} }}",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+
+        var connection = Connection(json);
+        // No rows rather than the window's last page relabelled: a caller cannot tell a repeated page from data.
+        connection.GetProperty("items").EnumerateArray().Should().BeEmpty();
+        // The counters still describe the whole set, so a client can see the feed is longer than it can page.
+        CategoryCounts(connection).Single(x => x.Category == "logins").Count.Should().Be(1);
+        connection.GetProperty("totalCount").GetInt32().Should().Be(1);
+
+        // And the read is a counting pass, not a page-sized fetch of everything up to the skip.
+        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.Take == 0);
+    }
+
+    [Fact]
+    public async Task Activities_PagingWindow_BoundsWhatEverySourceIsAskedFor()
     {
         var analytics = new FakeAnalyticsService();
         using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
+        // The "All" view: every category fetches, so the rows a request costs are (Skip + Take) x categories.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepActivities(categories: [\"logins\"], skip: 100000, take: 20) { totalCount items { type } } }",
+            $"query {{ salesRepActivities(skip: {ModuleConstants.Activities.MaxSkip}, take: 50) {{ totalCount items {{ type }} }} }}",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        // Skip is clamped before the aggregator turns it into a per-category Take, so no source is asked for 100k rows.
-        analytics.ReceivedSearchCriteria.Should().ContainSingle(x => x.Take == ModuleConstants.Activities.MaxSkip + 20);
+        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.Take <= ModuleConstants.Activities.MaxSkip + 50);
+        analytics.ReceivedSearchCriteria.Sum(x => x.Take).Should().BeLessThanOrEqualTo(3 * (ModuleConstants.Activities.MaxSkip + 50));
     }
 
     [Fact]

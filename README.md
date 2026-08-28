@@ -484,6 +484,11 @@ Two things the module does on top of the raw source:
 * **Product codes are resolved within the store's catalog.** Analytics carries a product *code*; a code is unique
   inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` it
   stays catalog-wide. An unresolvable code keeps the name analytics tracked and reports a null `productId`.
+* **The feed pages 500 rows deep.** A merged page can only be sliced from the top (`skip + take`) rows of every
+  requested category, so one request costs `(skip + take) x categories` rows — 2,750 in the worst case ("All"
+  view, five categories, a full page of 50). Past the window `salesRepActivities` returns **no rows** rather than
+  repeating the window's last page, which a caller could not tell from real data; the counters keep reporting the
+  whole set, so a client can see the feed is longer than it can page.
 * **Activity counts count rows, not raw events.** One analytics row is one (hour bucket x dimension tuple), and its
   `count` field says how many events it aggregates. A row GA returns without a usable hour bucket cannot be placed
   on a time-ordered feed, so it leaves both the page and the category count — that is what keeps a category badge

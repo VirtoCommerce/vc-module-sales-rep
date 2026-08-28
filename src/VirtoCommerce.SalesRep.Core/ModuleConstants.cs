@@ -46,9 +46,12 @@ public static class ModuleConstants
 
     public static class Activities
     {
-        // 50 pages at the default page size: the aggregator turns Skip into a per-category Take, so an
-        // unbounded Skip would make every source materialize that many rows.
-        public const int MaxSkip = 1000;
+        // The depth of the feed's paging window, and the module's cap on the work one request can cost.
+        // Merging sources means a page can only be sliced from the top (Skip + Take) rows of EVERY requested
+        // category, so the rows fetched are (Skip + Take) x categories: at this value the worst case — the "All"
+        // view, five categories, a full page — is 2,750 rows to render 50, where an unbounded Skip has no worst
+        // case at all. 25 pages at the storefront's page size of 20; past that the feed reports no rows.
+        public const int MaxSkip = 500;
 
         public static class Categories
         {

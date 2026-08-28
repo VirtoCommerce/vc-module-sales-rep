@@ -39,7 +39,7 @@ public class SalesRepActivitiesQuery : Query<SalesRepActivitySearchResult>
         yield return Argument<ListGraphType<NonNullGraphType<StringGraphType>>>(nameof(Categories), "Activity categories to include (orders, customers, searches, productViews, logins); omit for all.");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional date range to scope the activity to (omit for all dates).");
         yield return Argument<IntGraphType>(nameof(Take), $"How many activity rows to return (default {DefaultTake}, max {MaxTake}; zero or less returns only counts).");
-        yield return Argument<IntGraphType>(nameof(Skip), $"How many activity rows to skip (default 0, max {ModuleConstants.Activities.MaxSkip}).");
+        yield return Argument<IntGraphType>(nameof(Skip), $"How many activity rows to skip (default 0). The feed pages {ModuleConstants.Activities.MaxSkip} rows deep; beyond that it returns no rows, while the counters keep reporting the whole set.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized and money fields (\"en-US\").");
     }
 
