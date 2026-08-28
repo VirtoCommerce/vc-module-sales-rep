@@ -25,7 +25,7 @@ public class SalesRepCustomerInsightsQuery : Query<SalesRepCustomerInsightsConte
         yield return Argument<StringGraphType>(nameof(OrganizationId), "Organization (customer) id whose tracked activity to read; omit for all the rep's assigned customers.");
         yield return Argument<StringGraphType>(nameof(StoreId), "Store whose analytics configuration and events to read (defaults to all stores).");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional date range for the analytics figures (omit for all dates).");
-        yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized fields (\"en-US\").");
+        yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the localized fields (\"en-US\"). Accepted for consistency with the other sales-rep queries; this one exposes no localized or money field, so it currently has no effect.");
     }
 
     public override void Map(IResolveFieldContext context)

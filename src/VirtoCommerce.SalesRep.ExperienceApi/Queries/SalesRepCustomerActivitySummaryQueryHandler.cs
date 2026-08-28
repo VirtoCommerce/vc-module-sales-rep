@@ -57,26 +57,15 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
         return result;
     }
 
-    protected virtual async Task ResolveLastViewedProductAsync(SalesRepCustomerActivitySummary result, SalesRepCustomerActivitySummaryQuery request)
+    protected virtual Task ResolveLastViewedProductAsync(SalesRepCustomerActivitySummary result, SalesRepCustomerActivitySummaryQuery request)
     {
-        var code = result.LastViewedProduct?.Code;
-        if (string.IsNullOrEmpty(code))
-        {
-            return;
-        }
+        SalesRepActivityProduct[] rows = result.LastViewedProduct == null ? [] : [result.LastViewedProduct];
 
-        var productsByCode = await _productResolver.ResolveByCodesAsync([code]);
-        if (!productsByCode.TryGetValue(code, out var product))
+        return _productResolver.ResolveAsync(rows, request.StoreId, x => x.Code, (row, product) =>
         {
-            return;
-        }
-
-        result.LastViewedProduct.ProductId = product.ProductId;
-        result.LastViewedProduct.ImageUrl = product.ImageUrl;
-
-        if (!string.IsNullOrEmpty(product.Name))
-        {
-            result.LastViewedProduct.Name = product.Name;
-        }
+            row.ProductId = product.ProductId;
+            row.ImageUrl = product.ImageUrl;
+            row.Name = product.Name.EmptyToNull() ?? row.Name;
+        });
     }
 }

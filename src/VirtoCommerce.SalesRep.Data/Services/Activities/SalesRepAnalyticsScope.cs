@@ -1,9 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core;
+using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Activities;
 
@@ -42,8 +43,8 @@ public static class SalesRepAnalyticsScope
     {
         var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
 
-        result.DimensionName = ModuleConstants.UserDimensions.SessionKind;
-        result.Values = [ModuleConstants.SessionKinds.Self];
+        result.DimensionName = AnalyticsConstants.UserDimensions.SessionKind;
+        result.Values = [ModuleConstants.Analytics.SessionKinds.Self];
 
         return result;
     }
@@ -52,7 +53,7 @@ public static class SalesRepAnalyticsScope
     {
         var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
 
-        result.DimensionName = ModuleConstants.UserDimensions.OrganizationId;
+        result.DimensionName = AnalyticsConstants.UserDimensions.OrganizationId;
         result.Values = organizationIds.ToList();
 
         return result;

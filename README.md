@@ -479,6 +479,16 @@ Some metrics are **not** computed from platform data — they are read from **Go
 
 Every GA query is constrained by two **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too), and `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own.
 
+Two things the module does on top of the raw source:
+
+* **Product codes are resolved within the store's catalog.** Analytics carries a product *code*; a code is unique
+  inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` it
+  stays catalog-wide. An unresolvable code keeps the name analytics tracked and reports a null `productId`.
+* **Activity counts count rows, not raw events.** One analytics row is one (hour bucket x dimension tuple), and its
+  `count` field says how many events it aggregates. A row GA returns without a usable hour bucket cannot be placed
+  on a time-ordered feed, so it leaves both the page and the category count — that is what keeps a category badge
+  equal to the list beneath it.
+
 Caveats inherent to the source, by design:
 
 * **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity. `dataAsOf` reports how fresh the data actually is.

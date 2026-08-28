@@ -60,11 +60,14 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 
         var searchResult = await analyticsService.SearchEventsAsync(CreateSearchCriteria(category, criteria));
 
-        result.TotalCount = searchResult.TotalCount;
-        result.Results = searchResult.Events
-            .Where(x => x.OccurredAt != null)
-            .Select(x => ToEvent(category, x))
-            .ToList();
+        // One row per (hour bucket x dimension tuple), not per tracked event — deliberately, since a raw event
+        // feed would be unreadable. A row GA returns without a usable hour bucket cannot be placed on a
+        // time-ordered feed, so it is dropped from BOTH the page and the count the category badge shows: only the
+        // fetched page is observable, which is exactly the window the badge and the list have to agree on.
+        var rows = searchResult.Events.Where(x => x.OccurredAt != null).ToList();
+
+        result.TotalCount = searchResult.TotalCount - (searchResult.Events.Count - rows.Count);
+        result.Results = rows.Select(x => ToEvent(category, x)).ToList();
 
         return result;
     }

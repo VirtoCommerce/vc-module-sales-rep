@@ -139,7 +139,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         return insights.GetOrAddSliceAsync($"{BrowsedProductsField}:{sortBy}:{take}", async () =>
         {
             var products = await _insightsService.GetBrowsedProductsAsync(CreateCriteria(insights, sortBy, take));
-            await ResolveProductsAsync(products);
+            await ResolveProductsAsync(insights, products);
             return products;
         });
     }
@@ -158,30 +158,13 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         return criteria;
     }
 
-    private async Task ResolveProductsAsync(IList<SalesRepBrowsedProduct> products)
+    private Task ResolveProductsAsync(SalesRepCustomerInsightsContext insights, IList<SalesRepBrowsedProduct> products)
     {
-        if (products.Count == 0)
+        return _productResolver.ResolveAsync(products, insights.StoreId, x => x.Code, (row, product) =>
         {
-            return;
-        }
-
-        var codes = products.Select(x => x.Code).ToList();
-        var productsByCode = await _productResolver.ResolveByCodesAsync(codes);
-
-        foreach (var row in products)
-        {
-            if (!productsByCode.TryGetValue(row.Code, out var product))
-            {
-                continue;
-            }
-
             row.ProductId = product.ProductId;
             row.ImageUrl = product.ImageUrl;
-
-            if (!string.IsNullOrEmpty(product.Name))
-            {
-                row.Name = product.Name;
-            }
-        }
+            row.Name = product.Name.EmptyToNull() ?? row.Name;
+        });
     }
 }

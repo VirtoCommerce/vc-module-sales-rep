@@ -24,7 +24,8 @@ internal sealed class FakeAnalyticsService : IAnalyticsService
 
     public List<AnalyticsEventSummaryCriteria> ReceivedSummaryCriteria { get; } = [];
 
-    public void AddEvent(string eventName, DateTime occurredAt, int count, string organizationId,
+    // occurredAt is nullable so a test can seed the row shape GA returns when the hour bucket is "(not set)".
+    public void AddEvent(string eventName, DateTime? occurredAt, int count, string organizationId,
         string sessionKind = AnalyticsConstants.SessionKinds.Self, params (string Name, string Value)[] dimensions)
     {
         var analyticsEvent = new AnalyticsEvent

@@ -294,6 +294,60 @@ public class SalesRepActivitiesGraphQlTests
         analytics.ReceivedSearchCriteria.Should().ContainSingle(x => x.Take == ModuleConstants.Activities.MaxSkip + 20);
     }
 
+    [Fact]
+    public async Task Activities_ProductCodeOnlyInAnotherCatalog_DoesNotResolve()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // The code exists ONLY outside the store's catalog. A code is unique within a catalog, not across them, so
+        // an unscoped lookup would answer with this product and show the rep a foreign catalog's name and image.
+        SeedProduct(ctx, "prod-foreign", "CODE-1", "Foreign Pump", imageUrl: "https://img/foreign.png",
+            catalogId: "other-catalog");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 1, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"productViews\"], storeId: \"B2B-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        var row = Connection(json).GetProperty("items").EnumerateArray().Single();
+        row.GetProperty("productCode").GetString().Should().Be("CODE-1");
+        row.GetProperty("productName").GetString().Should().Be("GA Pump"); // the tracked name, not the foreign catalog's
+        row.GetProperty("productId").ValueKind.Should().Be(JsonValueKind.Null);
+        row.GetProperty("productImageUrl").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task Activities_AnalyticsRowWithoutHourBucket_IsDroppedFromTheCategoryCountToo()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _feb, count: 2, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
+        // GA returned a row whose hour bucket is unusable: it cannot be placed on a time-ordered feed.
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, occurredAt: null, count: 7, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "no-bucket"));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"searches\"]) {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        var connection = Connection(json);
+        var items = connection.GetProperty("items").EnumerateArray().ToList();
+
+        // The badge counts the rows the feed can show, so it cannot advertise a row the list can never render.
+        items.Should().ContainSingle().Which.GetProperty("searchTerm").GetString().Should().Be("pumps");
+        CategoryCounts(connection).Single(x => x.Category == "searches").Count.Should().Be(1);
+        connection.GetProperty("totalCount").GetInt32().Should().Be(1);
+    }
+
     // ---- helpers ----
 
     private static JsonElement Connection(string json)
@@ -327,15 +381,16 @@ public class SalesRepActivitiesGraphQlTests
     }
 
     internal static void SeedProduct(
-        SalesRepTestContext ctx, string id, string code, string name, string imageUrl = null)
+        SalesRepTestContext ctx, string id, string code, string name, string imageUrl = null, string catalogId = null)
     {
         var seedDate = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        catalogId ??= SalesRepTestContext.TestCatalogId;
 
         using var db = ctx.NewCatalogDbContext();
 
-        if (!db.Set<CatalogEntity>().Any(x => x.Id == SalesRepTestContext.TestCatalogId))
+        if (!db.Set<CatalogEntity>().Any(x => x.Id == catalogId))
         {
-            db.Add(new CatalogEntity { Id = SalesRepTestContext.TestCatalogId, Name = "Test Catalog", DefaultLanguage = "en-US", CreatedDate = seedDate, ModifiedDate = seedDate });
+            db.Add(new CatalogEntity { Id = catalogId, Name = catalogId, DefaultLanguage = "en-US", CreatedDate = seedDate, ModifiedDate = seedDate });
         }
 
         var item = new ItemEntity
@@ -343,7 +398,7 @@ public class SalesRepActivitiesGraphQlTests
             Id = id,
             Code = code,
             Name = name,
-            CatalogId = SalesRepTestContext.TestCatalogId,
+            CatalogId = catalogId,
             IsActive = true,
             CreatedDate = seedDate,
             ModifiedDate = seedDate,

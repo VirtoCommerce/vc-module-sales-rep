@@ -75,6 +75,18 @@ public static class ModuleConstants
         }
     }
 
+    public static class Analytics
+    {
+        // Values of the storefront's user-scoped 'session_kind' custom dimension. Every analytics read is pinned to
+        // Self: 'impersonated' is a rep working the account, and showing that back would report the rep's own
+        // browsing as the customer's behaviour.
+        public static class SessionKinds
+        {
+            public const string Self = "self";
+            public const string Impersonated = "impersonated";
+        }
+    }
+
     public static class Insights
     {
         public const int DefaultTake = 5;
