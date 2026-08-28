@@ -55,7 +55,7 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
             return result;
         }
 
-        var merged = new List<SalesRepActivityEvent>();
+        List<SalesRepActivityEvent> merged = [];
 
         foreach (var category in _analyticsCategories.Where(x => effectiveCategories.Contains(x.Category)))
         {

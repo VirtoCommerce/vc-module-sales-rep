@@ -34,8 +34,8 @@ public class SalesRepActivityService : ISalesRepActivityService
             return result;
         }
 
-        var fetchIndexes = new List<int>();
-        var countIndexes = new List<int>();
+        List<int> fetchIndexes = [];
+        List<int> countIndexes = [];
 
         for (var index = 0; index < plans.Count; index++)
         {
