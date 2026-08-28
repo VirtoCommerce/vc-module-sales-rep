@@ -32,9 +32,11 @@ public class SalesRepActivityService : ISalesRepActivityService
         }
 
         // Every registered category is planned, filter or no filter: the counts feed the storefront's category tabs,
-        // which must keep showing their own totals while one of them is selected.
+        // which must keep showing their own totals while one of them is selected. A caller that does not render
+        // those badges plans only what it asked for, and a DB-backed category then costs no analytics read at all.
         var plans = _sources
             .SelectMany(source => (source.Categories ?? []).Select(category => (Source: source, Category: category)))
+            .Where(x => criteria.IncludeCategoryCounts || criteria.IsCategoryRequested(x.Category))
             .ToList();
 
         if (plans.Count == 0)

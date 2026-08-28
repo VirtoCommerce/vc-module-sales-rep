@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using GraphQL;
 using GraphQL.Types;
 using VirtoCommerce.SalesRep.Core;
@@ -7,10 +8,11 @@ using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.BaseQueries;
 using VirtoCommerce.Xapi.Core.Extensions;
+using VirtoCommerce.Xapi.Core.Index;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepActivitiesQuery : Query<SalesRepActivitySearchResult>
+public class SalesRepActivitiesQuery : Query<SalesRepActivitySearchResult>, IHasIncludeFields
 {
     public const int DefaultTake = SalesRepActivitySearchCriteria.DefaultTake;
 
@@ -31,6 +33,8 @@ public class SalesRepActivitiesQuery : Query<SalesRepActivitySearchResult>
     public string CultureName { get; set; }
 
     public string UserId { get; set; }
+
+    public IList<string> IncludeFields { get; set; } = [];
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
@@ -53,5 +57,6 @@ public class SalesRepActivitiesQuery : Query<SalesRepActivitySearchResult>
         Skip = context.GetArgument<int?>(nameof(Skip)) ?? 0;
         CultureName = context.GetArgument<string>(nameof(CultureName));
         UserId = context.GetCurrentUserId();
+        IncludeFields = context.SubFields?.Values.GetAllNodesPaths(context).ToArray() ?? [];
     }
 }

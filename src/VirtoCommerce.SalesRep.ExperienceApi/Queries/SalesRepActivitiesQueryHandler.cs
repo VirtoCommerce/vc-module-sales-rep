@@ -6,6 +6,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
@@ -48,6 +49,8 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         criteria.To = request.Period?.To;
         criteria.Take = Math.Clamp(request.Take, 0, SalesRepActivitiesQuery.MaxTake);
         criteria.Skip = Math.Max(request.Skip, 0);
+        // Only the caller that renders the badges pays for them.
+        criteria.IncludeCategoryCounts = request.IncludeFields.IncludesField(nameof(SalesRepActivitySearchResult.CategoryCounts));
 
         // Past the paging window the feed has nothing to serve, and says so by returning no rows. Clamping Skip
         // instead would answer page 40 with the window's last page, which a caller cannot tell from real data.

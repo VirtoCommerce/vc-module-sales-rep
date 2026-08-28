@@ -305,6 +305,47 @@ public class SalesRepActivitiesGraphQlTests
     }
 
     [Fact]
+    public async Task Activities_WithoutCategoryCounts_ReadsOnlyTheRequestedCategory()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "own-order", "org-1", _mar);
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 1, "org-1");
+
+        // The badges are what makes a request count every category. A caller that does not select them -- the
+        // storefront loads them separately -- must not wait on Google to render a database-backed tab.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepActivities(categories: [\"orders\"]) { totalCount items { type orderNumber } } }",
+            userId: rep.UserId);
+
+        var connection = Connection(json);
+        connection.GetProperty("totalCount").GetInt32().Should().Be(1);
+        connection.GetProperty("items").EnumerateArray().Single().GetProperty("type").GetString().Should().Be("orderPlaced");
+        analytics.ReceivedSearchCriteria.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task Activities_WithCategoryCounts_StillCountsEveryCategory()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "own-order", "org-1", _mar);
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 1, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepActivities(categories: [\"orders\"]) { totalCount categoryCounts { category count } } }",
+            userId: rep.UserId);
+
+        // Selecting the badges is what buys the unrequested categories their counting pass.
+        CategoryCounts(Connection(json)).Should().Equal(("orders", 1), ("customers", 1), ("searches", 0), ("productViews", 0), ("logins", 1));
+        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.Take == 0);
+    }
+
+    [Fact]
     public async Task Activities_PagingWindow_BoundsWhatEverySourceIsAskedFor()
     {
         var analytics = new FakeAnalyticsService();
