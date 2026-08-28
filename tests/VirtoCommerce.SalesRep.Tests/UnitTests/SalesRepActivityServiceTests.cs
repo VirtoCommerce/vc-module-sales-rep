@@ -16,12 +16,13 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 /// The aggregation contract of <see cref="SalesRepActivityService"/> over stub sources: no source runs without a
 /// resolved rep scope, every registered category is counted regardless of the filter (the storefront's tab badges),
 /// rows and the total cover the requested categories only, a requested category's count comes from its own row fetch
-/// (Take=0 only for the categories not fetched), and the shared per-category fetch window that the page is
-/// merged, sorted and sliced from.
+/// (Take=0 only for the categories not fetched), and the two paging shapes: one fetched category pages natively,
+/// several are merged, sorted and sliced from a shared fetch window.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepActivityServiceTests
 {
+    // What a merged view is asked for past its first page.
     private const int FetchWindow = ModuleConstants.Activities.PagingWindowBucket;
 
     private static readonly DateTime _t1 = new(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
@@ -89,8 +90,8 @@ public class SalesRepActivityServiceTests
 
         result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("orders", 2), ("customers", 1));
         result.TotalCount.Should().Be(3);
-        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == FetchWindow && x.Categories.Single() == "orders");
-        customers.ReceivedCriteria.Should().ContainSingle(x => x.Take == FetchWindow && x.Categories.Single() == "customers");
+        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10 && x.Categories.Single() == "orders");
+        customers.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10 && x.Categories.Single() == "customers");
     }
 
     [Fact]
@@ -106,7 +107,7 @@ public class SalesRepActivityServiceTests
         result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("searches", 2), ("logins", 1));
         result.TotalCount.Should().Be(3);
         analytics.ReceivedCriteria.Should().HaveCount(2);
-        analytics.ReceivedCriteria.Should().OnlyContain(x => x.Take == FetchWindow && x.Categories.Count == 1);
+        analytics.ReceivedCriteria.Should().OnlyContain(x => x.Take == 10 && x.Categories.Count == 1);
         analytics.ReceivedCriteria.Select(x => x.Categories.Single()).Should().Equal("searches", "logins");
     }
 
@@ -129,7 +130,7 @@ public class SalesRepActivityServiceTests
 
         // The fetched category reuses its row fetch; the rest are counted with Take=0.
         analytics.ReceivedCriteria.Should().HaveCount(2);
-        analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "logins" && x.Take == FetchWindow);
+        analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "logins" && x.Take == 10 && x.Skip == 0);
         analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "searches" && x.Take == 0);
         orders.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "orders" && x.Take == 0 && x.Skip == 0);
     }
@@ -149,13 +150,43 @@ public class SalesRepActivityServiceTests
     }
 
     [Fact]
-    public async Task Search_SourcesFetchTheSharedWindow_SoConsecutivePagesAskTheSameQuestion()
+    public async Task Search_OneFetchedCategory_PagesNatively()
+    {
+        var orders = new StubActivitySource("orders", Event("orders", _t1), Event("orders", _t2), Event("orders", _t3));
+        var analytics = new StubActivitySource(["searches"], Event("searches", _t4));
+        var service = new SalesRepActivityService([orders, analytics]);
+
+        // Nothing to merge with, so the source is asked for the page itself rather than everything above it.
+        var result = await service.SearchActivitiesAsync(Criteria(take: 1, skip: 1, categories: ["orders"]));
+
+        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == 1 && x.Skip == 1);
+        result.Results.Should().ContainSingle().Which.OccurredAt.Should().Be(_t2);
+    }
+
+    [Fact]
+    public async Task Search_MergedFirstPage_IsAskedForExactly()
     {
         var orders = new StubActivitySource("orders", Event("orders", _t1));
-        var service = new SalesRepActivityService([orders]);
+        var customers = new StubActivitySource("customers", Event("customers", _t2));
+        var service = new SalesRepActivityService([orders, customers]);
 
-        // Two pages inside the same bucket: Skip+Take differs, the question asked of the source does not, so the
-        // second page costs a source nothing beyond what it already answered for the first.
+        // The commonest request of all (every dashboard widget): rounding it up would make the cheapest read the
+        // most expensive one.
+        await service.SearchActivitiesAsync(Criteria(take: 5));
+
+        orders.ReceivedCriteria.Should().OnlyContain(x => x.Take == 5 && x.Skip == 0);
+        customers.ReceivedCriteria.Should().OnlyContain(x => x.Take == 5 && x.Skip == 0);
+    }
+
+    [Fact]
+    public async Task Search_MergedDeeperPages_ShareOneWindow()
+    {
+        var orders = new StubActivitySource("orders", Event("orders", _t1));
+        var customers = new StubActivitySource("customers", Event("customers", _t2));
+        var service = new SalesRepActivityService([orders, customers]);
+
+        // A merged page can only be sliced from the top Skip+Take rows of every category, but two pages inside the
+        // same bucket ask the sources the same question — so the second costs them nothing beyond the first.
         await service.SearchActivitiesAsync(Criteria(take: 5, skip: 15));
         await service.SearchActivitiesAsync(Criteria(take: 5, skip: 25));
 

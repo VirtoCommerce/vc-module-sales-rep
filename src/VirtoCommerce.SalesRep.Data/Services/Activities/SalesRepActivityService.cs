@@ -42,47 +42,62 @@ public class SalesRepActivityService : ISalesRepActivityService
             return result;
         }
 
+        // A single fetched category has nothing to merge with, so it pages natively: Skip goes to the source and
+        // the page comes back ready. Only a merged view needs the fetch window below.
+        var pagesNatively = plans.Count(x => IsFetched(criteria, x.Category)) == 1;
+
         // Task.WhenAll keeps the input order, so the results line up with the plans they came from.
         var searches = await Task.WhenAll(plans.Select(async plan =>
         {
-            var fetchRows = criteria.Take > 0 && criteria.IsCategoryRequested(plan.Category);
-            return (plan.Category, Fetched: fetchRows, Result: await SearchCategoryAsync(criteria, plan, fetchRows));
+            var fetchRows = IsFetched(criteria, plan.Category);
+            return (plan.Category, Fetched: fetchRows, Result: await SearchCategoryAsync(criteria, plan, fetchRows, pagesNatively));
         }));
 
         // A fetched category takes its count from its own row fetch, so a tab's count always matches its own list
         // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
         result.CategoryCounts = searches.Select(x => CreateCategoryCount(x.Category, x.Result.TotalCount)).ToList();
-        result.Results = GetPage(criteria, [.. searches.Where(x => x.Fetched).Select(x => x.Result)]);
+        result.Results = GetPage(criteria, [.. searches.Where(x => x.Fetched).Select(x => x.Result)], pagesNatively ? 0 : criteria.Skip);
         // The pager is per-tab: only the requested categories add up to the total.
         result.TotalCount = result.CategoryCounts.Where(x => criteria.IsCategoryRequested(x.Category)).Sum(x => x.Count);
 
         return result;
     }
 
-    // Pagination v1: a requested category returns the top rows of the shared fetch window and the page is sliced
-    // from the merge, so deep pages over-fetch proportionally — acceptable for feed-sized reads. The rest are
-    // counted with Take=0.
+    // A category the caller did not ask for is still counted, with Take=0.
+    protected static bool IsFetched(SalesRepActivitySearchCriteria criteria, string category)
+    {
+        return criteria.Take > 0 && criteria.IsCategoryRequested(category);
+    }
+
     protected virtual Task<SalesRepActivitySearchResult> SearchCategoryAsync(
         SalesRepActivitySearchCriteria criteria,
         (ISalesRepActivitySource Source, string Category) plan,
-        bool fetchRows)
+        bool fetchRows,
+        bool pagesNatively)
     {
         var sourceCriteria = criteria.CloneTyped();
         sourceCriteria.Categories = [plan.Category];
-        sourceCriteria.Take = fetchRows ? GetFetchWindow(criteria) : 0;
-        sourceCriteria.Skip = 0;
+        sourceCriteria.Skip = fetchRows && pagesNatively ? criteria.Skip : 0;
+        sourceCriteria.Take = fetchRows ? GetFetchTake(criteria, pagesNatively) : 0;
 
         return plan.Source.SearchAsync(sourceCriteria);
     }
 
-    // A merged page can only be sliced from the top Skip+Take rows of every category, but asking for exactly that
-    // makes every page a different question: Take belongs to a source criteria's cache key, so page 2 re-reads
-    // page 1's rows under a new key — another Google round trip per category, per page. Rounding the window up to
-    // a fixed bucket makes consecutive pages ask the same question, so only the first page of each bucket reaches
-    // the sources. The over-fetch is bounded and close to free upstream: a wider window is the same single report
-    // or order search, just with more rows in its response.
-    protected virtual int GetFetchWindow(SalesRepActivitySearchCriteria criteria)
+    // A merged page can only be sliced from the top Skip+Take rows of EVERY category it covers, so the merged view
+    // pays for depth where a single category pages natively.
+    //
+    // Asking for exactly Skip+Take would make every page a different question: Take belongs to a source criteria's
+    // cache key, so page 2 re-reads page 1's rows under a new key — another Google round trip per category, per
+    // page. Deeper pages therefore round up to a fixed bucket and ask the same question. The first page does not:
+    // it is by far the most common request (every dashboard widget is one), and rounding it up would make the
+    // cheapest read the most expensive one.
+    protected virtual int GetFetchTake(SalesRepActivitySearchCriteria criteria, bool pagesNatively)
     {
+        if (pagesNatively || criteria.Skip == 0)
+        {
+            return criteria.Take;
+        }
+
         var bucket = ModuleConstants.Activities.PagingWindowBucket;
 
         return (criteria.Skip + criteria.Take + bucket - 1) / bucket * bucket;
@@ -90,7 +105,8 @@ public class SalesRepActivityService : ISalesRepActivityService
 
     protected virtual IList<SalesRepActivityEvent> GetPage(
         SalesRepActivitySearchCriteria criteria,
-        IList<SalesRepActivitySearchResult> fetchResults)
+        IList<SalesRepActivitySearchResult> fetchResults,
+        int skip)
     {
         return fetchResults
             .SelectMany(x => x.Results ?? [])
@@ -101,7 +117,7 @@ public class SalesRepActivityService : ISalesRepActivityService
             .ThenBy(x => x.OrderId, StringComparer.Ordinal)
             .ThenBy(x => x.ProductCode, StringComparer.Ordinal)
             .ThenBy(x => x.SearchTerm, StringComparer.Ordinal)
-            .Skip(criteria.Skip)
+            .Skip(skip)
             .Take(criteria.Take)
             .ToList();
     }
