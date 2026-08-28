@@ -2,10 +2,6 @@
   "permissions": {
     "sales-rep:access": "打开销售代表菜单",
     "sales-rep:diagnostics": "运行销售代表分析诊断",
-    "sales-rep:create": "创建销售代表相关数据",
-    "sales-rep:read": "查看销售代表相关数据",
-    "sales-rep:update": "更新销售代表相关数据",
-    "sales-rep:delete": "删除销售代表相关数据",
     "sales-rep-documents:read": "查看销售代表文档库",
     "sales-rep-documents:write": "管理销售代表文档库"
   },

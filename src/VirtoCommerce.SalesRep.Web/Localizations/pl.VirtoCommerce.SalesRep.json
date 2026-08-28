@@ -2,10 +2,6 @@
   "permissions": {
     "sales-rep:access": "Otwórz menu Przedstawiciela handlowego",
     "sales-rep:diagnostics": "Uruchom diagnostykę analityki Przedstawiciela handlowego",
-    "sales-rep:create": "Tworzenie danych Przedstawiciela handlowego",
-    "sales-rep:read": "Podgląd danych Przedstawiciela handlowego",
-    "sales-rep:update": "Aktualizacja danych Przedstawiciela handlowego",
-    "sales-rep:delete": "Usuwanie danych Przedstawiciela handlowego",
     "sales-rep-documents:read": "Podgląd biblioteki dokumentów Przedstawiciela handlowego",
     "sales-rep-documents:write": "Zarządzanie biblioteką dokumentów Przedstawiciela handlowego"
   },

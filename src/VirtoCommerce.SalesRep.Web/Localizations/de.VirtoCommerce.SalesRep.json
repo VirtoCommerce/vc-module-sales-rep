@@ -2,10 +2,6 @@
   "permissions": {
     "sales-rep:access": "Menü „Vertriebsmitarbeiter“ öffnen",
     "sales-rep:diagnostics": "Analytics-Diagnose für Vertriebsmitarbeiter ausführen",
-    "sales-rep:create": "Daten für Vertriebsmitarbeiter erstellen",
-    "sales-rep:read": "Daten für Vertriebsmitarbeiter anzeigen",
-    "sales-rep:update": "Daten für Vertriebsmitarbeiter aktualisieren",
-    "sales-rep:delete": "Daten für Vertriebsmitarbeiter löschen",
     "sales-rep-documents:read": "Dokumentenbibliothek für Vertriebsmitarbeiter anzeigen",
     "sales-rep-documents:write": "Dokumentenbibliothek für Vertriebsmitarbeiter verwalten"
   },

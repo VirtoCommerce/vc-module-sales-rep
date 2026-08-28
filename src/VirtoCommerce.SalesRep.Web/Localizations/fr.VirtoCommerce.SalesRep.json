@@ -2,10 +2,6 @@
   "permissions": {
     "sales-rep:access": "Ouvrir le menu Représentant commercial",
     "sales-rep:diagnostics": "Exécuter le diagnostic analytique du Représentant commercial",
-    "sales-rep:create": "Créer des données du Représentant commercial",
-    "sales-rep:read": "Consulter les données du Représentant commercial",
-    "sales-rep:update": "Mettre à jour les données du Représentant commercial",
-    "sales-rep:delete": "Supprimer les données du Représentant commercial",
     "sales-rep-documents:read": "Consulter la bibliothèque de documents du Représentant commercial",
     "sales-rep-documents:write": "Gérer la bibliothèque de documents du Représentant commercial"
   },
