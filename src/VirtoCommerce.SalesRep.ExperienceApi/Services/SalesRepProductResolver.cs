@@ -25,8 +25,28 @@ public class SalesRepProductResolver : ISalesRepProductResolver
         _storeService = storeService;
     }
 
+    public virtual async Task ResolveAsync<T>(IList<T> rows, string storeId, Func<T, string> getCode, Action<T, SalesRepActivityProduct> setProduct)
+    {
+        if (rows.IsNullOrEmpty())
+        {
+            return;
+        }
+
+        var productsByCode = await ResolveByCodesAsync(rows.Select(getCode).ToList(), storeId);
+
+        foreach (var row in rows)
+        {
+            var code = getCode(row);
+            // Guarded rather than passed straight to TryGetValue: a null key throws on this dictionary.
+            if (!string.IsNullOrEmpty(code) && productsByCode.TryGetValue(code, out var product))
+            {
+                setProduct(row, product);
+            }
+        }
+    }
+
     // Analytics carries the product CODE (GA itemId); an unresolvable code simply stays absent from the map.
-    public virtual async Task<IDictionary<string, SalesRepActivityProduct>> ResolveByCodesAsync(IList<string> codes, string storeId)
+    protected virtual async Task<IDictionary<string, SalesRepActivityProduct>> ResolveByCodesAsync(IList<string> codes, string storeId)
     {
         var result = new Dictionary<string, SalesRepActivityProduct>(StringComparer.OrdinalIgnoreCase);
 
@@ -55,26 +75,6 @@ public class SalesRepProductResolver : ISalesRepProductResolver
         }
 
         return result;
-    }
-
-    public virtual async Task ResolveAsync<T>(IList<T> rows, string storeId, Func<T, string> getCode, Action<T, SalesRepActivityProduct> setProduct)
-    {
-        if (rows.IsNullOrEmpty())
-        {
-            return;
-        }
-
-        var productsByCode = await ResolveByCodesAsync(rows.Select(getCode).ToList(), storeId);
-
-        foreach (var row in rows)
-        {
-            var code = getCode(row);
-            // Guarded rather than passed straight to TryGetValue: a null key throws on this dictionary.
-            if (!string.IsNullOrEmpty(code) && productsByCode.TryGetValue(code, out var product))
-            {
-                setProduct(row, product);
-            }
-        }
     }
 
     protected virtual SalesRepActivityProduct ToActivityProduct(CatalogProduct product)

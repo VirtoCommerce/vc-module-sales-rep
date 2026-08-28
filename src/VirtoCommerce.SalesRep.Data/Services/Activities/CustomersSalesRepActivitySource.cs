@@ -26,7 +26,7 @@ public class CustomersSalesRepActivitySource : ISalesRepActivitySource
 
         var result = AbstractTypeFactory<SalesRepActivitySearchResult>.TryCreateInstance();
 
-        if (criteria.GetEffectiveCategories(Categories).Count == 0 || criteria.OrganizationIds.IsNullOrEmpty())
+        if (!Categories.Any(criteria.IsCategoryRequested) || criteria.OrganizationIds.IsNullOrEmpty())
         {
             return result;
         }

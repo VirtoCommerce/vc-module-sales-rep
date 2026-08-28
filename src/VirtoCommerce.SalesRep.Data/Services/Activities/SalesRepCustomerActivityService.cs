@@ -65,7 +65,7 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
     {
         var summaries = await analyticsService.GetEventSummariesAsync(CreateLoginSummaryCriteria(criteria));
 
-        return summaries.FirstOrDefault(x => x.EventName == AnalyticsConstants.EventNames.Login);
+        return summaries.FirstOrDefault(x => x.EventName.EqualsIgnoreCase(AnalyticsConstants.EventNames.Login));
     }
 
     protected virtual AnalyticsEventSummaryCriteria CreateLoginSummaryCriteria(SalesRepCustomerActivityCriteria criteria)
