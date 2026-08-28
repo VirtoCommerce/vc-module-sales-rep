@@ -13,6 +13,7 @@ using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
+using SalesRepConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
@@ -138,7 +139,7 @@ public class SalesRepActivitiesGraphQlTests
         // Foreign-org and impersonated events sit in the pool but MUST stay invisible (server-side GA filters).
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 5, "org-foreign",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "leak"));
-        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 5, "org-1", sessionKind: AnalyticsConstants.SessionKinds.Impersonated);
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 5, "org-1", sessionKind: SalesRepConstants.Analytics.SessionKinds.Impersonated);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepActivities(categories: [\"searches\", \"productViews\", \"logins\"], storeId: \"B2B-store\", cultureName:\"en-US\") {{ {AllFields} }} }}",
@@ -176,7 +177,7 @@ public class SalesRepActivitiesGraphQlTests
         foreach (var criteria in analytics.ReceivedSearchCriteria)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
-            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(AnalyticsConstants.SessionKinds.Self);
+            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
             filters[AnalyticsConstants.UserDimensions.OrganizationId].Should().BeEquivalentTo("org-1", "org-2");
         }
     }

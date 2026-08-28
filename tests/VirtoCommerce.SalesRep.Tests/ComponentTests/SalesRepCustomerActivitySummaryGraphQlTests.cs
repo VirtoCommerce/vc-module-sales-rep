@@ -9,6 +9,7 @@ using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
+using SalesRepConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
@@ -70,7 +71,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         foreach (var filters in analytics.ReceivedSearchCriteria.Select(x => x.DimensionFilters)
                      .Concat(analytics.ReceivedSummaryCriteria.Select(x => x.DimensionFilters)))
         {
-            filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.SessionKind).Values.Should().Equal(AnalyticsConstants.SessionKinds.Self);
+            filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.SessionKind).Values.Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
             filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.OrganizationId).Values.Should().Equal("org-1");
         }
     }

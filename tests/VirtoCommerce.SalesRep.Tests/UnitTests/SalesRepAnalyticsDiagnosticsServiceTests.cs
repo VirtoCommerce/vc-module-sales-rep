@@ -11,6 +11,7 @@ using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
+using SalesRepConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 using Stages = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants.DiagnosticsStages;
 using Statuses = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants.DiagnosticsStatuses;
 
@@ -100,7 +101,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         analytics.AddEvent("view_item", occurredAt, count: 2, organizationId: "org-1", dimensions: [("itemId", "SKU-1"), ("itemName", "Pump")]);
         analytics.AddEvent("view_item", occurredAt, count: 1, organizationId: "org-2", dimensions: [("itemId", "SKU-2"), ("itemName", "Valve")]);
         analytics.AddEvent("view_item", occurredAt, count: 1, organizationId: "org-1",
-            sessionKind: AnalyticsConstants.SessionKinds.Impersonated, dimensions: [("itemId", "SKU-3"), ("itemName", "Hose")]);
+            sessionKind: SalesRepConstants.Analytics.SessionKinds.Impersonated, dimensions: [("itemId", "SKU-3"), ("itemName", "Hose")]);
 
         var result = await CreateService(new FakeAnalyticsDiagnosticsService(), analytics).RunAsync(StoreId, includeLiveData: true);
 
@@ -130,7 +131,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
             criteria.From.Should().BeCloseTo(DateTime.UtcNow.AddDays(-30), TimeSpan.FromMinutes(5));
             var filter = criteria.DimensionFilters.Should().ContainSingle().Subject;
             filter.DimensionName.Should().Be(AnalyticsConstants.UserDimensions.SessionKind);
-            filter.Values.Should().Equal(AnalyticsConstants.SessionKinds.Self);
+            filter.Values.Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
         }
     }
 

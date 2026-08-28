@@ -6,6 +6,7 @@ using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
+using SalesRepConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -26,7 +27,7 @@ internal sealed class FakeAnalyticsService : IAnalyticsService
 
     // occurredAt is nullable so a test can seed the row shape GA returns when the hour bucket is "(not set)".
     public void AddEvent(string eventName, DateTime? occurredAt, int count, string organizationId,
-        string sessionKind = AnalyticsConstants.SessionKinds.Self, params (string Name, string Value)[] dimensions)
+        string sessionKind = SalesRepConstants.Analytics.SessionKinds.Self, params (string Name, string Value)[] dimensions)
     {
         var analyticsEvent = new AnalyticsEvent
         {

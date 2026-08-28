@@ -8,6 +8,7 @@ using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
+using SalesRepConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
@@ -274,7 +275,7 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "leak-term"));
         analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _apr, count: 9, "org-2",
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "LEAK-CODE"), (AnalyticsConstants.Dimensions.ItemName, "Leak Product")]);
-        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-1", sessionKind: AnalyticsConstants.SessionKinds.Impersonated,
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-1", sessionKind: SalesRepConstants.Analytics.SessionKinds.Impersonated,
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "impersonated-term"));
 
         var json = await ctx.ExecuteGraphQlAsync(
@@ -294,7 +295,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         foreach (var criteria in analytics.ReceivedSearchCriteria)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
-            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(AnalyticsConstants.SessionKinds.Self);
+            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
             filters[AnalyticsConstants.UserDimensions.OrganizationId].Should().Equal("org-1");
         }
     }
@@ -342,7 +343,7 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "leak-term"));
         analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _apr, count: 9, "org-3",
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "LEAK-CODE"), (AnalyticsConstants.Dimensions.ItemName, "Leak Product")]);
-        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-1", sessionKind: AnalyticsConstants.SessionKinds.Impersonated,
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-1", sessionKind: SalesRepConstants.Analytics.SessionKinds.Impersonated,
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "impersonated-term"));
 
         var json = await ctx.ExecuteGraphQlAsync(
@@ -362,7 +363,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         foreach (var criteria in analytics.ReceivedSearchCriteria)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
-            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(AnalyticsConstants.SessionKinds.Self);
+            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
             filters[AnalyticsConstants.UserDimensions.OrganizationId].Should().BeEquivalentTo("org-1", "org-2");
         }
     }
