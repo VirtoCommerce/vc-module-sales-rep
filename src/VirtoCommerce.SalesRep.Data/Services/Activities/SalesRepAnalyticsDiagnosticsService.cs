@@ -16,8 +16,6 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
 {
     private const string SearchTermsReportName = "searchTerms";
     private const string BrowsedProductsReportName = "browsedProducts";
-    private const string EventCountMetric = "eventCount";
-    private const string ItemsViewedMetric = "itemsViewed";
     private const int FeatureQueryTake = 5;
     private const int FeatureQueryDays = 30;
 
@@ -78,11 +76,11 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         [
             CreateReportShape(SearchTermsReportName,
                 [AnalyticsConstants.Dimensions.EventName, AnalyticsConstants.Dimensions.DateHour, AnalyticsConstants.Dimensions.SearchTerm],
-                EventCountMetric,
+                AnalyticsConstants.Metrics.EventCount,
                 [AnalyticsConstants.EventNames.Search, AnalyticsConstants.EventNames.ViewSearchResults]),
             CreateReportShape(BrowsedProductsReportName,
                 [AnalyticsConstants.Dimensions.DateHour, AnalyticsConstants.Dimensions.ItemId, AnalyticsConstants.Dimensions.ItemName],
-                ItemsViewedMetric,
+                AnalyticsConstants.Metrics.ItemsViewed,
                 [AnalyticsConstants.EventNames.ViewItem]),
         ];
 
@@ -139,21 +137,13 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         criteria.StoreId = storeId;
         criteria.EventNames = eventNames;
         criteria.DimensionNames = dimensionNames;
-        criteria.DimensionFilters = [CreateSelfSessionFilter()];
+        criteria.DimensionFilters = [SalesRepAnalyticsScope.CreateSelfSessionFilter()];
         criteria.From = DateTime.UtcNow.AddDays(-FeatureQueryDays);
         criteria.SortBy = sortBy;
         criteria.Take = FeatureQueryTake;
 
         var result = await _analyticsService.Value.SearchEventsAsync(criteria);
         return result.Events?.Count ?? 0;
-    }
-
-    protected static AnalyticsDimensionFilter CreateSelfSessionFilter()
-    {
-        var filter = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
-        filter.DimensionName = AnalyticsConstants.UserDimensions.SessionKind;
-        filter.Values = [AnalyticsConstants.SessionKinds.Self];
-        return filter;
     }
 
     protected static AnalyticsDiagnosticsReportShape CreateReportShape(string name, IList<string> dimensionNames, string metricName, IList<string> eventNames)
@@ -168,7 +158,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
 
     protected static AnalyticsDiagnosticsCheck CreateFeatureQueryCheck(string status, string message, string detail = null)
     {
-        return CreateCheck(ModuleConstants.DiagnosticsStages.FeatureQueryStage, status, message, detail);
+        return CreateCheck(ModuleConstants.DiagnosticsStages.FeatureQuery, status, message, detail);
     }
 
     protected static AnalyticsDiagnosticsCheck CreateCheck(string stage, string status, string message, string detail = null)

@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Model;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
@@ -274,6 +275,23 @@ public class SalesRepActivitiesGraphQlTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
+    }
+
+    [Fact]
+    public async Task Activities_DeepSkip_IsClamped()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepActivities(categories: [\"logins\"], skip: 100000, take: 20) { totalCount items { type } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // Skip is clamped before the aggregator turns it into a per-category Take, so no source is asked for 100k rows.
+        analytics.ReceivedSearchCriteria.Should().ContainSingle(x => x.Take == ModuleConstants.Activities.MaxSkip + 20);
     }
 
     // ---- helpers ----

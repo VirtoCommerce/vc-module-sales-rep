@@ -14,8 +14,6 @@ public class SalesRepCustomerInsightsContext
 
     public string StoreId { get; set; }
 
-    public string CultureName { get; set; }
-
     public DateTime? From { get; set; }
 
     public DateTime? To { get; set; }

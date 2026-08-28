@@ -1,14 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
-public class SalesRepActivitySearchCriteria : ICloneable
+public class SalesRepActivitySearchCriteria : SearchCriteriaBase
 {
-    public string SalesRepUserId { get; set; }
+    // SearchCriteriaBase's own page size, named so the query's default chains to it.
+    public const int DefaultTake = 20;
 
-    public string OrganizationId { get; set; }
+    public string SalesRepUserId { get; set; }
 
     public IList<string> OrganizationIds { get; set; } = [];
 
@@ -20,17 +22,15 @@ public class SalesRepActivitySearchCriteria : ICloneable
 
     public DateTime? To { get; set; }
 
-    public int Take { get; set; } = 20;
-
-    public int Skip { get; set; }
-
-    public string CultureName { get; set; }
-
-    public virtual object Clone()
+    // The aggregator mutates Categories on each clone before firing the per-category reads concurrently,
+    // so a clone must not share the collections with the original.
+    public override object Clone()
     {
-        var result = (SalesRepActivitySearchCriteria)MemberwiseClone();
+        var result = (SalesRepActivitySearchCriteria)base.Clone();
+
         result.OrganizationIds = OrganizationIds?.ToList();
         result.Categories = Categories?.ToList();
+
         return result;
     }
 }

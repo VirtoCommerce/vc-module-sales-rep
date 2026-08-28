@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
@@ -34,21 +35,37 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
             return result;
         }
 
-        result.IsAnalyticsConfigured = await _analyticsService.Value.IsConfiguredAsync(criteria.StoreId);
+        var analyticsService = _analyticsService.Value;
+
+        result.IsAnalyticsConfigured = await analyticsService.IsConfiguredAsync(criteria.StoreId);
         if (!result.IsAnalyticsConfigured)
         {
             return result;
         }
 
-        var loginSummary = (await _analyticsService.Value.GetEventSummariesAsync(CreateLoginSummaryCriteria(criteria)))
-            .FirstOrDefault(x => x.EventName == AnalyticsConstants.EventNames.Login);
+        // The three reads are independent and cached under distinct keys, so they do not serialize on each other.
+        var loginSummaryTask = GetLoginSummaryAsync(analyticsService, criteria);
+        var lastSearchTermTask = GetLastSearchTermAsync(analyticsService, criteria);
+        var lastViewedProductTask = GetLastViewedProductAsync(analyticsService, criteria);
+
+        await Task.WhenAll(loginSummaryTask, lastSearchTermTask, lastViewedProductTask);
+
+        var loginSummary = await loginSummaryTask;
         result.VisitsCount = loginSummary?.TotalCount ?? 0;
         result.LastWebLogin = loginSummary?.LastOccurredAt;
-
-        result.LastSearchTerm = await GetLastSearchTermAsync(criteria);
-        result.LastViewedProduct = await GetLastViewedProductAsync(criteria);
+        result.LastSearchTerm = await lastSearchTermTask;
+        result.LastViewedProduct = await lastViewedProductTask;
 
         return result;
+    }
+
+    protected virtual async Task<AnalyticsEventSummary> GetLoginSummaryAsync(
+        IAnalyticsService analyticsService,
+        SalesRepCustomerActivityCriteria criteria)
+    {
+        var summaries = await analyticsService.GetEventSummariesAsync(CreateLoginSummaryCriteria(criteria));
+
+        return summaries.FirstOrDefault(x => x.EventName == AnalyticsConstants.EventNames.Login);
     }
 
     protected virtual AnalyticsEventSummaryCriteria CreateLoginSummaryCriteria(SalesRepCustomerActivityCriteria criteria)
@@ -64,63 +81,62 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         return result;
     }
 
-    protected virtual async Task<string> GetLastSearchTermAsync(SalesRepCustomerActivityCriteria criteria)
+    protected virtual async Task<string> GetLastSearchTermAsync(
+        IAnalyticsService analyticsService,
+        SalesRepCustomerActivityCriteria criteria)
     {
         var searchCriteria = CreateEventSearchCriteria(
             criteria,
             [AnalyticsConstants.EventNames.Search, AnalyticsConstants.EventNames.ViewSearchResults],
             [AnalyticsConstants.Dimensions.SearchTerm]);
 
-        var searchResult = await _analyticsService.Value.SearchEventsAsync(searchCriteria);
+        var searchResult = await analyticsService.SearchEventsAsync(searchCriteria);
 
         return searchResult.Events
-            .Select(x => GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm))
+            .Select(x => SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm))
             .FirstOrDefault(x => !string.IsNullOrEmpty(x));
     }
 
-    protected virtual async Task<SalesRepActivityProduct> GetLastViewedProductAsync(SalesRepCustomerActivityCriteria criteria)
+    protected virtual async Task<SalesRepActivityProduct> GetLastViewedProductAsync(
+        IAnalyticsService analyticsService,
+        SalesRepCustomerActivityCriteria criteria)
     {
         var searchCriteria = CreateEventSearchCriteria(
             criteria,
             [AnalyticsConstants.EventNames.ViewItem],
             [AnalyticsConstants.Dimensions.ItemId, AnalyticsConstants.Dimensions.ItemName]);
 
-        var searchResult = await _analyticsService.Value.SearchEventsAsync(searchCriteria);
+        var searchResult = await analyticsService.SearchEventsAsync(searchCriteria);
 
         var lastViewed = searchResult.Events
-            .FirstOrDefault(x => !string.IsNullOrEmpty(GetDimension(x, AnalyticsConstants.Dimensions.ItemId)));
+            .FirstOrDefault(x => !string.IsNullOrEmpty(SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.ItemId)));
         if (lastViewed == null)
         {
             return null;
         }
 
         var result = AbstractTypeFactory<SalesRepActivityProduct>.TryCreateInstance();
-        result.Code = GetDimension(lastViewed, AnalyticsConstants.Dimensions.ItemId);
-        result.Name = GetDimension(lastViewed, AnalyticsConstants.Dimensions.ItemName);
+        result.Code = SalesRepAnalyticsScope.GetDimension(lastViewed, AnalyticsConstants.Dimensions.ItemId);
+        result.Name = SalesRepAnalyticsScope.GetDimension(lastViewed, AnalyticsConstants.Dimensions.ItemName);
 
         return result;
     }
 
     protected virtual AnalyticsEventSearchCriteria CreateEventSearchCriteria(
         SalesRepCustomerActivityCriteria criteria,
-        string[] eventNames,
-        string[] dimensionNames)
+        IList<string> eventNames,
+        IList<string> dimensionNames)
     {
-        var result = AbstractTypeFactory<AnalyticsEventSearchCriteria>.TryCreateInstance();
+        var result = SalesRepAnalyticsScope.CreateCriteria(
+            criteria.StoreId,
+            [criteria.OrganizationId],
+            eventNames,
+            dimensionNames,
+            criteria.From,
+            criteria.To);
 
-        result.StoreId = criteria.StoreId;
-        result.EventNames = eventNames;
-        result.DimensionNames = dimensionNames;
-        result.DimensionFilters = SalesRepAnalyticsScope.CreateScopeFilters([criteria.OrganizationId]);
-        result.From = criteria.From;
-        result.To = criteria.To;
         result.Take = LastEventLookupSize;
 
         return result;
-    }
-
-    protected static string GetDimension(AnalyticsEvent analyticsEvent, string dimensionName)
-    {
-        return analyticsEvent.Dimensions?.TryGetValue(dimensionName, out var value) == true ? value : null;
     }
 }

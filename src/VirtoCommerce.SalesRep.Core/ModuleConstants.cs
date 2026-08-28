@@ -46,6 +46,10 @@ public static class ModuleConstants
 
     public static class Activities
     {
+        // 50 pages at the default page size: the aggregator turns Skip into a per-category Take, so an
+        // unbounded Skip would make every source materialize that many rows.
+        public const int MaxSkip = 1000;
+
         public static class Categories
         {
             public const string Orders = "orders";
@@ -87,7 +91,7 @@ public static class ModuleConstants
     public static class DiagnosticsStages
     {
         // The sales-rep stage appended after the analytics module's own diagnostics stages.
-        public const string FeatureQueryStage = "featureQuery";
+        public const string FeatureQuery = "featureQuery";
     }
 
     public static class Documents

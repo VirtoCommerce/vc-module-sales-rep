@@ -83,7 +83,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         diagnostics.ReceivedRequest.IncludeLiveData.Should().Be(includeLiveData);
 
         var featureQueryCheck = result.Checks[^1];
-        featureQueryCheck.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQueryStage);
+        featureQueryCheck.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQuery);
         if (!includeLiveData)
         {
             featureQueryCheck.Status.Should().Be(Statuses.Skipped);
@@ -107,7 +107,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         result.Checks.Should().HaveCount(8);
 
         var check = result.Checks[^1];
-        check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQueryStage);
+        check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQuery);
         check.Status.Should().Be(Statuses.Passed);
         check.Message.Should().Contain("searchTerms=1 rows").And.Contain("browsedProducts=2 rows").And.Contain("no organization filter");
 
@@ -140,7 +140,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         var result = await CreateService(new FakeAnalyticsDiagnosticsService(), new FakeAnalyticsService()).RunAsync(StoreId, includeLiveData: true);
 
         var check = result.Checks[^1];
-        check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQueryStage);
+        check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQuery);
         check.Status.Should().Be(Statuses.Warning);
         check.Message.Should().Contain("No processed rows yet").And.Contain("24–48 hours");
     }
@@ -164,7 +164,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         var result = await CreateService(new FakeAnalyticsDiagnosticsService(), new ThrowingAnalyticsService()).RunAsync(StoreId, includeLiveData: true);
 
         var check = result.Checks[^1];
-        check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQueryStage);
+        check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQuery);
         check.Status.Should().Be(Statuses.Failed);
         check.Message.Should().Be("Feature query failed.");
         check.Detail.Should().Contain("GA exploded");

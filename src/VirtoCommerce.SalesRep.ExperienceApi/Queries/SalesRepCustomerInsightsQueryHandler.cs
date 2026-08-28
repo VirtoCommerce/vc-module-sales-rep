@@ -41,7 +41,6 @@ public class SalesRepCustomerInsightsQueryHandler : SalesRepQueryHandlerBase, IQ
         var result = AbstractTypeFactory<SalesRepCustomerInsightsContext>.TryCreateInstance();
         result.OrganizationIds = organizationIds;
         result.StoreId = request.StoreId;
-        result.CultureName = request.CultureName;
         result.From = request.Period?.From;
         result.To = request.Period?.To;
         return result;

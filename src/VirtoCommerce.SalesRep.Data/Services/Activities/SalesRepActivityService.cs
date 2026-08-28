@@ -23,6 +23,13 @@ public class SalesRepActivityService : ISalesRepActivityService
 
         var result = AbstractTypeFactory<SalesRepActivitySearchResult>.TryCreateInstance();
 
+        // Fail closed: without a resolved rep scope no source runs at all, so a contributed source that forgets
+        // its own scope guard still cannot return another organization's rows.
+        if (criteria.OrganizationIds.IsNullOrEmpty())
+        {
+            return result;
+        }
+
         // Every registered category is planned, filter or no filter: the counts feed the storefront's category tabs,
         // which must keep showing their own totals while one of them is selected.
         var plans = _sources
@@ -34,81 +41,36 @@ public class SalesRepActivityService : ISalesRepActivityService
             return result;
         }
 
-        List<int> fetchIndexes = [];
-        List<int> countIndexes = [];
-
-        for (var index = 0; index < plans.Count; index++)
+        // Task.WhenAll keeps the input order, so the results line up with the plans they came from.
+        var searches = await Task.WhenAll(plans.Select(async plan =>
         {
-            var fetchesRows = criteria.Take > 0 && criteria.IsCategoryRequested(plans[index].Category);
-            (fetchesRows ? fetchIndexes : countIndexes).Add(index);
-        }
-
-        var fetchPlans = fetchIndexes.Select(x => plans[x]).ToList();
-        var countPlans = countIndexes.Select(x => plans[x]).ToList();
+            var fetchRows = criteria.Take > 0 && criteria.IsCategoryRequested(plan.Category);
+            return (plan.Category, Fetched: fetchRows, Result: await SearchCategoryAsync(criteria, plan, fetchRows));
+        }));
 
         // A fetched category takes its count from its own row fetch, so a tab's count always matches its own list
         // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
-        var fetchTask = FetchCategoriesAsync(criteria, fetchPlans);
-        var countTask = CountCategoriesAsync(criteria, countPlans);
-        await Task.WhenAll(fetchTask, countTask);
-
-        var fetchResults = await fetchTask;
-        var countResults = await countTask;
-
-        var categoryCounts = new SalesRepActivityCategoryCount[plans.Count];
-
-        for (var index = 0; index < fetchIndexes.Count; index++)
-        {
-            categoryCounts[fetchIndexes[index]] = CreateCategoryCount(fetchPlans[index].Category, fetchResults[index].TotalCount);
-        }
-
-        for (var index = 0; index < countIndexes.Count; index++)
-        {
-            categoryCounts[countIndexes[index]] = CreateCategoryCount(countPlans[index].Category, countResults[index].TotalCount);
-        }
-
-        result.CategoryCounts = [.. categoryCounts];
-        result.Results = GetPage(criteria, fetchResults);
+        result.CategoryCounts = searches.Select(x => CreateCategoryCount(x.Category, x.Result.TotalCount)).ToList();
+        result.Results = GetPage(criteria, [.. searches.Where(x => x.Fetched).Select(x => x.Result)]);
         // The pager is per-tab: only the requested categories add up to the total.
         result.TotalCount = result.CategoryCounts.Where(x => criteria.IsCategoryRequested(x.Category)).Sum(x => x.Count);
 
         return result;
     }
 
-    protected virtual async Task<IList<SalesRepActivitySearchResult>> CountCategoriesAsync(
+    // Pagination v1: a requested category returns its top Skip+Take rows and the page is sliced from the merge,
+    // so deep pages over-fetch proportionally — acceptable for feed-sized reads. The rest are counted with Take=0.
+    protected virtual Task<SalesRepActivitySearchResult> SearchCategoryAsync(
         SalesRepActivitySearchCriteria criteria,
-        IList<(ISalesRepActivitySource Source, string Category)> plans)
+        (ISalesRepActivitySource Source, string Category) plan,
+        bool fetchRows)
     {
-        var countTasks = plans.Select(plan =>
-        {
-            var countCriteria = criteria.CloneTyped();
-            countCriteria.Categories = [plan.Category];
-            countCriteria.Take = 0;
-            countCriteria.Skip = 0;
+        var sourceCriteria = criteria.CloneTyped();
+        sourceCriteria.Categories = [plan.Category];
+        sourceCriteria.Take = fetchRows ? criteria.Skip + criteria.Take : 0;
+        sourceCriteria.Skip = 0;
 
-            return plan.Source.SearchAsync(countCriteria);
-        });
-
-        return await Task.WhenAll(countTasks);
-    }
-
-    // Pagination v1: every category returns its top Skip+Take rows and the page is sliced from the merge,
-    // so deep pages over-fetch proportionally — acceptable for feed-sized reads.
-    protected virtual async Task<IList<SalesRepActivitySearchResult>> FetchCategoriesAsync(
-        SalesRepActivitySearchCriteria criteria,
-        IList<(ISalesRepActivitySource Source, string Category)> plans)
-    {
-        var fetchTasks = plans.Select(plan =>
-        {
-            var fetchCriteria = criteria.CloneTyped();
-            fetchCriteria.Categories = [plan.Category];
-            fetchCriteria.Take = criteria.Skip + criteria.Take;
-            fetchCriteria.Skip = 0;
-
-            return plan.Source.SearchAsync(fetchCriteria);
-        });
-
-        return await Task.WhenAll(fetchTasks);
+        return plan.Source.SearchAsync(sourceCriteria);
     }
 
     protected virtual IList<SalesRepActivityEvent> GetPage(

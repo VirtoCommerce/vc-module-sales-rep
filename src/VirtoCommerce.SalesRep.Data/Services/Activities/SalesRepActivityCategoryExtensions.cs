@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using VirtoCommerce.Platform.Core.Common;
@@ -15,6 +14,6 @@ public static class SalesRepActivityCategoryExtensions
 
     public static bool IsCategoryRequested(this SalesRepActivitySearchCriteria criteria, string category)
     {
-        return criteria.Categories.IsNullOrEmpty() || criteria.Categories.Contains(category, StringComparer.OrdinalIgnoreCase);
+        return criteria.Categories.IsNullOrEmpty() || criteria.Categories.ContainsIgnoreCase(category);
     }
 }

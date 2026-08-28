@@ -43,34 +43,27 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 
     public IList<string> Categories { get; } = _analyticsCategories.Select(x => x.Category).ToList();
 
+    // The aggregator drives one category per call and owns the merge/sort/slice across categories.
     public virtual async Task<SalesRepActivitySearchResult> SearchAsync(SalesRepActivitySearchCriteria criteria)
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
         var result = AbstractTypeFactory<SalesRepActivitySearchResult>.TryCreateInstance();
 
-        var effectiveCategories = criteria.GetEffectiveCategories(Categories);
-        if (!_analyticsService.HasValue || effectiveCategories.Count == 0 || criteria.OrganizationIds.IsNullOrEmpty())
+        var category = Array.Find(_analyticsCategories, x => criteria.IsCategoryRequested(x.Category));
+        if (!_analyticsService.HasValue || category == null || criteria.OrganizationIds.IsNullOrEmpty())
         {
             return result;
         }
 
-        List<SalesRepActivityEvent> merged = [];
+        var analyticsService = _analyticsService.Value;
 
-        foreach (var category in _analyticsCategories.Where(x => effectiveCategories.Contains(x.Category)))
-        {
-            var searchResult = await _analyticsService.Value.SearchEventsAsync(CreateSearchCriteria(category, criteria));
+        var searchResult = await analyticsService.SearchEventsAsync(CreateSearchCriteria(category, criteria));
 
-            result.TotalCount += searchResult.TotalCount;
-            merged.AddRange(searchResult.Events
-                .Where(x => x.OccurredAt != null)
-                .Select(x => ToEvent(category, x)));
-        }
-
-        result.Results = merged
-            .OrderByDescending(x => x.OccurredAt)
-            .Skip(criteria.Skip)
-            .Take(Math.Max(criteria.Take, 0))
+        result.TotalCount = searchResult.TotalCount;
+        result.Results = searchResult.Events
+            .Where(x => x.OccurredAt != null)
+            .Select(x => ToEvent(category, x))
             .ToList();
 
         return result;
@@ -78,17 +71,16 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 
     protected virtual AnalyticsEventSearchCriteria CreateSearchCriteria(SalesRepAnalyticsCategory category, SalesRepActivitySearchCriteria criteria)
     {
-        var result = AbstractTypeFactory<AnalyticsEventSearchCriteria>.TryCreateInstance();
+        var result = SalesRepAnalyticsScope.CreateCriteria(
+            criteria.StoreId,
+            criteria.OrganizationIds,
+            [.. category.EventNames],
+            [.. category.DimensionNames, AnalyticsConstants.UserDimensions.OrganizationId],
+            criteria.From,
+            criteria.To);
 
-        result.StoreId = criteria.StoreId;
-        result.EventNames = category.EventNames.ToList();
-        result.DimensionNames = category.DimensionNames.Append(AnalyticsConstants.UserDimensions.OrganizationId).ToList();
-        result.DimensionFilters = SalesRepAnalyticsScope.CreateScopeFilters(criteria.OrganizationIds);
-        result.From = criteria.From;
-        result.To = criteria.To;
-        // Each category fetches its own top rows; the caller slices the merge (per-source top skip+take pagination).
-        result.Take = criteria.Skip + criteria.Take;
-        result.Skip = 0;
+        result.Take = criteria.Take;
+        result.Skip = criteria.Skip;
 
         return result;
     }
@@ -102,16 +94,11 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
         result.OccurredAt = analyticsEvent.OccurredAt.Value;
         result.Precision = ActivityConstants.Precision.Hour;
         result.Count = analyticsEvent.Count;
-        result.OrganizationId = GetDimension(analyticsEvent, AnalyticsConstants.UserDimensions.OrganizationId);
-        result.SearchTerm = GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.SearchTerm);
-        result.ProductCode = GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.ItemId);
-        result.ProductName = GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.ItemName);
+        result.OrganizationId = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.UserDimensions.OrganizationId);
+        result.SearchTerm = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.SearchTerm);
+        result.ProductCode = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.ItemId);
+        result.ProductName = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.ItemName);
 
         return result;
-    }
-
-    protected static string GetDimension(AnalyticsEvent analyticsEvent, string dimensionName)
-    {
-        return analyticsEvent.Dimensions?.TryGetValue(dimensionName, out var value) == true ? value : null;
     }
 }

@@ -41,15 +41,13 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
 
         var criteria = AbstractTypeFactory<SalesRepActivitySearchCriteria>.TryCreateInstance();
         criteria.SalesRepUserId = request.UserId;
-        criteria.OrganizationId = request.OrganizationId;
         criteria.OrganizationIds = organizationIds;
         criteria.Categories = request.Categories;
         criteria.StoreId = request.StoreId;
         criteria.From = request.Period?.From;
         criteria.To = request.Period?.To;
         criteria.Take = Math.Clamp(request.Take, 0, SalesRepActivitiesQuery.MaxTake);
-        criteria.Skip = Math.Max(request.Skip, 0);
-        criteria.CultureName = request.CultureName;
+        criteria.Skip = Math.Clamp(request.Skip, 0, ModuleConstants.Activities.MaxSkip);
 
         var result = await _activityService.SearchActivitiesAsync(criteria);
 

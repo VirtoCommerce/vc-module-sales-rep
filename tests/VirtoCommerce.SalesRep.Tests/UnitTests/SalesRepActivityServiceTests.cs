@@ -3,18 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services.Activities;
 using Xunit;
 
-namespace VirtoCommerce.SalesRep.Tests;
+namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 
 /// <summary>
-/// The aggregation contract of <see cref="SalesRepActivityService"/> over stub sources: every registered category is
-/// counted regardless of the filter (the storefront's tab badges), rows and the total cover the requested categories
-/// only, a requested category's count comes from its own row fetch (Take=0 only for the categories not fetched), and
-/// the per-category top-Skip+Take merge/sort/slice.
+/// The aggregation contract of <see cref="SalesRepActivityService"/> over stub sources: no source runs without a
+/// resolved rep scope, every registered category is counted regardless of the filter (the storefront's tab badges),
+/// rows and the total cover the requested categories only, a requested category's count comes from its own row fetch
+/// (Take=0 only for the categories not fetched), and the per-category top-Skip+Take merge/sort/slice.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepActivityServiceTests
@@ -37,6 +38,40 @@ public class SalesRepActivityServiceTests
 
         var page2 = await service.SearchActivitiesAsync(Criteria(take: 2, skip: 2));
         page2.Results.Select(x => x.OccurredAt).Should().Equal(_t2, _t1);
+    }
+
+    [Fact]
+    public async Task Search_WithoutOrganizationScope_FailsClosed()
+    {
+        // The stub ignores scope entirely, exactly like a contributed source that forgets its own guard would:
+        // the aggregator must not dispatch to it at all.
+        var orders = new StubActivitySource("orders", Event("orders", _t1));
+        var service = new SalesRepActivityService([orders]);
+
+        var criteria = Criteria(take: 10);
+        criteria.OrganizationIds = [];
+
+        var result = await service.SearchActivitiesAsync(criteria);
+
+        orders.ReceivedCriteria.Should().BeEmpty();
+        result.TotalCount.Should().Be(0);
+        result.Results.Should().BeEmpty();
+        result.CategoryCounts.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Clone_DeepCopiesCollections()
+    {
+        // The aggregator mutates Categories on each clone before firing the per-category reads concurrently.
+        var criteria = Criteria(take: 10, categories: ["orders"]);
+
+        var clone = criteria.CloneTyped();
+        clone.Categories.Add("customers");
+        clone.OrganizationIds.Add("org-2");
+
+        criteria.Categories.Should().Equal("orders");
+        criteria.OrganizationIds.Should().Equal("org-1");
+        clone.Take.Should().Be(10);
     }
 
     [Fact]

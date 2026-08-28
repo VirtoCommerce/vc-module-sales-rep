@@ -49,7 +49,7 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
 
         var result = await _customerActivityService.GetSummaryAsync(criteria);
 
-        var organization = (await _memberService.GetByIdsAsync([request.OrganizationId], null, [nameof(Organization)])).FirstOrDefault();
+        var organization = (await _memberService.GetByIdsAsync([request.OrganizationId], nameof(MemberResponseGroup.Default), [nameof(Organization)])).FirstOrDefault();
         result.CreatedOn = organization?.CreatedDate;
 
         await ResolveLastViewedProductAsync(result, request);

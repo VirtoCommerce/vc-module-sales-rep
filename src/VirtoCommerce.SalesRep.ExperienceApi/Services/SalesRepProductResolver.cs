@@ -29,7 +29,7 @@ public class SalesRepProductResolver : ISalesRepProductResolver
 
         var codesToSearch = (codes ?? [])
             .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .DistinctIgnoreCase()
             .ToList();
         if (codesToSearch.Count == 0)
         {

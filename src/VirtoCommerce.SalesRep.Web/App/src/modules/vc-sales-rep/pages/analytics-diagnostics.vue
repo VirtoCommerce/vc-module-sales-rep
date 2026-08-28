@@ -59,7 +59,7 @@
               <div class="tw-flex tw-flex-row tw-items-center tw-gap-3">
                 <span
                   class="tw-inline-flex tw-min-w-[80px] tw-shrink-0 tw-items-center tw-justify-center tw-rounded-full tw-border tw-border-solid tw-px-3 tw-py-0.5 tw-text-xs tw-font-semibold"
-                  :class="statusClasses[statusVariant(check.status)]"
+                  :class="statusClasses(check.status)"
                 >
                   {{ statusLabel(check.status) }}
                 </span>
@@ -118,35 +118,30 @@ const { stores, loadStores, loadingStores } = useStores();
 const storeOptions = computed(() => stores.value.map((x) => ({ id: x.id, name: x.name })));
 
 const storeId = ref<string>();
-const includeLiveData = ref<boolean | undefined>(true);
+const includeLiveData = ref(true);
 const expanded = ref<Record<number, boolean>>({});
 
 // Server statuses/stages are fixed tokens; unknown values (future stages) fall back to the raw token.
-const statusVariants: Record<string, "success" | "warning" | "danger" | "secondary"> = {
-  Passed: "success",
-  Warning: "warning",
-  Failed: "danger",
-  Skipped: "secondary",
+const neutralStatusClasses =
+  "tw-border-[color:var(--neutrals-300)] tw-bg-[color:var(--neutrals-50)] tw-text-[color:var(--neutrals-600)]";
+
+const statuses: Record<string, { key: string; classes: string }> = {
+  Passed: {
+    key: "PASSED",
+    classes: "tw-border-[color:var(--success-300)] tw-bg-[color:var(--success-50)] tw-text-[color:var(--success-700)]",
+  },
+  Warning: {
+    key: "WARNING",
+    classes: "tw-border-[color:var(--warning-300)] tw-bg-[color:var(--warning-50)] tw-text-[color:var(--warning-700)]",
+  },
+  Failed: {
+    key: "FAILED",
+    classes: "tw-border-[color:var(--danger-300)] tw-bg-[color:var(--danger-50)] tw-text-[color:var(--danger-700)]",
+  },
+  Skipped: { key: "SKIPPED", classes: neutralStatusClasses },
 };
 
-const statusVariant = (status?: string) => statusVariants[status ?? ""] ?? "secondary";
-
-const statusClasses: Record<string, string> = {
-  success:
-    "tw-border-[color:var(--success-300)] tw-bg-[color:var(--success-50)] tw-text-[color:var(--success-700)]",
-  warning:
-    "tw-border-[color:var(--warning-300)] tw-bg-[color:var(--warning-50)] tw-text-[color:var(--warning-700)]",
-  danger: "tw-border-[color:var(--danger-300)] tw-bg-[color:var(--danger-50)] tw-text-[color:var(--danger-700)]",
-  secondary:
-    "tw-border-[color:var(--neutrals-300)] tw-bg-[color:var(--neutrals-50)] tw-text-[color:var(--neutrals-600)]",
-};
-
-const statusKeys: Record<string, string> = {
-  Passed: "PASSED",
-  Warning: "WARNING",
-  Failed: "FAILED",
-  Skipped: "SKIPPED",
-};
+const statusClasses = (status?: string) => statuses[status ?? ""]?.classes ?? neutralStatusClasses;
 
 const stageKeys: Record<string, string> = {
   configuration: "CONFIGURATION",
@@ -159,14 +154,15 @@ const stageKeys: Record<string, string> = {
   featureQuery: "FEATURE_QUERY",
 };
 
-const localized = (prefix: string, keys: Record<string, string>, token?: string) => {
-  const key = `${prefix}.${keys[token ?? ""] ?? ""}`;
-  return te(key) ? t(key) : (token ?? "");
+const localized = (prefix: string, key: string | undefined, token?: string) => {
+  const fullKey = `${prefix}.${key ?? ""}`;
+  return key && te(fullKey) ? t(fullKey) : (token ?? "");
 };
 
 const statusLabel = (status?: string) =>
-  localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STATUSES", statusKeys, status);
-const stageLabel = (stage?: string) => localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STAGES", stageKeys, stage);
+  localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STATUSES", statuses[status ?? ""]?.key, status);
+const stageLabel = (stage?: string) =>
+  localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STAGES", stageKeys[stage ?? ""], stage);
 
 const toggleDetail = (index: number) => {
   expanded.value[index] = !expanded.value[index];
@@ -174,7 +170,7 @@ const toggleDetail = (index: number) => {
 
 const onRun = async () => {
   expanded.value = {};
-  await runDiagnostics({ storeId: storeId.value, includeLiveData: includeLiveData.value ?? true });
+  await runDiagnostics({ storeId: storeId.value, includeLiveData: includeLiveData.value });
 };
 
 onMounted(async () => {

@@ -1,10 +1,7 @@
-using System;
-using System.Linq;
-using GraphQL;
+using System.Threading.Tasks;
 using GraphQL.DataLoader;
 using GraphQL.Types;
 using VirtoCommerce.CoreModule.Core.Currency;
-using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -38,16 +35,14 @@ public class SalesRepActivityEventType : ExtendableGraphType<SalesRepActivityEve
         LocalizedField(x => x.OrderStatus, OrderSettings.OrderStatus, localizableSettingService, nullable: true);
         Field<MoneyType>("orderTotal")
             .Description("Order grand total (orderPlaced rows).")
-            .ResolveAsync(async context =>
+            .ResolveAsync(context =>
             {
                 if (string.IsNullOrEmpty(context.Source.OrderCurrency) || context.Source.OrderTotal == null)
                 {
-                    return null;
+                    return Task.FromResult<object>(null);
                 }
 
-                var currencies = await currencyService.GetAllCurrenciesAsync();
-                var currency = currencies.GetCurrencyForLanguage(context.Source.OrderCurrency, context.GetCultureName());
-                return new Money(context.Source.OrderTotal.Value, currency);
+                return StatisticsFieldHelper.ToMoneyAsync(currencyService, context.Source.OrderCurrency, context.GetCultureName(), context.Source.OrderTotal.Value);
             });
 
         Field(x => x.SearchTerm, nullable: true).Description("Searched phrase (search rows).");
@@ -57,34 +52,6 @@ public class SalesRepActivityEventType : ExtendableGraphType<SalesRepActivityEve
         Field(x => x.ProductName, nullable: true).Description("Product name (productView rows; resolved from the catalog, falling back to the tracked name).");
         Field(x => x.ProductImageUrl, nullable: true).Description("Product image URL (productView rows; null when unresolved).");
 
-        Field<StringGraphType>("organizationName")
-            .Description("Organization (customer) name.")
-            .Resolve(context =>
-            {
-                if (!string.IsNullOrEmpty(context.Source.OrganizationName))
-                {
-                    return context.Source.OrganizationName;
-                }
-
-                var organizationId = context.Source.OrganizationId;
-                if (string.IsNullOrEmpty(organizationId))
-                {
-                    return null;
-                }
-
-                var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, string>(
-                    $"{nameof(SalesRepActivityEventType)}.OrganizationNameById",
-                    async organizationIds =>
-                    {
-                        var organizations = await memberService.GetByIdsAsync(
-                            organizationIds.ToArray(),
-                            nameof(MemberResponseGroup.Default),
-                            [nameof(Organization)]);
-
-                        return organizations.ToDictionary(x => x.Id, x => x.Name, StringComparer.OrdinalIgnoreCase);
-                    });
-
-                return loader.LoadAsync(organizationId);
-            });
+        this.AddOrganizationNameField(dataLoaderContextAccessor, memberService, x => x.OrganizationName, x => x.OrganizationId);
     }
 }

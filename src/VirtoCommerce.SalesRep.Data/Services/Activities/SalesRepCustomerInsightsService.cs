@@ -45,7 +45,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
             [AnalyticsConstants.Dimensions.SearchTerm]);
 
         var terms = events
-            .Select(x => (Term: GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm), x.Count, Date: x.OccurredAt))
+            .Select(x => (Term: SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm), x.Count, Date: x.OccurredAt))
             .Where(x => !string.IsNullOrEmpty(x.Term))
             .GroupBy(x => x.Term, StringComparer.Ordinal)
             .Select(group =>
@@ -75,8 +75,8 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
 
         var products = events
             .Select(x => (
-                Code: GetDimension(x, AnalyticsConstants.Dimensions.ItemId),
-                Name: GetDimension(x, AnalyticsConstants.Dimensions.ItemName),
+                Code: SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.ItemId),
+                Name: SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.ItemName),
                 x.Count,
                 Date: x.OccurredAt))
             .Where(x => !string.IsNullOrEmpty(x.Code))
@@ -103,36 +103,33 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
 
     protected virtual async Task<IList<AnalyticsEvent>> SearchEventsAsync(
         SalesRepCustomerInsightsCriteria criteria,
-        string[] eventNames,
-        string[] dimensionNames)
+        IList<string> eventNames,
+        IList<string> dimensionNames)
     {
         if (!_analyticsService.HasValue || criteria.OrganizationIds.IsNullOrEmpty() || criteria.Take <= 0)
         {
             return [];
         }
 
+        var analyticsService = _analyticsService.Value;
         var isDateSort = IsDateSort(criteria);
 
-        var searchCriteria = AbstractTypeFactory<AnalyticsEventSearchCriteria>.TryCreateInstance();
-        searchCriteria.StoreId = criteria.StoreId;
-        searchCriteria.EventNames = eventNames;
-        searchCriteria.DimensionNames = dimensionNames;
-        searchCriteria.DimensionFilters = SalesRepAnalyticsScope.CreateScopeFilters(criteria.OrganizationIds);
-        searchCriteria.From = criteria.From;
-        searchCriteria.To = criteria.To;
+        var searchCriteria = SalesRepAnalyticsScope.CreateCriteria(
+            criteria.StoreId,
+            criteria.OrganizationIds,
+            eventNames,
+            dimensionNames,
+            criteria.From,
+            criteria.To);
+
         searchCriteria.SortBy = isDateSort ? AnalyticsConstants.SortBy.Date : AnalyticsConstants.SortBy.Count;
         searchCriteria.Take = isDateSort ? DateModeBucketFetchSize : CountModeRowFetchSize;
 
-        return (await _analyticsService.Value.SearchEventsAsync(searchCriteria)).Events;
+        return (await analyticsService.SearchEventsAsync(searchCriteria)).Events;
     }
 
     protected static bool IsDateSort(SalesRepCustomerInsightsCriteria criteria)
     {
         return ModuleConstants.Insights.Sort.Date.EqualsIgnoreCase(criteria.SortBy);
-    }
-
-    protected static string GetDimension(AnalyticsEvent analyticsEvent, string dimensionName)
-    {
-        return analyticsEvent.Dimensions?.TryGetValue(dimensionName, out var value) == true ? value : null;
     }
 }

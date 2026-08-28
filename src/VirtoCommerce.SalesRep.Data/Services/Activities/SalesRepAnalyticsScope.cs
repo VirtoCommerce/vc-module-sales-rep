@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core;
@@ -8,18 +9,57 @@ namespace VirtoCommerce.SalesRep.Data.Services.Activities;
 
 public static class SalesRepAnalyticsScope
 {
+    // The single construction site for scoped analytics reads: going through it is what makes it structurally
+    // impossible for a new reader to forget the scope filters.
+    public static AnalyticsEventSearchCriteria CreateCriteria(
+        string storeId,
+        IList<string> organizationIds,
+        IList<string> eventNames,
+        IList<string> dimensionNames,
+        DateTime? from,
+        DateTime? to)
+    {
+        var result = AbstractTypeFactory<AnalyticsEventSearchCriteria>.TryCreateInstance();
+
+        result.StoreId = storeId;
+        result.EventNames = eventNames;
+        result.DimensionNames = dimensionNames;
+        result.DimensionFilters = CreateScopeFilters(organizationIds);
+        result.From = from;
+        result.To = to;
+
+        return result;
+    }
+
     // Every analytics read is scoped server-side: only the customer's own sessions (never impersonated ones)
     // and only the organizations the rep serves.
     public static IList<AnalyticsDimensionFilter> CreateScopeFilters(IList<string> organizationIds)
     {
-        var sessionKindFilter = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
-        sessionKindFilter.DimensionName = ModuleConstants.UserDimensions.SessionKind;
-        sessionKindFilter.Values = [ModuleConstants.SessionKinds.Self];
+        return [CreateSelfSessionFilter(), CreateOrganizationFilter(organizationIds)];
+    }
 
-        var organizationFilter = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
-        organizationFilter.DimensionName = ModuleConstants.UserDimensions.OrganizationId;
-        organizationFilter.Values = organizationIds.ToList();
+    public static AnalyticsDimensionFilter CreateSelfSessionFilter()
+    {
+        var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
 
-        return [sessionKindFilter, organizationFilter];
+        result.DimensionName = ModuleConstants.UserDimensions.SessionKind;
+        result.Values = [ModuleConstants.SessionKinds.Self];
+
+        return result;
+    }
+
+    public static AnalyticsDimensionFilter CreateOrganizationFilter(IList<string> organizationIds)
+    {
+        var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
+
+        result.DimensionName = ModuleConstants.UserDimensions.OrganizationId;
+        result.Values = organizationIds.ToList();
+
+        return result;
+    }
+
+    public static string GetDimension(AnalyticsEvent analyticsEvent, string dimensionName)
+    {
+        return analyticsEvent.Dimensions?.TryGetValue(dimensionName, out var value) == true ? value : null;
     }
 }
