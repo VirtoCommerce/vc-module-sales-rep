@@ -312,14 +312,17 @@ public class SalesRepActivitiesGraphQlTests
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
-        // The "All" view: every category fetches, so the rows a request costs are (Skip + Take) x categories.
+        // The "All" view: every category fetches, so the rows a request costs are the window x categories. The
+        // window is Skip + Take rounded up to the paging bucket, so the deepest page asks for 500 + 50 -> 600.
+        const int worstCaseWindow = 600;
+
         var json = await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepActivities(skip: {ModuleConstants.Activities.MaxSkip}, take: 50) {{ totalCount items {{ type }} }} }}",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.Take <= ModuleConstants.Activities.MaxSkip + 50);
-        analytics.ReceivedSearchCriteria.Sum(x => x.Take).Should().BeLessThanOrEqualTo(3 * (ModuleConstants.Activities.MaxSkip + 50));
+        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.Take <= worstCaseWindow);
+        analytics.ReceivedSearchCriteria.Sum(x => x.Take).Should().BeLessThanOrEqualTo(3 * worstCaseWindow);
     }
 
     [Fact]

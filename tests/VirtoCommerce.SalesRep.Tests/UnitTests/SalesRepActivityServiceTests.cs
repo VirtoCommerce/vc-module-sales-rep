@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services.Activities;
@@ -15,11 +16,14 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 /// The aggregation contract of <see cref="SalesRepActivityService"/> over stub sources: no source runs without a
 /// resolved rep scope, every registered category is counted regardless of the filter (the storefront's tab badges),
 /// rows and the total cover the requested categories only, a requested category's count comes from its own row fetch
-/// (Take=0 only for the categories not fetched), and the per-category top-Skip+Take merge/sort/slice.
+/// (Take=0 only for the categories not fetched), and the shared per-category fetch window that the page is
+/// merged, sorted and sliced from.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepActivityServiceTests
 {
+    private const int FetchWindow = ModuleConstants.Activities.PagingWindowBucket;
+
     private static readonly DateTime _t1 = new(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime _t2 = new(2026, 6, 2, 0, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime _t3 = new(2026, 6, 3, 0, 0, 0, DateTimeKind.Utc);
@@ -85,8 +89,8 @@ public class SalesRepActivityServiceTests
 
         result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("orders", 2), ("customers", 1));
         result.TotalCount.Should().Be(3);
-        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10 && x.Categories.Single() == "orders");
-        customers.ReceivedCriteria.Should().ContainSingle(x => x.Take == 10 && x.Categories.Single() == "customers");
+        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == FetchWindow && x.Categories.Single() == "orders");
+        customers.ReceivedCriteria.Should().ContainSingle(x => x.Take == FetchWindow && x.Categories.Single() == "customers");
     }
 
     [Fact]
@@ -102,7 +106,7 @@ public class SalesRepActivityServiceTests
         result.CategoryCounts.Select(x => (x.Category, x.Count)).Should().Equal(("searches", 2), ("logins", 1));
         result.TotalCount.Should().Be(3);
         analytics.ReceivedCriteria.Should().HaveCount(2);
-        analytics.ReceivedCriteria.Should().OnlyContain(x => x.Take == 10 && x.Categories.Count == 1);
+        analytics.ReceivedCriteria.Should().OnlyContain(x => x.Take == FetchWindow && x.Categories.Count == 1);
         analytics.ReceivedCriteria.Select(x => x.Categories.Single()).Should().Equal("searches", "logins");
     }
 
@@ -125,7 +129,7 @@ public class SalesRepActivityServiceTests
 
         // The fetched category reuses its row fetch; the rest are counted with Take=0.
         analytics.ReceivedCriteria.Should().HaveCount(2);
-        analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "logins" && x.Take == 10);
+        analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "logins" && x.Take == FetchWindow);
         analytics.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "searches" && x.Take == 0);
         orders.ReceivedCriteria.Should().ContainSingle(x => x.Categories.Single() == "orders" && x.Take == 0 && x.Skip == 0);
     }
@@ -145,14 +149,18 @@ public class SalesRepActivityServiceTests
     }
 
     [Fact]
-    public async Task Search_SourcesFetchTopSkipPlusTake()
+    public async Task Search_SourcesFetchTheSharedWindow_SoConsecutivePagesAskTheSameQuestion()
     {
         var orders = new StubActivitySource("orders", Event("orders", _t1));
         var service = new SalesRepActivityService([orders]);
 
+        // Two pages inside the same bucket: Skip+Take differs, the question asked of the source does not, so the
+        // second page costs a source nothing beyond what it already answered for the first.
         await service.SearchActivitiesAsync(Criteria(take: 5, skip: 15));
+        await service.SearchActivitiesAsync(Criteria(take: 5, skip: 25));
 
-        orders.ReceivedCriteria.Should().ContainSingle(x => x.Take == 20 && x.Skip == 0);
+        orders.ReceivedCriteria.Should().HaveCount(2);
+        orders.ReceivedCriteria.Should().OnlyContain(x => x.Take == FetchWindow && x.Skip == 0);
     }
 
     private static SalesRepActivitySearchCriteria Criteria(int take, int skip = 0, IList<string> categories = null)

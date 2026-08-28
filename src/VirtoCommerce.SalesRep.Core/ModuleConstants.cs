@@ -48,10 +48,15 @@ public static class ModuleConstants
     {
         // The depth of the feed's paging window, and the module's cap on the work one request can cost.
         // Merging sources means a page can only be sliced from the top (Skip + Take) rows of EVERY requested
-        // category, so the rows fetched are (Skip + Take) x categories: at this value the worst case — the "All"
-        // view, five categories, a full page — is 2,750 rows to render 50, where an unbounded Skip has no worst
+        // category, so the rows fetched are the window x categories: at this value the worst case — the "All"
+        // view, five categories, a full page — is 3,000 rows to render 50, where an unbounded Skip has no worst
         // case at all. 25 pages at the storefront's page size of 20; past that the feed reports no rows.
         public const int MaxSkip = 500;
+
+        // The window every source is asked for is rounded up to a multiple of this, so consecutive pages ask the
+        // same question and only the first page of each bucket reaches the sources — see SalesRepActivityService.
+        // It is also what turns the worst case above into 600 rows per category rather than 550.
+        public const int PagingWindowBucket = 100;
 
         public static class Categories
         {

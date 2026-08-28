@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 
@@ -58,8 +59,9 @@ public class SalesRepActivityService : ISalesRepActivityService
         return result;
     }
 
-    // Pagination v1: a requested category returns its top Skip+Take rows and the page is sliced from the merge,
-    // so deep pages over-fetch proportionally — acceptable for feed-sized reads. The rest are counted with Take=0.
+    // Pagination v1: a requested category returns the top rows of the shared fetch window and the page is sliced
+    // from the merge, so deep pages over-fetch proportionally — acceptable for feed-sized reads. The rest are
+    // counted with Take=0.
     protected virtual Task<SalesRepActivitySearchResult> SearchCategoryAsync(
         SalesRepActivitySearchCriteria criteria,
         (ISalesRepActivitySource Source, string Category) plan,
@@ -67,10 +69,23 @@ public class SalesRepActivityService : ISalesRepActivityService
     {
         var sourceCriteria = criteria.CloneTyped();
         sourceCriteria.Categories = [plan.Category];
-        sourceCriteria.Take = fetchRows ? criteria.Skip + criteria.Take : 0;
+        sourceCriteria.Take = fetchRows ? GetFetchWindow(criteria) : 0;
         sourceCriteria.Skip = 0;
 
         return plan.Source.SearchAsync(sourceCriteria);
+    }
+
+    // A merged page can only be sliced from the top Skip+Take rows of every category, but asking for exactly that
+    // makes every page a different question: Take belongs to a source criteria's cache key, so page 2 re-reads
+    // page 1's rows under a new key — another Google round trip per category, per page. Rounding the window up to
+    // a fixed bucket makes consecutive pages ask the same question, so only the first page of each bucket reaches
+    // the sources. The over-fetch is bounded and close to free upstream: a wider window is the same single report
+    // or order search, just with more rows in its response.
+    protected virtual int GetFetchWindow(SalesRepActivitySearchCriteria criteria)
+    {
+        var bucket = ModuleConstants.Activities.PagingWindowBucket;
+
+        return (criteria.Skip + criteria.Take + bucket - 1) / bucket * bucket;
     }
 
     protected virtual IList<SalesRepActivityEvent> GetPage(
