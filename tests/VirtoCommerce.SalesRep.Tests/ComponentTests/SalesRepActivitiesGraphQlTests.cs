@@ -420,6 +420,60 @@ public class SalesRepActivitiesGraphQlTests
         connection.GetProperty("totalCount").GetInt32().Should().Be(1);
     }
 
+    [Fact]
+    public async Task Activities_ProductCodeInSeveralCatalogs_ResolvesToNothingWhenUnscoped()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // The same code in two catalogs. With no storeId there is no catalog to pick by, so neither product may
+        // answer — putting one of them on screen would be a coin flip the rep cannot see.
+        SeedProduct(ctx, "prod-store", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png");
+        SeedProduct(ctx, "prod-foreign", "CODE-1", "Foreign Pump", imageUrl: "https://img/foreign.png",
+            catalogId: "other-catalog");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 1, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"productViews\"]) {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        var row = Connection(json).GetProperty("items").EnumerateArray().Single();
+        row.GetProperty("productCode").GetString().Should().Be("CODE-1");
+        row.GetProperty("productName").GetString().Should().Be("GA Pump"); // the tracked name survives
+        row.GetProperty("productId").ValueKind.Should().Be(JsonValueKind.Null);
+        row.GetProperty("productImageUrl").ValueKind.Should().Be(JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task Activities_ProductCodeInSeveralCatalogs_StoreCatalogStillWins()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        SeedProduct(ctx, "prod-store", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png");
+        SeedProduct(ctx, "prod-foreign", "CODE-1", "Foreign Pump", imageUrl: "https://img/foreign.png",
+            catalogId: "other-catalog");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 1, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
+
+        // With a storeId the catalog disambiguates, so the ambiguity guard must not cost the normal path anything.
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"productViews\"], storeId: \"B2B-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        var row = Connection(json).GetProperty("items").EnumerateArray().Single();
+        row.GetProperty("productId").GetString().Should().Be("prod-store");
+        row.GetProperty("productName").GetString().Should().Be("Catalog Pump");
+        row.GetProperty("productImageUrl").GetString().Should().Be("https://img/pump.png");
+    }
+
     // ---- helpers ----
 
     private static JsonElement Connection(string json)

@@ -61,17 +61,34 @@ public class SalesRepProductResolver : ISalesRepProductResolver
 
         var criteria = AbstractTypeFactory<ProductSearchCriteria>.TryCreateInstance();
         criteria.Skus = codesToSearch;
-        // A code is unique within a catalog, not across them: without this the same SKU in a second catalog could
-        // answer, and the rep would see a foreign product's name, image and link for their customer's activity.
+        // A code is unique within a catalog, not across them, so the store's catalog is what makes a code an
+        // answer. Without a storeId there is no catalog to narrow by and ambiguity is handled below instead.
         criteria.CatalogId = await GetStoreCatalogIdAsync(storeId);
         criteria.Take = codesToSearch.Count;
         criteria.ResponseGroup = _responseGroup;
 
         var searchResult = await _productSearchService.SearchAsync(criteria);
 
-        foreach (var product in searchResult.Results.Where(x => !string.IsNullOrEmpty(x.Code)))
+        // One row per code holds only while a catalog scopes the search. Without one a code can match a product
+        // per catalog, overflowing the page — and a code that looks unique in a truncated page may not be. Trust
+        // the page only when it carries every match.
+        if (searchResult.TotalCount > criteria.Take)
         {
-            result.TryAdd(product.Code, ToActivityProduct(product));
+            return result;
+        }
+
+        foreach (var group in searchResult.Results
+                     .Where(x => !string.IsNullOrEmpty(x.Code))
+                     .GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
+        {
+            // A code matching several catalog products cannot be attributed to one of them, so it stays
+            // unresolved: the caller keeps the name analytics tracked and a null product id, exactly as for a code
+            // no catalog carries any more. Guessing would put another catalog's name, image and deep link on the
+            // rep's screen as their customer's activity.
+            if (group.Count() == 1)
+            {
+                result[group.Key] = ToActivityProduct(group.First());
+            }
         }
 
         return result;
