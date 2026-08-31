@@ -10,6 +10,7 @@ using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.ExperienceApi.Queries;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
@@ -345,6 +346,87 @@ public class SalesRepActivitiesGraphQlTests
         analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.Take == 0);
     }
 
+    // One search journey fires two GA events — 'search' from the header dropdown, 'view_search_results' when
+    // the results page opens — and GA returns a row per event name. Counting both would show the same search
+    // twice and disagree with the insights list, which counts 'search' alone.
+    [Fact]
+    public async Task Activities_OneSearchJourney_IsOneRow()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _feb, count: 3, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "coffee"));
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewSearchResults, _feb, count: 3, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "coffee"));
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"searches\"]) {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        var connection = Connection(json);
+        var row = connection.GetProperty("items").EnumerateArray().Single();
+        row.GetProperty("searchTerm").GetString().Should().Be("coffee");
+        row.GetProperty("count").GetInt32().Should().Be(3);
+
+        // The badge counts what the list shows.
+        CategoryCounts(connection).Single(x => x.Category == "searches").Count.Should().Be(1);
+        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.EventNames.Count == 1);
+    }
+
+    // storeId means two different things at once: which store's orders count, and which analytics property the
+    // tracked categories are read from. Omitting it leaves both unscoped.
+    [Fact]
+    public async Task Activities_StoreId_ScopesOrdersAndNamesTheAnalyticsProperty()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "own-store", "org-1", _feb);
+        SeedOrder(ctx, "other-store", "org-1", _mar, storeId: "Other-store");
+
+        var scoped = Connection(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"orders\"], storeId: \"B2B-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId));
+
+        scoped.GetProperty("items").EnumerateArray().Single()
+            .GetProperty("orderNumber").GetString().Should().Be("own-store");
+        analytics.ReceivedSearchCriteria.Should().NotBeEmpty();
+        analytics.ReceivedSearchCriteria.Should().OnlyContain(x => x.StoreId == "B2B-store");
+
+        var unscoped = Connection(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"orders\"]) {{ {AllFields} }} }}",
+            userId: rep.UserId));
+
+        unscoped.GetProperty("items").EnumerateArray()
+            .Select(x => x.GetProperty("orderNumber").GetString())
+            .Should().BeEquivalentTo("other-store", "own-store");
+    }
+
+    // Take and Skip are the caller's, but the cost of serving them is not: a take past the cap, or a negative
+    // skip, must reach the sources as the bounded values rather than as asked.
+    [Fact]
+    public async Task Activities_TakeBeyondTheCapAndNegativeSkip_AreBounded()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _feb, count: 1, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"logins\"], take: 999, skip: -5) {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // One fetched category pages natively, so the source is asked for the page itself.
+        analytics.ReceivedSearchCriteria
+            .Should().ContainSingle(x => x.Take == SalesRepActivitiesQuery.MaxTake && x.Skip == 0);
+    }
+
     [Fact]
     public async Task Activities_PagingWindow_BoundsWhatEverySourceIsAskedFor()
     {
@@ -485,7 +567,8 @@ public class SalesRepActivitiesGraphQlTests
             .ToList();
 
     private static void SeedOrder(
-        SalesRepTestContext ctx, string id, string org, DateTime createdDate, string createdByUserId = null)
+        SalesRepTestContext ctx, string id, string org, DateTime createdDate, string createdByUserId = null,
+        string storeId = "B2B-store")
     {
         using var db = ctx.NewOrderDbContext();
         db.Add(new CustomerOrderEntity
@@ -495,7 +578,7 @@ public class SalesRepActivitiesGraphQlTests
             OrganizationId = org,
             CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
             CustomerName = "Customer 1",
-            StoreId = "B2B-store",
+            StoreId = storeId,
             Status = "New",
             Currency = "USD",
             Total = 100m,

@@ -17,10 +17,16 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 {
     private static readonly SalesRepAnalyticsCategory[] _analyticsCategories =
     [
+        // Only the 'search' event, as the insights lists count it: the storefront fires 'view_search_results'
+        // as well for one search journey — the dropdown searches, the results page opens — and GA returns a row
+        // per event name, so asking for both would show the same search twice and count it twice. The cost is a
+        // search that never went through the header dropdown (a results URL opened directly, or a result page
+        // turned); "last search term" still reads both event names, because finding the most recent one is not
+        // counting.
         new(
             ActivityConstants.Categories.Searches,
             ActivityConstants.Types.Search,
-            [AnalyticsConstants.EventNames.Search, AnalyticsConstants.EventNames.ViewSearchResults],
+            [AnalyticsConstants.EventNames.Search],
             [AnalyticsConstants.Dimensions.SearchTerm]),
         new(
             ActivityConstants.Categories.ProductViews,

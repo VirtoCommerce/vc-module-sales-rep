@@ -23,6 +23,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
 {
     private static readonly DateTime _feb = new(2026, 2, 10, 13, 0, 0, DateTimeKind.Utc);
     private static readonly DateTime _mar = new(2026, 3, 10, 13, 0, 0, DateTimeKind.Utc);
+    private static readonly DateTime _apr = new(2026, 4, 10, 13, 0, 0, DateTimeKind.Utc);
 
     private const string AllFields =
         "createdOn lastWebLogin visitsCount lastSearchTerm isAnalyticsConfigured " +
@@ -74,6 +75,34 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
             filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.SessionKind).Values.Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
             filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.OrganizationId).Values.Should().Equal("org-1");
         }
+    }
+
+    // GA reports "(not set)" often enough that the newest row alone is unreliable: a dimension the row does not
+    // carry arrives as an absent value, and the summary looks past it rather than reporting nothing.
+    [Fact]
+    public async Task Summary_NewestRowsMissingTheDimension_LooksDeeper()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump");
+
+        // Newest of each pair carries no usable dimension.
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 1, "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _apr, count: 1, "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 1, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepCustomerActivitySummary(organizationId: \"org-1\", storeId: \"B2B-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        var summary = Summary(json);
+        summary.GetProperty("lastSearchTerm").GetString().Should().Be("pumps");
+        summary.GetProperty("lastViewedProduct").GetProperty("productId").GetString().Should().Be("prod-1");
     }
 
     [Fact]
