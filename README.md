@@ -24,6 +24,9 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Send a push notification and/or email to the members of a customer organization
 * Publish a shopping list (wishlist) to a customer organization the rep serves — its members open it read-only ("Recommended by your Sales Rep") and add items to their cart, with an optional email/push notification
 * Share a curated **documents library** with sales reps — a back-office manager uploads categorized sales materials (price lists, catalogs, guides), optionally pinning one and annotating summary / page count / preview; reps browse, search and download them from the storefront
+* Show a rep an **activity feed** of their customers — orders placed, customers assigned, and (from Google Analytics 4) searches, product views and sign-ins — merged newest-first with per-category counters
+* Show **customer insights** per customer or across all of them: top/recent search phrases, browsed products, last sign-in and visit count, sourced from tracked storefront activity
+* Diagnose the Google Analytics connection from the back office — a staged checklist ending in a probe that runs the real feature query
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -410,6 +413,63 @@ The shared documents library (gated by `sales-rep-documents:read`). `after` is t
 
 The keyword matches the **display name** (the raw file name is internal), and `url` is the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL. The listing is **metadata-authoritative**: `totalCount` always matches the returned rows. A document whose file record is missing (out-of-band corruption — raw SQL, a mid-cascade failure) still lists with its metadata fields; the file-derived fields (`name`, `contentType`, `size`) degrade to null, while `url` stays resolvable (it is deterministic) — attempting the download yields the server's 404, uniformly with every other corruption class, and the document stays visible and deletable.
 
+#### Activity feed
+
+A merged, categorized feed of what the rep's customers did. `organizationId` omitted covers every customer they serve ("my activity"); `categories` filters the **rows** while `categoryCounts` keeps reporting every category, so selecting a tab never blanks the others' badges.
+
+```graphql
+{
+  salesRepActivities(
+    storeId: "B2B-store"
+    # optional: organizationId (one customer), categories: ["searches"], period: { from, to }
+    take: 20
+    skip: 0
+    cultureName: "en-US"
+  ) {
+    totalCount                                 # rows in the requested categories — drives the pager
+    categoryCounts { category count }          # every category; only fetched when selected
+    items {
+      category                                 # orders | customers | searches | productViews | logins
+      type                                     # orderPlaced | customerAssigned | search | productView | login
+      occurredAt precision                     # precision: exact | hour (hour = UTC bucket start)
+      count                                    # >1 when an analytics hour-bucket aggregates repeats
+      organizationId organizationName
+      orderId orderNumber orderStatus orderStatusDisplayValue
+      orderTotal { amount formattedAmount }
+      searchTerm
+      productId productCode productName productImageUrl
+    }
+  }
+}
+```
+
+`take` defaults to 20 and caps at 50; `take: 0` returns counters only. The feed **pages 500 rows deep**: a merged page can only be sliced from the top (`skip + take`) rows of every requested category, so `MaxSkip` caps what one request can cost (worst case ~3,000 rows for the five-category "All" view at a full page). Past the window the query returns **no rows** rather than repeating the window's last page, while the counters keep describing the whole set. A single fetched category pages natively and costs the same at any depth.
+
+#### Customer insights
+
+Ranked lists over tracked activity, for one customer or aggregated across all of them:
+
+```graphql
+{
+  salesRepCustomerInsights(storeId: "B2B-store" /*, organizationId, period */) {
+    dataAsOf                                   # newest bucket in THIS payload — never "now"
+    searchTerms(take: 5, sort: "count") { term count lastSearchedDate }
+    browsedProducts(take: 5, sort: "count") { productId name sku imageUrl viewCount lastViewedDate }
+  }
+
+  # Compact per-customer card: platform facts + analytics facts in one payload.
+  salesRepCustomerActivitySummary(organizationId: "…", storeId: "B2B-store" /*, period */) {
+    createdOn                                  # from the database, not GA
+    lastWebLogin visitsCount
+    lastSearchTerm
+    lastViewedProduct { code productId name imageUrl }
+    isAnalyticsConfigured                      # the availability signal for the UI
+  }
+}
+```
+
+`sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. When the analytics module is absent or unconfigured these fields return `null` / zero rather than an error, and `isAnalyticsConfigured` is how a UI renders a "not configured" state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
+
 ### Mutation
 
 Send a communication — a storefront push notification and/or an email — to the members of a customer organization the rep serves (the "My customers" contact action):
@@ -479,20 +539,18 @@ Some metrics are **not** computed from platform data — they are read from **Go
 
 Every GA query is constrained by two **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too), and `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own.
 
-Two things the module does on top of the raw source:
+What the module adds on top of the raw source:
 
 * **Product codes are resolved within the store's catalog.** Analytics carries a product *code*; a code is unique
-  inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` it
-  stays catalog-wide. An unresolvable code keeps the name analytics tracked and reports a null `productId`.
-* **The feed pages 500 rows deep.** A merged page can only be sliced from the top (`skip + take`) rows of every
-  requested category, so one request costs `(skip + take) x categories` rows — 2,750 in the worst case ("All"
-  view, five categories, a full page of 50). Past the window `salesRepActivities` returns **no rows** rather than
-  repeating the window's last page, which a caller could not tell from real data; the counters keep reporting the
-  whole set, so a client can see the feed is longer than it can page.
+  inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` the
+  search stays catalog-wide and a code carried by **more than one catalog resolves to nothing** rather than to
+  whichever product came back first. An unresolved code — unknown or ambiguous — keeps the name analytics tracked
+  and reports a null `productId`, so a rep never sees a foreign catalog's product as their customer's activity.
 * **Activity counts count rows, not raw events.** One analytics row is one (hour bucket x dimension tuple), and its
   `count` field says how many events it aggregates. A row GA returns without a usable hour bucket cannot be placed
   on a time-ordered feed, so it leaves both the page and the category count — that is what keeps a category badge
   equal to the list beneath it.
+* **The merged feed is bounded.** See [Activity feed](#activity-feed) for the paging window and what it costs.
 
 Caveats inherent to the source, by design:
 
@@ -618,6 +676,14 @@ The app also carries a **Documents library** section (list, upload, edit, pin, d
 | `POST /api/sales-rep/documents/{id}/pin`, `.../unpin` | Single-pin toggle (at most one pinned document). | `sales-rep-documents:write` |
 | `DELETE /api/sales-rep/documents?ids=` | Remove documents (converging cleanup — see Delete behavior). | `sales-rep-documents:write` |
 
+It also carries an **Analytics diagnostics** blade — pick a store, run the checklist, read one row per stage with an expandable detail:
+
+| Method & route | Purpose | Permission |
+|----------------|---------|------------|
+| `POST /api/sales-rep/analytics-diagnostics?storeId={id}&includeLiveData=true` | Runs the analytics module's seven connection stages with this module's expectations, then appends a `featureQuery` stage that executes the real insight queries through the production path and reports row counts. | `sales-rep:diagnostics` |
+
+Each row is `{ stage, status, message, detail }` with `status` one of `Passed | Warning | Failed | Skipped`. Empty results are a `Warning`, not a failure — "no data yet" is the expected state until GA has processed traffic (24-48 h). `includeLiveData=false` skips the data stages to save Data API quota. Without the analytics module installed the response is a single `configuration` / `Failed` row saying so.
+
 Full REST documentation is browsable through Swagger on any running platform instance at `https://{platform-host}/docs/index.html?urls.primaryName=VirtoCommerce.SalesRep`.
 
 ## Permissions
@@ -625,6 +691,7 @@ Full REST documentation is browsable through Swagger on any running platform ins
 | Permission | Meaning |
 |------------|---------|
 | `sales-rep:access` | **Defines** a sales rep. Held by the rep via a role — globally and/or per organization. It is *not* an admin permission and does not gate the management API. |
+| `sales-rep:diagnostics` | Run the analytics diagnostics endpoint and open its back-office blade. Back-office only; it gates no storefront data. |
 | `sales-rep-documents:read` | Browse, search and download documents library files (storefront queries + admin read endpoints). |
 | `sales-rep-documents:write` | Manage the documents library (upload/register, edit metadata, pin, delete). |
 
