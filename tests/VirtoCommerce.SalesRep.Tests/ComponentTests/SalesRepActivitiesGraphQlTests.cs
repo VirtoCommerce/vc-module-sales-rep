@@ -502,6 +502,34 @@ public class SalesRepActivitiesGraphQlTests
         connection.GetProperty("totalCount").GetInt32().Should().Be(1);
     }
 
+    // The usual B2B store points at a VIRTUAL catalog, which holds links rather than products: narrowing a
+    // product search by it matches nothing, so every code came back unresolved and the rep saw a raw SKU where
+    // the product name and its link belong.
+    [Fact]
+    public async Task Activities_StoreCatalogIsVirtual_StillResolvesTheProduct()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        // The store's catalog is virtual; the product itself lives in a physical catalog, as it does in a real store.
+        MarkCatalogVirtual(ctx, SalesRepTestContext.TestCatalogId);
+        SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png", catalogId: "physical-catalog");
+
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 1, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"productViews\"], storeId: \"B2B-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        var row = Connection(json).GetProperty("items").EnumerateArray().Single();
+        row.GetProperty("productId").GetString().Should().Be("prod-1");
+        row.GetProperty("productName").GetString().Should().Be("Catalog Pump");
+        row.GetProperty("productImageUrl").GetString().Should().Be("https://img/pump.png");
+    }
+
     [Fact]
     public async Task Activities_ProductCodeInSeveralCatalogs_ResolvesToNothingWhenUnscoped()
     {
@@ -586,6 +614,34 @@ public class SalesRepActivitiesGraphQlTests
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
         });
+        db.SaveChanges();
+    }
+
+    // Makes the seeded catalog virtual, the way a storefront catalog usually is.
+    internal static void MarkCatalogVirtual(SalesRepTestContext ctx, string catalogId)
+    {
+        var seedDate = new DateTime(2020, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        using var db = ctx.NewCatalogDbContext();
+        var catalog = db.Set<CatalogEntity>().FirstOrDefault(x => x.Id == catalogId);
+
+        if (catalog == null)
+        {
+            db.Add(new CatalogEntity
+            {
+                Id = catalogId,
+                Name = catalogId,
+                DefaultLanguage = "en-US",
+                Virtual = true,
+                CreatedDate = seedDate,
+                ModifiedDate = seedDate,
+            });
+        }
+        else
+        {
+            catalog.Virtual = true;
+        }
+
         db.SaveChanges();
     }
 

@@ -148,6 +148,10 @@ internal static class TestGraphQlConfiguration
         services.AddTransient<IItemService, RepositoryBackedItemService>();
         services.AddTransient<IProductSearchService, ProductSearchService>();
 
+        // The product resolver asks whether the store's catalog is VIRTUAL: a virtual catalog holds links, so it
+        // cannot narrow a product search, and narrowing by one would leave every code unresolved.
+        services.AddTransient<ICatalogService, RepositoryBackedCatalogService>();
+
         return services;
     }
 
@@ -423,6 +427,36 @@ internal static class TestGraphQlConfiguration
     /// test). Only the read path is exercised — by the real <see cref="CategorySearchService"/> under test and by the
     /// Top Sellers category filter, which reads <c>Outlines</c>; the write / code / outer-id methods are not used.
     /// </summary>
+    private sealed class RepositoryBackedCatalogService : ICatalogService
+    {
+        private readonly Func<ICatalogRepository> _repositoryFactory;
+
+        public RepositoryBackedCatalogService(Func<ICatalogRepository> repositoryFactory)
+        {
+            _repositoryFactory = repositoryFactory;
+        }
+
+        public async Task<IList<Catalog>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            if (ids.IsNullOrEmpty())
+            {
+                return [];
+            }
+
+            using var repository = _repositoryFactory();
+            var entities = await repository.GetCatalogsByIdsAsync(ids);
+
+            return entities.Select(x => x.ToModel(AbstractTypeFactory<Catalog>.TryCreateInstance())).ToList();
+        }
+
+        public Task<IList<Catalog>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true)
+            => Task.FromResult<IList<Catalog>>([]);
+
+        public Task SaveChangesAsync(IList<Catalog> models) => throw new NotSupportedException();
+
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
     private sealed class RepositoryBackedCategoryService : ICategoryService
     {
         private readonly Func<ICatalogRepository> _repositoryFactory;

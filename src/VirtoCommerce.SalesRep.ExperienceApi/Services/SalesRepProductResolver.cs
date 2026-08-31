@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using VirtoCommerce.CatalogModule.Core.Model;
 using VirtoCommerce.CatalogModule.Core.Model.Search;
 using VirtoCommerce.CatalogModule.Core.Search;
+using VirtoCommerce.CatalogModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.StoreModule.Core.Services;
@@ -18,11 +19,16 @@ public class SalesRepProductResolver : ISalesRepProductResolver
 
     private readonly IProductSearchService _productSearchService;
     private readonly IStoreService _storeService;
+    private readonly ICatalogService _catalogService;
 
-    public SalesRepProductResolver(IProductSearchService productSearchService, IStoreService storeService)
+    public SalesRepProductResolver(
+        IProductSearchService productSearchService,
+        IStoreService storeService,
+        ICatalogService catalogService)
     {
         _productSearchService = productSearchService;
         _storeService = storeService;
+        _catalogService = catalogService;
     }
 
     public virtual async Task ResolveAsync<T>(IList<T> rows, string storeId, Func<T, string> getCode, Action<T, SalesRepActivityProduct> setProduct)
@@ -114,6 +120,20 @@ public class SalesRepProductResolver : ISalesRepProductResolver
         }
 
         var store = await _storeService.GetNoCloneAsync(storeId);
-        return store?.Catalog;
+        var catalogId = store?.Catalog;
+        if (string.IsNullOrEmpty(catalogId))
+        {
+            return null;
+        }
+
+        // A VIRTUAL catalog holds links to products, not products: a product search matches an item's own
+        // CatalogId, so narrowing by one matches nothing and EVERY code comes back unresolved — which is what
+        // a rep sees as a raw SKU where a product name and a link belong. A store built that way (the common
+        // B2B setup) cannot be narrowed by catalog here at all, so it is not narrowed: the ambiguity rule
+        // above is what keeps the answer honest, and a code carried by exactly one catalog resolves as it did
+        // before the narrowing existed.
+        var catalog = await _catalogService.GetNoCloneAsync(catalogId);
+
+        return catalog?.IsVirtual == true ? null : catalogId;
     }
 }
