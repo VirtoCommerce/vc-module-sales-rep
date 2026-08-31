@@ -20,6 +20,10 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
         _roleManagerFactory = roleManagerFactory;
     }
 
+    // IMPORTANT (keep): a permission added to a seeded role reaches FRESH installs only. EnsureRoleAsync skips a
+    // role that already exists by name, so an install upgraded from a version that seeded a smaller set keeps that
+    // set — there, sales-rep:diagnostics has to be granted by hand. Pinned by
+    // Seed_ManagerRoleFromAnEarlierVersionExists_DoesNotGainTheNewPermission.
     public virtual async Task EnsureDocumentRolesAsync()
     {
         using var roleManager = _roleManagerFactory();
@@ -33,12 +37,21 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
             "Grants Sales Rep access and documents library read (sales-rep:access, sales-rep-documents:read).",
             [ModuleConstants.Security.Permissions.Access, ModuleConstants.Security.Permissions.DocumentsRead]);
 
+        // IMPORTANT (keep): the back-office role must never carry sales-rep:access. SalesRepRoleResolver treats
+        // ANY role carrying it as granting rep access through an OrganizationMembership, so putting it here would
+        // make whoever administers the feature a rep for every organization they belong to, and would widen the
+        // role set the data-isolation query matches. Back-office capabilities only — one role, not one per feature.
         await EnsureRoleAsync(
             roleManager,
             roles,
             ModuleConstants.Security.Roles.DocumentsManagerRoleName,
-            "Grants Sales Rep documents library management (sales-rep-documents:read, sales-rep-documents:write).",
-            [ModuleConstants.Security.Permissions.DocumentsRead, ModuleConstants.Security.Permissions.DocumentsWrite]);
+            "Grants Sales Rep back-office management: documents library read/write plus analytics diagnostics " +
+            "(sales-rep-documents:read, sales-rep-documents:write, sales-rep:diagnostics).",
+            [
+                ModuleConstants.Security.Permissions.DocumentsRead,
+                ModuleConstants.Security.Permissions.DocumentsWrite,
+                ModuleConstants.Security.Permissions.Diagnostics,
+            ]);
     }
 
     protected virtual async Task<IList<Role>> LoadRolesAsync(RoleManager<Role> roleManager)

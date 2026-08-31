@@ -29,8 +29,16 @@ public static class ModuleConstants
 
         public static class Roles
         {
+            // The two membership roles: assigned on an OrganizationMembership, and what makes someone a rep.
             public const string SalesRepRoleName = "Sales Representative";
             public const string AdvancedSalesRepRoleName = "Advanced Sales Representative";
+
+            // The back-office role: a platform role for whoever administers the feature, never a membership.
+            // IMPORTANT (keep): it now carries analytics diagnostics as well as the documents library, so
+            // "Sales Rep Administrator" would name it better. The string is kept because it shipped in 3.1006.0 —
+            // the seeder skips a role that already exists by name, so renaming it would strand the old role on
+            // every existing install and seed a second one beside it. Rename only together with an upgrade step
+            // that renames the existing role in place.
             public const string DocumentsManagerRoleName = "Sales Rep Documents Manager";
         }
     }
