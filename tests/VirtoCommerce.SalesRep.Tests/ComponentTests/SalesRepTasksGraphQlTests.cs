@@ -194,10 +194,13 @@ public class SalesRepTasksGraphQlTests
         SalesRepTestContext.Node(json, "salesRepTasks").GetProperty("totalCount").GetInt32().Should().Be(0);
         json.Should().NotContain("Ann private task");
 
-        // Rule vocabulary is rep-only too.
-        SalesRepTestContext.Node(
-            await ctx.ExecuteGraphQlAsync("query { salesRepTaskFilterRules { name } }", userId: outsiderUserId, memberId: outsiderContact.Id),
-            "salesRepTaskFilterRules").GetArrayLength().Should().Be(0);
+        // Rule vocabulary is rep-only too - both kinds, since they take separate paths to the same scope check.
+        foreach (var rules in new[] { "salesRepTaskFilterRules", "salesRepTaskSortRules" })
+        {
+            SalesRepTestContext.Node(
+                await ctx.ExecuteGraphQlAsync($"query {{ {rules} {{ name }} }}", userId: outsiderUserId, memberId: outsiderContact.Id),
+                rules).GetArrayLength().Should().Be(0);
+        }
 
         var created = await ctx.ExecuteGraphQlAsync(
             $"mutation {{ createSalesRepTask(command: {{ name: \"Intruder\", dueDate: \"{TodayIso}\" }}) {{ id }} }}",
@@ -320,6 +323,178 @@ public class SalesRepTasksGraphQlTests
         json.Should().Contain("\"errors\"");
     }
 
+    [Fact]
+    public async Task UpdateAndDelete_OnTheCallersOwnTask_Succeed()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        var created = await CreateTaskAsync(ctx, rep, "Draft", Today, priority: "Low", description: "First pass.");
+        var taskId = created.GetProperty("id").GetString();
+
+        // The happy path is worth asserting on its own: every other mutation test expects a DENIAL, which a handler
+        // that silently lost the caller's identity would satisfy just as well.
+        var updated = SalesRepTestContext.Node(
+            await MutateAsync(
+                ctx,
+                rep,
+                $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"  Revised  \", dueDate: \"{Iso(Today.AddDays(3))}\", priority: \"High\", description: \"Second pass.\" }}) {{ id name priority description }}"),
+            "updateSalesRepTask");
+
+        updated.GetProperty("id").GetString().Should().Be(taskId);
+        updated.GetProperty("name").GetString().Should().Be("Revised");
+        updated.GetProperty("priority").GetString().Should().Be("High");
+        updated.GetProperty("description").GetString().Should().Be("Second pass.");
+
+        var deleted = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"deleteSalesRepTask(command: {{ id: \"{taskId}\" }})"), "deleteSalesRepTask");
+
+        deleted.GetBoolean().Should().BeTrue();
+        (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task ChangeStatus_CompletesATask_AndPutsItBack()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        var created = await CreateTaskAsync(ctx, rep, "Follow up", Today.AddDays(1));
+        var taskId = created.GetProperty("id").GetString();
+
+        // Completing goes through a plain save rather than IWorkTaskService.FinishAsync - precisely so the same call
+        // can reopen. FinishAsync publishes a cancellation event even when completing, and has no way back.
+        var completed = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"changeSalesRepTaskStatus(command: {{ id: \"{taskId}\", completed: true }}) {{ id completed isActive }}"),
+            "changeSalesRepTaskStatus");
+
+        completed.GetProperty("completed").GetBoolean().Should().BeTrue();
+        completed.GetProperty("isActive").GetBoolean().Should().BeFalse();
+        (await NamesForFilterAsync(ctx, rep, "completed")).Should().Equal("Follow up");
+
+        var reopened = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"changeSalesRepTaskStatus(command: {{ id: \"{taskId}\", completed: false }}) {{ id completed isActive }}"),
+            "changeSalesRepTaskStatus");
+
+        reopened.GetProperty("completed").GetBoolean().Should().BeFalse();
+        reopened.GetProperty("isActive").GetBoolean().Should().BeTrue();
+        (await NamesForFilterAsync(ctx, rep, "completed")).Should().BeEmpty();
+        (await NamesForFilterAsync(ctx, rep, "upcoming")).Should().Equal("Follow up");
+    }
+
+    [Fact]
+    public async Task Period_ScopesToADayWindow_AndIntersectsWithTheFilter()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        await CreateTaskAsync(ctx, rep, "Yesterday", Today.AddDays(-1));
+        await CreateTaskAsync(ctx, rep, "Today", Today);
+        await CreateTaskAsync(ctx, rep, "Tomorrow", Today.AddDays(1));
+
+        var day = $"period: {{ from: \"{Iso(Today)}\", to: \"{Iso(Today.AddDays(1).AddSeconds(-1))}\" }}";
+
+        // The Calendar page sends both: the day the rep clicked AND the tab they are on. The filter has to NARROW
+        // the window rather than replace it, or picking a day would quietly widen the list back out.
+        (await NamesForAsync(ctx, rep, day)).Should().Equal("Today");
+        (await NamesForAsync(ctx, rep, $"{day}, filter: \"upcoming\"")).Should().Equal("Today");
+        (await NamesForAsync(ctx, rep, $"{day}, filter: \"overdue\"")).Should().BeEmpty();
+
+        // Same tab without the window still reaches the day that is genuinely overdue.
+        (await NamesForFilterAsync(ctx, rep, "overdue")).Should().Equal("Yesterday");
+    }
+
+    [Fact]
+    public async Task Paging_TakesTheOffsetAsTheCursor()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        await CreateTaskAsync(ctx, rep, "First", Today.AddDays(1));
+        await CreateTaskAsync(ctx, rep, "Second", Today.AddDays(2));
+        await CreateTaskAsync(ctx, rep, "Third", Today.AddDays(3));
+
+        // xAPI connections take the offset as the cursor, which is what the storefront's `after` computes from
+        // the page number. The total stays the whole list, not the page.
+        var firstPage = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, "salesRepTasks(first: 2, after: \"0\") { totalCount items { name } }"), "salesRepTasks");
+
+        firstPage.GetProperty("totalCount").GetInt32().Should().Be(3);
+        Names(firstPage).Should().Equal("First", "Second");
+
+        var secondPage = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, "salesRepTasks(first: 2, after: \"2\") { totalCount items { name } }"), "salesRepTasks");
+
+        secondPage.GetProperty("totalCount").GetInt32().Should().Be(3);
+        Names(secondPage).Should().Equal("Third");
+    }
+
+    [Fact]
+    public async Task UnknownPriority_IsRejected_RatherThanSilentlyDefaulted()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // Parsing, not validation: the model holds a TaskPriority, so a typo cannot be carried any further. Strict
+        // on purpose - the module's own SafeParse would quietly store Normal and the rep would never know.
+        var json = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"Typo\", dueDate: \"{TodayIso}\", priority: \"Urgent\" }}) {{ id priority }}");
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)priority");
+
+        // And nothing was written on the way to the error.
+        (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task WriteInputs_ExposeNoIdentityFields_SoOwnershipCannotComeFromTheClient()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var ann = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        var bob = await SeedRepAsync(ctx, "Bob", "Rep", "bob@test.com", OrgA);
+
+        var annTask = await CreateTaskAsync(ctx, ann, "Ann private task", Today);
+        var annTaskId = annTask.GetProperty("id").GetString();
+
+        // Ownership is stamped from the token, and the input types deliberately carry no field that could override
+        // it. Asserting the schema rejects them keeps that true: adding one later would be a silent takeover.
+        var attempts = new (string Field, string Mutation)[]
+        {
+            ("responsibleId", $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", responsibleId: \"{bob.MemberId}\" }}) {{ id }}"),
+            ("memberId", $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", memberId: \"{bob.MemberId}\" }}) {{ id }}"),
+            ("userId", $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", userId: \"{bob.UserId}\" }}) {{ id }}"),
+            ("responsibleId", $"updateSalesRepTask(command: {{ id: \"{annTaskId}\", name: \"Reassigned\", dueDate: \"{TodayIso}\", responsibleId: \"{bob.MemberId}\" }}) {{ id }}"),
+        };
+
+        foreach (var (field, mutation) in attempts)
+        {
+            var json = await MutateAsync(ctx, ann, mutation);
+
+            // Named in the error, so this cannot pass on some unrelated failure.
+            json.Should().Contain("\"errors\"");
+            json.Should().Contain(field);
+        }
+
+        // Nothing landed in Bob's list, and Ann's task still reads as hers.
+        (await ListTasksAsync(ctx, bob)).GetProperty("totalCount").GetInt32().Should().Be(0);
+        Names(await ListTasksAsync(ctx, ann)).Should().Equal("Ann private task");
+    }
+
+    [Fact]
+    public async Task SalesRepTask_ById_IsNullForAnIdThatDoesNotExist()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        await CreateTaskAsync(ctx, rep, "Ann private task", Today);
+
+        // The other half of the isolation test above: a missing id and someone else's id must answer identically,
+        // or the difference itself tells a prober that the task exists.
+        var byId = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, "salesRepTask(id: \"no-such-task\") { id name }"), "salesRepTask");
+
+        byId.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+    }
+
     // -- helpers -------------------------------------------------------------------------------------------------
 
     private sealed record Rep(string UserId, string MemberId);
@@ -350,9 +525,13 @@ public class SalesRepTasksGraphQlTests
         return SalesRepTestContext.Node(json, "salesRepTasks");
     }
 
-    private static async Task<string[]> NamesForFilterAsync(SalesRepTestContext ctx, Rep rep, string filter)
+    private static Task<string[]> NamesForFilterAsync(SalesRepTestContext ctx, Rep rep, string filter) =>
+        NamesForAsync(ctx, rep, $"filter: \"{filter}\"");
+
+    /// <summary>Names returned for an arbitrary argument list, always on the suite's fixed day boundary.</summary>
+    private static async Task<string[]> NamesForAsync(SalesRepTestContext ctx, Rep rep, string arguments)
     {
-        var json = await QueryAsync(ctx, rep, $"salesRepTasks(filter: \"{filter}\", today: \"{TodayIso}\") {{ items {{ name }} }}");
+        var json = await QueryAsync(ctx, rep, $"salesRepTasks({arguments}, today: \"{TodayIso}\") {{ items {{ name }} }}");
 
         return Names(SalesRepTestContext.Node(json, "salesRepTasks"));
     }
