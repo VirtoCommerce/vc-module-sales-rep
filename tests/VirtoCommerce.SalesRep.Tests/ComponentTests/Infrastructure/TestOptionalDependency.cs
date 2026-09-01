@@ -4,11 +4,8 @@ using VirtoCommerce.Platform.Core.Modularity;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
-/// <summary>
-/// Mirrors the platform's OptionalDependencyManager (registered in Platform.Web Startup, which the harness does not
-/// boot). Resolving lazily is the point: a slice the test did not add leaves HasValue false, which is how the
-/// "task management is not installed" cases are exercised.
-/// </summary>
+// Mirrors the platform's OptionalDependencyManager, which is registered in Platform.Web Startup - not booted
+// here. Resolving lazily is the point: a slice the test omits leaves HasValue false.
 public class TestOptionalDependency<T> : IOptionalDependency<T>
 {
     private readonly IServiceProvider _serviceProvider;

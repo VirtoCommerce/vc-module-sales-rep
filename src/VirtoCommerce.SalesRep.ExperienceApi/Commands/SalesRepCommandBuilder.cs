@@ -26,8 +26,7 @@ public abstract class SalesRepCommandBuilder<TCommand, TResult, TCommandGraphTyp
 
         context.EnsureAuthenticated();
 
-        // Stamped here rather than per builder, so the caller's identity comes from the token on every command that
-        // declares it needs one, and can never arrive as input.
+        // Stamped here, not per builder, so identity always comes from the token and never from input.
         if (request is ISalesRepUserCommand userCommand)
         {
             userCommand.UserId = context.GetCurrentUserId();

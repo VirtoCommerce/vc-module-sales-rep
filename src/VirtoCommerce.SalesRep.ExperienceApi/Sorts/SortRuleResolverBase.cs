@@ -44,10 +44,7 @@ public abstract class SortRuleResolverBase<TRule> : ISortRuleResolver<TRule>
         return (rule, direction);
     }
 
-    /// <summary>
-    /// Writes the resolved rule onto search criteria as the platform's "field:direction" sort token. Here rather than
-    /// in each resolver so the token format has one owner.
-    /// </summary>
+    // Here rather than in each resolver, so the token format has one owner.
     protected async Task ApplyResolvedSortAsync(string storeId, string sort, SearchCriteriaBase criteria)
     {
         var (rule, direction) = await ResolveSortRuleAsync(storeId, sort);

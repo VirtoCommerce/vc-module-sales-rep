@@ -31,8 +31,7 @@ public class SalesRepTaskTypesQueryHandler : SalesRepTaskQueryHandlerBase, IQuer
             return [];
         }
 
-        // A dictionary setting keeps its values in AllowedValues, and the descriptor's list is only the seed: whatever
-        // an administrator configured replaces it, so new task types need no code change.
+        // A dictionary setting keeps its values in AllowedValues; the descriptor's list is only the seed.
         var setting = await _settingsManager.GetObjectSettingAsync(ModuleConstants.Settings.General.TaskTypes.Name);
 
         return setting?.AllowedValues?.OfType<string>().ToList() ?? [];

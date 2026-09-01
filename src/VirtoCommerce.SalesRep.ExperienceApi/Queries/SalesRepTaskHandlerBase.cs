@@ -11,10 +11,8 @@ public abstract class SalesRepTaskHandlerBase : SalesRepQueryHandlerBase
     {
     }
 
-    /// <summary>
-    /// Whose tasks the caller may see and change. A rep manages only their own; override to widen the set (a team lead
-    /// seeing their reps' tasks) without touching any call site. Empty means "nothing" - never "everything".
-    /// </summary>
+    // Whose tasks the caller may see and change - the seam for widening beyond their own. Every read and write
+    // answers through it. Empty means "nothing", never "everything".
     protected virtual Task<IList<string>> GetVisibleResponsibleIdsAsync(string userId, string memberId)
     {
         IList<string> result = string.IsNullOrEmpty(memberId) ? [] : [memberId];

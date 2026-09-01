@@ -18,7 +18,7 @@ public class SalesRepTaskQuery : Query<SalesRepTask>
 
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        yield return Argument<NonNullGraphType<StringGraphType>>(nameof(Id), "Task id. Returns null when the task does not exist or is not the caller's.");
+        yield return Argument<NonNullGraphType<StringGraphType>>(nameof(Id), "Task id. Null when the task does not exist or is not the caller's.");
     }
 
     public override void Map(IResolveFieldContext context)

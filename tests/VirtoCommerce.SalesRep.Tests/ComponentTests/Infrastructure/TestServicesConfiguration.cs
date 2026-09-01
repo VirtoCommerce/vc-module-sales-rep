@@ -215,11 +215,8 @@ internal static class TestServicesConfiguration
         return services;
     }
 
-    /// <summary>
-    /// The real vc-module-task-management services over an in-memory database. Deliberately optional: a context built
-    /// without this slice leaves IWorkTaskSearchService unregistered, which is exactly what a deployment without the
-    /// module looks like to the task queries.
-    /// </summary>
+    // Deliberately optional: a context built without this slice leaves IWorkTaskSearchService unregistered,
+    // which is what a deployment without the module looks like to the task queries.
     public static IServiceCollection AddTaskManagementSlice(this IServiceCollection services, DbContextOptions<TaskManagementDbContext> taskDbOptions)
     {
         services.AddSingleton(taskDbOptions);

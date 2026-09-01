@@ -42,10 +42,7 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         }
     }
 
-    /// <summary>
-    /// Loads a task the caller is allowed to change, or throws. Ownership is the whole security boundary here, so it is
-    /// re-checked against the stored ResponsibleId on every write - a client-supplied id proves nothing.
-    /// </summary>
+    // Ownership is the whole security boundary, so every write re-checks the STORED ResponsibleId.
     protected virtual async Task<WorkTask> GetOwnedTaskAsync(string userId, string memberId, string taskId)
     {
         await EnsureSalesRepAsync(userId);
@@ -70,10 +67,7 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         return task;
     }
 
-    /// <summary>
-    /// Copies the editable fields onto a task. Trims here because storefront inputs emit raw text and nothing
-    /// downstream trims. Due date is enforced by the schema - the input types declare it non-null.
-    /// </summary>
+    // Trimmed here: storefront inputs emit raw text and nothing downstream trims.
     protected virtual void ApplyInput(WorkTask task, ISalesRepTaskInput input)
     {
         task.Name = input.Name?.Trim();
@@ -83,11 +77,7 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         task.DueDate = input.DueDate;
     }
 
-    /// <summary>
-    /// Parsing, not validation: the model holds a TaskPriority, so an unknown name cannot be carried any further and
-    /// has to be rejected at the boundary. Strict, unlike the module's own EnumUtility.SafeParse fallback - a typo
-    /// from a client should be an error, not a silently different priority.
-    /// </summary>
+    // Strict, unlike the module's own EnumUtility.SafeParse: a typo should be an error, not a different priority.
     protected static TaskPriority ParsePriority(string priority)
     {
         if (string.IsNullOrEmpty(priority))

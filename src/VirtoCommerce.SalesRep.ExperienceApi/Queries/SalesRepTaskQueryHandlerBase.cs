@@ -18,13 +18,12 @@ public abstract class SalesRepTaskQueryHandlerBase : SalesRepTaskHandlerBase
 
     protected IOptionalDependency<IWorkTaskSearchService> TaskSearchService { get; }
 
-    /// <summary>Task management is an optional dependency: with the module absent every read is simply empty.</summary>
+    // Optional dependency: with the module absent every read is simply empty.
     protected virtual async Task<bool> CanReadAsync(string userId)
     {
         return TaskSearchService.HasValue && await IsSalesRepAsync(userId);
     }
 
-    /// <summary>Start of the caller's current day. Falls back to UTC when the client sends no boundary.</summary>
     protected static DateTime ResolveDayStart(DateTime? today)
     {
         return today ?? DateTime.UtcNow.Date;

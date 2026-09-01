@@ -28,8 +28,7 @@ public class SalesRepTaskQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHand
             return null;
         }
 
-        // Read through the search service with the ownership filter applied, rather than loading by id and comparing
-        // afterwards: someone else's task then returns null exactly like a missing one, leaking no existence.
+        // Filtered read, not load-then-compare: someone else's task returns null exactly like a missing one.
         var criteria = AbstractTypeFactory<WorkTaskSearchCriteria>.TryCreateInstance();
         criteria.ObjectIds = [request.Id];
         criteria.ResponsibleIds = responsibleIds;

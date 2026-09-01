@@ -7,14 +7,9 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
-/// <summary>
-/// The sales-rep task X-API (VCST-5732) end to end: real GraphQL strings through the real scoped schema and the real
-/// vc-module-task-management services over in-memory SQLite.
-///
-/// The point of this suite is the negative half. Task ownership is the whole security boundary - there is no
-/// organization scoping and no dedicated permission - so every surface is checked against another rep's task, an
-/// account with no contact, a non-rep, an administrator, and a deployment with the module absent.
-/// </summary>
+// The task X-API end to end: real GraphQL through the real scoped schema and the real task-management services
+// over in-memory SQLite. Ownership is the whole security boundary - no organization scoping, no dedicated
+// permission - so every surface is also checked against another rep, a non-rep, an admin and a missing module.
 [Trait("Category", "Component")]
 public class SalesRepTasksGraphQlTests
 {
@@ -107,7 +102,6 @@ public class SalesRepTasksGraphQlTests
             json.Should().NotContain("Bob private task");
         }
 
-        // Bob's task is untouched: same name, still active, still there.
         var bobList = await ListTasksAsync(ctx, bob);
         bobList.GetProperty("totalCount").GetInt32().Should().Be(1);
         var survivor = bobList.GetProperty("items")[0];
@@ -153,8 +147,7 @@ public class SalesRepTasksGraphQlTests
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
         await CreateTaskAsync(ctx, rep, "Ann private task", Today);
 
-        // The platform writes the claim as `user.MemberId ?? string.Empty`, so an account with no contact arrives
-        // with an EMPTY claim rather than none. Both must read as "no member", never as "no filter".
+        // An account with no contact arrives with an EMPTY claim, not none. Both must read as "no member".
         foreach (var memberId in new[] { null, string.Empty })
         {
             var json = await ctx.ExecuteGraphQlAsync(
@@ -194,7 +187,7 @@ public class SalesRepTasksGraphQlTests
         SalesRepTestContext.Node(json, "salesRepTasks").GetProperty("totalCount").GetInt32().Should().Be(0);
         json.Should().NotContain("Ann private task");
 
-        // Rule vocabulary is rep-only too - both kinds, since they take separate paths to the same scope check.
+        // Rule vocabulary is rep-only too - both kinds, which reach the scope check by different paths.
         foreach (var rules in new[] { "salesRepTaskFilterRules", "salesRepTaskSortRules" })
         {
             SalesRepTestContext.Node(
@@ -288,8 +281,7 @@ public class SalesRepTasksGraphQlTests
         using var ctx = SalesRepTestContext.Create(withTaskManagement: false);
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
 
-        // The schema still carries the fields (it must not differ per deployment - the frontend generates types
-        // against a live endpoint); they just answer empty.
+        // The schema must not differ per deployment (the frontend generates types against a live endpoint).
         var list = await ListTasksAsync(ctx, rep);
         list.GetProperty("totalCount").GetInt32().Should().Be(0);
 
@@ -332,8 +324,8 @@ public class SalesRepTasksGraphQlTests
         var created = await CreateTaskAsync(ctx, rep, "Draft", Today, priority: "Low", description: "First pass.");
         var taskId = created.GetProperty("id").GetString();
 
-        // The happy path is worth asserting on its own: every other mutation test expects a DENIAL, which a handler
-        // that silently lost the caller's identity would satisfy just as well.
+        // Worth asserting on its own: every other mutation test expects a DENIAL, which a handler that lost the
+        // caller's identity would satisfy too.
         var updated = SalesRepTestContext.Node(
             await MutateAsync(
                 ctx,
@@ -362,8 +354,8 @@ public class SalesRepTasksGraphQlTests
         var created = await CreateTaskAsync(ctx, rep, "Follow up", Today.AddDays(1));
         var taskId = created.GetProperty("id").GetString();
 
-        // Completing goes through a plain save rather than IWorkTaskService.FinishAsync - precisely so the same call
-        // can reopen. FinishAsync publishes a cancellation event even when completing, and has no way back.
+        // A plain save, not FinishAsync - which publishes a cancellation event even when completing, and cannot
+        // reopen.
         var completed = SalesRepTestContext.Node(
             await MutateAsync(ctx, rep, $"changeSalesRepTaskStatus(command: {{ id: \"{taskId}\", completed: true }}) {{ id completed isActive }}"),
             "changeSalesRepTaskStatus");
@@ -394,8 +386,7 @@ public class SalesRepTasksGraphQlTests
 
         var day = $"period: {{ from: \"{Iso(Today)}\", to: \"{Iso(Today.AddDays(1).AddSeconds(-1))}\" }}";
 
-        // The Calendar page sends both: the day the rep clicked AND the tab they are on. The filter has to NARROW
-        // the window rather than replace it, or picking a day would quietly widen the list back out.
+        // The Calendar page sends both, so the filter has to NARROW the window rather than replace it.
         (await NamesForAsync(ctx, rep, day)).Should().Equal("Today");
         (await NamesForAsync(ctx, rep, $"{day}, filter: \"upcoming\"")).Should().Equal("Today");
         (await NamesForAsync(ctx, rep, $"{day}, filter: \"overdue\"")).Should().BeEmpty();
@@ -414,8 +405,7 @@ public class SalesRepTasksGraphQlTests
         await CreateTaskAsync(ctx, rep, "Second", Today.AddDays(2));
         await CreateTaskAsync(ctx, rep, "Third", Today.AddDays(3));
 
-        // xAPI connections take the offset as the cursor, which is what the storefront's `after` computes from
-        // the page number. The total stays the whole list, not the page.
+        // xAPI connections take the offset as the cursor. The total stays the whole list, not the page.
         var firstPage = SalesRepTestContext.Node(
             await QueryAsync(ctx, rep, "salesRepTasks(first: 2, after: \"0\") { totalCount items { name } }"), "salesRepTasks");
 
@@ -435,14 +425,12 @@ public class SalesRepTasksGraphQlTests
         using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
 
-        // Parsing, not validation: the model holds a TaskPriority, so a typo cannot be carried any further. Strict
-        // on purpose - the module's own SafeParse would quietly store Normal and the rep would never know.
+        // Strict on purpose: the module's own SafeParse would quietly store Normal and the rep would never know.
         var json = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"Typo\", dueDate: \"{TodayIso}\", priority: \"Urgent\" }}) {{ id priority }}");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)priority");
 
-        // And nothing was written on the way to the error.
         (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
     }
 
@@ -456,8 +444,7 @@ public class SalesRepTasksGraphQlTests
         var annTask = await CreateTaskAsync(ctx, ann, "Ann private task", Today);
         var annTaskId = annTask.GetProperty("id").GetString();
 
-        // Ownership is stamped from the token, and the input types deliberately carry no field that could override
-        // it. Asserting the schema rejects them keeps that true: adding one later would be a silent takeover.
+        // The inputs carry no field that could override the stamped owner; adding one would be a silent takeover.
         var attempts = new (string Field, string Mutation)[]
         {
             ("responsibleId", $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", responsibleId: \"{bob.MemberId}\" }}) {{ id }}"),
@@ -475,7 +462,6 @@ public class SalesRepTasksGraphQlTests
             json.Should().Contain(field);
         }
 
-        // Nothing landed in Bob's list, and Ann's task still reads as hers.
         (await ListTasksAsync(ctx, bob)).GetProperty("totalCount").GetInt32().Should().Be(0);
         Names(await ListTasksAsync(ctx, ann)).Should().Equal("Ann private task");
     }
@@ -487,8 +473,7 @@ public class SalesRepTasksGraphQlTests
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
         await CreateTaskAsync(ctx, rep, "Ann private task", Today);
 
-        // The other half of the isolation test above: a missing id and someone else's id must answer identically,
-        // or the difference itself tells a prober that the task exists.
+        // The other half of the isolation test: a missing id and someone else's must answer identically.
         var byId = SalesRepTestContext.Node(
             await QueryAsync(ctx, rep, "salesRepTask(id: \"no-such-task\") { id name }"), "salesRepTask");
 
@@ -528,7 +513,6 @@ public class SalesRepTasksGraphQlTests
     private static Task<string[]> NamesForFilterAsync(SalesRepTestContext ctx, Rep rep, string filter) =>
         NamesForAsync(ctx, rep, $"filter: \"{filter}\"");
 
-    /// <summary>Names returned for an arbitrary argument list, always on the suite's fixed day boundary.</summary>
     private static async Task<string[]> NamesForAsync(SalesRepTestContext ctx, Rep rep, string arguments)
     {
         var json = await QueryAsync(ctx, rep, $"salesRepTasks({arguments}, today: \"{TodayIso}\") {{ items {{ name }} }}");

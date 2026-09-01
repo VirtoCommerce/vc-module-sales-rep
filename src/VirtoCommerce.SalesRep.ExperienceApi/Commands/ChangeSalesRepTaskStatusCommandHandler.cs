@@ -21,8 +21,7 @@ public class ChangeSalesRepTaskStatusCommandHandler : SalesRepTaskCommandHandler
     {
         var task = await GetOwnedTaskAsync(request.UserId, request.MemberId, request.Id);
 
-        // Not IWorkTaskService.FinishAsync: it publishes WorkTaskCanceledEvent even when completing, and cannot
-        // reopen. Reopening is a plain state change, so both directions go through the same save.
+        // Not FinishAsync: it publishes WorkTaskCanceledEvent even when completing, and cannot reopen.
         task.Completed = request.Completed;
         task.IsActive = !request.Completed;
 

@@ -33,9 +33,9 @@ public class SalesRepTasksQuery : SearchQuery<SalesRepTaskSearchResult>
         }
 
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the tasks to (defaults to all stores).");
-        yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Selected filter-rule name (a salesRepTaskFilterRules 'name'). Omit for all the caller's tasks.");
-        yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Optional due-date window, e.g. the month a calendar is showing (omit for all dates). Intersects with the selected filter rule rather than replacing it.");
-        yield return Argument<DateTimeGraphType>(nameof(Today), "Start of the caller's current day as an instant, e.g. 2026-05-28T05:00:00Z for a UTC-5 viewer. Decides where 'upcoming' ends and 'overdue' begins; send the same boundary used to render the status pills, or the tabs and the pills will disagree. Defaults to the start of the current UTC day.");
+        yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Filter-rule name from salesRepTaskFilterRules. Omit for all the caller's tasks.");
+        yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Due-date window. Intersects with the filter rule rather than replacing it.");
+        yield return Argument<DateTimeGraphType>(nameof(Today), "Start of the caller's local day, which is where 'overdue' ends and 'upcoming' begins. Defaults to the current UTC day.");
     }
 
     public override void Map(IResolveFieldContext context)

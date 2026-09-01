@@ -43,10 +43,6 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         return SalesRepTask.FromWorkTask(task);
     }
 
-    /// <summary>
-    /// The claim is written as <c>user.MemberId ?? string.Empty</c>, so an account with no contact reaches us as empty
-    /// rather than absent. Fail loudly instead of writing a task nobody owns.
-    /// </summary>
     private static string RequireMemberId(string memberId)
     {
         if (string.IsNullOrEmpty(memberId))
@@ -57,10 +53,7 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         return memberId;
     }
 
-    /// <summary>
-    /// Stamps who the task belongs to, server-side. The REST-only TaskAuthorizationHandler that normally denormalizes
-    /// these does not run on the GraphQL path, so we own it - and a client-supplied responsible is never honoured.
-    /// </summary>
+    // The REST-only TaskAuthorizationHandler that normally denormalizes these does not run on the GraphQL path.
     private async Task AssignResponsibleAsync(WorkTask task, string memberId)
     {
         task.ResponsibleId = memberId;

@@ -32,14 +32,10 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
         return await GetRulesAsync(request, scope);
     }
 
-    /// <summary>
-    /// The organizations a data-derived vocabulary must be built within, or <c>null</c> when the caller may see no
-    /// rules at all. Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list,
-    /// never the vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog
-    /// categories. Narrowed to one customer when the query asks for it, by the same membership lookup the lists use.
-    /// A query marked <see cref="ISalesRepPersonalRulesQuery"/> is scoped to the caller instead, so it only has to be
-    /// a rep — an empty scope then means "allowed, but the vocabulary is not data-derived".
-    /// </summary>
+    // The organizations a data-derived vocabulary is built within; null denies. A caller with no granting
+    // membership gets an empty list, never the vocabulary — otherwise e.g. the top-seller filter rules would
+    // leak the store's top-level catalog categories. A personal-rules query is scoped to the caller instead,
+    // where an empty scope means "allowed, but not data-derived".
     protected virtual async Task<IList<string>> ResolveScopeAsync(TQuery request)
     {
         if (request is ISalesRepPersonalRulesQuery)

@@ -4,12 +4,9 @@ using VirtoCommerce.TaskManagement.Data.Models;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
-/// <summary>
-/// vc-module-task-management maps <c>WorkTaskEntity.Number</c> as <c>ValueGeneratedOnAdd()</c> on a NON-KEY long,
-/// which real providers turn into an identity column. SQLite can only auto-generate an INTEGER PRIMARY KEY, so EF
-/// omits the column from the INSERT and the NOT NULL constraint fires. This customizer makes the number
-/// caller-supplied in the component-test database only; nothing under test reads it.
-/// </summary>
+// WorkTaskEntity.Number is ValueGeneratedOnAdd() on a NON-KEY long, which real providers make an identity
+// column. SQLite can only auto-generate an INTEGER PRIMARY KEY, so EF omits it from the INSERT and the NOT NULL
+// constraint fires. Caller-supplied in the test database only; nothing under test reads it.
 internal sealed class WorkTaskNumberSqliteModelCustomizer : RelationalModelCustomizer
 {
     public WorkTaskNumberSqliteModelCustomizer(ModelCustomizerDependencies dependencies)
