@@ -3,7 +3,7 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-public class ChangeSalesRepTaskStatusCommand : ICommand<SalesRepTask>
+public class ChangeSalesRepTaskStatusCommand : ICommand<SalesRepTask>, ISalesRepMemberCommand
 {
     public string Id { get; set; }
 

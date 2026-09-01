@@ -6,7 +6,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Services;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepTaskSortRulesQueryHandler : SalesRepTaskRulesQueryHandlerBase<SalesRepTaskSortRulesQuery, SalesRepTaskSortRule>
+public class SalesRepTaskSortRulesQueryHandler : SalesRepRulesQueryHandlerBase<SalesRepTaskSortRulesQuery, SalesRepTaskSortRule>
 {
     private readonly ISalesRepTaskSortRuleResolver _sortRuleResolver;
 

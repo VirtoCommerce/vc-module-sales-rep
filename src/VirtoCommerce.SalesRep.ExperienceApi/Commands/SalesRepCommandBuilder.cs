@@ -5,6 +5,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.Xapi.Core.BaseQueries;
+using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
@@ -24,5 +25,17 @@ public abstract class SalesRepCommandBuilder<TCommand, TResult, TCommandGraphTyp
         await base.BeforeMediatorSend(context, request);
 
         context.EnsureAuthenticated();
+
+        // Stamped here rather than per builder, so the caller's identity comes from the token on every command that
+        // declares it needs one, and can never arrive as input.
+        if (request is ISalesRepUserCommand userCommand)
+        {
+            userCommand.UserId = context.GetCurrentUserId();
+        }
+
+        if (request is ISalesRepMemberCommand memberCommand)
+        {
+            memberCommand.MemberId = context.GetCurrentMemberId();
+        }
     }
 }

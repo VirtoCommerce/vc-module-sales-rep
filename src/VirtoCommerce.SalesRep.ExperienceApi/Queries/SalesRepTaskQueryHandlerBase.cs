@@ -1,3 +1,4 @@
+using System;
 using System.Threading.Tasks;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -21,5 +22,11 @@ public abstract class SalesRepTaskQueryHandlerBase : SalesRepTaskHandlerBase
     protected virtual async Task<bool> CanReadAsync(string userId)
     {
         return TaskSearchService.HasValue && await IsSalesRepAsync(userId);
+    }
+
+    /// <summary>Start of the caller's current day. Falls back to UTC when the client sends no boundary.</summary>
+    protected static DateTime ResolveDayStart(DateTime? today)
+    {
+        return today ?? DateTime.UtcNow.Date;
     }
 }

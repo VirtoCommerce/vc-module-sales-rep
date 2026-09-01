@@ -37,10 +37,16 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
     /// rules at all. Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list,
     /// never the vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog
     /// categories. Narrowed to one customer when the query asks for it, by the same membership lookup the lists use.
-    /// Override for a surface whose rules do not depend on the organizations served.
+    /// A query marked <see cref="ISalesRepPersonalRulesQuery"/> is scoped to the caller instead, so it only has to be
+    /// a rep — an empty scope then means "allowed, but the vocabulary is not data-derived".
     /// </summary>
     protected virtual async Task<IList<string>> ResolveScopeAsync(TQuery request)
     {
+        if (request is ISalesRepPersonalRulesQuery)
+        {
+            return await IsSalesRepAsync(request.UserId) ? [] : null;
+        }
+
         var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(
             request.UserId,
             (request as ISalesRepScopedRulesQuery)?.OrganizationId);

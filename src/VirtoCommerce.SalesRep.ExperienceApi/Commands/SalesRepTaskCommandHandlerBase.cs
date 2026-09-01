@@ -2,12 +2,10 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using GraphQL;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
-using VirtoCommerce.TaskManagement.Core.Extensions;
 using VirtoCommerce.TaskManagement.Core.Models;
 using VirtoCommerce.TaskManagement.Core.Services;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
@@ -18,17 +16,13 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
 {
     protected SalesRepTaskCommandHandlerBase(
         ISalesRepOrganizationAccessService organizationAccessService,
-        IOptionalDependency<IWorkTaskService> taskService,
-        IMemberService memberService)
+        IOptionalDependency<IWorkTaskService> taskService)
         : base(organizationAccessService)
     {
         TaskService = taskService;
-        MemberService = memberService;
     }
 
     protected IOptionalDependency<IWorkTaskService> TaskService { get; }
-
-    protected IMemberService MemberService { get; }
 
     protected virtual IWorkTaskService RequireTaskService()
     {
@@ -38,20 +32,6 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         }
 
         return TaskService.Value;
-    }
-
-    /// <summary>
-    /// The claim is written as <c>user.MemberId ?? string.Empty</c>, so an account with no contact reaches us as empty
-    /// rather than absent. Fail loudly instead of writing a task nobody owns.
-    /// </summary>
-    protected static string RequireMemberId(string memberId)
-    {
-        if (string.IsNullOrEmpty(memberId))
-        {
-            throw new ExecutionError("The signed-in account has no contact record, so it cannot own tasks.");
-        }
-
-        return memberId;
     }
 
     protected virtual async Task EnsureSalesRepAsync(string userId)
@@ -121,20 +101,5 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         }
 
         return result;
-    }
-
-    /// <summary>
-    /// Stamps who the task belongs to, server-side. The REST-only TaskAuthorizationHandler that normally denormalizes
-    /// these does not run on the GraphQL path, so we own it - and a client-supplied responsible is never honoured.
-    /// </summary>
-    protected virtual async Task AssignResponsibleAsync(WorkTask task, string memberId)
-    {
-        task.ResponsibleId = memberId;
-
-        var member = await MemberService.GetByIdAsync(memberId)
-            ?? throw new ExecutionError("The signed-in account's contact record no longer exists.");
-
-        task.ResponsibleName = member.Name;
-        task.OrganizationId = member.GetMemberOrganizationId();
     }
 }

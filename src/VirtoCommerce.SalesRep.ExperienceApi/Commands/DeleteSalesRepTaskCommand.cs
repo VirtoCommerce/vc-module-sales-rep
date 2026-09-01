@@ -2,7 +2,7 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-public class DeleteSalesRepTaskCommand : ICommand<bool>
+public class DeleteSalesRepTaskCommand : ICommand<bool>, ISalesRepMemberCommand
 {
     public string Id { get; set; }
 

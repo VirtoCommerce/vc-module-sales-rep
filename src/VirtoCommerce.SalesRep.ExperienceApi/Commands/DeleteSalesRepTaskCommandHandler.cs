@@ -1,7 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
 using MediatR;
-using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.TaskManagement.Core.Services;
@@ -12,9 +11,8 @@ public class DeleteSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
 {
     public DeleteSalesRepTaskCommandHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
-        IOptionalDependency<IWorkTaskService> taskService,
-        IMemberService memberService)
-        : base(organizationAccessService, taskService, memberService)
+        IOptionalDependency<IWorkTaskService> taskService)
+        : base(organizationAccessService, taskService)
     {
     }
 

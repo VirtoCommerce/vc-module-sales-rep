@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -21,11 +20,5 @@ public abstract class SalesRepTaskHandlerBase : SalesRepQueryHandlerBase
         IList<string> result = string.IsNullOrEmpty(memberId) ? [] : [memberId];
 
         return Task.FromResult(result);
-    }
-
-    /// <summary>Start of the caller's current day. Falls back to UTC when the client sends no boundary.</summary>
-    protected static DateTime ResolveDayStart(DateTime? today)
-    {
-        return today ?? DateTime.UtcNow.Date;
     }
 }

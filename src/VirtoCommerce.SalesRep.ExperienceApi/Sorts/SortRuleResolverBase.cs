@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Xapi.Core.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 
@@ -41,6 +42,20 @@ public abstract class SortRuleResolverBase<TRule> : ISortRuleResolver<TRule>
         }
 
         return (rule, direction);
+    }
+
+    /// <summary>
+    /// Writes the resolved rule onto search criteria as the platform's "field:direction" sort token. Here rather than
+    /// in each resolver so the token format has one owner.
+    /// </summary>
+    protected async Task ApplyResolvedSortAsync(string storeId, string sort, SearchCriteriaBase criteria)
+    {
+        var (rule, direction) = await ResolveSortRuleAsync(storeId, sort);
+
+        if (rule is IFieldSortRule fieldRule && !string.IsNullOrEmpty(fieldRule.SortField))
+        {
+            criteria.Sort = $"{fieldRule.SortField}:{direction.ToToken()}";
+        }
     }
 
     private static (string RuleName, string DirectionToken) ParseSort(string sort)

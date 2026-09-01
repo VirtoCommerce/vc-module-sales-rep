@@ -4,7 +4,7 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-public class CreateSalesRepTaskCommand : ICommand<SalesRepTask>, ISalesRepTaskInput
+public class CreateSalesRepTaskCommand : ICommand<SalesRepTask>, ISalesRepTaskInput, ISalesRepMemberCommand
 {
     public string Name { get; set; }
 

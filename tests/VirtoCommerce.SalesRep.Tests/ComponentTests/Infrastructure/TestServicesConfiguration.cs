@@ -215,7 +215,6 @@ internal static class TestServicesConfiguration
         return services;
     }
 
-    /// <summary>The module under test: real SalesRep services + the REST controller (ported from Module.Initialize).</summary>
     /// <summary>
     /// The real vc-module-task-management services over an in-memory database. Deliberately optional: a context built
     /// without this slice leaves IWorkTaskSearchService unregistered, which is exactly what a deployment without the
@@ -234,6 +233,7 @@ internal static class TestServicesConfiguration
         return services;
     }
 
+    /// <summary>The module under test: real SalesRep services + the REST controller (ported from Module.Initialize).</summary>
     public static IServiceCollection AddSalesRepSlice(this IServiceCollection services, DbContextOptions<SalesRepDbContext> salesRepDbOptions)
     {
         services.AddSingleton(salesRepDbOptions);

@@ -7,7 +7,7 @@ using VirtoCommerce.Xapi.Core.Extensions;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
-public class SalesRepTaskFilterRulesQuery : Query<IList<SalesRepTaskFilterRule>>, ISalesRepRulesQuery
+public class SalesRepTaskFilterRulesQuery : Query<IList<SalesRepTaskFilterRule>>, ISalesRepRulesQuery, ISalesRepPersonalRulesQuery
 {
     public string StoreId { get; set; }
 

@@ -22,12 +22,7 @@ public class SalesRepOrderSortRuleResolver : SortRuleResolverBase<SalesRepOrderS
 
     public virtual async Task<CustomerOrderSearchCriteria> ApplySortAsync(string storeId, string sort, CustomerOrderSearchCriteria criteria)
     {
-        var (rule, direction) = await ResolveSortRuleAsync(storeId, sort);
-
-        if (!string.IsNullOrEmpty(rule?.SortField))
-        {
-            criteria.Sort = $"{rule.SortField}:{direction.ToToken()}";
-        }
+        await ApplyResolvedSortAsync(storeId, sort, criteria);
 
         return criteria;
     }
