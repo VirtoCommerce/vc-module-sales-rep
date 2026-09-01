@@ -39,6 +39,8 @@ using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Events;
 using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
+using VirtoCommerce.Platform.Core.Modularity;
+using VirtoCommerce.TaskManagement.Data.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Handlers;
@@ -120,7 +122,7 @@ internal sealed class SalesRepTestContext : IDisposable
     /// with a project-override double (e.g. <see cref="OrderFilterRuleOverride.WithCompositeInactiveStatus"/> to
     /// exercise composite order-status resolution). Omit for the default (real-service) harness.
     /// </param>
-    public static SalesRepTestContext Create(Action<IServiceCollection> configureOverrides = null)
+    public static SalesRepTestContext Create(Action<IServiceCollection> configureOverrides = null, bool withTaskManagement = true)
     {
         // The platform resolves the current user id from these claim types; they are configured at platform
         // startup, so set them here for the GraphQL current-user resolution to work in tests.
@@ -142,6 +144,7 @@ internal sealed class SalesRepTestContext : IDisposable
         var catalogOptions = SqliteTestDbContextFactory.CreateOptions<CatalogDbContext>(catalogConnection);
         var assetsOptions = SqliteTestDbContextFactory.CreateOptions<AssetsDbContext>(assetsConnection);
         var salesRepOptions = SqliteTestDbContextFactory.CreateOptions<SalesRepDbContext>(salesRepConnection);
+        var taskConnection = withTaskManagement ? SqliteTestDbContextFactory.CreateConnection() : null;
 
         var services = new ServiceCollection()
             .AddSecuritySlice(securityOptions)
@@ -152,6 +155,16 @@ internal sealed class SalesRepTestContext : IDisposable
             .AddCartSlice(cartOptions)
             .AddCatalogSlice(catalogOptions)
             .AddSalesRepGraphQl();
+
+        // Platform.Web's Startup registers this open generic; the harness does not boot it.
+        services.Add(ServiceDescriptor.Singleton(typeof(IOptionalDependency<>), typeof(TestOptionalDependency<>)));
+
+        if (withTaskManagement)
+        {
+            services.AddTaskManagementSlice(SqliteTestDbContextFactory.CreateOptions<TaskManagementDbContext>(
+                taskConnection,
+                builder => builder.ReplaceService<IModelCustomizer, WorkTaskNumberSqliteModelCustomizer>()));
+        }
 
         // Per-test last-wins overrides (e.g. a composite order-status resolver), applied after the defaults.
         configureOverrides?.Invoke(services);
@@ -451,12 +464,18 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <paramref name="isAdministrator"/> adds the platform Administrator role claim.
     /// Returns the serialized GraphQL response (data + errors) for assertions.
     /// </summary>
-    public Task<string> ExecuteGraphQlAsync(string query, string userId = null, string organizationId = null, string[] permissions = null, bool isAdministrator = false)
+    public Task<string> ExecuteGraphQlAsync(string query, string userId = null, string organizationId = null, string[] permissions = null, bool isAdministrator = false, string memberId = null)
     {
         var identity = new ClaimsIdentity(authenticationType: "Test"); // non-null type => IsAuthenticated
         if (!string.IsNullOrEmpty(userId))
         {
             identity.AddClaim(new Claim(ClaimTypes.NameIdentifier, userId));
+        }
+
+        // Task ownership keys on the contact id, which the platform issues as this claim for every principal.
+        if (memberId != null)
+        {
+            identity.AddClaim(new Claim(PlatformConstants.Security.Claims.MemberIdClaimType, memberId));
         }
 
         if (!string.IsNullOrEmpty(organizationId))

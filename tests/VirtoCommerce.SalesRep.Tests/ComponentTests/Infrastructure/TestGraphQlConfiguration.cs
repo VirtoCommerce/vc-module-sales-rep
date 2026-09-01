@@ -189,6 +189,9 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
+        services.AddSingleton<ISalesRepTaskFilterRuleResolver, SalesRepTaskFilterRuleResolver>();
+        services.AddSingleton<ISalesRepTaskSortRuleResolver, SalesRepTaskSortRuleResolver>();
+
         // Localizable settings back the SalesRepOrderType.statusDisplayValue field (LocalizedField → TranslateAsync).
         // A stub renders a status as "<raw> (localized)" so the mapping is observable without real settings data.
         services.AddSingleton<ILocalizableSettingService, StubLocalizableSettingService>();
