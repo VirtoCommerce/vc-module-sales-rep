@@ -19,7 +19,7 @@ public class SalesRepTaskFilterRulesQueryHandler : SalesRepTaskRulesQueryHandler
         _filterRuleResolver = filterRuleResolver;
     }
 
-    protected override Task<IList<SalesRepTaskFilterRule>> GetRulesAsync(SalesRepTaskFilterRulesQuery request)
+    protected override Task<IList<SalesRepTaskFilterRule>> GetRulesAsync(SalesRepTaskFilterRulesQuery request, IList<string> organizationIds)
     {
         var context = SalesRepFilterRuleContext.Create(
             request.StoreId, request.CultureName, organizationIds: null, customerId: null);

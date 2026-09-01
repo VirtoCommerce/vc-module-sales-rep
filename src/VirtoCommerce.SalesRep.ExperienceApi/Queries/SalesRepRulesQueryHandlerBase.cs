@@ -23,18 +23,29 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
             return [];
         }
 
-        // Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list, never the
-        // vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog categories.
-        // Narrowed to one customer when the query asks for it, by the same membership lookup the lists use.
-        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(
-            request.UserId,
-            (request as ISalesRepScopedRulesQuery)?.OrganizationId);
-        if (organizationIds.Count == 0)
+        var scope = await ResolveScopeAsync(request);
+        if (scope is null)
         {
             return [];
         }
 
-        return await GetRulesAsync(request, organizationIds);
+        return await GetRulesAsync(request, scope);
+    }
+
+    /// <summary>
+    /// The organizations a data-derived vocabulary must be built within, or <c>null</c> when the caller may see no
+    /// rules at all. Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list,
+    /// never the vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog
+    /// categories. Narrowed to one customer when the query asks for it, by the same membership lookup the lists use.
+    /// Override for a surface whose rules do not depend on the organizations served.
+    /// </summary>
+    protected virtual async Task<IList<string>> ResolveScopeAsync(TQuery request)
+    {
+        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(
+            request.UserId,
+            (request as ISalesRepScopedRulesQuery)?.OrganizationId);
+
+        return organizationIds.Count == 0 ? null : organizationIds;
     }
 
     /// <param name="organizationIds">The organizations the caller serves — the scope a data-derived rule set must be

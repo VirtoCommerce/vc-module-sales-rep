@@ -131,8 +131,10 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
     {
         task.ResponsibleId = memberId;
 
-        var member = await MemberService.GetByIdAsync(memberId);
-        task.ResponsibleName = member?.Name;
+        var member = await MemberService.GetByIdAsync(memberId)
+            ?? throw new ExecutionError("The signed-in account's contact record no longer exists.");
+
+        task.ResponsibleName = member.Name;
         task.OrganizationId = member.GetMemberOrganizationId();
     }
 }
