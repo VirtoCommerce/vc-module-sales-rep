@@ -2,7 +2,10 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.TaskManagement.Core.Models;
+using VirtoCommerce.TaskManagement.Core.Services;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
@@ -125,7 +128,7 @@ public class SalesRepTasksGraphQlTests
             "query { salesRepTaskSortRules { name } }",
             "query { salesRepTaskTypes }",
             $"mutation {{ createSalesRepTask(command: {{ name: \"X\", dueDate: \"{TodayIso}\" }}) {{ id }} }}",
-            $"mutation {{ updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"X\", dueDate: \"{TodayIso}\" }}) {{ id }} }}",
+            $"mutation {{ updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"X\", dueDate: \"{TodayIso}\", description: \"\", type: \"\", priority: \"\" }}) {{ id }} }}",
             $"mutation {{ changeSalesRepTaskStatus(command: {{ id: \"{taskId}\", completed: true }}) {{ id }} }}",
             $"mutation {{ deleteSalesRepTask(command: {{ id: \"{taskId}\" }}) }}",
         };
@@ -256,9 +259,33 @@ public class SalesRepTasksGraphQlTests
 
         (await NamesForFilterAsync(ctx, rep, "completed")).Should().Equal("Finished task");
 
-        // The three tabs partition the list: they sum to the unfiltered total.
+        // The three tabs happen to cover everything HERE only because this API always writes a due date and never
+        // cancels; see TasksOutsideEveryTab_StayInTheUnfilteredList for the rows that fall through.
         var all = await ListTasksAsync(ctx, rep);
         all.GetProperty("totalCount").GetInt32().Should().Be(4);
+    }
+
+    [Fact]
+    public async Task TasksOutsideEveryTab_StayInTheUnfilteredList()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        await CreateTaskAsync(ctx, rep, "Has a due date", Today.AddDays(1));
+
+        // Neither shape is reachable through this API - both arrive from the admin UI, the REST API or a workflow.
+        await SaveTaskDirectlyAsync(ctx, rep, "No due date", dueDate: null, isActive: true, completed: null);
+        await SaveTaskDirectlyAsync(ctx, rep, "Canceled", dueDate: Today.AddDays(1), isActive: false, completed: false);
+
+        // The upstream criteria bound the due date with >= / <=, which drop NULLs, and `completed` means finished as
+        // done - so neither row matches any rule. Pinned, because it means the tab counts do NOT sum to the total:
+        // making them sum needs a "no due date" flag on WorkTaskSearchCriteria upstream, not a change here.
+        (await NamesForFilterAsync(ctx, rep, "upcoming")).Should().Equal("Has a due date");
+        (await NamesForFilterAsync(ctx, rep, "overdue")).Should().BeEmpty();
+        (await NamesForFilterAsync(ctx, rep, "completed")).Should().BeEmpty();
+
+        // They are still the rep's tasks, so the unfiltered list keeps them visible rather than hiding work.
+        Names(await ListTasksAsync(ctx, rep)).Should().BeEquivalentTo("Has a due date", "No due date", "Canceled");
     }
 
     [Fact]
@@ -327,10 +354,7 @@ public class SalesRepTasksGraphQlTests
         // Worth asserting on its own: every other mutation test expects a DENIAL, which a handler that lost the
         // caller's identity would satisfy too.
         var updated = SalesRepTestContext.Node(
-            await MutateAsync(
-                ctx,
-                rep,
-                $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"  Revised  \", dueDate: \"{Iso(Today.AddDays(3))}\", priority: \"High\", description: \"Second pass.\" }}) {{ id name priority description }}"),
+            await UpdateTaskAsync(ctx, rep, taskId, "  Revised  ", Today.AddDays(3), description: "Second pass.", priority: "High"),
             "updateSalesRepTask");
 
         updated.GetProperty("id").GetString().Should().Be(taskId);
@@ -450,7 +474,7 @@ public class SalesRepTasksGraphQlTests
             ("responsibleId", $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", responsibleId: \"{bob.MemberId}\" }}) {{ id }}"),
             ("memberId", $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", memberId: \"{bob.MemberId}\" }}) {{ id }}"),
             ("userId", $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", userId: \"{bob.UserId}\" }}) {{ id }}"),
-            ("responsibleId", $"updateSalesRepTask(command: {{ id: \"{annTaskId}\", name: \"Reassigned\", dueDate: \"{TodayIso}\", responsibleId: \"{bob.MemberId}\" }}) {{ id }}"),
+            ("responsibleId", $"updateSalesRepTask(command: {{ id: \"{annTaskId}\", name: \"Reassigned\", dueDate: \"{TodayIso}\", description: \"\", type: \"\", priority: \"\", responsibleId: \"{bob.MemberId}\" }}) {{ id }}"),
         };
 
         foreach (var (field, mutation) in attempts)
@@ -480,6 +504,58 @@ public class SalesRepTasksGraphQlTests
         byId.ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
     }
 
+    [Fact]
+    public async Task UpdateSalesRepTask_ReplacesEveryEditableField_AndCannotOmitOne()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        var created = await CreateTaskAsync(ctx, rep, "Draft", Today, priority: "High", type: "Call", description: "First pass.");
+        var taskId = created.GetProperty("id").GetString();
+
+        // The update REPLACES: every editable field is non-null, so a rename cannot silently drop the description,
+        // the type or the priority the way an omitted optional field would.
+        var omitted = await MutateAsync(ctx, rep, $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Renamed\", dueDate: \"{TodayIso}\" }}) {{ id }}");
+        omitted.Should().Contain("\"errors\"");
+        omitted.Should().Contain("description");
+
+        var stillThere = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, $"salesRepTask(id: \"{taskId}\") {{ name description type priority }}"), "salesRepTask");
+        stillThere.GetProperty("name").GetString().Should().Be("Draft");
+        stillThere.GetProperty("description").GetString().Should().Be("First pass.");
+        stillThere.GetProperty("type").GetString().Should().Be("Call");
+        stillThere.GetProperty("priority").GetString().Should().Be("High");
+
+        // Clearing is explicit, and blank collapses to null so a cleared field reads like one never set.
+        var cleared = SalesRepTestContext.Node(
+            await UpdateTaskAsync(ctx, rep, taskId, "Renamed", Today, description: "", type: "", priority: ""),
+            "updateSalesRepTask");
+        cleared.GetProperty("name").GetString().Should().Be("Renamed");
+        cleared.GetProperty("description").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        cleared.GetProperty("type").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        cleared.GetProperty("priority").GetString().Should().Be("Normal");
+    }
+
+    [Fact]
+    public async Task CreateSalesRepTask_TakesTheStoreFromTheCallersAccount_NotFromTheInput()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync(OrgA);
+        var details = await ctx.CreateRepInStoreAsync("Ann", "Rep", "ann@test.com", "store-a", OrgA);
+        var rep = new Rep(details.UserId, details.Id);
+
+        // Not an input field at all - the store a task belongs to is part of who owns it.
+        var planted = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"Planted\", dueDate: \"{TodayIso}\", storeId: \"store-b\" }}) {{ id }}");
+        planted.Should().Contain("\"errors\"");
+        planted.Should().Contain("storeId");
+
+        await CreateTaskAsync(ctx, rep, "Stamped", Today);
+
+        // Stamped from the rep's own account store, so the store filter reaches it and another store does not.
+        Names(await ListTasksAsync(ctx, rep, "storeId: \"store-a\"")).Should().Equal("Stamped");
+        Names(await ListTasksAsync(ctx, rep, "storeId: \"store-b\"")).Should().BeEmpty();
+    }
+
     // -- helpers -------------------------------------------------------------------------------------------------
 
     private sealed record Rep(string UserId, string MemberId);
@@ -503,11 +579,42 @@ public class SalesRepTasksGraphQlTests
     private static Task<string> MutateAsync(SalesRepTestContext ctx, Rep rep, string selection) =>
         ctx.ExecuteGraphQlAsync($"mutation {{ {selection} }}", userId: rep.UserId, memberId: rep.MemberId);
 
-    private static async Task<System.Text.Json.JsonElement> ListTasksAsync(SalesRepTestContext ctx, Rep rep)
+    private static async Task<System.Text.Json.JsonElement> ListTasksAsync(SalesRepTestContext ctx, Rep rep, string arguments = null)
     {
-        var json = await QueryAsync(ctx, rep, "salesRepTasks { totalCount items { id name isActive completed dueDate } }");
+        var call = arguments == null ? "salesRepTasks" : $"salesRepTasks({arguments})";
+        var json = await QueryAsync(ctx, rep, $"{call} {{ totalCount items {{ id name isActive completed dueDate }} }}");
 
         return SalesRepTestContext.Node(json, "salesRepTasks");
+    }
+
+    /// <summary>Every editable field, because the update replaces rather than patches.</summary>
+    private static Task<string> UpdateTaskAsync(
+        SalesRepTestContext ctx,
+        Rep rep,
+        string id,
+        string name,
+        DateTime dueDate,
+        string description = "",
+        string type = "",
+        string priority = "")
+        => MutateAsync(
+            ctx,
+            rep,
+            $"updateSalesRepTask(command: {{ id: \"{id}\", name: \"{name}\", dueDate: \"{Iso(dueDate)}\", " +
+            $"description: \"{description}\", type: \"{type}\", priority: \"{priority}\" }}) " +
+            "{ id name description type priority dueDate }");
+
+    /// <summary>Straight through the task-management service, for the shapes this API cannot create.</summary>
+    private static async Task SaveTaskDirectlyAsync(SalesRepTestContext ctx, Rep rep, string name, DateTime? dueDate, bool isActive, bool? completed)
+    {
+        var task = AbstractTypeFactory<WorkTask>.TryCreateInstance();
+        task.Name = name;
+        task.DueDate = dueDate;
+        task.IsActive = isActive;
+        task.Completed = completed;
+        task.ResponsibleId = rep.MemberId;
+
+        await ctx.GetRequiredService<IWorkTaskService>().SaveChangesAsync([task]);
     }
 
     private static Task<string[]> NamesForFilterAsync(SalesRepTestContext ctx, Rep rep, string filter) =>

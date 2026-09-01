@@ -16,8 +16,6 @@ public class CreateSalesRepTaskCommand : ICommand<SalesRepTask>, ISalesRepTaskIn
 
     public DateTime? DueDate { get; set; }
 
-    public string StoreId { get; set; }
-
     public string UserId { get; set; }
 
     public string MemberId { get; set; }

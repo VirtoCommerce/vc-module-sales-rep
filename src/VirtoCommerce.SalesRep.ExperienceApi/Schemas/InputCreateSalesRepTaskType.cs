@@ -20,7 +20,5 @@ public class InputCreateSalesRepTaskType : ExtendableInputObjectGraphType<Create
             .Description("Lowest, Low, Normal, High or Highest. Defaults to Normal.");
         Field<NonNullGraphType<DateTimeGraphType>>(nameof(CreateSalesRepTaskCommand.DueDate))
             .Description("When the task is due.");
-        Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.StoreId))
-            .Description("Optional store to scope the task to.");
     }
 }

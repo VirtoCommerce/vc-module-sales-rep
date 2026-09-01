@@ -427,9 +427,10 @@ not to a customer — and no dedicated permission beyond being a sales rep.
   # or a task can sit in one tab and read as another. Defaults to the start of the current UTC day.
   # `period` is a due-date window (a calendar month, or one day); it INTERSECTS with `filter` rather than
   # replacing it, so "this month" + "overdue" composes.
+  # `storeId` narrows to the tasks stamped with that store (the creating rep's account store); omit for all.
   salesRepTasks(
     first: 20, after: "0", keyword: "contract", sort: "due-date",
-    filter: "overdue", today: "2026-05-28T05:00:00Z",
+    filter: "overdue", today: "2026-05-28T05:00:00Z", storeId: "B2B-store",
     period: { from: "2026-05-01T05:00:00Z", to: "2026-06-01T04:59:59Z" }
   ) {
     totalCount
@@ -462,6 +463,15 @@ query Counts($today: DateTime!) {
   completed: salesRepTasks(first: 0, filter: "completed", today: $today) { totalCount }
 }
 ```
+
+⚠️ **The three tabs do not add up to `all`, and that is not a rounding error.** Two shapes match no rule:
+a task with **no due date**, and a **canceled** one (closed without completing). Neither is reachable through this
+API — `createSalesRepTask` requires a due date and nothing here cancels — so they only arrive from the admin UI,
+the REST API or a task-management workflow, assigned to the same contact. They stay in the unfiltered list, because
+they are still the rep's work; they just have no tab. Render `all` as its own tab rather than as the sum, or drop
+the count and show the list. A dedicated "no due date" tab is **not implementable today**: `WorkTaskSearchCriteria`
+bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
+flag in `VirtoCommerce.TaskManagement` first.
 
 🛠 **Extenders:** `SalesRepTaskHandlerBase.GetVisibleResponsibleIdsAsync` is the seam for widening whose tasks a
 caller may see and change — today always their own. Override it (e.g. a team lead seeing their reps') and every
@@ -516,9 +526,10 @@ Recipients are resolved **once** and fed to both channels, so the audience is id
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
 
-Task writes. The responsible contact, organization and store are stamped **server-side** from the caller — a
-client-supplied owner is never honoured, and `updateSalesRepTask` / `changeSalesRepTaskStatus` /
-`deleteSalesRepTask` re-check ownership against the stored `ResponsibleId` on every call:
+Task writes. The responsible contact, its organization and the store are stamped **server-side** from the caller
+(the store is the rep's own account store) — none of the three is an input field, so a client-supplied owner is
+never honoured, and `updateSalesRepTask` / `changeSalesRepTaskStatus` / `deleteSalesRepTask` re-check ownership
+against the stored `ResponsibleId` on every call:
 
 ```graphql
 mutation {
@@ -530,7 +541,10 @@ mutation {
     description: "Escalate to regional manager."
   }) { id name priority dueDate isActive completed }
 
-  updateSalesRepTask(command: { id: "…", name: "…", dueDate: "…" }) { id name dueDate }
+  # REPLACES the task: every editable field is required, so send the whole record back.
+  updateSalesRepTask(command: {
+    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…"
+  }) { id name description type priority dueDate }
 
   # completed: true finishes the task, false reopens it.
   changeSalesRepTaskStatus(command: { id: "…", completed: true }) { id isActive completed }
@@ -538,6 +552,11 @@ mutation {
   deleteSalesRepTask(command: { id: "…" })
 }
 ```
+
+⚠️ `updateSalesRepTask` **replaces, it does not patch**. `description`, `type` and `priority` are non-null on
+purpose: were they optional, an omitted field would be indistinguishable from one cleared on purpose and a rename
+would quietly drop all three. Clear one with the empty string (which is stored as null; an empty `priority` means
+`Normal`). `createSalesRepTask` keeps them optional — there is nothing to lose.
 
 ⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
 `WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the

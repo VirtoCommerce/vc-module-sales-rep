@@ -59,7 +59,7 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         }
 
         var responsibleIds = await GetVisibleResponsibleIdsAsync(userId, memberId);
-        if (!responsibleIds.Contains(task.ResponsibleId, StringComparer.OrdinalIgnoreCase))
+        if (!responsibleIds.Any(x => x.EqualsIgnoreCase(task.ResponsibleId)))
         {
             throw AuthorizationError.Forbidden();
         }
@@ -67,12 +67,13 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         return task;
     }
 
-    // Trimmed here: storefront inputs emit raw text and nothing downstream trims.
+    // Trimmed here: storefront inputs emit raw text and nothing downstream trims. Blank collapses to null, so a
+    // field cleared on update is stored exactly like one omitted on create.
     protected virtual void ApplyInput(WorkTask task, ISalesRepTaskInput input)
     {
         task.Name = input.Name?.Trim();
-        task.Description = input.Description?.Trim();
-        task.Type = input.Type?.Trim();
+        task.Description = input.Description?.Trim().EmptyToNull();
+        task.Type = input.Type?.Trim().EmptyToNull();
         task.Priority = ParsePriority(input.Priority);
         task.DueDate = input.DueDate;
     }
@@ -80,7 +81,7 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
     // Strict, unlike the module's own EnumUtility.SafeParse: a typo should be an error, not a different priority.
     protected static TaskPriority ParsePriority(string priority)
     {
-        if (string.IsNullOrEmpty(priority))
+        if (string.IsNullOrWhiteSpace(priority))
         {
             return TaskPriority.Normal;
         }

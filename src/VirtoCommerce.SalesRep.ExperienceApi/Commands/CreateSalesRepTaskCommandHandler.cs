@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using GraphQL;
@@ -5,6 +6,8 @@ using MediatR;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
+using VirtoCommerce.Platform.Core.Security;
+using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.TaskManagement.Core.Extensions;
@@ -16,14 +19,17 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, IRequestHandler<CreateSalesRepTaskCommand, SalesRepTask>
 {
     private readonly IMemberService _memberService;
+    private readonly IUserSearchService _userSearchService;
 
     public CreateSalesRepTaskCommandHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
         IOptionalDependency<IWorkTaskService> taskService,
-        IMemberService memberService)
+        IMemberService memberService,
+        IUserSearchService userSearchService)
         : base(organizationAccessService, taskService)
     {
         _memberService = memberService;
+        _userSearchService = userSearchService;
     }
 
     public virtual async Task<SalesRepTask> Handle(CreateSalesRepTaskCommand request, CancellationToken cancellationToken)
@@ -35,12 +41,25 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         var task = AbstractTypeFactory<WorkTask>.TryCreateInstance();
         ApplyInput(task, request);
         task.IsActive = true;
-        task.StoreId = request.StoreId;
+        task.StoreId = await ResolveStoreIdAsync(request.UserId);
         await AssignResponsibleAsync(task, memberId);
 
         await RequireTaskService().SaveChangesAsync([task]);
 
         return SalesRepTask.FromWorkTask(task);
+    }
+
+    // The rep's own account store, never client input: the store a task belongs to is part of who owns it, and the
+    // same value the customer and rep lists scope on.
+    protected virtual async Task<string> ResolveStoreIdAsync(string userId)
+    {
+        var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
+        criteria.ObjectIds = [userId];
+        criteria.Take = 1;
+
+        var user = (await _userSearchService.SearchUsersAsync(criteria)).Results.FirstOrDefault();
+
+        return user?.StoreId;
     }
 
     private static string RequireMemberId(string memberId)
