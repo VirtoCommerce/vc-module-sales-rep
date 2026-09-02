@@ -537,6 +537,40 @@ public class SalesRepTasksGraphQlTests
     }
 
     [Fact]
+    public async Task UpdateSalesRepTask_LeavesTheCompletionStateAlone()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        var created = await CreateTaskAsync(ctx, rep, "Draft", Today.AddDays(1));
+        var taskId = created.GetProperty("id").GetString();
+        await MutateAsync(ctx, rep, $"changeSalesRepTaskStatus(command: {{ id: \"{taskId}\", completed: true }}) {{ id }}");
+
+        // "Replaces" is scoped to the EDITABLE fields. Completion is not one of them - it moves only through
+        // changeSalesRepTaskStatus - so editing a finished task must not quietly reopen it.
+        var updated = SalesRepTestContext.Node(
+            await MutateAsync(
+                ctx,
+                rep,
+                $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Renamed after finishing\", dueDate: \"{Iso(Today.AddDays(2))}\", description: \"Second pass.\", type: \"\", priority: \"High\" }}) {{ name isActive completed }}"),
+            "updateSalesRepTask");
+
+        updated.GetProperty("name").GetString().Should().Be("Renamed after finishing");
+        updated.GetProperty("isActive").GetBoolean().Should().BeFalse();
+        updated.GetProperty("completed").GetBoolean().Should().BeTrue();
+
+        // Persisted, not just echoed back.
+        var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
+        stored.IsActive.Should().BeFalse();
+        stored.Completed.Should().Be(true);
+
+        // And the derived status reads off that pair, so the task stays on Completed instead of reappearing as
+        // work still to do.
+        (await NamesForFilterAsync(ctx, rep, "completed")).Should().Equal("Renamed after finishing");
+        (await NamesForFilterAsync(ctx, rep, "upcoming")).Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task CreateSalesRepTask_TakesTheStoreFromTheCallersAccount_NotFromTheInput()
     {
         using var ctx = SalesRepTestContext.Create();
