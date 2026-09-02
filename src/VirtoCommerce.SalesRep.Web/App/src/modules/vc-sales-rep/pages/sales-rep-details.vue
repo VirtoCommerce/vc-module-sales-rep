@@ -106,7 +106,7 @@
                   v-model="salesRep.firstName"
                   class="tw-flex-1"
                   :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.FIRST_NAME')"
-                  :max-length="128"
+                  :maxlength="128"
                   required
                   :error="errors.length > 0"
                   :error-message="errorMessage"
@@ -123,7 +123,7 @@
                   v-model="salesRep.lastName"
                   class="tw-flex-1"
                   :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LAST_NAME')"
-                  :max-length="128"
+                  :maxlength="128"
                   required
                   :error="errors.length > 0"
                   :error-message="errorMessage"
@@ -134,7 +134,7 @@
                 v-model="salesRep.middleName"
                 class="tw-flex-1"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.MIDDLE_NAME')"
-                :max-length="128"
+                :maxlength="128"
               />
             </div>
             <div class="tw-flex tw-flex-row tw-gap-4">
@@ -148,7 +148,7 @@
                 v-model="salesRep.salutation"
                 class="tw-w-1/3"
                 :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.SALUTATION')"
-                :max-length="64"
+                :maxlength="256"
               />
             </div>
             <div class="tw-flex tw-flex-row tw-gap-4">
