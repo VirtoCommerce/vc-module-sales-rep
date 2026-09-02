@@ -49,7 +49,7 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         return SalesRepTask.FromWorkTask(task);
     }
 
-    // The rep's own account store, never client input: the store a task belongs to is part of who owns it.
+    // The rep's own account store, never client input: which store a task belongs to is not the client's to say.
     protected virtual async Task<string> ResolveStoreIdAsync(string userId)
     {
         var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
@@ -58,6 +58,9 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
 
         var user = (await _userSearchService.SearchUsersAsync(criteria)).Results.FirstOrDefault();
 
+        // Null when the account is not store-bound - a supported configuration (SalesRepDetails.StoreId is
+        // optional), not a failure. Such a task simply carries no store, so a storeId-filtered read will not
+        // return it; the storefront never sends storeId, so it is unaffected. Documented in the README.
         return user?.StoreId;
     }
 

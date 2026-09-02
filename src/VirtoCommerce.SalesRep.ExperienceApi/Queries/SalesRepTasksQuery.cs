@@ -33,7 +33,7 @@ public class SalesRepTasksQuery : SearchQuery<SalesRepTaskSearchResult>
         }
 
         yield return Argument<StringGraphType>(nameof(StoreId), "Store to scope the tasks to (defaults to all stores).");
-        yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Filter-rule name from salesRepTaskFilterRules. Omit for all the caller's tasks.");
+        yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Filter-rule name from salesRepTaskFilterRules. Omit for all the caller's tasks; an unrecognized name returns nothing rather than the unfiltered list.");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Due-date window. Intersects with the filter rule rather than replacing it.");
         yield return Argument<DateTimeGraphType>(nameof(Today), "Start of the caller's local day, which is where 'overdue' ends and 'upcoming' begins. Defaults to the current UTC day.");
     }

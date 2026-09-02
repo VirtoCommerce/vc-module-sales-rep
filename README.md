@@ -559,6 +559,11 @@ purpose: were they optional, an omitted field would be indistinguishable from on
 would quietly drop all three. Clear one with the empty string (which is stored as null; an empty `priority` means
 `Normal`). `createSalesRepTask` keeps them optional — there is nothing to lose.
 
+⚠️ The task's **store is stamped from the rep's own account**, never from input — `createSalesRepTask` has no
+`storeId` field and `updateSalesRepTask` never changes it. A rep whose account is **not** store-bound
+(`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
+read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
+
 ⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
 `WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
 two transitions stay symmetric.

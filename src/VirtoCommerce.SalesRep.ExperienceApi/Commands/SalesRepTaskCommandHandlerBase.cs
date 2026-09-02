@@ -55,10 +55,13 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         var task = await RequireTaskService().GetByIdAsync(taskId);
         var responsibleIds = await GetVisibleResponsibleIdsAsync(userId, memberId);
 
+        // ORDINAL, matching the SQL the read path generates: `criteria.ResponsibleIds` becomes a case-sensitive
+        // IN, so an ignore-case match here would let a write reach a task no list can show.
+        //
         // ONE answer for "no such task" and "not yours", so a write cannot be used to probe whether an id exists -
         // the same rule salesRepTask follows by returning null for both. Both branches also do the same work, so
         // the timing does not tell them apart either.
-        if (task == null || !responsibleIds.Any(x => x.EqualsIgnoreCase(task.ResponsibleId)))
+        if (task == null || !responsibleIds.Contains(task.ResponsibleId, StringComparer.Ordinal))
         {
             throw new ExecutionError("Task not found.");
         }

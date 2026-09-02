@@ -220,13 +220,23 @@ public class SalesRepTasksGraphQlTests
         SalesRepTestContext.Node(json, "salesRepTasks").GetProperty("totalCount").GetInt32().Should().Be(0);
         json.Should().NotContain("Ann private task");
 
-        // Rule vocabulary is rep-only too - both kinds, which reach the scope check by different paths.
-        foreach (var rules in new[] { "salesRepTaskFilterRules", "salesRepTaskSortRules" })
+        // Rule vocabulary is rep-only too - both kinds, which reach the scope check by different paths - and so is
+        // the type dictionary. Every list-shaped surface, so none of them can regress unnoticed.
+        foreach (var list in new[] { "salesRepTaskFilterRules { name }", "salesRepTaskSortRules { name }", "salesRepTaskTypes" })
         {
             SalesRepTestContext.Node(
-                await ctx.ExecuteGraphQlAsync($"query {{ {rules} {{ name }} }}", userId: outsiderUserId, memberId: outsiderContact.Id),
-                rules).GetArrayLength().Should().Be(0);
+                await ctx.ExecuteGraphQlAsync($"query {{ {list} }}", userId: outsiderUserId, memberId: outsiderContact.Id),
+                list.Split(' ')[0]).GetArrayLength().Should().Be(0);
         }
+
+        // And by id: a non-rep gets the same null a rep gets for someone else's task.
+        var annTaskId = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, "salesRepTasks { items { id } }"), "salesRepTasks")
+            .GetProperty("items")[0].GetProperty("id").GetString();
+
+        SalesRepTestContext.Node(
+            await ctx.ExecuteGraphQlAsync($"query {{ salesRepTask(id: \"{annTaskId}\") {{ id name }} }}", userId: outsiderUserId, memberId: outsiderContact.Id),
+            "salesRepTask").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
 
         var created = await ctx.ExecuteGraphQlAsync(
             $"mutation {{ createSalesRepTask(command: {{ name: \"Intruder\", dueDate: \"{TodayIso}\" }}) {{ id }} }}",
@@ -620,6 +630,46 @@ public class SalesRepTasksGraphQlTests
         Names(await ListTasksAsync(ctx, rep, "storeId: \"store-b\"")).Should().BeEmpty();
     }
 
+    [Fact]
+    public async Task Writes_MatchOwnershipTheSameWayTheListDoes()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // A task owned by the same member id in a different CASE. The read path becomes a case-sensitive SQL IN, so
+        // the list cannot show this row - and a write must not be able to reach further than the list can see.
+        var taskId = await SaveTaskDirectlyAsync(ctx, rep, "Case-shifted owner", Today, isActive: true,
+            completed: null, responsibleId: rep.MemberId.ToUpperInvariant());
+
+        Names(await ListTasksAsync(ctx, rep)).Should().BeEmpty("the read path matches ordinally");
+
+        foreach (var mutation in new[]
+        {
+            $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"X\", dueDate: \"{TodayIso}\", description: \"\", type: \"\", priority: \"\" }}) {{ id }}",
+            $"changeSalesRepTaskStatus(command: {{ id: \"{taskId}\", completed: true }}) {{ id }}",
+            $"deleteSalesRepTask(command: {{ id: \"{taskId}\" }})",
+        })
+        {
+            (await MutateAsync(ctx, rep, mutation)).Should().Contain("Task not found.");
+        }
+    }
+
+    [Fact]
+    public async Task CreateSalesRepTask_LeavesTheStoreUnsetForAnAccountWithNoStore()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // A rep whose account is not store-bound is supported configuration (SalesRepDetails.StoreId is
+        // optional), so the write succeeds and the task simply carries no store.
+        await CreateTaskAsync(ctx, rep, "Storeless", Today);
+
+        Names(await ListTasksAsync(ctx, rep)).Should().Equal("Storeless");
+
+        // The documented consequence: a storeId-filtered read cannot return it. The storefront never sends one.
+        Names(await ListTasksAsync(ctx, rep, "storeId: \"B2B-store\"")).Should().BeEmpty();
+    }
+
     // -- helpers -------------------------------------------------------------------------------------------------
 
     private sealed record Rep(string UserId, string MemberId);
@@ -669,16 +719,25 @@ public class SalesRepTasksGraphQlTests
             "{ id name description type priority dueDate }");
 
     /// <summary>Straight through the task-management service, for the shapes this API cannot create.</summary>
-    private static async Task SaveTaskDirectlyAsync(SalesRepTestContext ctx, Rep rep, string name, DateTime? dueDate, bool isActive, bool? completed)
+    private static async Task<string> SaveTaskDirectlyAsync(
+        SalesRepTestContext ctx,
+        Rep rep,
+        string name,
+        DateTime? dueDate,
+        bool isActive,
+        bool? completed,
+        string responsibleId = null)
     {
         var task = AbstractTypeFactory<WorkTask>.TryCreateInstance();
         task.Name = name;
         task.DueDate = dueDate;
         task.IsActive = isActive;
         task.Completed = completed;
-        task.ResponsibleId = rep.MemberId;
+        task.ResponsibleId = responsibleId ?? rep.MemberId;
 
         await ctx.GetRequiredService<IWorkTaskService>().SaveChangesAsync([task]);
+
+        return task.Id;
     }
 
     private static Task<string[]> NamesForFilterAsync(SalesRepTestContext ctx, Rep rep, string filter) =>
