@@ -22,15 +22,19 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
     private const int CountModeRowFetchSize = 50;
 
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
+    private readonly ISalesRepAnalyticsAvailability _availability;
 
-    public SalesRepCustomerInsightsService(IOptionalDependency<IAnalyticsService> analyticsService)
+    public SalesRepCustomerInsightsService(
+        IOptionalDependency<IAnalyticsService> analyticsService,
+        ISalesRepAnalyticsAvailability availability)
     {
         _analyticsService = analyticsService;
+        _availability = availability;
     }
 
-    public virtual async Task<bool> IsAvailableAsync(string storeId)
+    public virtual Task<bool> IsAvailableAsync(string storeId)
     {
-        return _analyticsService.HasValue && await _analyticsService.Value.IsConfiguredAsync(storeId);
+        return _availability.IsConfiguredAsync(storeId);
     }
 
     public virtual async Task<IList<SalesRepSearchTerm>> GetSearchTermsAsync(SalesRepCustomerInsightsCriteria criteria)

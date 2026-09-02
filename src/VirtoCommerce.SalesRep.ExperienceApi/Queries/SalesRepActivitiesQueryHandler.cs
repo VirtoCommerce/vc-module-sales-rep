@@ -16,15 +16,21 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
 {
     private readonly ISalesRepActivityService _activityService;
     private readonly ISalesRepProductResolver _productResolver;
+    private readonly ISalesRepAnalyticsAvailability _availability;
+    private readonly ISalesRepStoreAccessService _storeAccessService;
 
     public SalesRepActivitiesQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepActivityService activityService,
-        ISalesRepProductResolver productResolver)
+        ISalesRepProductResolver productResolver,
+        ISalesRepAnalyticsAvailability availability,
+        ISalesRepStoreAccessService storeAccessService)
         : base(organizationAccessService)
     {
         _activityService = activityService;
         _productResolver = productResolver;
+        _availability = availability;
+        _storeAccessService = storeAccessService;
     }
 
     public virtual async Task<SalesRepActivitySearchResult> Handle(SalesRepActivitiesQuery request, CancellationToken cancellationToken)
@@ -39,6 +45,14 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         {
             return null;
         }
+
+        // A named store is a claim, not a filter: it chooses whose analytics property is read and whose
+        // orders are counted, so it is checked against the caller's own store before it is used.
+        if (!await _storeAccessService.IsAllowedAsync(request.UserId, request.StoreId))
+        {
+            return null;
+        }
+
 
         var criteria = AbstractTypeFactory<SalesRepActivitySearchCriteria>.TryCreateInstance();
         criteria.SalesRepUserId = request.UserId;
@@ -62,6 +76,7 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         }
 
         var result = await _activityService.SearchActivitiesAsync(criteria);
+        result.IsAnalyticsConfigured = await _availability.IsConfiguredAsync(criteria.StoreId);
 
         await ResolveProductsAsync(result, request);
 

@@ -524,7 +524,7 @@ Some metrics are **not** computed from platform data — they are read from **Go
 
 | Metric (GraphQL field) | GA4 source | Notes |
 |---|---|---|
-| `salesRepActivities` → category `searches` rows | event `search` + `view_search_results`; dimension `searchTerm`; metric `eventCount` | one row per search term per hour bucket |
+| `salesRepActivities` → category `searches` rows | event `search`; dimension `searchTerm`; metric `eventCount` | one row per search term per hour bucket. Only `search` is counted, as in the insights list below — the storefront also fires `view_search_results` for the same journey, and GA returns a row per event name, so asking for both would show one search twice |
 | `salesRepActivities` → category `productViews` rows | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | `itemId` holds the product **code**, resolved server-side to a catalog product |
 | `salesRepActivities` → category `logins` rows | event `login`; metric `eventCount` | |
 | `salesRepCustomerActivitySummary.visitsCount` | event `login`; metric `eventCount` over the period | a proxy for "number of visits"; only tracked sign-ins count |

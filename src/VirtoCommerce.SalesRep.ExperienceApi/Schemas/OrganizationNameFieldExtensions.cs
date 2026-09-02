@@ -46,7 +46,11 @@ internal static class OrganizationNameFieldExtensions
                             nameof(MemberResponseGroup.Default),
                             [nameof(Organization)]);
 
-                        return organizations.ToDictionary(x => x.Id, x => x.Name, StringComparer.OrdinalIgnoreCase);
+                        // DistinctBy first: the loader asks for distinct ids, but ToDictionary throws on a
+                        // duplicate key rather than answering, and a member service is free to return one.
+                        return organizations
+                            .DistinctBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
+                            .ToDictionary(x => x.Id, x => x.Name, StringComparer.OrdinalIgnoreCase);
                     });
 
                 return loader.LoadAsync(organizationId);

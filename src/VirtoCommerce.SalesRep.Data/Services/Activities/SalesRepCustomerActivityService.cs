@@ -18,10 +18,14 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
     private const int LastEventLookupSize = 10;
 
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
+    private readonly ISalesRepAnalyticsAvailability _availability;
 
-    public SalesRepCustomerActivityService(IOptionalDependency<IAnalyticsService> analyticsService)
+    public SalesRepCustomerActivityService(
+        IOptionalDependency<IAnalyticsService> analyticsService,
+        ISalesRepAnalyticsAvailability availability)
     {
         _analyticsService = analyticsService;
+        _availability = availability;
     }
 
     public virtual async Task<SalesRepCustomerActivitySummary> GetSummaryAsync(SalesRepCustomerActivityCriteria criteria)
@@ -37,7 +41,7 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
         var analyticsService = _analyticsService.Value;
 
-        result.IsAnalyticsConfigured = await analyticsService.IsConfiguredAsync(criteria.StoreId);
+        result.IsAnalyticsConfigured = await _availability.IsConfiguredAsync(criteria.StoreId);
         if (!result.IsAnalyticsConfigured)
         {
             return result;

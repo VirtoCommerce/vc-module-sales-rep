@@ -16,17 +16,20 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
     private readonly ISalesRepCustomerActivityService _customerActivityService;
     private readonly IMemberService _memberService;
     private readonly ISalesRepProductResolver _productResolver;
+    private readonly ISalesRepStoreAccessService _storeAccessService;
 
     public SalesRepCustomerActivitySummaryQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
         ISalesRepCustomerActivityService customerActivityService,
         IMemberService memberService,
-        ISalesRepProductResolver productResolver)
+        ISalesRepProductResolver productResolver,
+        ISalesRepStoreAccessService storeAccessService)
         : base(organizationAccessService)
     {
         _customerActivityService = customerActivityService;
         _memberService = memberService;
         _productResolver = productResolver;
+        _storeAccessService = storeAccessService;
     }
 
     public virtual async Task<SalesRepCustomerActivitySummary> Handle(SalesRepCustomerActivitySummaryQuery request, CancellationToken cancellationToken)
@@ -40,6 +43,14 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
         {
             return null;
         }
+
+        // A named store is a claim, not a filter: it chooses whose analytics property is read and whose
+        // orders are counted, so it is checked against the caller's own store before it is used.
+        if (!await _storeAccessService.IsAllowedAsync(request.UserId, request.StoreId))
+        {
+            return null;
+        }
+
 
         var criteria = AbstractTypeFactory<SalesRepCustomerActivityCriteria>.TryCreateInstance();
         criteria.OrganizationId = request.OrganizationId;

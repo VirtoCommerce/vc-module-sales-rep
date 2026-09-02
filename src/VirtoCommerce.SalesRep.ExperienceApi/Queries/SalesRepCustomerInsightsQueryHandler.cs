@@ -11,12 +11,16 @@ public class SalesRepCustomerInsightsQueryHandler : SalesRepQueryHandlerBase, IQ
 {
     private readonly ISalesRepCustomerInsightsService _insightsService;
 
+    private readonly ISalesRepStoreAccessService _storeAccessService;
+
     public SalesRepCustomerInsightsQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
-        ISalesRepCustomerInsightsService insightsService)
+        ISalesRepCustomerInsightsService insightsService,
+        ISalesRepStoreAccessService storeAccessService)
         : base(organizationAccessService)
     {
         _insightsService = insightsService;
+        _storeAccessService = storeAccessService;
     }
 
     public virtual async Task<SalesRepCustomerInsightsContext> Handle(SalesRepCustomerInsightsQuery request, CancellationToken cancellationToken)
@@ -28,6 +32,13 @@ public class SalesRepCustomerInsightsQueryHandler : SalesRepQueryHandlerBase, IQ
 
         var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(request.UserId, request.OrganizationId);
         if (organizationIds.Count == 0)
+        {
+            return null;
+        }
+
+        // A named store is a claim, not a filter: it chooses whose analytics property is read, so it is
+        // checked against the caller's own store before it is used.
+        if (!await _storeAccessService.IsAllowedAsync(request.UserId, request.StoreId))
         {
             return null;
         }

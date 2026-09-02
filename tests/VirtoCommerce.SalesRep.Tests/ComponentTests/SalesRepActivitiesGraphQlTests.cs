@@ -427,6 +427,62 @@ public class SalesRepActivitiesGraphQlTests
             .Should().ContainSingle(x => x.Take == SalesRepActivitiesQuery.MaxTake && x.Skip == 0);
     }
 
+    // Zero tracked rows means "none this period" only when the tracked categories are measured at all. Without
+    // this flag a store with no analytics reads as a customer who went quiet — a confident, wrong conclusion.
+    [Fact]
+    public async Task Activities_ReportsWhetherTrackedActivityIsMeasured()
+    {
+        using (var unconfigured = SalesRepTestContext.Create())
+        {
+            await unconfigured.SeedOrganizationsAsync("org-1");
+            var quietRep = await unconfigured.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+            var json = await unconfigured.ExecuteGraphQlAsync(
+                "query { salesRepActivities { totalCount isAnalyticsConfigured } }",
+                userId: quietRep.UserId);
+
+            Connection(json).GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeFalse();
+        }
+
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var configured = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepActivities { totalCount isAnalyticsConfigured } }",
+            userId: rep.UserId);
+
+        Connection(configured).GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeTrue();
+    }
+
+    // A store id chooses whose analytics property is read and whose orders are counted, so a rep bound to one
+    // store cannot answer for another. A caller with no store of their own claims none and is not checked.
+    [Fact]
+    public async Task Activities_StoreBoundRep_CannotAskAboutAnotherStore()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+        SeedOrder(ctx, "own-store", "org-1", _feb);
+
+        var foreign = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(storeId: \"Other-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        foreign.Should().NotContain("\"errors\"");
+        foreign.Should().Contain("\"salesRepActivities\":null");
+        analytics.ReceivedSearchCriteria.Should().BeEmpty();
+
+        // The control: the rep's own store answers, so the null above is the guard and not an empty fixture.
+        var own = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(storeId: \"B2B-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        Connection(own).GetProperty("totalCount").GetInt32().Should().BeGreaterThan(0);
+    }
+
     [Fact]
     public async Task Activities_PagingWindow_BoundsWhatEverySourceIsAskedFor()
     {

@@ -35,7 +35,7 @@ public class CustomersSalesRepActivitySource : ISalesRepActivitySource
 
         var assignments = memberships
             .Where(x => !string.IsNullOrEmpty(x.OrganizationId))
-            .GroupBy(x => x.OrganizationId)
+            .GroupBy(x => x.OrganizationId, StringComparer.OrdinalIgnoreCase)
             .Select(g => (OrganizationId: g.Key, AssignedDate: g.Min(x => x.CreatedDate)))
             .Where(x => (criteria.From == null || x.AssignedDate >= criteria.From) &&
                         (criteria.To == null || x.AssignedDate <= criteria.To))
