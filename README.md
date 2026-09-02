@@ -448,10 +448,11 @@ not to a customer — and no dedicated permission beyond being a sales rep.
 
 ⚠️ **There is no status field, and no counts query — by design.**
 
-*Status* is derived, never stored. `WorkTask.Status` exists as a column but nothing in task-management reads or
-writes it, so this API does not expose it. Read `isActive`, `completed` and `dueDate` instead: still open and due
-before the start of the viewer's today = **overdue**; still open otherwise = **upcoming**; `completed: true` =
-**done**; closed without completing = **canceled**. A task due at exactly 00:00 today is upcoming, not overdue.
+*Status* is derived, never stored. `WorkTask.Status` exists as a column — task-management persists and indexes it
+— but no service or search criteria there reads it, so this API neither sets nor exposes it. Read `isActive`,
+`completed` and `dueDate` instead: still open and due before the start of the viewer's today = **overdue**; still
+open otherwise = **upcoming**; `completed: true` = **done**; closed without completing = **canceled**. A task due
+at exactly 00:00 today is upcoming, not overdue.
 
 *Counts* for tab badges need no dedicated field — alias the same query, which costs one round trip:
 

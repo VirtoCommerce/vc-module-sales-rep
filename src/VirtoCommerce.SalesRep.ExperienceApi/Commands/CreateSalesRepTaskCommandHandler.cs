@@ -49,8 +49,7 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         return SalesRepTask.FromWorkTask(task);
     }
 
-    // The rep's own account store, never client input: the store a task belongs to is part of who owns it, and the
-    // same value the customer and rep lists scope on.
+    // The rep's own account store, never client input: the store a task belongs to is part of who owns it.
     protected virtual async Task<string> ResolveStoreIdAsync(string userId)
     {
         var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
