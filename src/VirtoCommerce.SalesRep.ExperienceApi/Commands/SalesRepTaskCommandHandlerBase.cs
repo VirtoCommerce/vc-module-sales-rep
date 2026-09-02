@@ -55,13 +55,15 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         var task = await RequireTaskService().GetByIdAsync(taskId);
         var responsibleIds = await GetVisibleResponsibleIdsAsync(userId, memberId);
 
-        // ORDINAL, matching the SQL the read path generates: `criteria.ResponsibleIds` becomes a case-sensitive
-        // IN, so an ignore-case match here would let a write reach a task no list can show.
+        // Case-insensitive, per the convention for in-memory id comparisons. The read path compares in SQL and so
+        // follows the column's collation, which is still case-sensitive until the CI-collation rollout reaches this
+        // table - out of scope here. Until then a case-variant row is writable but not listable, and the forgiving
+        // side is the right one to be on: it keeps the rep's own task reachable.
         //
         // ONE answer for "no such task" and "not yours", so a write cannot be used to probe whether an id exists -
         // the same rule salesRepTask follows by returning null for both. Both branches also do the same work, so
         // the timing does not tell them apart either.
-        if (task == null || !responsibleIds.Contains(task.ResponsibleId, StringComparer.Ordinal))
+        if (task == null || !responsibleIds.Contains(task.ResponsibleId, StringComparer.OrdinalIgnoreCase))
         {
             throw new ExecutionError("Task not found.");
         }

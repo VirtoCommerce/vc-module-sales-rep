@@ -631,27 +631,27 @@ public class SalesRepTasksGraphQlTests
     }
 
     [Fact]
-    public async Task Writes_MatchOwnershipTheSameWayTheListDoes()
+    public async Task Writes_TolerateACaseVariantOfTheCallersOwnMemberId()
     {
         using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
 
-        // A task owned by the same member id in a different CASE. The read path becomes a case-sensitive SQL IN, so
-        // the list cannot show this row - and a write must not be able to reach further than the list can see.
+        // A case variant of the caller's OWN member id is still their id, so a write must not refuse it - that
+        // would lock a rep out of their own task. It reaches nobody else: another rep's id is a different GUID.
         var taskId = await SaveTaskDirectlyAsync(ctx, rep, "Case-shifted owner", Today, isActive: true,
             completed: null, responsibleId: rep.MemberId.ToUpperInvariant());
 
-        Names(await ListTasksAsync(ctx, rep)).Should().BeEmpty("the read path matches ordinally");
+        var updated = SalesRepTestContext.Node(
+            await MutateAsync(
+                ctx,
+                rep,
+                $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Renamed\", dueDate: \"{TodayIso}\", description: \"\", type: \"\", priority: \"\" }}) {{ name }}"),
+            "updateSalesRepTask");
 
-        foreach (var mutation in new[]
-        {
-            $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"X\", dueDate: \"{TodayIso}\", description: \"\", type: \"\", priority: \"\" }}) {{ id }}",
-            $"changeSalesRepTaskStatus(command: {{ id: \"{taskId}\", completed: true }}) {{ id }}",
-            $"deleteSalesRepTask(command: {{ id: \"{taskId}\" }})",
-        })
-        {
-            (await MutateAsync(ctx, rep, mutation)).Should().Contain("Task not found.");
-        }
+        updated.GetProperty("name").GetString().Should().Be("Renamed");
+
+        // Deliberately no assertion on whether the LIST shows it: that follows the column's collation, which is
+        // the harness's (SQLite) here and changes under us when CI collations land. Only the convention is pinned.
     }
 
     [Fact]
