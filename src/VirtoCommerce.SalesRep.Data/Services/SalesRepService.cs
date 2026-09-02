@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.CustomerModule.Core.Model;
@@ -26,6 +27,7 @@ public class SalesRepService : ISalesRepService
     private readonly ISalesRepRoleResolver _roleResolver;
     private readonly IStoreService _storeService;
     private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
+    private readonly AbstractValidator<SalesRepDetails> _validator;
     private readonly ILogger<SalesRepService> _logger;
 
     public SalesRepService(
@@ -36,6 +38,7 @@ public class SalesRepService : ISalesRepService
         ISalesRepRoleResolver roleResolver,
         IStoreService storeService,
         Func<UserManager<ApplicationUser>> userManagerFactory,
+        AbstractValidator<SalesRepDetails> validator,
         ILogger<SalesRepService> logger)
     {
         _memberService = memberService;
@@ -45,6 +48,7 @@ public class SalesRepService : ISalesRepService
         _roleResolver = roleResolver;
         _storeService = storeService;
         _userManagerFactory = userManagerFactory;
+        _validator = validator;
         _logger = logger;
     }
 
@@ -138,6 +142,9 @@ public class SalesRepService : ISalesRepService
     {
         ArgumentNullException.ThrowIfNull(salesRep);
 
+        Normalize(salesRep);
+        await ValidateAsync(salesRep);
+
         var isNew = string.IsNullOrEmpty(salesRep.Id);
 
         var contact = await SaveContactAsync(salesRep, isNew);
@@ -161,13 +168,6 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<Contact> SaveContactAsync(SalesRepDetails salesRep, bool isNew)
     {
-        ValidateAddresses(salesRep);
-
-        if (isNew)
-        {
-            EnsureHasLoginIdentifier(salesRep);
-        }
-
         var contact = isNew
             ? AbstractTypeFactory<Contact>.TryCreateInstance()
             : await _memberService.GetByIdAsync(salesRep.Id, nameof(MemberResponseGroup.Full)) as Contact
@@ -198,49 +198,19 @@ public class SalesRepService : ISalesRepService
         return (assignableRole, grantingRoleIds);
     }
 
-    protected static void EnsureHasLoginIdentifier(SalesRepDetails salesRep)
+    // VC-Shell's VcInput emits the raw value, so trim before validating: a whitespace-only name must fail
+    // NotEmpty instead of being persisted and flowing into FullName/Name.
+    protected virtual void Normalize(SalesRepDetails salesRep)
     {
-        var hasLogin = !string.IsNullOrWhiteSpace(salesRep.UserName)
-            || salesRep.Emails?.Any(e => !string.IsNullOrWhiteSpace(e)) == true;
-        if (!hasLogin)
-        {
-            throw new InvalidOperationException("A Sales Rep requires a login email (or user name).");
-        }
+        salesRep.Salutation = salesRep.Salutation?.Trim();
+        salesRep.FirstName = salesRep.FirstName?.Trim();
+        salesRep.MiddleName = salesRep.MiddleName?.Trim();
+        salesRep.LastName = salesRep.LastName?.Trim();
     }
 
-    protected virtual void ValidateAddresses(SalesRepDetails salesRep)
+    protected virtual Task ValidateAsync(SalesRepDetails salesRep)
     {
-        if (salesRep.Addresses.IsNullOrEmpty())
-        {
-            return;
-        }
-
-        for (var i = 0; i < salesRep.Addresses.Count; i++)
-        {
-            var address = salesRep.Addresses[i];
-            List<string> missing = [];
-            if (string.IsNullOrWhiteSpace(address.CountryCode))
-            {
-                missing.Add("country");
-            }
-            if (string.IsNullOrWhiteSpace(address.City))
-            {
-                missing.Add("city");
-            }
-            if (string.IsNullOrWhiteSpace(address.Line1))
-            {
-                missing.Add("address line 1");
-            }
-            if (string.IsNullOrWhiteSpace(address.PostalCode))
-            {
-                missing.Add("postal code");
-            }
-
-            if (missing.Count > 0)
-            {
-                throw new InvalidOperationException($"Address {i + 1} is missing required field(s): {string.Join(", ", missing)}.");
-            }
-        }
+        return _validator.ValidateAndThrowAsync(salesRep);
     }
 
     protected virtual async Task TryRollbackContactAsync(string memberId)

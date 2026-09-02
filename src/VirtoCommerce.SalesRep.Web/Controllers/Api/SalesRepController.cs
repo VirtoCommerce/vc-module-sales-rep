@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VirtoCommerce.Platform.Core.Common;
@@ -66,9 +68,7 @@ public class SalesRepController : Controller
     public async Task<ActionResult<SalesRepDetails>> Create([FromBody] SalesRepDetails salesRep)
     {
         salesRep.Id = null;
-        await _salesRepService.SaveChangesAsync([salesRep]);
-        var result = await _salesRepService.GetByIdAsync(salesRep.Id);
-        return Ok(result);
+        return await SaveAsync(salesRep);
     }
 
     [HttpPut("")]
@@ -76,7 +76,22 @@ public class SalesRepController : Controller
     [Authorize(PlatformPermissions.SecurityUpdate)]
     public async Task<ActionResult<SalesRepDetails>> Update([FromBody] SalesRepDetails salesRep)
     {
-        await _salesRepService.SaveChangesAsync([salesRep]);
+        return await SaveAsync(salesRep);
+    }
+
+    // A rejected profile (missing name, unusable address, no login) is the caller's mistake, so it must read as
+    // 400 with the reason - the blade shows the message; an unmapped exception would surface as an opaque 500.
+    private async Task<ActionResult<SalesRepDetails>> SaveAsync(SalesRepDetails salesRep)
+    {
+        try
+        {
+            await _salesRepService.SaveChangesAsync([salesRep]);
+        }
+        catch (Exception exception) when (exception is ArgumentException or ValidationException)
+        {
+            return BadRequest(exception.Message);
+        }
+
         var result = await _salesRepService.GetByIdAsync(salesRep.Id);
         return Ok(result);
     }

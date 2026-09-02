@@ -64,6 +64,12 @@ public static class ModuleConstants
         }
     }
 
+    public static class Profile
+    {
+        // The ContactEntity column length the rep's name parts are persisted into.
+        public const int NameMaxLength = 128;
+    }
+
     public static class Settings
     {
         public static class General

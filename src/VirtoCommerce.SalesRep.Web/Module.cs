@@ -85,6 +85,7 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
+        serviceCollection.AddSingleton<AbstractValidator<SalesRepDetails>, SalesRepDetailsValidator>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         serviceCollection.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();

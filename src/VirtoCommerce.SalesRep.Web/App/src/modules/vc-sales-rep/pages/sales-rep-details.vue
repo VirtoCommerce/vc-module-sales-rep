@@ -93,19 +93,43 @@
         <!-- Profile -->
         <VcCard :header="$t('VC_SALES_REP.PAGES.DETAILS.BLOCKS.PROFILE')">
           <div class="tw-flex tw-flex-col tw-gap-4 tw-p-4">
+            <!-- First/last name are required: the storefront X-API exposes contact.firstName/lastName/fullName as
+                 non-null GraphQL fields, so a nameless rep can't even sign in to the storefront (VCST-5759). -->
             <div class="tw-flex tw-flex-row tw-gap-4">
-              <VcInput
-                v-model="salesRep.firstName"
-                class="tw-flex-1"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.FIRST_NAME')"
-                :max-length="128"
-              />
-              <VcInput
-                v-model="salesRep.lastName"
-                class="tw-flex-1"
-                :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LAST_NAME')"
-                :max-length="128"
-              />
+              <Field
+                v-slot="{ errors, errorMessage, handleChange }"
+                :model-value="salesRep.firstName"
+                name="firstName"
+                rules="required"
+              >
+                <VcInput
+                  v-model="salesRep.firstName"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.FIRST_NAME')"
+                  :max-length="128"
+                  required
+                  :error="errors.length > 0"
+                  :error-message="errorMessage"
+                  @update:model-value="handleChange"
+                />
+              </Field>
+              <Field
+                v-slot="{ errors, errorMessage, handleChange }"
+                :model-value="salesRep.lastName"
+                name="lastName"
+                rules="required"
+              >
+                <VcInput
+                  v-model="salesRep.lastName"
+                  class="tw-flex-1"
+                  :label="$t('VC_SALES_REP.PAGES.DETAILS.FORM.LAST_NAME')"
+                  :max-length="128"
+                  required
+                  :error="errors.length > 0"
+                  :error-message="errorMessage"
+                  @update:model-value="handleChange"
+                />
+              </Field>
               <VcInput
                 v-model="salesRep.middleName"
                 class="tw-flex-1"
