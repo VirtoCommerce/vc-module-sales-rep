@@ -198,14 +198,37 @@ public class SalesRepService : ISalesRepService
         return (assignableRole, grantingRoleIds);
     }
 
-    // VC-Shell's VcInput emits the raw value, so trim before validating: a whitespace-only name must fail
-    // NotEmpty instead of being persisted and flowing into FullName/Name.
+    // VC-Shell's VcInput emits the raw value, so trim every field the blade lets an admin type before
+    // validating: a whitespace-only name must fail NotEmpty instead of being persisted and flowing into
+    // FullName/Name, and padded emails must not become the account's user name.
     protected virtual void Normalize(SalesRepDetails salesRep)
     {
         salesRep.Salutation = salesRep.Salutation?.Trim();
         salesRep.FirstName = salesRep.FirstName?.Trim();
         salesRep.MiddleName = salesRep.MiddleName?.Trim();
         salesRep.LastName = salesRep.LastName?.Trim();
+        salesRep.About = salesRep.About?.Trim();
+        salesRep.UserName = salesRep.UserName?.Trim();
+
+        foreach (var address in salesRep.Addresses ?? [])
+        {
+            NormalizeAddress(address);
+        }
+    }
+
+    protected virtual void NormalizeAddress(Address address)
+    {
+        address.FirstName = address.FirstName?.Trim();
+        address.LastName = address.LastName?.Trim();
+        address.Line1 = address.Line1?.Trim();
+        address.Line2 = address.Line2?.Trim();
+        address.City = address.City?.Trim();
+        address.RegionName = address.RegionName?.Trim();
+        address.PostalCode = address.PostalCode?.Trim();
+        address.CountryCode = address.CountryCode?.Trim();
+        address.CountryName = address.CountryName?.Trim();
+        address.Phone = address.Phone?.Trim();
+        address.Email = address.Email?.Trim();
     }
 
     protected virtual Task ValidateAsync(SalesRepDetails salesRep)
@@ -524,22 +547,19 @@ public class SalesRepService : ISalesRepService
         contact.Organizations = DistinctNonEmpty(salesRep.Organizations?.Select(o => o.OrganizationId));
     }
 
+    // First and last name are required (SalesRepDetailsValidator), so the parts always yield a name; only the
+    // optional middle name has to be filtered out.
     protected static string DeriveFullName(SalesRepDetails salesRep)
     {
         string[] nameParts = [salesRep.FirstName, salesRep.MiddleName, salesRep.LastName];
-        var fullName = string.Join(' ', nameParts.Where(x => !string.IsNullOrWhiteSpace(x)));
-        if (!string.IsNullOrWhiteSpace(fullName))
-        {
-            return fullName;
-        }
-
-        return !string.IsNullOrWhiteSpace(salesRep.FullName) ? salesRep.FullName : salesRep.Emails?.FirstOrDefault();
+        return string.Join(' ', nameParts.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     protected static List<string> DistinctNonEmpty(IEnumerable<string> values)
     {
         return values?
             .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList() ?? [];
     }

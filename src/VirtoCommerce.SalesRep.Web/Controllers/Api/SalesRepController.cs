@@ -20,6 +20,8 @@ public class SalesRepController : Controller
     private readonly ISalesRepSearchService _salesRepSearchService;
     private readonly ISalesRepDictionaryService _salesRepDictionaryService;
 
+    private const string MissingBodyMessage = "A Sales Rep is required.";
+
     public SalesRepController(
         ISalesRepService salesRepService,
         ISalesRepSearchService salesRepSearchService,
@@ -67,6 +69,11 @@ public class SalesRepController : Controller
     [Authorize(PlatformPermissions.SecurityCreate)]
     public async Task<ActionResult<SalesRepDetails>> Create([FromBody] SalesRepDetails salesRep)
     {
+        if (salesRep == null)
+        {
+            return BadRequest(MissingBodyMessage);
+        }
+
         salesRep.Id = null;
         return await SaveAsync(salesRep);
     }
@@ -76,18 +83,25 @@ public class SalesRepController : Controller
     [Authorize(PlatformPermissions.SecurityUpdate)]
     public async Task<ActionResult<SalesRepDetails>> Update([FromBody] SalesRepDetails salesRep)
     {
+        if (salesRep == null)
+        {
+            return BadRequest(MissingBodyMessage);
+        }
+
         return await SaveAsync(salesRep);
     }
 
-    // A rejected profile (missing name, unusable address, no login) is the caller's mistake, so it must read as
-    // 400 with the reason - the blade shows the message; an unmapped exception would surface as an opaque 500.
+    // Every way a save can be refused is the caller's mistake - a rejected profile (missing name, unusable
+    // address, no login), a duplicate login email or another Identity refusal, an unknown id on edit - so all of
+    // them read as 400 with the reason the blade can show. Mirrors SalesRepDocumentsController; without the
+    // mapping the Identity and not-found paths surface as opaque 500s.
     private async Task<ActionResult<SalesRepDetails>> SaveAsync(SalesRepDetails salesRep)
     {
         try
         {
             await _salesRepService.SaveChangesAsync([salesRep]);
         }
-        catch (Exception exception) when (exception is ArgumentException or ValidationException)
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or ValidationException)
         {
             return BadRequest(exception.Message);
         }

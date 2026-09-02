@@ -547,21 +547,38 @@ A shared library of sales materials: a back-office manager uploads categorized f
 
 ## Administration
 
-The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name, salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
+The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name — **first and last name are required** — salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
 
 It is backed by a REST API under `/api/sales-rep`. Managing a rep is a customer-management action, so endpoints reuse existing permissions — the Customer module's member permissions for the profile and platform security permissions for the account (exactly as the customer member-detail *Accounts* widget does):
 
 | Method & route | Purpose | Permissions |
 |----------------|---------|-------------|
 | `POST /api/sales-rep/search` | Search sales reps (global ∪ per-org). | `customer:read` |
-| `GET /api/sales-rep/roles` | Roles granting `sales-rep:access` (seeds a default if none). | `customer:read` |
+| `GET /api/sales-rep/roles` | Roles granting `sales-rep:access`. Read-only — the default role is seeded at module startup, never by this call. | `customer:read` |
 | `GET /api/sales-rep/{id}` | Get a rep aggregate by contact id. | `customer:read` |
-| `POST /api/sales-rep` | Create a rep (contact + account + memberships). | `customer:create` + `platform:security:create` |
-| `PUT /api/sales-rep` | Update a rep (profile + account + inline password). | `customer:update` + `platform:security:update` |
+| `POST /api/sales-rep` | Create a rep (contact + account + memberships). Refused saves return **400** (see Profile validation). | `customer:create` + `platform:security:create` |
+| `PUT /api/sales-rep` | Update a rep (profile + account + inline password). Refused saves return **400** (see Profile validation). | `customer:update` + `platform:security:update` |
 | `DELETE /api/sales-rep?ids=` | Delete reps; cascades to the account. | `customer:delete` + `platform:security:delete` |
 | `POST /api/sales-rep/{id}/block` | Lock the rep's account. | `platform:security:update` |
 | `POST /api/sales-rep/{id}/unblock` | Unlock the rep's account. | `platform:security:update` |
 | `POST /api/sales-rep/{id}/password` | Set a new account password. | `platform:security:update` |
+
+### Profile validation
+
+`POST` / `PUT /api/sales-rep` validate the submitted aggregate before anything is persisted, and refuse it with **400** and the failing rule's message (a rejected save writes nothing — no half-built contact, no account):
+
+| Rule | Applies to |
+|------|------------|
+| First name and last name are **required**, max 128 characters each | always |
+| Middle name max 128 characters, salutation max 256 | always |
+| A login email (or user name) is **required** | create only — on edit the account already has one |
+| Every supplied address needs country, city, address line 1 and postal code | always |
+
+Free-text fields are trimmed before validation, so a whitespace-only value is rejected rather than stored, and a padded login email cannot become the account's user name.
+
+**Why first and last name are required.** The storefront X-API publishes `contact.firstName`, `.lastName` and `.fullName` as **non-null** GraphQL fields. A contact with no name therefore fails to resolve in every query that reads the current user — including the sign-in page context — which locks that user out of the storefront entirely (VCST-5759). `fullName` is derived from the name parts, so requiring them covers all three.
+
+**Scope of the enforcement.** These rules are enforced on the Sales Rep aggregate save path — the one place where the contact, the login account, the role and the organization memberships are written together. A sales rep is an ordinary `Contact`, so the other contact writers in the platform (the Contacts blade, `POST /api/members`, customer import, and the storefront's own `updatePersonalData` mutation) can still clear a name; the underlying non-null-over-nullable mismatch lives in the Experience API schema and is deliberately **not** addressed here.
 
 The app also carries a **Documents library** section (list, upload, edit, pin, delete), backed by `/api/sales-rep/documents` with one permission per endpoint (read means read, write means write — see Permissions):
 

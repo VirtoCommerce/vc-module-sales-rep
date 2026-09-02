@@ -69,6 +69,16 @@ public class SalesRepDetailsValidatorTests
         result.Errors.Should().Contain(x => x.PropertyName == nameof(SalesRepDetails.LastName));
     }
 
+    // Salutation is optional but shares the column-length guard, so an over-long one is a 400, not a DB error.
+    [Fact]
+    public void Validate_OverlongSalutation_Fails()
+    {
+        var result = _validator.Validate(CreateRep(x => x.Salutation = new string('a', 257)));
+
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(x => x.PropertyName == nameof(SalesRepDetails.Salutation));
+    }
+
     // Middle name stays optional - only the two fields the non-null GraphQL contract depends on are required.
     [Fact]
     public void Validate_MissingMiddleName_Passes()

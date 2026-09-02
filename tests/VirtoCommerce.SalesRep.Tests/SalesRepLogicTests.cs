@@ -36,6 +36,7 @@ public class SalesRepLogicTests
         public static string CallBuildMemberSort(IList<SortInfo> sortInfos) => BuildMemberSort(sortInfos);
     }
 
+    // First and last name are required on every save, so the only part that can be missing is the middle name.
     [Fact]
     public void DeriveFullName_FromNameParts_JoinsNonEmpty()
     {
@@ -47,20 +48,6 @@ public class SalesRepLogicTests
         });
 
         name.Should().Be("Jane Rep");
-    }
-
-    [Fact]
-    public void DeriveFullName_NoParts_FallsBackToFullName()
-    {
-        var name = ServiceAccessor.CallDeriveFullName(new SalesRepDetails { FullName = "Passed Full Name" });
-        name.Should().Be("Passed Full Name");
-    }
-
-    [Fact]
-    public void DeriveFullName_NoPartsNoFullName_FallsBackToLoginEmail()
-    {
-        var name = ServiceAccessor.CallDeriveFullName(new SalesRepDetails { Emails = ["rep@test.com", "extra@test.com"] });
-        name.Should().Be("rep@test.com");
     }
 
     [Fact]

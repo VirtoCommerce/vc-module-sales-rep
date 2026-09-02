@@ -66,8 +66,9 @@ public static class ModuleConstants
 
     public static class Profile
     {
-        // The ContactEntity column length the rep's name parts are persisted into.
+        // The ContactEntity column lengths these values are persisted into.
         public const int NameMaxLength = 128;
+        public const int SalutationMaxLength = 256;
     }
 
     public static class Settings
