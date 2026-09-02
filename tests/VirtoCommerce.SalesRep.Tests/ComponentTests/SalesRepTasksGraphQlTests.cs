@@ -81,7 +81,7 @@ public class SalesRepTasksGraphQlTests
     }
 
     [Fact]
-    public async Task Mutations_OnAnotherRepsTask_AreForbidden_AndChangeNothing()
+    public async Task Mutations_OnAnotherRepsTask_AreRefused_AndChangeNothing()
     {
         using var ctx = SalesRepTestContext.Create();
         var ann = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
@@ -110,6 +110,36 @@ public class SalesRepTasksGraphQlTests
         var survivor = bobList.GetProperty("items")[0];
         survivor.GetProperty("name").GetString().Should().Be("Bob private task");
         survivor.GetProperty("isActive").GetBoolean().Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Mutations_AnswerTheSameForANotFoundIdAndSomeoneElsesTask()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var ann = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        var bob = await SeedRepAsync(ctx, "Bob", "Rep", "bob@test.com", OrgA);
+
+        var bobTaskId = (await CreateTaskAsync(ctx, bob, "Bob private task", Today)).GetProperty("id").GetString();
+
+        // A write must not become an existence oracle: probing a real id the caller does not own has to read
+        // exactly like probing one that was never issued, the way salesRepTask already answers null for both.
+        foreach (var mutation in new[]
+        {
+            "updateSalesRepTask(command: {{ id: \"{0}\", name: \"X\", dueDate: \"" + TodayIso + "\", description: \"\", type: \"\", priority: \"\" }}) {{ id }}",
+            "changeSalesRepTaskStatus(command: {{ id: \"{0}\", completed: true }}) {{ id }}",
+            "deleteSalesRepTask(command: {{ id: \"{0}\" }})",
+        })
+        {
+            var onOthers = await MutateAsync(ctx, ann, string.Format(mutation, bobTaskId));
+            var onMissing = await MutateAsync(ctx, ann, string.Format(mutation, "00000000-0000-0000-0000-0000000000ff"));
+
+            onOthers.Should().Contain("\"errors\"");
+            onOthers.Should().Contain("Task not found.");
+            onOthers.Should().NotContain("Bob private task");
+
+            // Same message, so the difference itself carries no information.
+            onMissing.Should().Contain("Task not found.");
+        }
     }
 
     [Fact]

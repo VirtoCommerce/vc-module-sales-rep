@@ -53,15 +53,14 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         }
 
         var task = await RequireTaskService().GetByIdAsync(taskId);
-        if (task == null)
+        var responsibleIds = await GetVisibleResponsibleIdsAsync(userId, memberId);
+
+        // ONE answer for "no such task" and "not yours", so a write cannot be used to probe whether an id exists -
+        // the same rule salesRepTask follows by returning null for both. Both branches also do the same work, so
+        // the timing does not tell them apart either.
+        if (task == null || !responsibleIds.Any(x => x.EqualsIgnoreCase(task.ResponsibleId)))
         {
             throw new ExecutionError("Task not found.");
-        }
-
-        var responsibleIds = await GetVisibleResponsibleIdsAsync(userId, memberId);
-        if (!responsibleIds.Any(x => x.EqualsIgnoreCase(task.ResponsibleId)))
-        {
-            throw AuthorizationError.Forbidden();
         }
 
         return task;
