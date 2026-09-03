@@ -19,6 +19,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.AssetsModule.Data.Repositories;
+using VirtoCommerce.CartModule.Core.Events;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.CatalogModule.Data.Repositories;
@@ -30,6 +31,7 @@ using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
+using VirtoCommerce.OrdersModule.Core.Events;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core;
@@ -37,6 +39,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Events;
+using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -168,6 +171,13 @@ internal sealed class SalesRepTestContext : IDisposable
         provider.GetRequiredService<IEventHandlerRegistrar>()
             .RegisterEventHandler<AssetEntryChangedEvent>(provider.GetRequiredService<DeleteDocumentMetadataAssetEntryChangedEventHandler>());
 
+        // Subscribe the statistics cache invalidation handlers — mirrors the module's
+        // appBuilder.RegisterEventHandler<CartChangedEvent, ...> / <OrderChangedEvent, ...> (VCST-5755).
+        provider.GetRequiredService<IEventHandlerRegistrar>()
+            .RegisterEventHandler<CartChangedEvent>(provider.GetRequiredService<SalesRepStatisticsCartChangedEventHandler>());
+        provider.GetRequiredService<IEventHandlerRegistrar>()
+            .RegisterEventHandler<OrderChangedEvent>(provider.GetRequiredService<SalesRepStatisticsOrderChangedEventHandler>());
+
         // Register the Member search-request builder (done in the customer module's PostInitialize) so keyword
         // member searches — which route to the index and resolve a builder by document type — work in tests.
         provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
@@ -191,6 +201,11 @@ internal sealed class SalesRepTestContext : IDisposable
     /// every test threading it through.
     /// </summary>
     public string LastCreatedRepUserId { get; private set; }
+
+    /// <summary>Overrides one module setting for this context; left unset, a setting reports its descriptor default.</summary>
+    public void SetSetting(SettingDescriptor descriptor, object value)
+        => _provider.GetRequiredService<TestServicesConfiguration.TestSettingsManager>()
+            .Values[descriptor.Name] = value;
 
     /// <summary>
     /// Configure the <c>Customer.ContactDefaultStatus</c> setting the harness's <see cref="IStoreService"/> double

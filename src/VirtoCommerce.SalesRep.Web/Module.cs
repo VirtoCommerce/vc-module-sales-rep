@@ -7,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.AssetsModule.Core.Events;
+using VirtoCommerce.CartModule.Core.Events;
 using VirtoCommerce.FileExperienceApi.Core.Authorization;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
+using VirtoCommerce.OrdersModule.Core.Events;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
@@ -81,6 +83,8 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
         serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
         serviceCollection.AddSingleton<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+        serviceCollection.AddSingleton<SalesRepStatisticsCartChangedEventHandler>();
+        serviceCollection.AddSingleton<SalesRepStatisticsOrderChangedEventHandler>();
 
         serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
@@ -142,6 +146,8 @@ public class Module : IModule, IHasConfiguration
         appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
 
         appBuilder.RegisterEventHandler<AssetEntryChangedEvent, DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+        appBuilder.RegisterEventHandler<CartChangedEvent, SalesRepStatisticsCartChangedEventHandler>();
+        appBuilder.RegisterEventHandler<OrderChangedEvent, SalesRepStatisticsOrderChangedEventHandler>();
 
         // Seed the default roles once (create-if-none, matched by permission set). No distributed lock is needed:
         // PostInitialize runs inside the platform's startup critical section (ExecuteSynchronized(nameof(Startup))),

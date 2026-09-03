@@ -594,8 +594,28 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | Setting | Scope | Type | Default | Purpose |
 |---------|-------|------|---------|---------|
 | `SalesRep.Enabled` | Per store (public) | Boolean | `true` | Toggles visibility of the Sales Rep UI on a store's storefront. |
+| `SalesRep.Statistics.CartCacheExpirationMinutes` | Module | Integer | `5` | Lifetime of the cached cart aggregates. `0` disables caching for the family — every read is fresh SQL. |
+| `SalesRep.Statistics.OrderCacheExpirationMinutes` | Module | Integer | `5` | Same, for the order figures and the used-status vocabulary. |
+| `SalesRep.Statistics.CustomerCountsCacheExpirationMinutes` | Module | Integer | `5` | Same, for the customer counts. |
+| `SalesRep.Statistics.TopSellerCacheExpirationMinutes` | Module | Integer | `5` | Same, for the top-seller ranking and the sold-category vocabulary. |
+| `SalesRep.Statistics.CartInvalidateOnChange` | Module | Boolean | `true` | Whether a cart change evicts that organization's cached cart aggregates. |
+| `SalesRep.Statistics.OrderInvalidateOnChange` | Module | Boolean | `true` | Whether an order change evicts that organization's cached order figures and status vocabulary. |
+| `SalesRep.Statistics.CustomerCountsInvalidateOnChange` | Module | Boolean | `true` | Whether an order change evicts that organization's cached customer counts. |
+| `SalesRep.Statistics.TopSellerInvalidateOnChange` | Module | Boolean | `false` | Whether an order change evicts that organization's cached top-seller ranking. Off by default: the heaviest query, and nothing on the hub needs it fresh to the second. |
 
 `SalesRep.Enabled` is a presentation switch only — it does *not* gate the backend X-API or the data it returns (those stay secured by rep-membership scoping). It is registered for the `Store` type and marked public, so the storefront reads it from `store.settings.modules`.
+
+**Statistics cache behavior** is the product of the two axes above, per family, and both are read at runtime (no redeploy to change one):
+
+| Expiration | `InvalidateOnChange` | Behavior |
+|---|---|---|
+| `0` | ignored | No cache. Every read runs the aggregation. |
+| `> 0` | `false` | Pure TTL cache: an entry can be up to its expiration old. |
+| `> 0` | `true` | Cart/order changes evict the affected organization's entries; the expiration is only a ceiling. |
+
+Invalidation is keyed by **(family, organization)**, so all of an organization's cached variants — periods, filters, currencies, reps — expire together. That is what makes the hub totals agree with the sum of their own customer cards, and what gives a rep their own edit back immediately: the domain events are published after the commit and the in-process bus awaits its handlers, so the entries are already gone before the mutation answers.
+
+> ⚠️ **Multi-instance deployments must configure `ConnectionStrings:RedisConnectionString`.** Cached values are never shared between instances; only *invalidations* are, over the platform's Redis backplane. Without it an eviction reaches only the instance that handled the mutation, and the others keep answering from their own entries until they expire — for every token-based platform cache, not just this one. Verify with `GET /health` (the "Redis health" check reports **Degraded** when unset) and the startup line `Successfully subscribed to Redis backplane channel VirtoCommerceChannel`.
 
 ## Dependencies
 

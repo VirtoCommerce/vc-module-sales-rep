@@ -1,0 +1,49 @@
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core.Caching;
+
+namespace VirtoCommerce.SalesRep.Data.Caching;
+
+/// <summary>
+/// The one place that decides whether a family invalidates on change. Both sides of the mechanism ask it — entry
+/// creation (attach the organization tokens?) and the event handlers (cancel them?) — so a flag flipped in the admin
+/// takes effect without a redeploy, and the four families stay data rather than four code paths.
+/// </summary>
+internal static class StatisticsCacheInvalidation
+{
+    public static Task<bool> IsEnabledAsync(ISettingsManager settingsManager, StatisticsCacheFamily family)
+    {
+        return settingsManager.GetValueAsync<bool>(family.InvalidateOnChange);
+    }
+
+    public static async Task ExpireAsync(
+        ISettingsManager settingsManager,
+        IEnumerable<StatisticsCacheFamily> families,
+        IList<string> organizationIds,
+        ILogger logger)
+    {
+        if (organizationIds.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var family in families)
+        {
+            if (!await IsEnabledAsync(settingsManager, family))
+            {
+                continue;
+            }
+
+            foreach (var organizationId in organizationIds)
+            {
+                SalesRepStatisticsCacheRegion.ExpireOrganization(family, organizationId);
+            }
+
+            // Invalidation rates are what the flags get tuned from, and there is no other way to observe them.
+            logger.LogDebug("Sales Rep statistics: expired {Family} for {OrganizationCount} organization(s)",
+                family.Name, organizationIds.Count);
+        }
+    }
+}
