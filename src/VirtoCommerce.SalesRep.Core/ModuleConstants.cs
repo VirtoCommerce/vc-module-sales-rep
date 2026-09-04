@@ -14,12 +14,14 @@ public static class ModuleConstants
         public static class Permissions
         {
             public const string Access = "sales-rep:access";
+            public const string Diagnostics = "sales-rep:diagnostics";
             public const string DocumentsRead = "sales-rep-documents:read";
             public const string DocumentsWrite = "sales-rep-documents:write";
 
             public static string[] AllPermissions { get; } =
             [
                 Access,
+                Diagnostics,
                 DocumentsRead,
                 DocumentsWrite,
             ];
@@ -27,8 +29,16 @@ public static class ModuleConstants
 
         public static class Roles
         {
+            // The two membership roles: assigned on an OrganizationMembership, and what makes someone a rep.
             public const string SalesRepRoleName = "Sales Representative";
             public const string AdvancedSalesRepRoleName = "Advanced Sales Representative";
+
+            // The back-office role: a platform role for whoever administers the feature, never a membership.
+            // IMPORTANT (keep): it now carries analytics diagnostics as well as the documents library, so
+            // "Sales Rep Administrator" would name it better. The string is kept because it shipped in 3.1006.0 —
+            // the seeder skips a role that already exists by name, so renaming it would strand the old role on
+            // every existing install and seed a second one beside it. Rename only together with an upgrade step
+            // that renames the existing role in place.
             public const string DocumentsManagerRoleName = "Sales Rep Documents Manager";
         }
     }
@@ -49,6 +59,78 @@ public static class ModuleConstants
         // string, and SalesRepCartSharingService teaches the platform this value's visibility rules. The scope also
         // defines the id space of CartSharingSetting.SharedWithId (here: a customer organization id).
         public const string CustomerScope = "Customer";
+    }
+
+    public static class Activities
+    {
+        // The depth of the feed's paging window, and the module's cap on the work one request can cost. A single
+        // category pages natively and costs the same at any depth; the MERGED view is what this bounds, because a
+        // merged page can only be sliced from the top (Skip + Take) rows of EVERY category it covers. At this
+        // value the worst case — the "All" view, five categories, a full page — is 3,000 rows to render 50, where
+        // an unbounded Skip has no worst case at all. 25 pages at the storefront's page size of 20; past that the
+        // feed reports no rows.
+        public const int MaxSkip = 500;
+
+        // Past its first page, the merged view rounds the window it asks every source for up to a multiple of
+        // this, so consecutive pages ask the same question and only the first page of each bucket reaches the
+        // sources — see SalesRepActivityService. It is also what turns the worst case above into 600 rows per
+        // category rather than 550.
+        public const int PagingWindowBucket = 100;
+
+        public static class Categories
+        {
+            public const string Orders = "orders";
+            public const string Customers = "customers";
+            public const string Searches = "searches";
+            public const string ProductViews = "productViews";
+            public const string Logins = "logins";
+        }
+
+        public static class Types
+        {
+            public const string OrderPlaced = "orderPlaced";
+            public const string CustomerAssigned = "customerAssigned";
+            public const string Search = "search";
+            public const string ProductView = "productView";
+            public const string Login = "login";
+        }
+
+        public static class Precision
+        {
+            public const string Exact = "exact";
+            public const string Hour = "hour";
+        }
+    }
+
+    public static class Analytics
+    {
+        // Values of the storefront's user-scoped 'session_kind' custom dimension. Every analytics read is pinned to
+        // Self: 'impersonated' is a rep working the account, and showing that back would report the rep's own
+        // browsing as the customer's behaviour.
+        public static class SessionKinds
+        {
+            public const string Self = "self";
+            public const string Impersonated = "impersonated";
+        }
+    }
+
+    public static class Insights
+    {
+        public const int DefaultTake = 5;
+        public const int MinTake = 1;
+        public const int MaxTake = 20;
+
+        public static class Sort
+        {
+            public const string Count = "count";
+            public const string Date = "date";
+        }
+    }
+
+    public static class DiagnosticsStages
+    {
+        // The sales-rep stage appended after the analytics module's own diagnostics stages.
+        public const string FeatureQuery = "featureQuery";
     }
 
     public static class Documents

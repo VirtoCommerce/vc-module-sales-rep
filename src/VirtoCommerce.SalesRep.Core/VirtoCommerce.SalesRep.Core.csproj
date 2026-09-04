@@ -6,6 +6,7 @@
   <ItemGroup>
     <PackageReference Include="VirtoCommerce.CustomerModule.Core" Version="3.1014.0" />
     <PackageReference Include="VirtoCommerce.FileExperienceApi.Core" Version="3.1004.0" />
+    <PackageReference Include="VirtoCommerce.GoogleEcommerceAnalyticsModule.Core" Version="4.1004.0-alpha.257-vcst-5337-ga-event-search" />
     <PackageReference Include="VirtoCommerce.NotificationsModule.Core" Version="3.1009.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Core" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.1048.0" />

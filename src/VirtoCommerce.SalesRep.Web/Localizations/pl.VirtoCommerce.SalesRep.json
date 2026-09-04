@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "sales-rep:access": "Otwórz menu Przedstawiciela handlowego",
+    "sales-rep:diagnostics": "Uruchom diagnostykę analityki Przedstawiciela handlowego",
+    "sales-rep-documents:read": "Podgląd biblioteki dokumentów Przedstawiciela handlowego",
+    "sales-rep-documents:write": "Zarządzanie biblioteką dokumentów Przedstawiciela handlowego"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "Przedstawiciel handlowy włączony",
+        "description": "Włącza interfejs Przedstawiciela handlowego w sklepie"
+      }
+    }
+  }
+}

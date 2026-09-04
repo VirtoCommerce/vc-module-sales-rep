@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "sales-rep:access": "営業担当者メニューを開く",
+    "sales-rep:diagnostics": "営業担当者のアナリティクス診断を実行する",
+    "sales-rep-documents:read": "営業担当者のドキュメントライブラリを表示する",
+    "sales-rep-documents:write": "営業担当者のドキュメントライブラリを管理する"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "営業担当者を有効にする",
+        "description": "ストアフロントの営業担当者向け画面を有効にします"
+      }
+    }
+  }
+}

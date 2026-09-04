@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "sales-rep:access": "Abrir el menú de Representante de ventas",
+    "sales-rep:diagnostics": "Ejecutar el diagnóstico de analítica de Representante de ventas",
+    "sales-rep-documents:read": "Ver la biblioteca de documentos de Representante de ventas",
+    "sales-rep-documents:write": "Gestionar la biblioteca de documentos de Representante de ventas"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "Representante de ventas habilitado",
+        "description": "Habilita la interfaz de Representante de ventas en la tienda"
+      }
+    }
+  }
+}

@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
-using Permissions = VirtoCommerce.CustomerModule.Core.ModuleConstants.Security.Permissions;
+using CustomerPermissions = VirtoCommerce.CustomerModule.Core.ModuleConstants.Security.Permissions;
 using PlatformPermissions = VirtoCommerce.Platform.Core.PlatformConstants.Security.Permissions;
 
 namespace VirtoCommerce.SalesRep.Web.Controllers.Api;
@@ -29,7 +29,7 @@ public class SalesRepController : Controller
     }
 
     [HttpPost("search")]
-    [Authorize(Permissions.Read)]
+    [Authorize(CustomerPermissions.Read)]
     public async Task<ActionResult<SalesRepSearchResult>> Search([FromBody] SalesRepSearchCriteria criteria)
     {
         var result = await _salesRepSearchService.SearchAsync(criteria);
@@ -37,7 +37,7 @@ public class SalesRepController : Controller
     }
 
     [HttpGet("roles")]
-    [Authorize(Permissions.Read)]
+    [Authorize(CustomerPermissions.Read)]
     public async Task<ActionResult<IList<SalesRepRole>>> GetRoles()
     {
         var result = await _salesRepService.GetRolesAsync();
@@ -45,7 +45,7 @@ public class SalesRepController : Controller
     }
 
     [HttpGet("dictionaries")]
-    [Authorize(Permissions.Read)]
+    [Authorize(CustomerPermissions.Read)]
     public async Task<ActionResult<SalesRepDictionaries>> GetDictionaries()
     {
         var result = await _salesRepDictionaryService.GetDictionariesAsync();
@@ -53,7 +53,7 @@ public class SalesRepController : Controller
     }
 
     [HttpGet("{id}")]
-    [Authorize(Permissions.Read)]
+    [Authorize(CustomerPermissions.Read)]
     public async Task<ActionResult<SalesRepDetails>> Get([FromRoute] string id)
     {
         var result = await _salesRepService.GetByIdAsync(id);
@@ -61,7 +61,7 @@ public class SalesRepController : Controller
     }
 
     [HttpPost("")]
-    [Authorize(Permissions.Create)]
+    [Authorize(CustomerPermissions.Create)]
     [Authorize(PlatformPermissions.SecurityCreate)]
     public async Task<ActionResult<SalesRepDetails>> Create([FromBody] SalesRepDetails salesRep)
     {
@@ -72,7 +72,7 @@ public class SalesRepController : Controller
     }
 
     [HttpPut("")]
-    [Authorize(Permissions.Update)]
+    [Authorize(CustomerPermissions.Update)]
     [Authorize(PlatformPermissions.SecurityUpdate)]
     public async Task<ActionResult<SalesRepDetails>> Update([FromBody] SalesRepDetails salesRep)
     {
@@ -82,7 +82,7 @@ public class SalesRepController : Controller
     }
 
     [HttpDelete("")]
-    [Authorize(Permissions.Delete)]
+    [Authorize(CustomerPermissions.Delete)]
     [Authorize(PlatformPermissions.SecurityDelete)]
     public async Task<ActionResult> Delete([FromQuery] string[] ids)
     {

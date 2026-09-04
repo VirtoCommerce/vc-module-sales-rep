@@ -27,6 +27,7 @@ using VirtoCommerce.SalesRep.Data.MySql;
 using VirtoCommerce.SalesRep.Data.PostgreSql;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.SqlServer;
 using VirtoCommerce.SalesRep.Data.Validation;
@@ -102,6 +103,19 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
 
         serviceCollection.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
+
+        serviceCollection.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepStoreAccessService, SalesRepStoreAccessService>();
+        serviceCollection.AddTransient<ISalesRepAnalyticsAvailability, SalesRepAnalyticsAvailability>();
+        serviceCollection.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
+
+        serviceCollection.AddTransient<ISalesRepAnalyticsDiagnosticsService, SalesRepAnalyticsDiagnosticsService>();
 
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 

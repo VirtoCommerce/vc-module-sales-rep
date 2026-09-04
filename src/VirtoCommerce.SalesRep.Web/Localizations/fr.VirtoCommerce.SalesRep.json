@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "sales-rep:access": "Ouvrir le menu Représentant commercial",
+    "sales-rep:diagnostics": "Exécuter le diagnostic analytique du Représentant commercial",
+    "sales-rep-documents:read": "Consulter la bibliothèque de documents du Représentant commercial",
+    "sales-rep-documents:write": "Gérer la bibliothèque de documents du Représentant commercial"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "Représentant commercial activé",
+        "description": "Active l'interface Représentant commercial dans la boutique"
+      }
+    }
+  }
+}
