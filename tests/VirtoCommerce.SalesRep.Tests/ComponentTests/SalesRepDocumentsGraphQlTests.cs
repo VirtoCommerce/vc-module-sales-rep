@@ -21,6 +21,7 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 public class SalesRepDocumentsGraphQlTests
 {
     private const string RepUserId = "rep-user";
+    private const string AdminUserId = "admin-user";
 
     private static readonly string[] ReadPermission = [Permissions.DocumentsRead];
     private static readonly string[] WritePermission = [Permissions.DocumentsWrite];
@@ -29,7 +30,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task SalesRepDocuments_WithReadPermission_PagesNewestFirstByDefault()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var (oldest, middle, newest) = await SeedLibraryAsync(ctx);
 
         var json = await ctx.ExecuteGraphQlAsync(
@@ -88,7 +89,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task SalesRepDocuments_SupportsKeywordAndCategoryFiltering()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var (oldest, middle, _) = await SeedLibraryAsync(ctx);
 
         var byKeyword = await ctx.ExecuteGraphQlAsync(
@@ -111,7 +112,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task SalesRepDocument_ById_ReturnsTheDocumentOrNull()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var document = await UploadAsync(ctx, "Guide.pdf", "Guides", new SalesRepDocumentMetadata { Summary = "How-to" });
 
         var json = await ctx.ExecuteGraphQlAsync(
@@ -138,7 +139,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task SalesRepDocuments_PinnedArgument_FiltersOnThePinFlag()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var (_, _, newest) = await SeedLibraryAsync(ctx);
 
         var metadataService = ctx.GetRequiredService<ISalesRepDocumentMetadataService>();
@@ -178,7 +179,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task SalesRepDocumentCategories_ReturnsNamesWithCounts()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         await SeedLibraryAsync(ctx);
         await UploadAsync(ctx, "Fall Catalog.pdf", "Catalogs");
 
@@ -211,7 +212,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task AllQueries_WithoutDocumentsPermission_AreDeniedAndLeakNothing()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var document = await UploadAsync(ctx, "Secret.pdf", "Catalogs");
 
         // An authenticated rep whose roles carry only sales-rep:access — not documents:read.
@@ -230,7 +231,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task AllQueries_Anonymous_AreDenied()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var document = await UploadAsync(ctx, "Secret.pdf", "Catalogs");
 
         foreach (var query in AllQueries(document.Id))
@@ -246,7 +247,7 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task AllQueries_WithWriteOnlyPermission_AreDenied()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var document = await UploadAsync(ctx, "Managed.pdf", "Catalogs");
 
         // Read means read: write does not imply it — roles compose the two (the seeded manager carries both).
@@ -261,16 +262,27 @@ public class SalesRepDocumentsGraphQlTests
     [Fact]
     public async Task AllQueries_AsAdministrator_AreAllowed()
     {
-        using var ctx = SalesRepTestContext.Create();
+        using var ctx = await CreateContextAsync();
         var document = await UploadAsync(ctx, "Managed.pdf", "Catalogs");
 
         // The platform Administrator role passes without any documents permission.
         foreach (var query in AllQueries(document.Id))
         {
-            var json = await ctx.ExecuteGraphQlAsync(query, userId: "admin-user", isAdministrator: true);
+            var json = await ctx.ExecuteGraphQlAsync(query, userId: AdminUserId, isAdministrator: true);
 
             json.Should().NotContain("\"errors\"");
         }
+    }
+
+    // The builder bases re-check the account behind the token, so the pinned ids need real accounts.
+    private static async Task<SalesRepTestContext> CreateContextAsync()
+    {
+        var ctx = SalesRepTestContext.Create();
+
+        await ctx.EnsureAccountAsync(RepUserId);
+        await ctx.EnsureAccountAsync(AdminUserId);
+
+        return ctx;
     }
 
     private static string[] AllQueries(string documentId) =>
