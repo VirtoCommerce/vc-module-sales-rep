@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Core.Caching;
 
 namespace VirtoCommerce.SalesRep.Core;
 
@@ -131,6 +132,64 @@ public static class ModuleConstants
                 DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
+            // The second axis of every family's cache behavior (the first is its expiration above):
+            //   expiration 0            -> no cache at all, the flag is not consulted
+            //   expiration > 0, false   -> pure short-TTL cache
+            //   expiration > 0, true    -> cart/order changes evict the organization's entries, TTL is the ceiling
+            // Consulted on both sides — entry creation and the event handlers — so it is flippable at runtime.
+            public static SettingDescriptor OrderStatisticsInvalidateOnChange { get; } = new()
+            {
+                Name = "SalesRep.Statistics.OrderInvalidateOnChange",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Boolean,
+                DefaultValue = true,
+            };
+
+            public static SettingDescriptor CartStatisticsInvalidateOnChange { get; } = new()
+            {
+                Name = "SalesRep.Statistics.CartInvalidateOnChange",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Boolean,
+                DefaultValue = true,
+            };
+
+            public static SettingDescriptor CustomerCountsInvalidateOnChange { get; } = new()
+            {
+                Name = "SalesRep.Statistics.CustomerCountsInvalidateOnChange",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Boolean,
+                DefaultValue = true,
+            };
+
+            // The heaviest query, and no acceptance criterion touches its freshness: deliberately TTL-only.
+            public static SettingDescriptor TopSellerInvalidateOnChange { get; } = new()
+            {
+                Name = "SalesRep.Statistics.TopSellerInvalidateOnChange",
+                GroupName = "Sales Rep|Statistics",
+                ValueType = SettingValueType.Boolean,
+                DefaultValue = false,
+            };
+
+            public static class Families
+            {
+                // Order statistics and the used-status vocabulary share one family: same records, same lifetime.
+                public static StatisticsCacheFamily Order { get; } =
+                    new(nameof(Order), OrderStatisticsCacheExpiration, OrderStatisticsInvalidateOnChange);
+
+                public static StatisticsCacheFamily Cart { get; } =
+                    new(nameof(Cart), CartStatisticsCacheExpiration, CartStatisticsInvalidateOnChange);
+
+                public static StatisticsCacheFamily CustomerCounts { get; } =
+                    new(nameof(CustomerCounts), CustomerCountsCacheExpiration, CustomerCountsInvalidateOnChange);
+
+                public static StatisticsCacheFamily TopSeller { get; } =
+                    new(nameof(TopSeller), TopSellerCacheExpiration, TopSellerInvalidateOnChange);
+
+                // The families an order change concerns: order figures and the status vocabulary, the ordering-customer
+                // count, and the top-seller ranking (which aggregates the orders' line items).
+                public static StatisticsCacheFamily[] OrderDriven { get; } = [Order, CustomerCounts, TopSeller];
+            }
+
             public static IEnumerable<SettingDescriptor> AllCachingSettings
             {
                 get
@@ -139,6 +198,10 @@ public static class ModuleConstants
                     yield return CartStatisticsCacheExpiration;
                     yield return CustomerCountsCacheExpiration;
                     yield return TopSellerCacheExpiration;
+                    yield return OrderStatisticsInvalidateOnChange;
+                    yield return CartStatisticsInvalidateOnChange;
+                    yield return CustomerCountsInvalidateOnChange;
+                    yield return TopSellerInvalidateOnChange;
                 }
             }
         }
