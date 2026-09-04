@@ -31,6 +31,7 @@ using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
+using VirtoCommerce.OrdersModule.Data.Search.Indexed;
 using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
@@ -50,6 +51,7 @@ using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using OrdersModuleConstants = VirtoCommerce.OrdersModule.Core.ModuleConstants;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -172,6 +174,11 @@ internal sealed class SalesRepTestContext : IDisposable
         // member searches — which route to the index and resolve a builder by document type — work in tests.
         provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
             .Register(KnownDocumentTypes.Member, provider.GetRequiredService<MemberSearchRequestBuilder>);
+
+        // Same for orders (the orders module's PostInitialize): salesRepCustomerOrders resolves its request builder
+        // by document type.
+        provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
+            .Register(OrdersModuleConstants.OrderIndexDocumentType, provider.GetRequiredService<CustomerOrderSearchRequestBuilder>);
 
         return new SalesRepTestContext(
             securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
@@ -318,6 +325,43 @@ internal sealed class SalesRepTestContext : IDisposable
         return user.Id;
     }
 
+    /// <summary>A signed-in account with no contact, roles or memberships - an ordinary customer.</summary>
+    public Task<string> CreateCustomerAccountAsync(string email = "customer@test.com")
+    {
+        return CreateAccountWithoutRolesAsync(memberId: null, email);
+    }
+
+    /// <summary>An account with a caller-chosen id, for tests that pin the user id in a constant.</summary>
+    public async Task EnsureAccountAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+        if (await userManager.FindByIdAsync(userId) != null)
+        {
+            return;
+        }
+
+        var user = AbstractTypeFactory<ApplicationUser>.TryCreateInstance();
+        user.Id = userId;
+        user.UserName = $"{userId}@test.com";
+        user.Email = user.UserName;
+        user.UserType = "Customer";
+
+        var result = await userManager.CreateAsync(user, "P@ssw0rd123!");
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
+    /// <summary>Delete the login account, leaving any member and membership rows behind.</summary>
+    public async Task DeleteAccountAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+        var user = await userManager.FindByIdAsync(userId);
+
+        await userManager.DeleteAsync(user);
+    }
+
     /// <summary>
     /// Add an organization membership carrying the given role for a user directly through the customer module's
     /// membership service (as an org-membership admin action outside the Sales Rep module would).
@@ -443,6 +487,18 @@ internal sealed class SalesRepTestContext : IDisposable
         var documents = await documentBuilder.GetDocumentsAsync(memberIds, CancellationToken.None);
         var searchProvider = _provider.GetRequiredService<ISearchProvider>();
         await searchProvider.IndexAsync(KnownDocumentTypes.Member, documents);
+    }
+
+    /// <summary>
+    /// Populate the (in-memory Lucene) order search index for the given order ids using the real order document
+    /// builder, so the customer-orders queries — which read the index, not the DB — return results.
+    /// </summary>
+    public async Task IndexOrdersAsync(params string[] orderIds)
+    {
+        var documentBuilder = (IIndexDocumentBuilder)_provider.GetRequiredService<CustomerOrderDocumentBuilder>();
+        var documents = await documentBuilder.GetDocumentsAsync(orderIds, CancellationToken.None);
+        var searchProvider = _provider.GetRequiredService<ISearchProvider>();
+        await searchProvider.IndexAsync(OrdersModuleConstants.OrderIndexDocumentType, documents);
     }
 
     /// <summary>

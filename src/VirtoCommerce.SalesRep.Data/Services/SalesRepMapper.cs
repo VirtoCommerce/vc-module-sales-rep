@@ -2,16 +2,35 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using VirtoCommerce.FileExperienceApi.Core.Extensions;
+using VirtoCommerce.OrdersModule.Core.Model.Search;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.Xapi.Core.Models.Facets;
+using VirtoCommerce.XOrder.Data.Services;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
 public class SalesRepMapper : ISalesRepMapper
 {
+    private readonly IXOrderMapper _orderMapper;
+
+    public SalesRepMapper(IXOrderMapper orderMapper)
+    {
+        _orderMapper = orderMapper;
+    }
+
+    // Delegates so the facets match X-Order's own, including a project's own IXOrderMapper registration.
+    public virtual IList<FacetResult> ToFacets(IList<OrderAggregation> aggregations, string cultureName)
+    {
+        return (aggregations ?? [])
+            .Select(x => _orderMapper.ToFacetResult(x, cultureName))
+            .Where(x => x != null)
+            .ToList();
+    }
+
     public virtual SalesRepDocument ToDocument(File file, SalesRepDocumentMetadata metadata)
     {
         if (file == null || metadata == null)
