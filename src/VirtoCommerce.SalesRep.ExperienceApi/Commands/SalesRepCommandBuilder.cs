@@ -24,7 +24,7 @@ public abstract class SalesRepCommandBuilder<TCommand, TResult, TCommandGraphTyp
     {
         await base.BeforeMediatorSend(context, request);
 
-        context.EnsureAuthenticated();
+        await context.EnsureAuthenticatedAsync();
 
         // Stamped here, not per builder, so identity always comes from the token and never from input.
         if (request is ISalesRepUserCommand userCommand)
