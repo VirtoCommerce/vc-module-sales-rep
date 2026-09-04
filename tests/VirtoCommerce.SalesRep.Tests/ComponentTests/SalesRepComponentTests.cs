@@ -363,9 +363,10 @@ public class SalesRepComponentTests
         var first = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("dup@test.com", "org-1")));
 
         // A second rep with the same login email: the contact is saved first, then account creation fails on the
-        // duplicate user name — the compensation path must remove the just-created contact so no orphan remains.
-        var act = () => ctx.Controller.Create(SimpleRep("dup@test.com", "org-1"));
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        // duplicate user name — the compensation path must remove the just-created contact so no orphan remains,
+        // and the Identity refusal must reach the caller as a 400 rather than an opaque 500.
+        var result = await ctx.Controller.Create(SimpleRep("dup@test.com", "org-1"));
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
 
         await using (var cdb = ctx.NewCustomerDbContext())
         {
@@ -605,27 +606,127 @@ public class SalesRepComponentTests
     }
 
     [Fact]
-    public async Task Update_NonExistentId_ThrowsNotFoundMessage()
+    public async Task Update_NonExistentId_ReturnsBadRequestWithNotFoundMessage()
     {
         using var ctx = SalesRepTestContext.Create();
 
-        var act = () => ctx.Controller.Update(new SalesRepDetails { Id = "no-such-rep", Emails = ["x@test.com"] });
+        var result = await ctx.Controller.Update(new SalesRepDetails
+        {
+            Id = "no-such-rep",
+            Emails = ["x@test.com"],
+            FirstName = "Jane",
+            LastName = "Rep",
+        });
 
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*not found*");
+        result.Result.Should().BeOfType<BadRequestObjectResult>()
+            .Which.Value.Should().BeOfType<string>().Which.Should().Contain("not found");
     }
 
     [Fact]
-    public async Task Create_WithoutLoginEmail_ThrowsClearMessage_AndPersistsNothing()
+    public async Task Save_WithoutBody_ReturnsBadRequest()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        // An empty request body binds to null; the controller is not [ApiController], so nothing rejects it for
+        // us — without the guard Create would NRE into a 500 while Update returned a 400.
+        (await ctx.Controller.Create(null)).Result.Should().BeOfType<BadRequestObjectResult>();
+        (await ctx.Controller.Update(null)).Result.Should().BeOfType<BadRequestObjectResult>();
+    }
+
+    [Fact]
+    public async Task Create_WithoutLoginEmail_ReturnsBadRequest_AndPersistsNothing()
     {
         using var ctx = SalesRepTestContext.Create();
 
         // No emails and no user name -> no login identifier. Must fail fast with the module's message (before
         // the contact is saved), not with an opaque Identity error after.
-        var act = () => ctx.Controller.Create(new SalesRepDetails { FirstName = "No", LastName = "Login", Emails = [] });
-        await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*login email*");
+        var result = await ctx.Controller.Create(new SalesRepDetails { FirstName = "No", LastName = "Login", Emails = [] });
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>()
+            .Which.Value.Should().BeOfType<string>().Which.Should().Contain("login email");
 
         await using var cdb = ctx.NewCustomerDbContext();
         (await cdb.Set<ContactEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0, "the guard must reject the create before anything is persisted");
+    }
+
+    // VCST-5759: contact.firstName/.lastName/.fullName are non-null GraphQL fields on the storefront X-API, so a
+    // nameless rep cannot resolve the sign-in page context and is locked out of the storefront. The blade marks
+    // both inputs required; the API must reject them too, and must not leave a half-built rep behind.
+    [Theory]
+    [InlineData(null, "Rep")]
+    [InlineData("", "Rep")]
+    [InlineData("   ", "Rep")]
+    [InlineData("Jane", null)]
+    [InlineData("Jane", "")]
+    [InlineData("Jane", "   ")]
+    public async Task Create_WithoutName_ReturnsBadRequest_AndPersistsNothing(string firstName, string lastName)
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        var rep = SimpleRep("nameless@test.com");
+        rep.FirstName = firstName;
+        rep.LastName = lastName;
+
+        var result = await ctx.Controller.Create(rep);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+
+        await using var cdb = ctx.NewCustomerDbContext();
+        (await cdb.Set<ContactEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0, "validation must reject the create before anything is persisted");
+    }
+
+    // Editing must not be a back door around the create-time rule: clearing the name on an existing rep is the
+    // same storefront lockout, so the update is rejected and the stored name is left intact.
+    [Fact]
+    public async Task Update_ClearingName_ReturnsBadRequest_AndKeepsStoredName()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var created = SalesRepTestContext.Unwrap(await ctx.Controller.Create(SimpleRep("keeps-name@test.com")));
+
+        var edit = SalesRepTestContext.Unwrap(await ctx.Controller.Get(created.Id));
+        edit.LastName = "";
+
+        var result = await ctx.Controller.Update(edit);
+
+        result.Result.Should().BeOfType<BadRequestObjectResult>();
+
+        var reloaded = SalesRepTestContext.Unwrap(await ctx.Controller.Get(created.Id));
+        reloaded.LastName.Should().Be("Rep");
+        reloaded.FullName.Should().Be("Jane Rep");
+    }
+
+    // VcInput emits the raw value, so padded input reaches the API; every field the blade lets an admin type
+    // must be trimmed before it is stored — the name parts because they compose FullName/Name (shown in the
+    // admin list and the storefront), the login email because it also becomes the account's user name.
+    [Fact]
+    public async Task Create_WithPaddedInput_TrimsBeforeStoring()
+    {
+        using var ctx = SalesRepTestContext.Create();
+
+        var rep = SimpleRep("  padded@test.com  ");
+        rep.FirstName = "  Jane  ";
+        rep.LastName = "  Rep  ";
+        rep.About = "  Covers the west coast.  ";
+        rep.Phones = ["  +1-555-0100  "];
+        rep.Addresses = [Addr("  1 Main St  ", "  Los Angeles  ")];
+
+        var created = SalesRepTestContext.Unwrap(await ctx.Controller.Create(rep));
+
+        created.FirstName.Should().Be("Jane");
+        created.LastName.Should().Be("Rep");
+        created.FullName.Should().Be("Jane Rep");
+        created.About.Should().Be("Covers the west coast.");
+        created.Emails[0].Should().Be("padded@test.com");
+        created.Phones.Should().ContainSingle().Which.Should().Be("+1-555-0100");
+        created.Addresses.Should().ContainSingle();
+        created.Addresses[0].Line1.Should().Be("1 Main St");
+        created.Addresses[0].City.Should().Be("Los Angeles");
+
+        // The login email is what the account is created from, so the padding must be gone there too.
+        await using var sdb = ctx.NewSecurityDbContext();
+        var account = await sdb.Set<ApplicationUser>().SingleAsync(TestContext.Current.CancellationToken);
+        account.UserName.Should().Be("padded@test.com");
+        account.Email.Should().Be("padded@test.com");
     }
 
     // ---- read endpoints ----
