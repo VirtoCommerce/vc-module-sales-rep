@@ -23,6 +23,6 @@ public abstract class SalesRepCommandBuilder<TCommand, TResult, TCommandGraphTyp
     {
         await base.BeforeMediatorSend(context, request);
 
-        context.EnsureAuthenticated();
+        await context.EnsureAuthenticatedAsync();
     }
 }
