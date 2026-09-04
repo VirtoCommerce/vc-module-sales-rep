@@ -1,6 +1,5 @@
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using VirtoCommerce.CartModule.Core.Events;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
@@ -17,14 +16,10 @@ namespace VirtoCommerce.SalesRep.Data.Handlers;
 public class SalesRepStatisticsCartChangedEventHandler : IEventHandler<CartChangedEvent>
 {
     private readonly ISettingsManager _settingsManager;
-    private readonly ILogger<SalesRepStatisticsCartChangedEventHandler> _logger;
 
-    public SalesRepStatisticsCartChangedEventHandler(
-        ISettingsManager settingsManager,
-        ILogger<SalesRepStatisticsCartChangedEventHandler> logger)
+    public SalesRepStatisticsCartChangedEventHandler(ISettingsManager settingsManager)
     {
         _settingsManager = settingsManager;
-        _logger = logger;
     }
 
     public virtual Task Handle(CartChangedEvent message)
@@ -37,6 +32,6 @@ public class SalesRepStatisticsCartChangedEventHandler : IEventHandler<CartChang
             .ToList();
 
         return StatisticsCacheInvalidation.ExpireAsync(
-            _settingsManager, [ModuleConstants.Settings.Caching.Families.Cart], organizationIds, _logger);
+            _settingsManager, [ModuleConstants.Settings.Caching.Families.Cart], organizationIds);
     }
 }

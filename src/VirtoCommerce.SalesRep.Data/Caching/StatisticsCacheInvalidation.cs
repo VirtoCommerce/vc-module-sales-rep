@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core.Caching;
 
@@ -25,8 +24,7 @@ internal static class StatisticsCacheInvalidation
     public static async Task ExpireAsync(
         ISettingsManager settingsManager,
         IEnumerable<StatisticsCacheFamily> families,
-        IList<string> organizationIds,
-        ILogger logger)
+        IList<string> organizationIds)
     {
         if (organizationIds.Count == 0)
         {
@@ -44,10 +42,6 @@ internal static class StatisticsCacheInvalidation
             {
                 SalesRepStatisticsCacheRegion.ExpireOrganization(family, organizationId);
             }
-
-            // Invalidation rates are what the flags get tuned from, and there is no other way to observe them.
-            logger.LogDebug("Sales Rep statistics: expired {Family} for {OrganizationCount} organization(s)",
-                family.Name, organizationIds.Count);
         }
     }
 }

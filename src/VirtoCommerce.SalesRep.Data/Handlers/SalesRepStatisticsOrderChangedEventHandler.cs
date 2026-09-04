@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using VirtoCommerce.OrdersModule.Core.Events;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
@@ -18,14 +17,10 @@ namespace VirtoCommerce.SalesRep.Data.Handlers;
 public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderChangedEvent>
 {
     private readonly ISettingsManager _settingsManager;
-    private readonly ILogger<SalesRepStatisticsOrderChangedEventHandler> _logger;
 
-    public SalesRepStatisticsOrderChangedEventHandler(
-        ISettingsManager settingsManager,
-        ILogger<SalesRepStatisticsOrderChangedEventHandler> logger)
+    public SalesRepStatisticsOrderChangedEventHandler(ISettingsManager settingsManager)
     {
         _settingsManager = settingsManager;
-        _logger = logger;
     }
 
     public virtual Task Handle(OrderChangedEvent message)
@@ -39,7 +34,7 @@ public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderCha
             .ToList();
 
         return StatisticsCacheInvalidation.ExpireAsync(
-            _settingsManager, ModuleConstants.Settings.Caching.Families.OrderDriven, organizationIds, _logger);
+            _settingsManager, ModuleConstants.Settings.Caching.Families.OrderDriven, organizationIds);
     }
 
     /// <summary>
