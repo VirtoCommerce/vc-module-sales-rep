@@ -10,5 +10,6 @@
     <PackageReference Include="VirtoCommerce.NotificationsModule.Core" Version="3.1009.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Core" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Core" Version="3.1048.0" />
+    <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1016.0" />
   </ItemGroup>
 </Project>

@@ -374,6 +374,8 @@ public class SalesRepCustomerInsightsGraphQlTests
         var analytics = new FakeAnalyticsService();
         using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
         await ctx.SeedOrganizationsAsync("org-1");
+        // A real account: the caller must clear the account-state gate to reach the rep-scope answer under test.
+        await ctx.EnsureAccountAsync("not-a-rep");
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
 

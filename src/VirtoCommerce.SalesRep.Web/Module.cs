@@ -83,9 +83,11 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
         serviceCollection.AddSingleton<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
 
-        serviceCollection.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        // Scoped so the resolver's memoized granting roles are shared across a request.
+        serviceCollection.AddScoped<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
+        serviceCollection.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
         serviceCollection.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         serviceCollection.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();

@@ -17,7 +17,7 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 [Trait("Category", "Unit")]
 public class SalesRepMapperTests
 {
-    private readonly SalesRepMapper _mapper = new();
+    private readonly SalesRepMapper _mapper = new(orderMapper: null);
 
     [Fact]
     public void ToDocument_MapsAllFields()
