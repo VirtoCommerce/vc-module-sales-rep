@@ -262,6 +262,9 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
+        services.AddSingleton<ISalesRepTaskFilterRuleResolver, SalesRepTaskFilterRuleResolver>();
+        services.AddSingleton<ISalesRepTaskSortRuleResolver, SalesRepTaskSortRuleResolver>();
+
         // Constructor dependencies of the X-Order graph types the sales-rep schema exposes (CustomerOrderType,
         // OrderLineItemType). Dynamic properties and available payment methods are outside what these tests assert.
         services.AddSingleton<IDynamicPropertyResolverService, EmptyDynamicPropertyResolverService>();
@@ -271,7 +274,6 @@ internal static class TestGraphQlConfiguration
         // Its measures are empty here; the geo service is genuinely optional and stays absent, exactly as the
         // platform's own registration resolves it.
         services.AddSingleton<IMeasureService, EmptyMeasureService>();
-        services.Add(ServiceDescriptor.Singleton(typeof(IOptionalDependency<>), typeof(OptionalDependencyManager<>)));
         services.AddSingleton<IPropertyGroupService, EmptyPropertyGroupService>();
         services.AddSingleton<IPickupLocationSearchService, EmptyPickupLocationSearchService>();
         services.AddSingleton<IDynamicPropertyDictionaryItemsService, EmptyDynamicPropertyDictionaryItemsService>();
