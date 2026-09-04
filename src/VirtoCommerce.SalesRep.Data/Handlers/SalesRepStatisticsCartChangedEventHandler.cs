@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.CartModule.Core.Events;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core;
@@ -32,7 +33,7 @@ public class SalesRepStatisticsCartChangedEventHandler : IEventHandler<CartChang
         var organizationIds = message.ChangedEntries
             .SelectMany(x => new[] { x.OldEntry?.OrganizationId, x.NewEntry?.OrganizationId })
             .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct()
+            .DistinctIgnoreCase()
             .ToList();
 
         return StatisticsCacheInvalidation.ExpireAsync(

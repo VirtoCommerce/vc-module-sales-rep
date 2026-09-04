@@ -615,6 +615,8 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 
 Invalidation is keyed by **(family, organization)**, so all of an organization's cached variants — periods, filters, currencies, reps — expire together. That is what makes the hub totals agree with the sum of their own customer cards, and what gives a rep their own edit back immediately: the domain events are published after the commit and the in-process bus awaits its handlers, so the entries are already gone before the mutation answers.
 
+Two limits are worth knowing. A write that runs inside an `EventSuppressor` scope — bulk imports and other batch jobs do this — publishes no domain event, so its changes surface only when the expiration elapses. And these entries deliberately carry **no sliding window**: the expiration above is the whole lifetime, where every other platform cache entry would also die after `Caching:CacheSlidingExpiration` of inactivity.
+
 > ⚠️ **Multi-instance deployments must configure `ConnectionStrings:RedisConnectionString`.** Cached values are never shared between instances; only *invalidations* are, over the platform's Redis backplane. Without it an eviction reaches only the instance that handled the mutation, and the others keep answering from their own entries until they expire — for every token-based platform cache, not just this one. Verify with `GET /health` (the "Redis health" check reports **Degraded** when unset) and the startup line `Successfully subscribed to Redis backplane channel VirtoCommerceChannel`.
 
 ## Dependencies

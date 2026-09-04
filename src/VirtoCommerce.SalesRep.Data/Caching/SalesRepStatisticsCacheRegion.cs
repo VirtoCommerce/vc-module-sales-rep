@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Primitives;
@@ -15,13 +14,14 @@ namespace VirtoCommerce.SalesRep.Data.Caching;
 /// </summary>
 public class SalesRepStatisticsCacheRegion : CancellableCacheRegion<SalesRepStatisticsCacheRegion>
 {
+    /// <param name="organizationIds">
+    /// The organizations the entry aggregates. An unscoped criteria (no organizations — which the statistics services
+    /// accept) yields the region token alone, so such an entry rides its TTL and region-wide expiry instead of failing.
+    /// </param>
     public static IChangeToken CreateChangeToken(StatisticsCacheFamily family, IList<string> organizationIds)
     {
-        ArgumentNullException.ThrowIfNull(family);
-        ArgumentNullException.ThrowIfNull(organizationIds);
-
         var changeTokens = new List<IChangeToken> { CreateChangeToken() };
-        changeTokens.AddRange(organizationIds
+        changeTokens.AddRange((organizationIds ?? [])
             .Where(x => !string.IsNullOrEmpty(x))
             .Select(x => CreateChangeTokenForKey(GetTokenKey(family, x))));
 
@@ -30,8 +30,6 @@ public class SalesRepStatisticsCacheRegion : CancellableCacheRegion<SalesRepStat
 
     public static void ExpireOrganization(StatisticsCacheFamily family, string organizationId)
     {
-        ArgumentNullException.ThrowIfNull(family);
-
         if (!string.IsNullOrEmpty(organizationId))
         {
             ExpireTokenForKey(GetTokenKey(family, organizationId));

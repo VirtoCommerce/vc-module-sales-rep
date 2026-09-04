@@ -13,9 +13,13 @@ namespace VirtoCommerce.SalesRep.Data.Caching;
 /// </summary>
 internal static class StatisticsCacheInvalidation
 {
-    public static Task<bool> IsEnabledAsync(ISettingsManager settingsManager, StatisticsCacheFamily family)
+    public static async Task<bool> IsEnabledAsync(ISettingsManager settingsManager, StatisticsCacheFamily family)
     {
-        return settingsManager.GetValueAsync<bool>(family.InvalidateOnChange);
+        // A family whose cache is off holds no entries to evict, so the flag alone can never switch invalidation on —
+        // otherwise every save would broadcast expirations cluster-wide for a cache that stores nothing.
+        var minutes = await settingsManager.GetValueAsync<int>(family.Expiration);
+
+        return minutes > 0 && await settingsManager.GetValueAsync<bool>(family.InvalidateOnChange);
     }
 
     public static async Task ExpireAsync(

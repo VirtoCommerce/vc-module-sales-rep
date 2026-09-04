@@ -13,6 +13,7 @@ using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 using CartLineItemEntity = VirtoCommerce.CartModule.Data.Model.LineItemEntity;
@@ -242,6 +243,61 @@ public class SalesRepStatisticsCacheInvalidationTests
     }
 
     [Fact]
+    public async Task OrderStatistics_SurviveACartChange()
+    {
+        const string org = "invalidation-order-family-org";
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await CreateRepAsync(ctx, org);
+        SeedOrder(ctx, "o1", org, total: 100m);
+
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+
+        SeedOrder(ctx, "o2", org, total: 250m);
+        await PublishCartChangedAsync(ctx, org);
+
+        // The mirror of CartStatistics_SurviveAnOrderChange: a cart change concerns the cart family alone.
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task CustomerCounts_AreServedFromTheCacheUntilTheOrderChangeArrives()
+    {
+        const string org = "invalidation-counts-org";
+        const string secondOrg = "invalidation-counts-second-org";
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await CreateRepAsync(ctx, org, secondOrg);
+        SeedOrder(ctx, "o1", org, total: 100m);
+
+        (await ReadOrderingCustomersAsync(ctx, rep)).Should().Be(1);
+
+        // The counts ride their own family, so an order for the rep's second customer must reach them too.
+        SeedOrder(ctx, "o2", secondOrg, total: 250m);
+        (await ReadOrderingCustomersAsync(ctx, rep)).Should().Be(1);
+
+        await PublishOrderChangedAsync(ctx, secondOrg);
+
+        (await ReadOrderingCustomersAsync(ctx, rep)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CartStatistics_UnscopedCriteria_StillComputes()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await CreateRepAsync(ctx, "invalidation-unscoped-org");
+        SeedCartWithItem(ctx, "c1", "invalidation-unscoped-org", quantity: 2);
+
+        // The statistics services accept a criteria with no organizations (BuildQuery treats it as unscoped), and a
+        // custom project calling them directly is a documented seam — attaching tokens must not narrow that contract.
+        var criteria = AbstractTypeFactory<CustomerCartStatisticsCriteria>.TryCreateInstance();
+        criteria.ResponseGroup = CartStatisticsResponseGroup.ItemQuantities;
+        criteria.Names = [CartModuleConstants.DefaultCartName];
+
+        var period = await ctx.GetRequiredService<ICustomerCartStatisticsService>().GetStatisticsAsync(criteria);
+
+        period.SelectedItemQuantity.Should().Be(2);
+    }
+
+    [Fact]
     public async Task CustomersList_InlinePurchaseFigures_AreEvictedByAnOrderChange()
     {
         const string org = "invalidation-customers-list-org";
@@ -281,6 +337,16 @@ public class SalesRepStatisticsCacheInvalidationTests
 
         return SalesRepTestContext.Node(json, "salesRepCustomerOrderStatistics")
             .GetProperty("lifetime").GetProperty("total").GetProperty("amount").GetDecimal();
+    }
+
+    private static async Task<int> ReadOrderingCustomersAsync(SalesRepTestContext ctx, SalesRepDetails rep)
+    {
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerCounts { lifetime: period { orderingCustomers } } }",
+            userId: rep.UserId);
+
+        return SalesRepTestContext.Node(json, "salesRepCustomerCounts")
+            .GetProperty("lifetime").GetProperty("orderingCustomers").GetInt32();
     }
 
     private static async Task<decimal> ReadCustomerPurchasesAsync(SalesRepTestContext ctx, SalesRepDetails rep)

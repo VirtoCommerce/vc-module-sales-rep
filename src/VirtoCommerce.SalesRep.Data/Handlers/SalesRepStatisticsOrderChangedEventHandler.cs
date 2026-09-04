@@ -35,7 +35,7 @@ public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderCha
             .Where(IsAggregateRelevant)
             .SelectMany(x => new[] { x.OldEntry?.OrganizationId, x.NewEntry?.OrganizationId })
             .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct()
+            .DistinctIgnoreCase()
             .ToList();
 
         return StatisticsCacheInvalidation.ExpireAsync(
@@ -69,7 +69,9 @@ public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderCha
     }
 
     // The top-seller ranking reads the line items, down to the display columns it renders, so their signature is part
-    // of what the aggregates see. Keyed by line id, so the comparison doesn't depend on collection order.
+    // of what the aggregates see. Keyed by line id, so the comparison doesn't depend on collection order. Ordinal on
+    // purpose — unlike an id lookup this is change detection, where a differing case IS a change: the aggregation
+    // groups on these columns in SQL, and a case-sensitive collation splits the groups.
     private static HashSet<string> GetLineItemSignatures(CustomerOrder order)
     {
         var signatures = order.Items?
