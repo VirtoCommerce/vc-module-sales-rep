@@ -35,7 +35,6 @@ using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
-using VirtoCommerce.XCart.Core.Schemas;
 using VirtoCommerce.XCart.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Web;
@@ -109,11 +108,9 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
 
-        // VCST-5332: teach the XCart sharing pipeline the "Customer" wishlist scope. Registered after XCart
-        // (SalesRep depends on it), so this override wins for ICartSharingService; the enum override lets the
-        // new scope value serialize on the core /graphql wishlist schema.
-        serviceCollection.AddTransient<ICartSharingService, SalesRepCartSharingService>();
-        serviceCollection.OverrideGraphType<WishlistScopeType, SalesRepWishlistScopeType>();
+        // VCST-5332: add the "Customer" wishlist scope to the XCart sharing registry. Additive - it does not
+        // replace any XCart service, and the core /graphql WishlistScopeType enum picks the value up from here.
+        serviceCollection.AddTransient<ICartSharingScopePolicy, SalesRepCustomerCartSharingScopePolicy>();
 
         serviceCollection.AddSalesRepExperienceApi();
     }

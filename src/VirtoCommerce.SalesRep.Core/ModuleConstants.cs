@@ -46,7 +46,7 @@ public static class ModuleConstants
     {
         // Wishlist sharing scope used when a Sales Rep publishes a list to specific customer organizations
         // (VCST-5332). Not a member of CartModule's CartSharingScope: the sharing pipeline accepts any scope
-        // string, and SalesRepCartSharingService teaches the platform this value's visibility rules. The scope also
+        // string, and SalesRepCustomerCartSharingScopePolicy teaches the platform this value's visibility rules. The scope also
         // defines the id space of CartSharingSetting.SharedWithId (here: a customer organization id).
         public const string CustomerScope = "Customer";
     }

@@ -4,25 +4,31 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.CartModule.Core.Model;
+using VirtoCommerce.CartModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
 using VirtoCommerce.XCart.Core.Models;
+using VirtoCommerce.XCart.Core.Services;
+using VirtoCommerce.XCart.Data.Services;
+using VirtoCommerce.XCart.Data.Services.SharingScopes;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests;
 
 /// <summary>
-/// Pure-logic tests for <see cref="SalesRepCartSharingService"/> — the "Customer" wishlist scope (VCST-5332).
-/// The synchronous scope/access/authorization methods read the target organizations off the cart's SharingSettings,
-/// so no database or aggregate repository is needed (the repository is only used by GetWishlistBySharingKeyAsync).
+/// Tests for <see cref="SalesRepCustomerCartSharingScopePolicy"/> — the "Customer" wishlist scope (VCST-5332).
+/// Most cases run through a real <see cref="CartSharingService"/> holding the built-in XCart policies plus this one,
+/// because the value of the registry is that the scopes compose: the Customer cases must hold without disturbing the
+/// built-in scopes, and transitions between them must stay clean. No database is needed — the scope/access/
+/// authorization logic reads the target organizations off the cart's eager-loaded SharingSettings.
 /// The <c>IsAuthorized</c> cases guard the data-isolation invariant: a customer must see ONLY lists shared with their
 /// own organization.
 /// </summary>
 [Trait("Category", "Unit")]
-public class SalesRepCartSharingServiceTests
+public class SalesRepCustomerCartSharingScopePolicyTests
 {
     private const string RepUserId = "rep-user-1";
     private const string OrgA = "org-a";
@@ -30,12 +36,22 @@ public class SalesRepCartSharingServiceTests
     private const string OrgC = "org-c";
     private const string CustomerUserId = "customer-user-1";
 
-    // The repository and org-access service are unused by the synchronous read logic under test.
-    private static SalesRepCartSharingService CreateService() => new(cartAggregateRepository: null, organizationAccessService: null);
+    private static SalesRepCustomerCartSharingScopePolicy CustomerPolicy(bool servesOrganization = false) =>
+        new(new FakeOrganizationAccessService(servesOrganization));
 
-    // Drives the write path (UpdateScopeAsync) without a DB by stubbing the "does this rep serve the org" gate.
-    private static SalesRepCartSharingService SharingService(bool servesOrganization) =>
-        new(cartAggregateRepository: null, new FakeOrganizationAccessService(servesOrganization));
+    // The full XCart registry plus the sales-rep scope, as the module composes it at runtime. The aggregate
+    // repository is only used by GetWishlistBySharingKeyAsync, which is not under test here.
+    private static ICartSharingService SharingService(bool servesOrganization = false) =>
+        new CartSharingService(
+            cartAggregateRepository: null,
+            [
+                new PrivateCartSharingScopePolicy(),
+                new AnyoneAnonymousCartSharingScopePolicy(),
+                new AnyoneAuthorizedCartSharingScopePolicy(),
+                new OrganizationCartSharingScopePolicy(),
+                new UserCartSharingScopePolicy(),
+                CustomerPolicy(servesOrganization),
+            ]);
 
     private sealed class FakeOrganizationAccessService(bool servesOrganization) : ISalesRepOrganizationAccessService
     {
@@ -79,39 +95,47 @@ public class SalesRepCartSharingServiceTests
     }
 
     [Fact]
-    public void GetSharingScope_CustomerSetting_ReturnsCustomer()
+    public void Registration_ExposesTheCustomerScope()
     {
-        var service = CreateService();
-        var cart = CustomerSharedCart(RepUserId, OrgA);
+        var policy = CustomerPolicy();
 
-        service.GetSharingScope(cart).Should().Be(ModuleConstants.Sharing.CustomerScope);
+        policy.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
+        policy.CanApply.Should().BeTrue();
+        policy.Description.Should().NotBeNullOrWhiteSpace(); // becomes the GraphQL WishlistScopeType enum description
     }
 
     [Fact]
-    public void GetSharingScope_NoCustomerSetting_DelegatesToBase()
+    public void GetSharingScope_CustomerSetting_ReturnsCustomer()
     {
-        var service = CreateService();
+        var cart = CustomerSharedCart(RepUserId, OrgA);
 
-        // No sharing settings and no owner organization → base default is Private.
+        SharingService().GetSharingScope(cart).Should().Be(ModuleConstants.Sharing.CustomerScope);
+    }
+
+    [Fact]
+    public void GetSharingScope_NoCustomerSetting_FallsBackToTheBuiltInScopes()
+    {
+        var service = SharingService();
+
+        // No sharing settings and no owner organization → Private.
         service.GetSharingScope(new ShoppingCart()).Should().Be(CartSharingScope.Private);
-        // No sharing settings but an owner organization → base treats it as Organization.
+        // No sharing settings but an owner organization → Organization.
         service.GetSharingScope(new ShoppingCart { OrganizationId = OrgA }).Should().Be(CartSharingScope.Organization);
     }
 
     [Fact]
     public void IsAuthorized_Owner_ReturnsTrue()
     {
-        var service = CreateService();
         var cart = CustomerSharedCart(RepUserId, OrgA);
 
         // The rep who owns the list always sees it, regardless of the organization claim.
-        service.IsAuthorized(cart, RepUserId, currentOrganizationId: null).Should().BeTrue();
+        SharingService().IsAuthorized(cart, RepUserId, currentOrganizationId: null).Should().BeTrue();
     }
 
     [Fact]
     public void IsAuthorized_MemberOfSharedOrganization_ReturnsTrue()
     {
-        var service = CreateService();
+        var service = SharingService();
         var cart = CustomerSharedCart(RepUserId, OrgA, OrgB);
 
         service.IsAuthorized(cart, CustomerUserId, OrgA).Should().BeTrue();
@@ -121,37 +145,28 @@ public class SalesRepCartSharingServiceTests
     [Fact]
     public void IsAuthorized_MemberOfUnsharedOrganization_ReturnsFalse()
     {
-        var service = CreateService();
         var cart = CustomerSharedCart(RepUserId, OrgA, OrgB);
 
         // DATA-ISOLATION INVARIANT: a member of an organization the list was NOT shared with must be denied.
-        service.IsAuthorized(cart, CustomerUserId, OrgC).Should().BeFalse();
+        SharingService().IsAuthorized(cart, CustomerUserId, OrgC).Should().BeFalse();
     }
 
     [Fact]
-    public void IsAuthorized_Anonymous_ReturnsFalse()
+    public void IsAuthorized_AnonymousOrMemberWithoutOrganization_ReturnsFalse()
     {
-        var service = CreateService();
+        var service = SharingService();
         var cart = CustomerSharedCart(RepUserId, OrgA);
 
         service.IsAuthorized(cart, currentUserId: null, currentOrganizationId: OrgA).Should().BeFalse();
-    }
-
-    [Fact]
-    public void IsAuthorized_AuthenticatedMemberWithoutOrganization_ReturnsFalse()
-    {
-        var service = CreateService();
-        var cart = CustomerSharedCart(RepUserId, OrgA);
-
         service.IsAuthorized(cart, CustomerUserId, currentOrganizationId: null).Should().BeFalse();
     }
 
     [Fact]
-    public void IsAuthorized_NonCustomerScope_DelegatesToBase()
+    public void IsAuthorized_BuiltInScope_IsUnaffectedByTheCustomerPolicy()
     {
-        var service = CreateService();
+        var service = SharingService();
 
-        // Organization-scoped list → base authorizes members of the owner organization only.
+        // Organization-scoped list → members of the owner organization only.
         var cart = new ShoppingCart
         {
             CustomerId = RepUserId,
@@ -166,11 +181,23 @@ public class SalesRepCartSharingServiceTests
     [Fact]
     public void GetSharingAccess_Owner_ReturnsWrite_TargetedCustomer_ReturnsRead()
     {
-        var service = CreateService();
+        var service = SharingService();
         var cart = CustomerSharedCart(RepUserId, OrgA);
 
         service.GetSharingAccess(cart, RepUserId).Should().Be(CartSharingAccess.Write);
         service.GetSharingAccess(cart, CustomerUserId).Should().Be(CartSharingAccess.Read);
+    }
+
+    [Fact]
+    public void ConfigureSearchCriteria_NarrowsToTheOwningRep()
+    {
+        // Customer-scoped lists are stored with no owner organization, so listing them must not filter by one.
+        var criteria = new ShoppingCartSearchCriteria { CustomerId = RepUserId, OrganizationId = OrgA };
+
+        SharingService().ConfigureSearchCriteria(criteria, ModuleConstants.Sharing.CustomerScope);
+
+        criteria.CustomerId.Should().Be(RepUserId);
+        criteria.OrganizationId.Should().BeNull();
     }
 
     [Fact]
@@ -214,9 +241,9 @@ public class SalesRepCartSharingServiceTests
     }
 
     [Fact]
-    public async Task UpdateScopeAsync_UnsupportedScope_Throws()
+    public async Task UpdateScopeAsync_UnregisteredScope_Throws()
     {
-        // A scope neither the base pipeline nor sales-rep recognizes is rejected loudly (ApplyScope returns false).
+        // A scope no registered policy claims is rejected loudly.
         var service = SharingService(servesOrganization: true);
 
         await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext("BogusScope", sharedWithId: null, RepUserId)))
@@ -224,9 +251,9 @@ public class SalesRepCartSharingServiceTests
     }
 
     [Fact]
-    public async Task UpdateScopeAsync_OrganizationScope_DelegatesToBase()
+    public async Task UpdateScopeAsync_OrganizationScope_IsUnaffectedByTheCustomerPolicy()
     {
-        // Non-Customer scope: sales-rep defers to the base ApplyScope (serves-org is irrelevant here).
+        // A built-in scope keeps its own write path; the serves-org gate is irrelevant to it.
         var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
