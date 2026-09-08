@@ -8,7 +8,7 @@ using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.Xapi.Core.Models.Facets;
-using VirtoCommerce.XOrder.Data.Services;
+using VirtoCommerce.XOrder.Core.Services;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
@@ -25,8 +25,10 @@ public class SalesRepMapper : ISalesRepMapper
     // Delegates so the facets match X-Order's own, including a project's own IXOrderMapper registration.
     public virtual IList<FacetResult> ToFacets(IList<OrderAggregation> aggregations, string cultureName)
     {
+        var context = new FacetMappingContext { CultureName = cultureName };
+
         return (aggregations ?? [])
-            .Select(x => _orderMapper.ToFacetResult(x, cultureName))
+            .Select(x => _orderMapper.ToFacetResult(x, context))
             .Where(x => x != null)
             .ToList();
     }
