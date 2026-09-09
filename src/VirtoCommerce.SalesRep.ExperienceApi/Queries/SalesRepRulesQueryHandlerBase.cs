@@ -51,6 +51,8 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
     }
 
     /// <param name="organizationIds">The organizations the caller serves — the scope a data-derived rule set must be
-    /// built within, so it only offers rules the caller's own lists can return records for.</param>
+    /// built within, so it only offers rules the caller's own lists can return records for. <b>Empty</b> for a
+    /// personal-rules query (<see cref="ISalesRepPersonalRulesQuery"/>): the caller is allowed, but the vocabulary is
+    /// not derived from organization data. Never null — <see cref="ResolveScopeAsync"/> denies before reaching here.</param>
     protected abstract Task<IList<TRule>> GetRulesAsync(TQuery request, IList<string> organizationIds);
 }

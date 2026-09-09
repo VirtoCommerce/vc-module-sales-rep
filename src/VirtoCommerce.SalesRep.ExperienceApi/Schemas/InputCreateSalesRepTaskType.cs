@@ -15,7 +15,7 @@ public class InputCreateSalesRepTaskType : ExtendableInputObjectGraphType<Create
         Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.Description))
             .Description("Free-text notes.");
         Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.Type))
-            .Description("One of the values configured in the TaskManagement.TaskTypes settings dictionary.");
+            .Description("Free text. Typically one of the values salesRepTaskTypes offers, but that is a convention the server does not enforce - the dictionary is editable at runtime.");
         Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.Priority))
             .Description("Lowest, Low, Normal, High or Highest. Defaults to Normal.");
         Field<NonNullGraphType<DateTimeGraphType>>(nameof(CreateSalesRepTaskCommand.DueDate))

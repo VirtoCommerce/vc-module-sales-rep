@@ -8,6 +8,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.TaskManagement.Core.Extensions;
@@ -82,7 +83,9 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         var member = await _memberService.GetByIdAsync(memberId)
             ?? throw new ExecutionError("The signed-in account's contact record no longer exists.");
 
-        task.ResponsibleName = member.Name;
+        // A denormalised display copy in a 256-char column, while MemberEntity.Name holds up to 512 - so a long
+        // contact name would fail the create at SaveChangesAsync. Truncate: ResponsibleId is the identity, not this.
+        task.ResponsibleName = member.Name.Truncate(ModuleConstants.Tasks.MaxResponsibleNameLength);
         task.OrganizationId = member.GetMemberOrganizationId();
     }
 }

@@ -50,6 +50,10 @@ public class SalesRepTasksQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHan
             return result;
         }
 
+        // Ownership is this handler's to enforce, not the resolvers'. Both are replaceable extension points, and one
+        // that builds a fresh criteria instead of narrowing the one it was handed would otherwise search every task.
+        filteredCriteria.ResponsibleIds = responsibleIds;
+
         var searchResult = await TaskSearchService.Value.SearchAsync(filteredCriteria);
 
         result.TotalCount = searchResult.TotalCount;

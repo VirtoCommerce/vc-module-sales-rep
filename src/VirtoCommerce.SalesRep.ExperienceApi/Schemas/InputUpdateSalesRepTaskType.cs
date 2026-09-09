@@ -20,7 +20,7 @@ public class InputUpdateSalesRepTaskType : ExtendableInputObjectGraphType<Update
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Description))
             .Description("Free-text notes. Send the stored value back unchanged to keep it; empty string clears it.");
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Type))
-            .Description("One of the values configured in the TaskManagement.TaskTypes settings dictionary. Empty string clears it.");
+            .Description("Free text, typically one of the values salesRepTaskTypes offers - not enforced. Empty string clears it.");
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Priority))
             .Description("Lowest, Low, Normal, High or Highest. Empty string means Normal.");
         Field<NonNullGraphType<DateTimeGraphType>>(nameof(UpdateSalesRepTaskCommand.DueDate))

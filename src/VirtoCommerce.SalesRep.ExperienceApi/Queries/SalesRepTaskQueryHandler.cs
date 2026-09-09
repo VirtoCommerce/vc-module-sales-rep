@@ -28,7 +28,10 @@ public class SalesRepTaskQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHand
             return null;
         }
 
-        // Filtered read, not load-then-compare: someone else's task returns null exactly like a missing one.
+        // Filtered read: ResponsibleId is compared in SQL, so this half follows the column's collation, while the
+        // write path loads by id and compares with OrdinalIgnoreCase (see GetOwnedTaskAsync). That asymmetry is what
+        // makes a case-variant row writable but not listable. Both shapes hide another rep's task equally well - the
+        // choice here is only about where the comparison happens.
         var criteria = AbstractTypeFactory<WorkTaskSearchCriteria>.TryCreateInstance();
         criteria.ObjectIds = [request.Id];
         criteria.ResponsibleIds = responsibleIds;

@@ -538,7 +538,8 @@ not to a customer — and no dedicated permission beyond being a sales rep.
 {
   # `today` is the START OF THE CALLER'S DAY as an instant (e.g. 2026-05-28T05:00:00Z for a UTC-5 viewer).
   # It decides where "upcoming" ends and "overdue" begins. Send the SAME value used to render the status,
-  # or a task can sit in one tab and read as another. Defaults to the start of the current UTC day.
+  # or a task can sit in one tab and read as another. Defaults to the start of the current UTC day, which for a
+  # viewer west of UTC is TOMORROW for part of their day - omitting it shifts the split, it does not disable it.
   # `period` is a due-date window (a calendar month, or one day); it INTERSECTS with `filter` rather than
   # replacing it, so "this month" + "overdue" composes.
   # `storeId` narrows to the tasks stamped with that store (the creating rep's account store); omit for all.
@@ -556,7 +557,7 @@ not to a customer — and no dedicated permission beyond being a sales rep.
 
   salesRepTaskFilterRules { name localizedName }                                  # upcoming / overdue / completed
   salesRepTaskSortRules { name localizedName defaultDirection supportsDirection } # due-date / recent / name
-  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary
+  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text)
 }
 ```
 
@@ -583,14 +584,18 @@ query Counts($today: DateTime!) {
 a task with **no due date**, and a **canceled** one (closed without completing). Neither is reachable through this
 API — `createSalesRepTask` requires a due date and nothing here cancels — so they only arrive from the admin UI,
 the REST API or a task-management workflow, assigned to the same contact. They stay in the unfiltered list, because
-they are still the rep's work; they just have no tab. Render `all` as its own tab rather than as the sum, or drop
+they are still the rep's work; they just have no tab. A canceled task is **read-only** here:
+`changeSalesRepTaskStatus` refuses it rather than reopening it or recording it as done, because nothing in this
+API could cancel it again. Render its toggle disabled. Render `all` as its own tab rather than as the sum, or drop
 the count and show the list. A dedicated "no due date" tab is **not implementable today**: `WorkTaskSearchCriteria`
 bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
 flag in `VirtoCommerce.TaskManagement` first.
 
 🛠 **Extenders:** `SalesRepTaskHandlerBase.GetVisibleResponsibleIdsAsync` is the seam for widening whose tasks a
 caller may see and change — today always their own. Override it (e.g. a team lead seeing their reps') and every
-read and write follows, with no call site to change. Returning an empty list means "nothing", never "everything".
+read, and every mutation of an existing task, follows with no call site to change. **Creation is not part of the
+seam** — it stamps the caller directly, so it can only ever produce a task they own; creating on someone's behalf
+needs its own change. Returning an empty list means "nothing", never "everything".
 
 ### Mutation
 
@@ -652,7 +657,7 @@ mutation {
     name: "Renew Cabin Co. contract"
     dueDate: "2026-09-04T09:00:00Z"     # required by the schema
     priority: "High"                     # Lowest | Low | Normal | High | Highest; defaults to Normal
-    type: "Customer Support"             # one of salesRepTaskTypes
+    type: "Customer Support"             # free text; salesRepTaskTypes is the suggested vocabulary, not a constraint
     description: "Escalate to regional manager."
   }) { id name priority dueDate isActive completed }
 

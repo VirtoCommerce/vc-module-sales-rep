@@ -11,8 +11,9 @@ public abstract class SalesRepTaskHandlerBase : SalesRepQueryHandlerBase
     {
     }
 
-    // Whose tasks the caller may see and change - the seam for widening beyond their own. Every read and write
-    // answers through it. Empty means "nothing", never "everything".
+    // Whose tasks the caller may see and change - the seam for widening beyond their own. Every read and every
+    // mutation of an existing task answers through it. Creation does not: it stamps the caller directly, so it can
+    // only ever produce a task they own. Empty means "nothing", never "everything".
     protected virtual Task<IList<string>> GetVisibleResponsibleIdsAsync(string userId, string memberId)
     {
         IList<string> result = string.IsNullOrEmpty(memberId) ? [] : [memberId];

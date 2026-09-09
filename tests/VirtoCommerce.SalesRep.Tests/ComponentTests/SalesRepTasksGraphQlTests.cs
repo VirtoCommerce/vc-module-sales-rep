@@ -92,7 +92,7 @@ public class SalesRepTasksGraphQlTests
 
         var mutations = new[]
         {
-            $"updateSalesRepTask(command: {{ id: \"{bobTaskId}\", name: \"Hijacked\", dueDate: \"{TodayIso}\" }}) {{ id name }}",
+            $"updateSalesRepTask(command: {{ id: \"{bobTaskId}\", name: \"Hijacked\", description: \"\", type: \"\", priority: \"\", dueDate: \"{TodayIso}\" }}) {{ id name }}",
             $"changeSalesRepTaskStatus(command: {{ id: \"{bobTaskId}\", completed: true }}) {{ id completed }}",
             $"deleteSalesRepTask(command: {{ id: \"{bobTaskId}\" }})",
         };
@@ -315,7 +315,7 @@ public class SalesRepTasksGraphQlTests
 
         // Neither shape is reachable through this API - both arrive from the admin UI, the REST API or a workflow.
         await SaveTaskDirectlyAsync(ctx, rep, "No due date", dueDate: null, isActive: true, completed: null);
-        await SaveTaskDirectlyAsync(ctx, rep, "Canceled", dueDate: Today.AddDays(1), isActive: false, completed: false);
+        var canceledId = await SaveTaskDirectlyAsync(ctx, rep, "Canceled", dueDate: Today.AddDays(1), isActive: false, completed: false);
 
         // The upstream criteria bound the due date with >= / <=, which drop NULLs, and `completed` means finished as
         // done - so neither row matches any rule. Pinned, because it means the tab counts do NOT sum to the total:
@@ -326,6 +326,20 @@ public class SalesRepTasksGraphQlTests
 
         // They are still the rep's tasks, so the unfiltered list keeps them visible rather than hiding work.
         Names(await ListTasksAsync(ctx, rep)).Should().BeEquivalentTo("Has a due date", "No due date", "Canceled");
+
+        // ...and the storefront renders that row with a live toggle, so the mutation is reachable. Both directions
+        // are refused: raising IsActive would turn a cancellation into an ordinary open task with no way back, and
+        // completing it would silently promote a cancellation to a completion.
+        foreach (var completed in new[] { "true", "false" })
+        {
+            var refused = await MutateAsync(ctx, rep, $"changeSalesRepTaskStatus(command: {{ id: \"{canceledId}\", completed: {completed} }}) {{ id }}");
+            refused.Should().Contain("\"errors\"");
+        }
+
+        var stored = (await ListTasksAsync(ctx, rep)).GetProperty("items").EnumerateArray()
+            .Single(x => x.GetProperty("name").GetString() == "Canceled");
+        stored.GetProperty("isActive").GetBoolean().Should().BeFalse();
+        stored.GetProperty("completed").GetBoolean().Should().BeFalse();
     }
 
     [Fact]
@@ -348,16 +362,36 @@ public class SalesRepTasksGraphQlTests
         using var ctx = SalesRepTestContext.Create(withTaskManagement: false);
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
 
-        // The schema must not differ per deployment (the frontend generates types against a live endpoint).
-        var list = await ListTasksAsync(ctx, rep);
-        list.GetProperty("totalCount").GetInt32().Should().Be(0);
+        // The schema must not differ per deployment (the frontend generates types against a live endpoint), so every
+        // surface answers rather than disappears. All nine, because a gate is only worth what it covers: the two rule
+        // vocabularies reach the storage check by a different path from the three data reads and would otherwise
+        // render furnished, zero-badged tabs over a list that can never return a row.
+        (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
 
         SalesRepTestContext.Node(
-            await QueryAsync(ctx, rep, "salesRepTaskTypes"), "salesRepTaskTypes").GetArrayLength().Should().Be(0);
+            await QueryAsync(ctx, rep, "salesRepTask(id: \"any-id\") { id }"),
+            "salesRepTask").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
 
-        var created = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"X\", dueDate: \"{TodayIso}\" }}) {{ id }}");
-        created.Should().Contain("\"errors\"");
-        created.Should().MatchRegex("(?i)not available");
+        foreach (var list in new[] { "salesRepTaskFilterRules { name }", "salesRepTaskSortRules { name }", "salesRepTaskTypes" })
+        {
+            SalesRepTestContext.Node(
+                await QueryAsync(ctx, rep, list), list.Split(' ')[0]).GetArrayLength().Should().Be(0);
+        }
+
+        // And every write refuses with the same message rather than throwing.
+        foreach (var mutation in new[]
+        {
+            $"createSalesRepTask(command: {{ name: \"X\", dueDate: \"{TodayIso}\" }}) {{ id }}",
+            $"updateSalesRepTask(command: {{ id: \"any-id\", name: \"X\", description: \"\", type: \"\", priority: \"\", dueDate: \"{TodayIso}\" }}) {{ id }}",
+            "changeSalesRepTaskStatus(command: { id: \"any-id\", completed: true }) { id }",
+            "deleteSalesRepTask(command: { id: \"any-id\" })",
+        })
+        {
+            var json = await MutateAsync(ctx, rep, mutation);
+
+            json.Should().Contain("\"errors\"");
+            json.Should().MatchRegex("(?i)not available");
+        }
     }
 
     [Fact]
@@ -483,14 +517,19 @@ public class SalesRepTasksGraphQlTests
         Names(secondPage).Should().Equal("Third");
     }
 
-    [Fact]
-    public async Task UnknownPriority_IsRejected_RatherThanSilentlyDefaulted()
+    [Theory]
+    [InlineData("Urgent")]
+    // Enum.TryParse accepts any numeric string, so these two parse to an undefined TaskPriority - Enum.IsDefined
+    // is what rejects them. Without it "999" would be stored and read straight back out of the projection.
+    [InlineData("999")]
+    [InlineData("-1")]
+    public async Task UnknownPriority_IsRejected_RatherThanSilentlyDefaulted(string priority)
     {
         using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
 
         // Strict on purpose: the module's own SafeParse would quietly store Normal and the rep would never know.
-        var json = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"Typo\", dueDate: \"{TodayIso}\", priority: \"Urgent\" }}) {{ id priority }}");
+        var json = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"Typo\", dueDate: \"{TodayIso}\", priority: \"{priority}\" }}) {{ id priority }}");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)priority");

@@ -30,7 +30,10 @@ public class SalesRepTaskFilterRuleResolver : FilterRuleResolverBase<SalesRepTas
             return criteria;
         }
 
-        var context = SalesRepFilterRuleContext.Create(storeId, cultureName: null, organizationIds: null, customerId: null);
+        // The reader's own criteria carry the scope the rules must be resolved in, as in the order and cart
+        // resolvers. No customer id: task ownership is the plural ResponsibleIds, which the context has no slot for.
+        var context = SalesRepFilterRuleContext.Create(
+            storeId, cultureName: null, criteria.OrganizationIds, customerId: null, criteria.StartDueDate, criteria.EndDueDate);
 
         var rule = await ResolveNamedRuleAsync(context, filter);
         if (rule == null)
@@ -54,12 +57,20 @@ public class SalesRepTaskFilterRuleResolver : FilterRuleResolverBase<SalesRepTas
             case OverdueRuleName:
                 criteria.IsActive = true;
                 // Strictly before the start of the caller's today, so a task due at exactly 00:00 reads as upcoming.
-                criteria.EndDueDate = Earliest(criteria.EndDueDate, dayStart.AddTicks(-1));
+                // A millisecond, not a tick: EndDueDate compares inclusively and 100 ns is not representable on
+                // PostgreSQL or MySQL DATETIME(6). The cost is the final millisecond before midnight, which nothing
+                // the storefront writes can land in - it emits day-aligned due dates.
+                criteria.EndDueDate = Earliest(criteria.EndDueDate, dayStart.AddMilliseconds(-1));
                 break;
             case CompletedRuleName:
                 criteria.IsActive = false;
                 criteria.Completed = true;
                 break;
+
+            // Fail closed, like the unknown-filter path above: a rule that GetRulesAsync offers but an override
+            // forgot to implement here must not fall through to the unfiltered list.
+            default:
+                return null;
         }
 
         return criteria;
