@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.CartModule.Core.Model;
 using VirtoCommerce.CartModule.Core.Model.Search;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.Xapi.Core.Security.Authorization;
@@ -42,7 +43,8 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
         // A targeted customer's member: their organization must be one of the Customer-scoped targets.
         // Fails closed when the caller has no organization.
         return !string.IsNullOrEmpty(currentOrganizationId)
-            && cart.SharingSettings?.Any(x => x.Scope == Scope && x.SharedWithId == currentOrganizationId) == true;
+            && cart.SharingSettings?.Any(x => x.Scope.EqualsIgnoreCase(Scope)
+                && x.SharedWithId.EqualsIgnoreCase(currentOrganizationId)) == true;
     }
 
     public override async Task ApplyAsync(ShoppingCart cart, WishlistScopeContext context)

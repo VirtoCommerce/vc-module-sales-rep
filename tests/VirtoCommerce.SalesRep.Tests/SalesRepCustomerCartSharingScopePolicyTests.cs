@@ -39,8 +39,9 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     private static SalesRepCustomerCartSharingScopePolicy CustomerPolicy(bool servesOrganization = false) =>
         new(new FakeOrganizationAccessService(servesOrganization));
 
-    // The full XCart registry plus the sales-rep scope, as the module composes it at runtime. The aggregate
-    // repository is only used by GetWishlistBySharingKeyAsync, which is not under test here.
+    // The XCart built-ins plus the sales-rep scope. Only the Customer policy is under test - the built-ins are
+    // here to exercise transitions between scopes, so this list need not track XCart's registration exactly.
+    // The aggregate repository is only used by GetWishlistBySharingKeyAsync, which is not under test here.
     private static ICartSharingService SharingService(bool servesOrganization = false) =>
         new CartSharingService(
             cartAggregateRepository: null,
@@ -159,6 +160,16 @@ public class SalesRepCustomerCartSharingScopePolicyTests
 
         service.IsAuthorized(cart, currentUserId: null, currentOrganizationId: OrgA).Should().BeFalse();
         service.IsAuthorized(cart, CustomerUserId, currentOrganizationId: null).Should().BeFalse();
+    }
+
+    [Fact]
+    public void IsAuthorized_IdsDifferingOnlyByCase_StillMatch()
+    {
+        // The dispatcher selects this policy case-insensitively, so its own setting match must agree. Only the
+        // target match is asserted here: the owner check is XCart's CartSharingScopePolicyBase.IsOwner.
+        var cart = CustomerSharedCart(RepUserId, OrgA);
+
+        SharingService().IsAuthorized(cart, CustomerUserId, OrgA.ToUpperInvariant()).Should().BeTrue();
     }
 
     [Fact]
