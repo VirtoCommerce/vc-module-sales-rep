@@ -7,8 +7,7 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests
 {
-    // The "Customer" wishlist scope reaches the platform through one registration line and nothing else. Without
-    // this the scope can be dropped from Module.Initialize with every other test still green.
+    // The "Customer" scope reaches the platform through one registration line - nothing else would catch its loss.
     [Trait("Category", "Unit")]
     public class ModuleRegistrationTests
     {

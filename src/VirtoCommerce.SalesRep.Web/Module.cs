@@ -108,8 +108,7 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
 
-        // VCST-5332: add the "Customer" wishlist scope to the XCart sharing registry. Additive - it does not
-        // replace any XCart service, and the core /graphql WishlistScopeType enum picks the value up from here.
+        // VCST-5332: add the "Customer" wishlist scope. Additive - the /graphql WishlistScopeType enum picks it up.
         serviceCollection.AddTransient<ICartSharingScopePolicy, SalesRepCustomerCartSharingScopePolicy>();
 
         serviceCollection.AddSalesRepExperienceApi();

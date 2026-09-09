@@ -18,15 +18,9 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests;
 
-/// <summary>
-/// Tests for <see cref="SalesRepCustomerCartSharingScopePolicy"/> — the "Customer" wishlist scope (VCST-5332).
-/// Most cases run through a real <see cref="CartSharingService"/> holding the built-in XCart policies plus this one,
-/// because the value of the registry is that the scopes compose: the Customer cases must hold without disturbing the
-/// built-in scopes, and transitions between them must stay clean. No database is needed — the scope/access/
-/// authorization logic reads the target organizations off the cart's eager-loaded SharingSettings.
-/// The <c>IsAuthorized</c> cases guard the data-isolation invariant: a customer must see ONLY lists shared with their
-/// own organization.
-/// </summary>
+// The "Customer" wishlist scope (VCST-5332). Most cases run through a real CartSharingService holding the XCart
+// built-ins plus this policy, so the scopes are exercised as they compose. The IsAuthorized cases guard the
+// data-isolation invariant: a customer sees ONLY lists shared with their own organization.
 [Trait("Category", "Unit")]
 public class SalesRepCustomerCartSharingScopePolicyTests
 {
@@ -39,9 +33,8 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     private static SalesRepCustomerCartSharingScopePolicy CustomerPolicy(bool servesOrganization = false) =>
         new(new FakeOrganizationAccessService(servesOrganization));
 
-    // The XCart built-ins plus the sales-rep scope. Only the Customer policy is under test - the built-ins are
-    // here to exercise transitions between scopes, so this list need not track XCart's registration exactly.
-    // The aggregate repository is only used by GetWishlistBySharingKeyAsync, which is not under test here.
+    // XCart built-ins plus the sales-rep scope. Only the Customer policy is under test - the built-ins exercise
+    // transitions, so this list need not track XCart's registration. The repository is unused by these paths.
     private static ICartSharingService SharingService(bool servesOrganization = false) =>
         new CartSharingService(
             cartAggregateRepository: null,
@@ -129,7 +122,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     {
         var cart = CustomerSharedCart(RepUserId, OrgA);
 
-        // The rep who owns the list always sees it, regardless of the organization claim.
+        // The owning rep always sees it, whatever the organization claim.
         SharingService().IsAuthorized(cart, RepUserId, currentOrganizationId: null).Should().BeTrue();
     }
 
@@ -165,8 +158,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     [Fact]
     public void IsAuthorized_IdsDifferingOnlyByCase_StillMatch()
     {
-        // The dispatcher selects this policy case-insensitively, so its own setting match must agree. Only the
-        // target match is asserted here: the owner check is XCart's CartSharingScopePolicyBase.IsOwner.
+        // The dispatcher selects case-insensitively, so the setting match must too. Owner check is XCart's.
         var cart = CustomerSharedCart(RepUserId, OrgA);
 
         SharingService().IsAuthorized(cart, CustomerUserId, OrgA.ToUpperInvariant()).Should().BeTrue();
@@ -202,7 +194,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     [Fact]
     public void ConfigureSearchCriteria_NarrowsToTheOwningRep()
     {
-        // Customer-scoped lists are stored with no owner organization, so listing them must not filter by one.
+        // Stored with no owner organization, so listing them must not filter by one.
         var criteria = new ShoppingCartSearchCriteria { CustomerId = RepUserId, OrganizationId = OrgA };
 
         SharingService().ConfigureSearchCriteria(criteria, ModuleConstants.Sharing.CustomerScope);
@@ -232,8 +224,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
-        // DATA-ISOLATION INVARIANT: a caller must not publish to an organization they do not serve, even if they
-        // otherwise hold the Sales Rep role. This is the server-side gate for F1 (frontend gating is not enough).
+        // DATA-ISOLATION INVARIANT: the server-side gate - a rep must not publish to an org they do not serve.
         await service.Invoking(x => x.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgC, RepUserId)))
             .Should().ThrowAsync<AuthorizationError>();
         cart.SharingSettings.Should().BeEmpty(); // nothing persisted
@@ -288,9 +279,8 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         cart.SharingSettings.Should().BeEmpty();
     }
 
-    // Edits of an ALREADY-shared list. The cases above all start from an empty cart, so they only cover creating the
-    // first setting; these pin the two invariants that matter when a share is changed: the sharing key (the
-    // /shared-list/{key} link) survives every transition, and a customer target never outlives the Customer scope.
+    // Edits of an ALREADY-shared list: the sharing key (the /shared-list/{key} link) survives every transition,
+    // and a customer target never outlives the Customer scope.
 
     [Fact]
     public async Task UpdateScopeAsync_CustomerScope_Retarget_KeepsSharingKeyAndReplacesTarget()
@@ -314,8 +304,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     [InlineData(CartSharingScope.AnyoneAnonymous)]
     public async Task UpdateScopeAsync_LeavingCustomerScope_ClearsTargetAndKeepsSharingKey(string scope)
     {
-        // DATA-ISOLATION INVARIANT: a stale target must not survive, or re-sharing later could silently expose the
-        // list to an organization the owner never picked again.
+        // DATA-ISOLATION INVARIANT: a stale target must not survive, or re-sharing could expose the list again.
         var service = SharingService(servesOrganization: true);
         var cart = CustomerSharedCart(RepUserId, OrgA);
         var originalKey = cart.SharingSettings.Single().Id;
@@ -331,8 +320,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     [Fact]
     public async Task UpdateScopeAsync_NullScope_PreservesExistingCustomerShare()
     {
-        // A rename-only edit submits no scope. The storefront modal always submits one, but API callers do not, and
-        // dropping the share here would silently unshare the list.
+        // A rename-only edit submits no scope; dropping the share here would silently unshare the list.
         var service = SharingService(servesOrganization: false);
         var cart = CustomerSharedCart(RepUserId, OrgA);
         var originalKey = cart.SharingSettings.Single().Id;
@@ -348,8 +336,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     [Fact]
     public async Task UpdateScopeAsync_BuiltInScope_IgnoresStraySharedWithId()
     {
-        // A target is meaningful only for the Customer scope. On a built-in scope it is dropped rather than rejected,
-        // which is what keeps wishlists saveable when the Sales Rep module is not installed.
+        // A target is meaningful only for the Customer scope; dropped, not rejected, so wishlists stay saveable.
         var service = SharingService(servesOrganization: true);
         var cart = EmptyCart();
 

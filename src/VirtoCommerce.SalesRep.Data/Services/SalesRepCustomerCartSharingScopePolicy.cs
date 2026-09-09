@@ -11,10 +11,9 @@ using VirtoCommerce.XCart.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
 
-// Adds the "Customer" wishlist scope (VCST-5332) to the XCart sharing registry. Read checks are synchronous (they
-// read the target org off the always-eager-loaded CartSharingSetting). The write path adds one authorization gate:
-// the caller must be a Sales Rep who serves the target org, delegated to ISalesRepOrganizationAccessService (the
-// same gate the query/communication handlers use, so "can share with an org" == "can message it").
+// The "Customer" wishlist scope (VCST-5332) as a registry policy. Reads are synchronous off the eager-loaded
+// CartSharingSetting; writes add one gate - the caller must be a rep who serves the target org, delegated to
+// ISalesRepOrganizationAccessService (so "can share with an org" == "can message it").
 public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessService organizationAccessService)
     : CartSharingScopePolicyBase
 {
@@ -24,7 +23,7 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
 
     public override string GetAccess(ShoppingCart cart, string currentUserId)
     {
-        // The rep (owner) keeps write; targeted customers are read-only.
+        // Owner (the rep) keeps write; targeted customers are read-only.
         return IsOwner(cart, currentUserId) ? CartSharingAccess.Write : CartSharingAccess.Read;
     }
 
@@ -40,8 +39,7 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
             return true;
         }
 
-        // A targeted customer's member: their organization must be one of the Customer-scoped targets.
-        // Fails closed when the caller has no organization.
+        // A targeted customer's org must be one of the targets; fails closed when the caller has none.
         return !string.IsNullOrEmpty(currentOrganizationId)
             && cart.SharingSettings?.Any(x => x.Scope.EqualsIgnoreCase(Scope)
                 && x.SharedWithId.EqualsIgnoreCase(currentOrganizationId)) == true;
@@ -51,15 +49,14 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
     {
         await AuthorizeCustomerShareAsync(context);
 
-        // The persisted setting targets one customer organization, read-only; the rep keeps write via GetAccess.
+        // Targets one customer organization, read-only; the rep keeps write via GetAccess.
         EnsureSetting(cart, context.SharingKey, CartSharingAccess.Read, context.SharedWithId);
         SetOwner(cart, context.CurrentUserId, context.CustomerName, organizationId: null);
     }
 
     public override void ConfigureSearchCriteria(ShoppingCartSearchCriteria criteria)
     {
-        // Customer-scoped lists are owned by the rep with no owner organization (see ApplyAsync), so they narrow
-        // by customer exactly like Private.
+        // Owned by the rep with no owner organization (see ApplyAsync), so narrow by customer like Private.
         criteria.OrganizationId = null;
     }
 
