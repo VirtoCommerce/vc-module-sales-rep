@@ -17,7 +17,7 @@
     <dependency id="VirtoCommerce.PushMessages" version="3.1004.0" />
     <dependency id="VirtoCommerce.Store" version="3.1006.0" />
     <dependency id="VirtoCommerce.Xapi" version="3.1020.0" />
-    <dependency id="VirtoCommerce.XCart" version="3.1029.0" />
+    <dependency id="VirtoCommerce.XCart" version="3.1035.0-alpha.281-vcst-5919-icartsharingservice" />
     <dependency id="VirtoCommerce.XOrder" version="3.1011.0" />
   </dependencies>
 
