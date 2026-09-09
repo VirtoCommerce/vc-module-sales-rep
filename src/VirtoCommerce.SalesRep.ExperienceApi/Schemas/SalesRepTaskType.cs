@@ -17,7 +17,7 @@ public class SalesRepTaskType : ExtendableGraphType<SalesRepTask>
         Field(x => x.Priority, nullable: true).Description("Priority name: Lowest, Low, Normal, High or Highest.");
         Field(x => x.DueDate, nullable: true).Description("When the task is due, as an instant.");
         Field(x => x.IsActive, nullable: false).Description("False once the task has been completed or cancelled.");
-        Field(x => x.Completed, nullable: true).Description("True when the task was finished as done. A reopened task also reports false, so pair it with isActive rather than reading it alone: inactive and not true = cancelled. Combine with dueDate for the rest: active and due before the start of the viewer's today = overdue, active otherwise = upcoming, completed = done.");
+        Field(x => x.Completed, nullable: true).Description("True when finished as done. A reopened task also reports false, so read it with isActive: inactive and not true = cancelled.");
         Field(x => x.CreatedDate, nullable: false).Description("When the task was created.");
         Field(x => x.ModifiedDate, nullable: true).Description("When the task was last changed.");
     }

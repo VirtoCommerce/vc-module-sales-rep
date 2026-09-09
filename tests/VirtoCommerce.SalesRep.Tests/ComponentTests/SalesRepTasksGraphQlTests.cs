@@ -3,6 +3,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.TaskManagement.Core.Models;
 using VirtoCommerce.TaskManagement.Core.Services;
@@ -535,6 +536,59 @@ public class SalesRepTasksGraphQlTests
         json.Should().MatchRegex("(?i)priority");
 
         (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    [Theory]
+    [InlineData("blank", "name")]
+    [InlineData("long-name", "name")]
+    [InlineData("long-type", "type")]
+    // The storage columns cap Name at 256 and Type at 128 and nothing downstream checks them, so without this guard
+    // an over-long value reaches SaveChangesAsync as a DbUpdateException instead of an error the caller can read.
+    // Worth pinning precisely because the harness cannot catch the underlying failure: SQLite ignores VARCHAR length.
+    public async Task WriteInputs_RejectBlankAndOverlongFields(string shape, string expectedInMessage)
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        var (name, type) = shape switch
+        {
+            "blank" => ("   ", ""),
+            "long-name" => (new string('n', ModuleConstants.Tasks.MaxNameLength + 1), ""),
+            _ => ("Fine", new string('t', ModuleConstants.Tasks.MaxTypeLength + 1)),
+        };
+
+        var json = await MutateAsync(ctx, rep,
+            $"createSalesRepTask(command: {{ name: \"{name}\", type: \"{type}\", dueDate: \"{TodayIso}\" }}) {{ id }}");
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex($"(?i){expectedInMessage}");
+        (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task WriteInputs_AcceptTheLimitExactly_AndUpdateIsGuardedByTheSamePath()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // The cap is inclusive, and it is measured on the TRIMMED value - the same one ApplyInput stores.
+        var atLimit = new string('n', ModuleConstants.Tasks.MaxNameLength);
+        var created = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \" {atLimit} \", dueDate: \"{TodayIso}\" }}) {{ id name }}"),
+            "createSalesRepTask");
+        created.GetProperty("name").GetString().Should().Be(atLimit);
+        var taskId = created.GetProperty("id").GetString();
+
+        // Validation lives in the shared ApplyInput, so update is guarded by the same code - pinned here so a future
+        // mutation that skips ApplyInput cannot quietly lose it.
+        var refused = await MutateAsync(ctx, rep,
+            $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"  \", description: \"\", type: \"\", priority: \"\", dueDate: \"{TodayIso}\" }}) {{ id }}");
+
+        refused.Should().Contain("\"errors\"");
+        refused.Should().MatchRegex("(?i)name");
+
+        var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
+        stored.Name.Should().Be(atLimit);
     }
 
     [Fact]

@@ -16,11 +16,11 @@ public class InputUpdateSalesRepTaskType : ExtendableInputObjectGraphType<Update
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Id))
             .Description("Id of the task to change. Must be a task the caller owns.");
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Name))
-            .Description("Task title.");
+            .Description("Task title (required, max 256 chars).");
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Description))
             .Description("Free-text notes. Send the stored value back unchanged to keep it; empty string clears it.");
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Type))
-            .Description("Free text, typically one of the values salesRepTaskTypes offers - not enforced. Empty string clears it.");
+            .Description("Free text, max 128 chars, typically one of the values salesRepTaskTypes offers - not enforced. Empty string clears it.");
         Field<NonNullGraphType<StringGraphType>>(nameof(UpdateSalesRepTaskCommand.Priority))
             .Description("Lowest, Low, Normal, High or Highest. Empty string means Normal.");
         Field<NonNullGraphType<DateTimeGraphType>>(nameof(UpdateSalesRepTaskCommand.DueDate))

@@ -11,11 +11,11 @@ public class InputCreateSalesRepTaskType : ExtendableInputObjectGraphType<Create
         Name = "InputCreateSalesRepTask";
 
         Field<NonNullGraphType<StringGraphType>>(nameof(CreateSalesRepTaskCommand.Name))
-            .Description("Task title.");
+            .Description("Task title (required, max 256 chars).");
         Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.Description))
             .Description("Free-text notes.");
         Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.Type))
-            .Description("Free text. Typically one of the values salesRepTaskTypes offers, but that is a convention the server does not enforce - the dictionary is editable at runtime.");
+            .Description("Free text, max 128 chars, typically one of the values salesRepTaskTypes offers - not enforced.");
         Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.Priority))
             .Description("Lowest, Low, Normal, High or Highest. Defaults to Normal.");
         Field<NonNullGraphType<DateTimeGraphType>>(nameof(CreateSalesRepTaskCommand.DueDate))

@@ -584,9 +584,10 @@ query Counts($today: DateTime!) {
 a task with **no due date**, and a **canceled** one (closed without completing). Neither is reachable through this
 API — `createSalesRepTask` requires a due date and nothing here cancels — so they only arrive from the admin UI,
 the REST API or a task-management workflow, assigned to the same contact. They stay in the unfiltered list, because
-they are still the rep's work; they just have no tab. A canceled task is **read-only** here:
+they are still the rep's work; they just have no tab. A canceled task's **status is fixed** here:
 `changeSalesRepTaskStatus` refuses it rather than reopening it or recording it as done, because nothing in this
-API could cancel it again. Render its toggle disabled. Render `all` as its own tab rather than as the sum, or drop
+API could cancel it again. It stays editable and deletable like any other task — only the completion toggle is
+refused, and the storefront renders that checkbox disabled. Render `all` as its own tab rather than as the sum, or drop
 the count and show the list. A dedicated "no due date" tab is **not implementable today**: `WorkTaskSearchCriteria`
 bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
 flag in `VirtoCommerce.TaskManagement` first.
@@ -656,7 +657,9 @@ mutation {
   createSalesRepTask(command: {
     name: "Renew Cabin Co. contract"
     dueDate: "2026-09-04T09:00:00Z"     # required by the schema
-    priority: "High"                     # Lowest | Low | Normal | High | Highest; defaults to Normal
+    priority: "High"                     # Lowest | Low | Normal | High | Highest; defaults to Normal.
+                                         # An unknown value is an error, never a silent default - numeric
+                                         # strings included, so "999" is rejected rather than stored.
     type: "Customer Support"             # free text; salesRepTaskTypes is the suggested vocabulary, not a constraint
     description: "Escalate to regional manager."
   }) { id name priority dueDate isActive completed }
@@ -672,6 +675,9 @@ mutation {
   deleteSalesRepTask(command: { id: "…" })
 }
 ```
+
+`name` is required and capped at **256** characters; `type` at **128** (both mirror the storage columns, and both
+are rejected with an error rather than truncated). `description` has no limit — that column is unbounded.
 
 ⚠️ `updateSalesRepTask` **replaces, it does not patch**. `description`, `type` and `priority` are non-null on
 purpose: were they optional, an omitted field would be indistinguishable from one cleared on purpose and a rename
