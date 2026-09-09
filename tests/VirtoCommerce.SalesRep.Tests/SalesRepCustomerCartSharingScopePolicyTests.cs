@@ -158,10 +158,12 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     [Fact]
     public void IsAuthorized_IdsDifferingOnlyByCase_StillMatch()
     {
-        // The dispatcher selects case-insensitively, so the setting match must too. Owner check is XCart's.
+        // The dispatcher selects case-insensitively, so both the target match here and XCart's owner check must too.
         var cart = CustomerSharedCart(RepUserId, OrgA);
+        var service = SharingService();
 
-        SharingService().IsAuthorized(cart, CustomerUserId, OrgA.ToUpperInvariant()).Should().BeTrue();
+        service.IsAuthorized(cart, CustomerUserId, OrgA.ToUpperInvariant()).Should().BeTrue();
+        service.IsAuthorized(cart, RepUserId.ToUpperInvariant(), currentOrganizationId: null).Should().BeTrue();
     }
 
     [Fact]
