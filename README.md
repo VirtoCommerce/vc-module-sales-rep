@@ -557,7 +557,7 @@ A merged, categorized feed of what the rep's customers did. `organizationId` omi
 }
 ```
 
-`take` defaults to 20 and caps at 50; `take: 0` returns counters only. The feed **pages 500 rows deep**: a merged page can only be sliced from the top (`skip + take`) rows of every requested category, so `MaxSkip` caps what one request can cost (worst case ~3,000 rows for the five-category "All" view at a full page). Past the window the query returns **no rows** rather than repeating the window's last page, while the counters keep describing the whole set. A single fetched category pages natively and costs the same at any depth.
+`take` defaults to 20 and caps at 50; `take: 0` returns counters only. The feed **pages 500 rows deep**: a merged page can only be sliced from the top (`skip + take`) rows of every requested category, so `MaxSkip` caps what one request can cost (worst case ~3,000 rows for the five-category "All" view at a full page). Past the window the query returns **no rows** rather than repeating the window's last page, while the counters keep describing the whole set. Within the window a single fetched category pages natively and costs the same at any depth; the `MaxSkip` cap itself is checked before that distinction, so it applies to a single-category request too.
 
 #### Customer insights
 
@@ -651,7 +651,9 @@ Some metrics are **not** computed from platform data — they are read from **Go
 
 (`salesRepCustomerActivitySummary.createdOn` and the `orders`/`customers` activity categories come from platform data, not GA.)
 
-Every GA query is constrained by two **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too), and `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own.
+Every rep-facing GA query is constrained by two **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too), and `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own.
+
+> The **diagnostics** endpoint below is the deliberate exception: it is an operator probe of a store's wiring, so its reads are store-wide and not narrowed to any rep's organizations. It returns row *counts* only, never row content, and it is gated on `sales-rep:diagnostics` — a back-office permission that no rep-facing screen requires.
 
 What the module adds on top of the raw source:
 
@@ -671,7 +673,7 @@ Caveats inherent to the source, by design:
 * **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity. `dataAsOf` reports how fresh the data actually is.
 * **Hour precision** — GA reports are aggregates; all `last*Date` values are UTC hour-bucket starts, not event timestamps. The storefront renders them as approximate.
 * **Sample, not record** — ad blockers, consent and untracked channels mean GA sees a subset of real activity; the UI carries a "based on tracked activity" caveat.
-* **Caching** — responses are cached per store/criteria (TTL from `GoogleAnalytics4.DataApi.CacheTtlMinutes`, default 60 min); failures are negative-cached for 60 s and degrade to empty.
+* **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and an outage degrades to an empty list rather than an error. The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.
 
 ## How it works
 

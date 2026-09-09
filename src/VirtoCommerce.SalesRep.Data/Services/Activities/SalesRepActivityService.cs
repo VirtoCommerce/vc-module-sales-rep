@@ -57,7 +57,12 @@ public class SalesRepActivityService : ISalesRepActivityService
 
         // A fetched category takes its count from its own row fetch, so a tab's count always matches its own list
         // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
-        result.CategoryCounts = searches.Select(x => CreateCategoryCount(x.Category, x.Result.TotalCount)).ToList();
+        // Grouped, not projected one-per-plan: a category two sources both claim would otherwise appear twice,
+        // and a client keyed by category renders whichever it reaches first.
+        result.CategoryCounts = searches
+            .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
+            .Select(x => CreateCategoryCount(x.Key, x.Sum(plan => plan.Result.TotalCount)))
+            .ToList();
         result.Results = GetPage(criteria, [.. searches.Where(x => x.Fetched).Select(x => x.Result)], pagesNatively ? 0 : criteria.Skip);
         // The pager is per-tab: only the requested categories add up to the total.
         result.TotalCount = result.CategoryCounts.Where(x => criteria.IsCategoryRequested(x.Category)).Sum(x => x.Count);

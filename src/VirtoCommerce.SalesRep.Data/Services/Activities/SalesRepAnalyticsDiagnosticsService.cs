@@ -139,6 +139,10 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         criteria.DimensionNames = dimensionNames;
         criteria.DimensionFilters = [SalesRepAnalyticsScope.CreateSelfSessionFilter()];
         criteria.From = DateTime.UtcNow.AddDays(-FeatureQueryDays);
+        // This stage exists to say what Google answers RIGHT NOW, so it must not be served the response cache.
+        // It used to miss the cache only as a side effect of the clock reading above, which the analytics module
+        // now rounds to a date — the intent is declared here instead of depending on that.
+        criteria.BypassCache = true;
         criteria.SortBy = sortBy;
         criteria.Take = FeatureQueryTake;
 

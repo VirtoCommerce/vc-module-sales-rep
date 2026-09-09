@@ -71,9 +71,13 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
         return roles;
     }
 
-    // Matches by permission set, not name/id: any role already carrying every listed permission counts, so renames
-    // don't re-seed. A role with the seeded NAME also suppresses seeding whatever its permissions — it is owned by
-    // the administrator (or an earlier seeder version) and is never mutated or collided with.
+    // Matches by permission set, not name/id: any role already carrying every listed permission counts. A role
+    // with the seeded NAME also suppresses seeding whatever its permissions — it is owned by the administrator
+    // (or an earlier seeder version) and is never mutated or collided with.
+    //
+    // A rename survives re-seeding only while the renamed role still carries the WHOLE list. Adding a permission
+    // here therefore re-seeds beside a role that was renamed under an earlier release and carries the older set,
+    // which is an upgrade-time behaviour to declare whenever this list changes.
     protected virtual async Task EnsureRoleAsync(RoleManager<Role> roleManager, IList<Role> existingRoles, string name, string description, string[] permissions)
     {
         if (existingRoles.Any(role =>

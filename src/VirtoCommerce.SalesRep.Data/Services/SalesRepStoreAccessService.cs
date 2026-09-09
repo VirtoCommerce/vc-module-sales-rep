@@ -27,13 +27,16 @@ public class SalesRepStoreAccessService : ISalesRepStoreAccessService
             return true;
         }
 
-        // A caller with no store of their own claims no store either: an administrator or a service account
-        // is not bound to one, and their access is decided by the organizations they serve. Only a
-        // store-bound caller — every sales rep — can name a store that is not theirs, so only they are checked.
-        var callerStoreId = (await GetUserAsync(userId))?.StoreId;
+        var caller = await GetUserAsync(userId);
+        var callerStoreId = caller?.StoreId;
+
+        // An administrator or a service account is not bound to a store, and their access is decided by the
+        // organizations they serve. "No store" is not proof of being one, though: SalesRepDetails.StoreId is an
+        // optional string with no validation behind it, so a rep saved without one would otherwise be able to
+        // name any store — and storeId chooses which analytics property is read and whose orders are counted.
         if (string.IsNullOrEmpty(callerStoreId))
         {
-            return true;
+            return caller?.IsAdministrator == true;
         }
 
         if (storeId.EqualsIgnoreCase(callerStoreId))

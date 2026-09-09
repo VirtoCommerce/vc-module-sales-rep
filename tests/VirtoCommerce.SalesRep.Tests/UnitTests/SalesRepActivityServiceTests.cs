@@ -207,6 +207,23 @@ public class SalesRepActivityServiceTests
     private static SalesRepActivityEvent Event(string category, DateTime occurredAt)
         => new() { Category = category, Type = category, OccurredAt = occurredAt, Precision = "exact" };
 
+    // Nothing in the seam's contract stops two sources from claiming a category, and the counts are keyed by
+    // category: projected one-per-plan, the same category appeared twice and a client rendered whichever it hit.
+    [Fact]
+    public async Task Search_TwoSourcesClaimingOneCategory_CountItOnce()
+    {
+        var first = new StubActivitySource("orders", Event("orders", _t1));
+        var second = new StubActivitySource("orders", Event("orders", _t2), Event("orders", _t3));
+        var service = new SalesRepActivityService([first, second]);
+
+        var result = await service.SearchActivitiesAsync(Criteria(take: 10));
+
+        var orders = result.CategoryCounts.Should().ContainSingle(x => x.Category == "orders").Subject;
+        orders.Count.Should().Be(3, "the category's rows come from both sources");
+        result.TotalCount.Should().Be(3);
+        result.Results.Should().HaveCount(3);
+    }
+
     private sealed class StubActivitySource : ISalesRepActivitySource
     {
         private readonly List<SalesRepActivityEvent> _events;

@@ -17,6 +17,11 @@ public class SalesRepProductResolver : ISalesRepProductResolver
     private static readonly string _responseGroup =
         (ItemResponseGroup.ItemInfo | ItemResponseGroup.WithImages).ToString();
 
+    // Headroom over one row per code, so that a code carried by a few catalogs still comes back complete and is
+    // answered per row. Past it the page is truncated and no code's match set is known, which is the only case
+    // that still has to give up on the whole batch.
+    private const int MaxMatchesPerCode = 5;
+
     private readonly IProductSearchService _productSearchService;
     private readonly IStoreService _storeService;
     private readonly ICatalogService _catalogService;
@@ -70,14 +75,17 @@ public class SalesRepProductResolver : ISalesRepProductResolver
         // A code is unique within a catalog, not across them, so the store's catalog is what makes a code an
         // answer. Without a storeId there is no catalog to narrow by and ambiguity is handled below instead.
         criteria.CatalogId = await GetStoreCatalogIdAsync(storeId);
-        criteria.Take = codesToSearch.Count;
+        // Analytics tracks what the storefront sent as item_id, which for a catalog that sells by size or pack is
+        // the VARIATION's code. A product search excludes variations unless asked, so without this every one of
+        // those codes came back unresolved — a raw SKU where a name, an image and a link belong.
+        criteria.SearchInVariations = true;
+        criteria.Take = codesToSearch.Count * MaxMatchesPerCode;
         criteria.ResponseGroup = _responseGroup;
 
         var searchResult = await _productSearchService.SearchAsync(criteria);
 
-        // One row per code holds only while a catalog scopes the search. Without one a code can match a product
-        // per catalog, overflowing the page — and a code that looks unique in a truncated page may not be. Trust
-        // the page only when it carries every match.
+        // A code that looks unique in a TRUNCATED page may not be, so a page that does not carry every match
+        // cannot answer for any code on it. Within a complete page each code is answered on its own rows below.
         if (searchResult.TotalCount > criteria.Take)
         {
             return result;

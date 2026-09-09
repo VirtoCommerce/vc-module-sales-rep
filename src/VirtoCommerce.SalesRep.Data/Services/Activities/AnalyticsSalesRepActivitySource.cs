@@ -68,11 +68,15 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 
         // One row per (hour bucket x dimension tuple), not per tracked event — deliberately, since a raw event
         // feed would be unreadable. A row GA returns without a usable hour bucket cannot be placed on a
-        // time-ordered feed, so it is dropped from BOTH the page and the count the category badge shows: only the
-        // fetched page is observable, which is exactly the window the badge and the list have to agree on.
+        // time-ordered feed, so it is dropped from the page.
         var rows = searchResult.Events.Where(x => x.OccurredAt != null).ToList();
 
-        result.TotalCount = searchResult.TotalCount - (searchResult.Events.Count - rows.Count);
+        // The count is GA's, uncorrected. Subtracting the dropped rows looks tempting and is wrong: TotalCount
+        // describes the whole matching set while the drop is only visible on the fetched page, so the same data
+        // gave one number for a category's badge (counted with Take=0, nothing fetched, nothing dropped) and a
+        // different one once its tab was selected. A badge that exceeds the rows on screen is what every paged
+        // list does; a badge that changes when you click it is a defect.
+        result.TotalCount = searchResult.TotalCount;
         result.Results = rows.Select(x => ToEvent(category, x)).ToList();
 
         return result;

@@ -458,6 +458,34 @@ public class SalesRepActivitiesGraphQlTests
 
     // A store id chooses whose analytics property is read and whose orders are counted, so a rep bound to one
     // store cannot answer for another. A caller with no store of their own claims none and is not checked.
+    // SalesRepDetails.StoreId is optional and unvalidated, so a rep CAN be saved without one. Treating "no
+    // store" as "must be an administrator" was what let such a rep name any store — and storeId chooses which
+    // analytics property is read and whose orders are counted.
+    [Fact]
+    public async Task Activities_StorelessRep_CannotNameAStore()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", storeId: null, "org-1");
+        SeedOrder(ctx, "own-store", "org-1", _feb);
+
+        var named = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(storeId: \"B2B-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        named.Should().NotContain("\"errors\"");
+        named.Should().Contain("\"salesRepActivities\":null");
+        analytics.ReceivedSearchCriteria.Should().BeEmpty();
+
+        // The control: naming no store claims nothing, so the rep still reads their own organizations' feed.
+        var unnamed = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        Connection(unnamed).GetProperty("totalCount").GetInt32().Should().BeGreaterThan(0);
+    }
+
     [Fact]
     public async Task Activities_StoreBoundRep_CannotAskAboutAnotherStore()
     {
@@ -531,8 +559,11 @@ public class SalesRepActivitiesGraphQlTests
         row.GetProperty("productImageUrl").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
+    // A row GA returns without a usable hour bucket cannot be placed on a time-ordered feed, so the page drops
+    // it. The COUNT must not follow that drop: it describes the whole matching set, while the drop is only
+    // visible on the fetched page — correcting it made a category's badge change value when its tab was selected.
     [Fact]
-    public async Task Activities_AnalyticsRowWithoutHourBucket_IsDroppedFromTheCategoryCountToo()
+    public async Task Activities_AnalyticsRowWithoutHourBucket_IsDroppedFromThePageButCountsTheSameEitherWay()
     {
         var analytics = new FakeAnalyticsService();
         using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
@@ -541,21 +572,27 @@ public class SalesRepActivitiesGraphQlTests
 
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _feb, count: 2, "org-1",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
-        // GA returned a row whose hour bucket is unusable: it cannot be placed on a time-ordered feed.
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, occurredAt: null, count: 7, "org-1",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "no-bucket"));
 
-        var json = await ctx.ExecuteGraphQlAsync(
+        var selected = Connection(await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepActivities(categories: [\"searches\"]) {{ {AllFields} }} }}",
-            userId: rep.UserId);
+            userId: rep.UserId));
 
-        var connection = Connection(json);
-        var items = connection.GetProperty("items").EnumerateArray().ToList();
+        // The unrenderable row is not on the page.
+        selected.GetProperty("items").EnumerateArray().Should().ContainSingle()
+            .Which.GetProperty("searchTerm").GetString().Should().Be("pumps");
 
-        // The badge counts the rows the feed can show, so it cannot advertise a row the list can never render.
-        items.Should().ContainSingle().Which.GetProperty("searchTerm").GetString().Should().Be("pumps");
-        CategoryCounts(connection).Single(x => x.Category == "searches").Count.Should().Be(1);
-        connection.GetProperty("totalCount").GetInt32().Should().Be(1);
+        // Its own tab is not selected here, so nothing is fetched for it and nothing can be dropped.
+        var unselected = Connection(await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(categories: [\"orders\"]) {{ {AllFields} }} }}",
+            userId: rep.UserId));
+
+        var selectedBadge = CategoryCounts(selected).Single(x => x.Category == "searches").Count;
+        var unselectedBadge = CategoryCounts(unselected).Single(x => x.Category == "searches").Count;
+
+        selectedBadge.Should().Be(unselectedBadge, "a badge that changes when its tab is clicked is a defect");
+        selectedBadge.Should().Be(2);
     }
 
     // The usual B2B store points at a VIRTUAL catalog, which holds links rather than products: narrowing a
