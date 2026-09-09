@@ -12,11 +12,7 @@ public interface ISalesRepActivitySource
     // one — a source may answer for a single category and does not have to merge across its own. Take/Skip are
     // therefore per-category; Take = 0 means "count only". The caller owns the merge, sort and page slice.
     //
-    // Those per-category calls run CONCURRENTLY against the same instance, so an implementation must be safe for
-    // concurrent reentrancy — which rules out holding a scoped DbContext, the shape a module service usually has.
-    // Resolve one per call instead.
-    //
-    // A category should belong to one source: the aggregator sums a category claimed by two, but its per-category
-    // counts are keyed by category and one of the two answers would be the one a client renders.
+    // Those calls run CONCURRENTLY against one instance, so an implementation must be safe for concurrent
+    // reentrancy — which rules out holding a scoped DbContext. A category claimed by two sources is summed.
     Task<SalesRepActivitySearchResult> SearchAsync(SalesRepActivitySearchCriteria criteria);
 }

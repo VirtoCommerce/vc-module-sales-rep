@@ -207,8 +207,7 @@ public class SalesRepActivityServiceTests
     private static SalesRepActivityEvent Event(string category, DateTime occurredAt)
         => new() { Category = category, Type = category, OccurredAt = occurredAt, Precision = "exact" };
 
-    // Nothing in the seam's contract stops two sources from claiming a category, and the counts are keyed by
-    // category: projected one-per-plan, the same category appeared twice and a client rendered whichever it hit.
+    // Nothing stops two sources claiming a category, and the counts are keyed by category.
     [Fact]
     public async Task Search_TwoSourcesClaimingOneCategory_CountItOnce()
     {

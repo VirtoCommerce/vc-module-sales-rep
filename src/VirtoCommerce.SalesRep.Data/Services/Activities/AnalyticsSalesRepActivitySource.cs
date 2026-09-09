@@ -71,11 +71,8 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
         // time-ordered feed, so it is dropped from the page.
         var rows = searchResult.Events.Where(x => x.OccurredAt != null).ToList();
 
-        // The count is GA's, uncorrected. Subtracting the dropped rows looks tempting and is wrong: TotalCount
-        // describes the whole matching set while the drop is only visible on the fetched page, so the same data
-        // gave one number for a category's badge (counted with Take=0, nothing fetched, nothing dropped) and a
-        // different one once its tab was selected. A badge that exceeds the rows on screen is what every paged
-        // list does; a badge that changes when you click it is a defect.
+        // Uncorrected on purpose: TotalCount describes the whole set while the drop is only visible on the
+        // fetched page, so subtracting it made a badge change value when its own tab was selected.
         result.TotalCount = searchResult.TotalCount;
         result.Results = rows.Select(x => ToEvent(category, x)).ToList();
 

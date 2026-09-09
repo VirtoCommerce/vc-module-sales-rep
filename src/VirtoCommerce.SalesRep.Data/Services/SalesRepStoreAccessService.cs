@@ -30,10 +30,8 @@ public class SalesRepStoreAccessService : ISalesRepStoreAccessService
         var caller = await GetUserAsync(userId);
         var callerStoreId = caller?.StoreId;
 
-        // An administrator or a service account is not bound to a store, and their access is decided by the
-        // organizations they serve. "No store" is not proof of being one, though: SalesRepDetails.StoreId is an
-        // optional string with no validation behind it, so a rep saved without one would otherwise be able to
-        // name any store — and storeId chooses which analytics property is read and whose orders are counted.
+        // An administrator is not bound to a store. "No store" is not proof of being one, though —
+        // SalesRepDetails.StoreId is optional and unvalidated — so a rep saved without one must not pass here.
         if (string.IsNullOrEmpty(callerStoreId))
         {
             return caller?.IsAdministrator == true;
@@ -44,8 +42,7 @@ public class SalesRepStoreAccessService : ISalesRepStoreAccessService
             return true;
         }
 
-        // A store may trust others (the platform's cross-store sharing); the named store is the one whose
-        // trust list decides, exactly as the communication command reads it.
+        // A store may trust others (the platform's cross-store sharing); the named store's list decides.
         var store = await _storeService.GetNoCloneAsync(storeId);
 
         return store?.TrustedGroups?.Any(x => x.EqualsIgnoreCase(callerStoreId)) == true;

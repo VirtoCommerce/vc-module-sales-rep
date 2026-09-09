@@ -7,10 +7,7 @@ using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Mod
 
 namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 
-/// <summary>
-/// The single construction site for scoped analytics reads. Going through it is what is supposed to make it
-/// impossible to forget the scope filters, so the one input it cannot make safe has to be refused here.
-/// </summary>
+// The single construction site for scoped analytics reads: the input it cannot make safe is refused there.
 public class SalesRepAnalyticsScopeTests
 {
     [Fact]
@@ -27,9 +24,7 @@ public class SalesRepAnalyticsScopeTests
             x.Values.Count == 2);
     }
 
-    // The analytics module DROPS a filter that carries no values, so an empty list would come back scoped by
-    // session kind alone — every organization in the property. Callers guard upstream; this refuses it outright
-    // so the guarantee lives where it is claimed.
+    // The analytics module DROPS a valueless filter, so an empty list reads every organization in the property.
     [Theory]
     [InlineData(true)]
     [InlineData(false)]

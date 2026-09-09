@@ -57,8 +57,7 @@ public class SalesRepActivityService : ISalesRepActivityService
 
         // A fetched category takes its count from its own row fetch, so a tab's count always matches its own list
         // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
-        // Grouped, not projected one-per-plan: a category two sources both claim would otherwise appear twice,
-        // and a client keyed by category renders whichever it reaches first.
+        // Grouped, not one row per plan: a category two sources claim would otherwise appear twice.
         result.CategoryCounts = searches
             .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
             .Select(x => CreateCategoryCount(x.Key, x.Sum(plan => plan.Result.TotalCount)))

@@ -12,17 +12,13 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 
-/// <summary>
-/// The analytics product code -> catalog product lookup. Analytics carries a code, not an id, so this is the only
-/// thing standing between a tracked product view and a raw SKU on the rep's screen.
-/// </summary>
+// Analytics carries a product code, not an id: this lookup is what stands between a tracked view and a raw SKU.
 public class SalesRepProductResolverTests
 {
     private const string StoreId = "B2B-store";
     private const string CatalogId = "physical-catalog";
 
-    // GA sends the variation's own code as item_id whenever the storefront sells by size or pack, and a product
-    // search excludes variations unless it is asked for them.
+    // GA sends the variation's own code as item_id, and a product search excludes variations unless asked.
     [Fact]
     public async Task ResolveAsync_AsksForVariations()
     {
@@ -47,8 +43,7 @@ public class SalesRepProductResolverTests
         row.Product.Name.Should().Be("Red shirt, M");
     }
 
-    // One code carried by two catalogs used to blank the WHOLE page: Take was one row per code, so the extra row
-    // pushed TotalCount over it and the batch gave up. The contract is per row.
+    // One code carried by two catalogs used to blank the WHOLE page. The contract is per row.
     [Fact]
     public async Task ResolveAsync_OneAmbiguousCode_LeavesOnlyThatRowUnresolved()
     {
@@ -69,7 +64,7 @@ public class SalesRepProductResolverTests
     [Fact]
     public async Task ResolveAsync_PageCannotCarryEveryMatch_ResolvesNothing()
     {
-        // More matches than the request could fetch: no code's match set is known, so none can be trusted.
+        // More matches than the request could fetch: no code's match set is known.
         var search = new FakeProductSearchService(Product("p1", "SKU-1", "First")) { TotalCountOverride = 500 };
         var resolver = CreateResolver(search, catalogId: null);
 
@@ -147,8 +142,7 @@ public class SalesRepProductResolverTests
         public SalesRepActivityProduct Product { get; set; }
     }
 
-    // The store -> catalog lookup is its own concern (and its own two services); this pins what the SEARCH is
-    // asked for and how its rows are attributed.
+    // The store -> catalog lookup is its own concern; this pins what the SEARCH is asked and how rows attribute.
     private sealed class TestableProductResolver : SalesRepProductResolver
     {
         private readonly string _catalogId;

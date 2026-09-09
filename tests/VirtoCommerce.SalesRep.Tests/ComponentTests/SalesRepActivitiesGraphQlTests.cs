@@ -458,9 +458,8 @@ public class SalesRepActivitiesGraphQlTests
 
     // A store id chooses whose analytics property is read and whose orders are counted, so a rep bound to one
     // store cannot answer for another. A caller with no store of their own claims none and is not checked.
-    // SalesRepDetails.StoreId is optional and unvalidated, so a rep CAN be saved without one. Treating "no
-    // store" as "must be an administrator" was what let such a rep name any store — and storeId chooses which
-    // analytics property is read and whose orders are counted.
+    // StoreId is optional and unvalidated, so a rep CAN be saved without one: treating that as "administrator"
+    // let them name any store.
     [Fact]
     public async Task Activities_StorelessRep_CannotNameAStore()
     {
@@ -478,12 +477,39 @@ public class SalesRepActivitiesGraphQlTests
         named.Should().Contain("\"salesRepActivities\":null");
         analytics.ReceivedSearchCriteria.Should().BeEmpty();
 
-        // The control: naming no store claims nothing, so the rep still reads their own organizations' feed.
+        // The control: naming no store claims nothing.
         var unnamed = await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepActivities {{ {AllFields} }} }}",
             userId: rep.UserId);
 
         Connection(unnamed).GetProperty("totalCount").GetInt32().Should().BeGreaterThan(0);
+    }
+
+    // The platform's cross-store sharing: the NAMED store's trust list is what decides, so a rep bound to a
+    // trusted store may read it. Untested, this branch could invert and only the denial tests would notice.
+    [Fact]
+    public async Task Activities_StoreTrustsTheRepsOwnStore_IsAllowed()
+    {
+        var analytics = new FakeAnalyticsService();
+        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "group-a", "org-1");
+        SeedOrder(ctx, "o-1", "org-1", _feb);
+        ctx.SetStoreTrustedGroups("Other-store", "group-a");
+
+        var trusted = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(storeId: \"Other-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        trusted.Should().NotContain("\"errors\"");
+        Connection(trusted).GetProperty("totalCount").GetInt32().Should().BeGreaterThan(0);
+
+        // The control: an untrusting store still refuses, so the pass above is the trust list and not a hole.
+        var untrusted = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities(storeId: \"Third-store\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        untrusted.Should().Contain("\"salesRepActivities\":null");
     }
 
     [Fact]
@@ -559,9 +585,8 @@ public class SalesRepActivitiesGraphQlTests
         row.GetProperty("productImageUrl").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
-    // A row GA returns without a usable hour bucket cannot be placed on a time-ordered feed, so the page drops
-    // it. The COUNT must not follow that drop: it describes the whole matching set, while the drop is only
-    // visible on the fetched page — correcting it made a category's badge change value when its tab was selected.
+    // The page drops a row GA returns without a usable hour bucket. The COUNT must not follow that drop: it
+    // describes the whole set, so correcting it made the badge change value when its tab was selected.
     [Fact]
     public async Task Activities_AnalyticsRowWithoutHourBucket_IsDroppedFromThePageButCountsTheSameEitherWay()
     {
@@ -583,7 +608,7 @@ public class SalesRepActivitiesGraphQlTests
         selected.GetProperty("items").EnumerateArray().Should().ContainSingle()
             .Which.GetProperty("searchTerm").GetString().Should().Be("pumps");
 
-        // Its own tab is not selected here, so nothing is fetched for it and nothing can be dropped.
+        // Not selected here, so nothing is fetched for it and nothing can be dropped.
         var unselected = Connection(await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepActivities(categories: [\"orders\"]) {{ {AllFields} }} }}",
             userId: rep.UserId));
