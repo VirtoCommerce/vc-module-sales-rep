@@ -4,7 +4,7 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-public class SaveLayoutCommand : ICommand<Layout>
+public class SaveLayoutCommand : ICommand<Layout>, ISalesRepUserCommand
 {
     public string Scope { get; set; }
 
