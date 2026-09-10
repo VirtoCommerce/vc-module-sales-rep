@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -49,7 +50,7 @@ public class SalesRepOrganizationAccessService(
         return memberships
             .Select(x => x.OrganizationId)
             .Where(x => !string.IsNullOrEmpty(x))
-            .Distinct()
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 

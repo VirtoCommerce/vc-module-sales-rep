@@ -14,13 +14,15 @@ public class CustomerCartStatisticsCriteria : ValueObject
 
     public string CurrencyCode { get; set; }
 
+    public IList<string> Names { get; set; }
+
     public IList<string> Types { get; set; }
 
     public IList<string> ExcludeTypes { get; set; }
 
     public IList<string> Statuses { get; set; }
 
-    public bool OnlyNonEmpty { get; set; }
+    public CartStatisticsResponseGroup ResponseGroup { get; set; } = CartStatisticsResponseGroup.Full;
 
     public DateTime? FromDate { get; set; }
 

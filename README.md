@@ -23,6 +23,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Scope the orders list to an optional created-date **period**
 * Send a push notification and/or email to the members of a customer organization
 * Publish a shopping list (wishlist) to a customer organization the rep serves — its members open it read-only ("Recommended by your Sales Rep") and add items to their cart, with an optional email/push notification
+* Share a curated **documents library** with sales reps — a back-office manager uploads categorized sales materials (price lists, catalogs, guides), optionally pinning one and annotating summary / page count / preview; reps browse, search and download them from the storefront
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -178,6 +179,120 @@ The orders the rep created for their customers, paged, ordered by an optional **
 
 ---
 
+#### Customer orders (VCST-5733)
+
+`salesRepOrders` answers "orders **I** placed" and backs the dashboard's *My recent orders* widget and the
+statistics. `salesRepCustomerOrders` answers a different question — **every** order of the customers the rep
+serves, whoever placed it — and `salesRepCustomerOrder` opens one of them read-only. Both are scoped by the
+same gate as the rest of the module (`sales-rep:access` memberships); `organizationId` only ever narrows that
+set, and an organization the rep does not serve returns nothing rather than falling back to all of them.
+
+Unlike the rule-based lists above, these two follow **X-Order's** shape: `filter` is a search phrase, `facet`
+names index fields, and `sort` takes index field expressions. They read the order **index**, not the database.
+
+```graphql
+{
+  salesRepCustomerOrders(
+    organizationId: "org-1"          # omit for every served customer
+    storeId: "B2B-store"
+    cultureName: "en-US"
+    filter: "status:\"New\",\"Completed\" createddate:[2026-05-01 TO 2026-05-31]"
+    facet: "status organizationname"
+    sort: "createdDate:desc"
+    first: 10
+    after: "0"
+  ) {
+    totalCount
+    items { id number organizationName createdDate status statusDisplayValue total { formattedAmount } }
+    term_facets { name terms { term label count } }
+  }
+
+  salesRepCustomerOrder(id: "…", cultureName: "en-US") { number status statusDisplayValue items { sku } }
+}
+```
+
+**`after` is an offset, not an opaque cursor.** `SearchQuery.Map` parses it with `int.TryParse` into `Skip`,
+so page by `pageInfo.endCursor` and never by the last `edges { cursor }` — an edge's cursor is that row's own
+index, so following it repeats the row, and a non-numeric cursor falls back to `0` and silently restarts the
+list. The scope re-check described below shortens a page after load while edge cursors keep counting from the
+unfiltered offset; `endCursor` is pure `skip`/`take` arithmetic and stays correct either way.
+
+⚠️ **Requires indexed order search.** `Search:OrderFullTextSearchEnabled` must be `true` and the
+`CustomerOrder` index built — the Orders module throws when it is off (it defaults to off). The rule-based
+`salesRepOrders` is database-backed and keeps working either way, so a deployment that has not enabled the
+flag gets a working dashboard and a failing customer-orders page.
+
+**Every query and mutation on this endpoint re-checks the caller's account, not just their claims.** A token
+stays valid for its whole lifetime (30 minutes by default) after the account behind it is locked, deleted or
+its password expires, and the membership scoping does not cover that — `OrganizationMembership.IsLocked` is
+the membership, not the account. So the three builder roots (`SalesRepQueryBuilder`,
+`SalesRepSearchQueryBuilder`, `SalesRepCommandBuilder`) call `EnsureAuthenticatedAsync`, which adds
+`IUserManagerCore.CheckCurrentUserState` to the claims check.
+
+A schema builder is constructed once, at schema build time, so **anything a builder needs per request is
+resolved from `context.RequestServices`** — via `ResolveFieldContextServiceExtensions.GetRequiredService<T>()`,
+the way X-API resolves the mediator — rather than captured in a constructor, where it would come from the root
+provider and be held for the application's lifetime. That covers `IUserManagerCore` and `ICurrencyService`; a
+builder constructor takes only what the X-API base requires.
+
+Note what this endpoint deliberately does **not** do: it never applies X-Order's
+`CanAccessOrderAuthorizationRequirement`. That requirement grants on "you placed this order" or "your contact
+belongs to the buying organization", plus an administrator bypass — a rep is none of those for a customer's
+order, so it would return nothing. Its handler reads no permission claim either, despite the name, so there is
+no X-Order permission to require alongside `sales-rep:access`.
+
+**The index selects the orders; the loaded rows decide which of them the rep may see.** An order's
+`OrganizationId` is mutable — `CustomerOrderEntity.Patch` copies it and the orders REST update persists a whole
+order — so a document indexed before such a change still matches the old organization's term filter. Both order
+surfaces therefore re-apply the scope to the loaded order through `ISalesRepOrderVisibilityService`, which
+resolves the served organizations from `ISalesRepOrganizationAccessService` for both the list and the by-id
+query — one overridable rule, asked only about the organizations present on the page. The
+accepted trade is that `totalCount` stays the index count, so it is an **upper bound** until the reindex and a
+page can come back a row short; the facet counts are aggregated on that same index, so they share the same
+staleness. User-chosen filters (status, dates, keyword) are *not* re-applied — a stale
+document there shows an order the rep is entitled to see, in a list it no longer belongs in, with its current
+values; the scope is the only criterion whose staleness would show data that is not theirs.
+
+⚠️ **`facet` is whitelisted to `status` and `organizationname`.** `ApplyMultiSelectFacetSearch` ANDs the whole
+search filter onto every aggregation, **minus the child filters whose field name the aggregated field name
+starts with** — that subtraction is what lets a facet still count the buckets its own selection excludes. The
+rep's scope travels in that same filter, as a term filter on `organizationid` (plus `storeid` when one is
+supplied), so aggregating a field whose name *begins with* a scoping field's name strips the scope and counts
+across the entire index — `facet:"organizationid"` would enumerate every organization in it. `status` and
+`organizationname` begin with neither, so their counts stay inside the rep's book; anything else is dropped
+rather than honoured. **A field may be added only if no scoping filter's field name is a prefix of it.**
+
+**How much of each order is loaded follows the selection.** `salesRepCustomerOrders` returns X-Order's full
+`CustomerOrderType`, so a caller *may* ask for the whole order graph — but a list that prints a few columns
+should not pay for it. `SalesRepCustomerOrderResponseGroupParser` maps the selected fields to a
+`CustomerOrderResponseGroup`: the storefront's list selection resolves to `WithPrices`, which the Orders
+repository answers with four queries per page instead of up to thirty-three. It reads the paths as the
+connection reports them — `items.…` / `edges.node.…` wrap the order, so the same word `items` means the page
+in one position and the order's line items in the other.
+
+A field the parser does not recognize — including one another module added to `CustomerOrderType` — resolves
+to `Full`, so an unmapped selection over-fetches instead of coming back empty. `items`, `shipments`,
+`inPayments`, `orderTotals` and the order's derived money (`subTotalDiscount`, `shippingSubTotal`,
+`paymentTaxTotal`, …) are deliberately mapped to `Full` as well: those values are not stored, they are
+computed by `DefaultCustomerOrderTotalsCalculator`, and `CustomerOrderService` runs it only when the response
+group is *exactly* `Full`. Before adding a field to the map, check it against
+`OrderRepository.GetCustomerOrdersByIdsAsync`, `CustomerOrder.ReduceDetails` and
+`CustomerOrderService.ProcessModel`.
+
+⚠️ **A narrowed selection answers the money from the stored columns, a Full one recomputes it.** A field that
+needs a heavier flag resolves to `Full` outright rather than accumulating into the group, so a narrowed group
+is never *exactly* `Full` and the totals calculator never runs on that path. `{ total }` therefore answers
+from `CustomerOrder.Total` as stored, while `{ total items { sku } }` — and `salesRepCustomerOrder` — answer
+with the value recomputed from the line items. The two agree for every order the platform wrote, because
+`CustomerOrderService.SaveChanges` calculates the totals and persists them; they can differ for a row whose
+stored totals no longer match its own children. Worth knowing before comparing a list total against a detail
+total.
+
+`salesRepCustomerOrder` (the read-only detail) stays on `Full` — the storefront selects nearly the whole
+order there, so the mapping would resolve to `Full` anyway.
+
+---
+
 #### Filter rules
 
 Lists and statistics blocks are filtered by a single, optional **named filter rule**, not by raw statuses/types. The storefront reads the selectable rules from a discovery query and sends back one rule `name` in the unified `filter` argument; the server resolves it to the underlying filter — order statuses, a cart type/status set, a customer segment, or a product category — and a rule can be a composite (e.g. a business `"inactive"` → `Cancelled` + `Failed`). Omit `filter` for the baseline set (everything the rep may see, minus soft-deleted/prototype); an unrecognized name fails **closed** (no data), never "return everything". Rule sets are overridable per project.
@@ -293,19 +408,44 @@ Aggregated order purchases for the rep — omit `organizationId` for the cross-c
 
 #### Cart / project statistics
 
-The same shape for carts/projects (dashboard *Active Projects*). `filter` here is a cart *kind*; the built-in default is `"active-carts"` (non-empty carts that are **not** wishlists) — and `count` is the primary metric:
+Cart/project figures for the dashboard *Active carts* card. **Every figure is aggregated from the `CartLineItem` rows** — the carts only scope them. `selectedItemQuantity` is the primary metric (summed quantity of the lines the customer selected for checkout), `unselectedItemQuantity` the parked remainder; `count` / `total` / `average` are the cart-level figures on top. `filter` is a cart *kind*; the built-in default is `"active-carts"` — carts **named `"default"`**, i.e. the storefront cart. That is an *include*-list, not an exclude-list: wishlists, saved-for-later and any cart kind a custom project introduces are `Cart` rows too, but they carry their own list names, so a new kind stays out of the metrics without a code change here.
 
 ```graphql
 {
   salesRepCustomerCartStatistics(currencyCode: "USD", cultureName: "en-US") {
-    activeCarts: period(from: "2026-01-01T00:00:00Z", to: "2026-12-31T23:59:59Z", filter: "active-carts") {
-      count
-      total { amount formattedAmount }
-      lastCartDate
+    activeCarts: period(filter: "active-carts") {          # omit both bounds → what is in the carts right now
+      selectedItemQuantity
+      unselectedItemQuantity
+      count                                                # distinct carts contributing to total
+      total { amount formattedAmount }                     # goods subtotal of the lines picked for checkout
+      average { amount }                                   # total / count
+    }
+    itemsThisWeek: period(from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z", filter: "active-carts") {
+      selectedItemQuantity
+    }
+    weekVsAll: comparison(                                 # e.g. this week's items against the lifetime figure
+      current:  { from: "2026-07-27T00:00:00Z", to: "2026-08-02T23:59:59Z" }
+      previous: { from: "2019-01-01T00:00:00Z", to: "2026-08-02T23:59:59Z" }
+      filter: "active-carts"
+    ) {
+      selectedItemQuantityChange
+      selectedItemQuantityChangePercent
+      totalChange { amount }
     }
   }
 }
 ```
+
+⚠️ Every figure is **scoped to the requested currency**, not folded across currencies. The storefront keeps one cart per currency and mirrors the same contents into each on a switch (`ChangeCartCurrencyCommandHandler` copies the lines and leaves both rows), so summing every currency would report one cart as many. The filter is on the cart, so it bounds the item quantities too — a quantity needs no exchange rate, but the other currency's cart is a mirror of the same intent. Counting only the requested currency also matches what a rep sees when they open that customer's cart. Orders are different — an order is settled in the currency it was placed in — so order statistics still fold and convert. A line item in an unconfigured currency *inside* an in-scope cart is the one case the fold still excludes, and `warning` names it.
+
+⚠️ The range bounds each **line item's modified date**, never the cart's own dates — so a cart opened months ago still reports the items touched inside the range (that is what makes `itemsThisWeek` above "this week's items", not "this week's carts"). For the same reason a cart holding no line items is inert whatever its denormalized `Cart.LineItemsCount` says.
+
+Two things to know about the money figures:
+
+- **Each figure family is aggregated only when selected.** The resolver maps the selection to a `CartStatisticsResponseGroup` (`ItemQuantities` | `CartFigures`) and the service gates each scan on it, so a quantities-only selection is one grouped scan and a `count`/`total`/`average`-only selection skips the quantities scan entirely. The mapping reads field *names*, so aliases, fragments and `@skip`/`@include` are all honoured, and a `comparison` asks for a family when it selects one of that family's deltas — a money delta needs the money on both sides. The response group rides on the criteria, hence on the cache key and on the request's DataLoader bucket key, so a lean result can never answer a request that wants more: two selections over one range simply become two buckets when their response groups differ. A criteria built directly (a custom project calling the service) defaults to `Full`.
+- **`total` is the goods subtotal, not the cart's grand total**: list price less line discount, over the lines selected for checkout with gifts excluded (mirroring `DefaultShoppingCartTotalsCalculator`), a sub-unit quantity billed as one. Shipping, taxes, fees and cart-level discounts are *not* included — they do not live on `CartLineItem`. `count` is the carts behind that sum, so `average` is exactly `total ÷ count`; a cart whose lines are all parked reports quantities but does not count. And since it reads the persisted line prices, which the platform only refreshes on a full-cart operation, a cart built by light add-to-cart calls can still report `0`.
+
+> 🛠 When extending this: the money is multiplied **in memory**, over one row per (currency, unit price, line discount) — the cart is deliberately not in that grouping key, so the row count is bounded by the distinct prices rather than by the line items. PostgreSQL maps the price columns to `money`, which has no `money * money` operator, and the decimal cast that fixes it is not translated by SQLite, so no LINQ expression can multiply a price by a quantity on every provider; the top-seller revenue ranking works around the same constraint the same way. `count` is therefore its own scalar `COUNT(DISTINCT cart)` over the convertible currencies at once — counted per currency and summed, a cart holding lines in two currencies would count twice.
 
 ---
 
@@ -359,6 +499,30 @@ The rep's top-selling products (dashboard *Top Sellers*, and per-customer when a
   }
 }
 ```
+
+#### Documents library
+
+The shared documents library (gated by `sales-rep-documents:read`). `after` is the offset cursor; the default sort is pinned-first then newest (`isPinned:desc;createdDate:desc`); `pinned: true` returns only the pinned document:
+
+```graphql
+{
+  salesRepDocuments(first: 20, after: "0", keyword: "catalog", category: "Catalogs", sort: "name:asc") {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    items {
+      id name displayName category contentType size
+      createdDate modifiedDate url summary pageCount previewUrl isPinned
+    }
+  }
+
+  salesRepDocument(id: "…") { id displayName url isPinned }   # null when missing / not a library entry
+
+  # Counts computed over the keyword-filtered set; zero-count categories omitted.
+  salesRepDocumentCategories(keyword: "catalog") { name count }
+}
+```
+
+The keyword matches the **display name** (the raw file name is internal), and `url` is the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL. The listing is **metadata-authoritative**: `totalCount` always matches the returned rows. A document whose file record is missing (out-of-band corruption — raw SQL, a mid-cascade failure) still lists with its metadata fields; the file-derived fields (`name`, `contentType`, `size`) degrade to null, while `url` stays resolvable (it is deterministic) — attempting the download yields the server's 404, uniformly with every other corruption class, and the document stays visible and deletable.
 
 ### Mutation
 
@@ -458,6 +622,43 @@ A sales rep can **publish a shopping list to a customer organization**: the list
 
 Implementation-wise the module registers a `SalesRepCartSharingService` (a subclass of X-Cart's `CartSharingService`, last-registration-wins) that teaches the pipeline the `Customer` scope's visibility and write-authorization rules, and a `SalesRepWishlistScopeType` that exposes the new value on the core wishlist schema. The serves-organization gate is a single shared service (`ISalesRepOrganizationAccessService`) used by both the sharing authorization and the query/communication handlers, so *"which organizations does this rep serve"* has one implementation.
 
+### Documents library
+
+A shared library of sales materials: a back-office manager uploads categorized files; storefront reps browse, search and download them. Files live in the **file-experience-api** `sales-rep-documents` scope; the module adds a metadata sidecar table (`SalesRepDocumentMetadata`, unique `FileId` — the module's first EF migration).
+
+* **Two-step intake.** Step 1 uploads the bytes through the shared file-experience-api endpoint (`POST /api/files/sales-rep-documents`); step 2 registers (claims) the file in the library (`POST /api/sales-rep/documents`) — creates the metadata row and stamps the file's owner. A file is a **library document only once claimed**: an uploaded-but-unregistered blob is readable by no one, and the generic `deleteFile` mutation may remove only such unclaimed leftovers — claimed documents are managed exclusively through the module's endpoints. Downloads go through the authorized `GET /api/files/{id}` (the module plugs its rules into file-experience-api's `IFileAuthorizationRequirementFactory`); raw blob URLs are never exposed.
+* **Display name is the search surface.** The keyword filter and the name sort work on the display name; the raw file name is internal. The display name is always stored — it falls back to the file name at registration.
+* **Case-insensitive matching by DB collation, not code.** On PostgreSQL the migration creates the platform's `case_insensitive` ICU collation and applies it to the metadata `Name` and `Category` columns (the VCST-4523 platform approach). On SqlServer and MySql the behavior follows the **server/database default collation** — case-insensitive in their standard configurations, but a database created with a case-sensitive or binary collation makes category filtering and keyword search case-sensitive there; only PostgreSQL is pinned by the module itself. Category values are **not normalized** — each document keeps the casing it was saved with; values differing only by case count as one category for filtering and counting, and the category listing shows one representative casing of the group (typically the first created). ⚠️ **PostgreSQL 18+ is required** for the documents keyword search — older versions reject `LIKE` on nondeterministic collations. This is not a floor this module introduces: the platform pins the same `case_insensitive` collation on user, role and dynamic-property columns it filters with `Contains`, so the stack-wide floor is already 18.
+* **Delete behavior.** A document spans three layers — the physical blob, the file record (`AssetEntry`), and the metadata row. Only the module endpoint manages all three; the generic admin tools each operate on one layer, and the residual orphan cases are deliberate (no self-healing reads, no cleanup jobs):
+
+  | Removal surface | Blob | File record | Metadata |
+  |---|---|---|---|
+  | `DELETE /api/sales-rep/documents?ids=` | deleted | deleted | deleted (converging cleanup: file-store failures are logged and never abort it — the metadata sweep always completes, and the file-experience-api record-delete cascade usually empties it first; see the residuals note below the table) |
+  | GraphQL `deleteFile` | deleted | deleted | deleted (event cascade) — denied for claimed documents |
+  | `DELETE /api/assetentries` | survives (orphan blob) | deleted | deleted (event cascade) |
+  | Assets workspace / manual blob deletion | deleted | survives | survives — the document still lists, its download fails |
+
+  The module delete's converging cleanup has two residual cases, both tolerated debris (as everywhere in the platform):
+  - **Leaked blob** — the file record was deleted but the blob removal failed. Invisible to the application (nothing references it); removable with the asset admin tools.
+  - **Still-claimed file** — the file-record delete itself failed, and the metadata sweep removed the document anyway. The file keeps its owner stamp, so it stays downloadable through `GET /api/files/{id}` by any `sales-rep-documents:read` holder while appearing in no listing; the module delete can no longer reach it (no metadata row) and the generic `deleteFile` refuses it (still claimed). Recourse: delete its `AssetEntry` via the assets admin tools (`DELETE /api/assetentries`) — that removes the record, and any blob it leaves behind is the first case.
+
+  A document delete is always **permanent**: the `softDelete` flag on the published `ISalesRepDocumentService.DeleteAsync` contract is not supported and throws `NotSupportedException` (the platform's own default for an unimplemented soft delete is to delete *nothing*, so silently hard-deleting would invert that contract).
+
+* **Deployment — required.** The `sales-rep-documents` upload scope is **not** self-registered by the module; it must be declared in the platform's `FileUpload` configuration (`appsettings.json` / deploy config), exactly as every file-experience-api scope is (the Quote module's `quote-attachments` works the same way — file-experience-api binds the whole scope list from `FileUpload` config, and no module contributes scopes in code). Until the entry is present, step-1 upload fails with `INVALID_SCOPE` — returned as **HTTP 200 with `succeeded: false` in the body, not an HTTP error status** — so nothing can be registered and the library stays silently empty on that environment. `MaxFileSize` must exceed the largest document you expect to host. Example:
+
+  ```json
+  "FileUpload": {
+    "Scopes": [
+      {
+        "Scope": "sales-rep-documents",
+        "MaxFileSize": 52428800,
+        "AllowedExtensions": [ ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv", ".zip", ".png", ".jpg", ".jpeg", ".gif", ".webp" ],
+        "AllowAnonymousUpload": false
+      }
+    ]
+  }
+  ```
+
 ## Administration
 
 The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name, salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
@@ -476,6 +677,18 @@ It is backed by a REST API under `/api/sales-rep`. Managing a rep is a customer-
 | `POST /api/sales-rep/{id}/unblock` | Unlock the rep's account. | `platform:security:update` |
 | `POST /api/sales-rep/{id}/password` | Set a new account password. | `platform:security:update` |
 
+The app also carries a **Documents library** section (list, upload, edit, pin, delete), backed by `/api/sales-rep/documents` with one permission per endpoint (read means read, write means write — see Permissions):
+
+| Method & route | Purpose | Permission |
+|----------------|---------|------------|
+| `POST /api/files/sales-rep-documents` | Step 1: upload the bytes (shared file-experience-api endpoint); returns the file id. | authenticated |
+| `POST /api/sales-rep/documents` | Step 2: register (claim) the uploaded file (+ optional category / name / summary / page count / preview). | `sales-rep-documents:write` |
+| `POST /api/sales-rep/documents/search` | Paged / filterable list. | `sales-rep-documents:read` |
+| `GET /api/sales-rep/documents/categories` | Keyword-filtered category counts. | `sales-rep-documents:read` |
+| `PUT /api/sales-rep/documents/{id}/metadata` | Full-replace metadata (never changes pin state or the file link). | `sales-rep-documents:write` |
+| `POST /api/sales-rep/documents/{id}/pin`, `.../unpin` | Single-pin toggle (at most one pinned document). | `sales-rep-documents:write` |
+| `DELETE /api/sales-rep/documents?ids=` | Remove documents (converging cleanup — see Delete behavior). | `sales-rep-documents:write` |
+
 Full REST documentation is browsable through Swagger on any running platform instance at `https://{platform-host}/docs/index.html?urls.primaryName=VirtoCommerce.SalesRep`.
 
 ## Permissions
@@ -483,8 +696,12 @@ Full REST documentation is browsable through Swagger on any running platform ins
 | Permission | Meaning |
 |------------|---------|
 | `sales-rep:access` | **Defines** a sales rep. Held by the rep via a role — globally and/or per organization. It is *not* an admin permission and does not gate the management API. |
+| `sales-rep-documents:read` | Browse, search and download documents library files (storefront queries + admin read endpoints). |
+| `sales-rep-documents:write` | Manage the documents library (upload/register, edit metadata, pin, delete). |
 
-The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. Admins may freely rename or delete it — reps are identified by the permission, never by this role's id.
+Permissions are granular and composed by **roles** — neither documents permission implies the other (a write-only holder cannot list or download; grant both to managers). Administrators pass every permission check.
+
+The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two documents-library roles: **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) and **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write`). Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may freely rename, edit or delete them (reps are identified by the permission, never by a role's id).
 
 ## Settings
 
@@ -507,6 +724,8 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
 | `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and maps the categories the rep sold in to their top-level ancestor through the categories' outlines (`ICategoryService`, `WithOutlines`), which also covers a virtual store catalog. |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
+| `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
+| `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
 
 ## Documentation
 
@@ -517,6 +736,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
   * [VCST-5309: Sales rep dashboard statistics, sort rules & Top Sellers](https://virtocommerce.atlassian.net/browse/VCST-5309)
   * [VCST-5310 / VCST-5331: Push & email messaging to customer members](https://virtocommerce.atlassian.net/browse/VCST-5310)
   * [VCST-5332: Publish a shopping list to a customer organization](https://virtocommerce.atlassian.net/browse/VCST-5332)
+  * [#12 — VCST-5730: Sales Rep documents library](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/12)
 
 > **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
 

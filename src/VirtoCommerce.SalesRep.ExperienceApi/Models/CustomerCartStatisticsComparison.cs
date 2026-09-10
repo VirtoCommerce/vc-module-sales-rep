@@ -14,5 +14,13 @@ public class CustomerCartStatisticsComparison
 
     public decimal? AverageChangePercent { get; set; }
 
+    public int SelectedItemQuantityChange { get; set; }
+
+    public decimal? SelectedItemQuantityChangePercent { get; set; }
+
+    public int UnselectedItemQuantityChange { get; set; }
+
+    public decimal? UnselectedItemQuantityChangePercent { get; set; }
+
     public string CurrencyCode { get; set; }
 }

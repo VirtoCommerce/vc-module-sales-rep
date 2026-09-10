@@ -18,8 +18,7 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
             SalesRepCartFilterRule.Create(
                 ActiveCartsKind,
                 "Active carts",
-                excludeTypes: [ModuleConstants.CartType.Wishlist],
-                onlyNonEmpty: true),
+                names: [ModuleConstants.DefaultCartName]),
         ];
 
         return Task.FromResult(kinds);
@@ -42,6 +41,11 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
             return null;
         }
 
+        if (kind.Names is { Count: > 0 })
+        {
+            criteria.Names = kind.Names;
+        }
+
         if (kind.Types is { Count: > 0 })
         {
             criteria.Types = kind.Types;
@@ -56,8 +60,6 @@ public class SalesRepCartFilterRuleResolver : FilterRuleResolverBase<SalesRepCar
         {
             criteria.Statuses = kind.Statuses;
         }
-
-        criteria.OnlyNonEmpty = kind.OnlyNonEmpty;
 
         return criteria;
     }

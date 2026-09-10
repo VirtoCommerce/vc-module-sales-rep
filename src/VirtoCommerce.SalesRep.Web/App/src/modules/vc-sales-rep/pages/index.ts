@@ -5,3 +5,6 @@ export { default as SalesRepsUnassignedList } from "./unassigned-list.vue";
 export { default as SalesRepOrganizationsList } from "./organizations-list.vue";
 export { default as SalesRepUnassignedOrganizationsList } from "./unassigned-organizations-list.vue";
 export { default as SalesRepDetails } from "./sales-rep-details.vue";
+export { default as SalesRepDocumentsList } from "./documents-list.vue";
+export { default as SalesRepDocumentDetails } from "./document-details.vue";
+export { default as SalesRepDocumentUpload } from "./document-upload.vue";

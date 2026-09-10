@@ -798,6 +798,106 @@ export class CustomerModuleClient extends AuthApiBase {
     }
 
     /**
+     * Cancels a not-yet-accepted organization membership invite.
+     * @return OK
+     */
+    revokeInvite(membershipId: string): Promise<InviteCustomerResult> {
+        let url_ = this.baseUrl + "/api/members/customers/invite/{membershipId}/revoke";
+        if (membershipId === undefined || membershipId === null)
+            throw new globalThis.Error("The parameter 'membershipId' must be defined.");
+        url_ = url_.replace("{membershipId}", encodeURIComponent("" + membershipId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processRevokeInvite(_response);
+        });
+    }
+
+    protected processRevokeInvite(response: Response): Promise<InviteCustomerResult> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as InviteCustomerResult;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<InviteCustomerResult>(null as any);
+    }
+
+    /**
+     * Re-sends the invitation notification for a not-yet-accepted organization membership invite.
+     * @return OK
+     */
+    resendInvite(membershipId: string): Promise<InviteCustomerResult> {
+        let url_ = this.baseUrl + "/api/members/customers/invite/{membershipId}/resend";
+        if (membershipId === undefined || membershipId === null)
+            throw new globalThis.Error("The parameter 'membershipId' must be defined.");
+        url_ = url_.replace("{membershipId}", encodeURIComponent("" + membershipId));
+        url_ = url_.replace(/[?&]$/, "");
+
+        let options_: RequestInit = {
+            method: "POST",
+            headers: {
+                "Accept": "application/json"
+            }
+        };
+
+        return this.transformOptions(options_).then(transformedOptions_ => {
+            return this.http.fetch(url_, transformedOptions_);
+        }).then((_response: Response) => {
+            return this.processResendInvite(_response);
+        });
+    }
+
+    protected processResendInvite(response: Response): Promise<InviteCustomerResult> {
+        const status = response.status;
+        let _headers: any = {}; if (response.headers && response.headers.forEach) { response.headers.forEach((v: any, k: any) => _headers[k] = v); };
+        if (status === 200) {
+            return response.text().then((_responseText) => {
+            let result200: any = null;
+            result200 = _responseText === "" ? null : JSON.parse(_responseText, this.jsonParseReviver) as InviteCustomerResult;
+            return result200;
+            });
+        } else if (status === 401) {
+            return response.text().then((_responseText) => {
+            return throwException("Unauthorized", status, _responseText, _headers);
+            });
+        } else if (status === 403) {
+            return response.text().then((_responseText) => {
+            return throwException("Forbidden", status, _responseText, _headers);
+            });
+        } else if (status !== 200 && status !== 204) {
+            return response.text().then((_responseText) => {
+            return throwException("An unexpected server error occurred.", status, _responseText, _headers);
+            });
+        }
+        return Promise.resolve<InviteCustomerResult>(null as any);
+    }
+
+    /**
      * Create contact
      * @param body (optional) 
      * @return OK
@@ -3192,6 +3292,7 @@ export interface MembersSearchCriteria {
     deepSearch?: boolean;
     rootMembersOnly?: boolean | undefined;
     outerIds?: string[] | undefined;
+    excludedObjectIds?: string[] | undefined;
     responseGroup?: string | undefined;
     objectType?: string | undefined;
     objectTypes?: string[] | undefined;
@@ -3228,6 +3329,7 @@ export interface Organization {
     businessCategory?: string | undefined;
     ownerId?: string | undefined;
     parentId?: string | undefined;
+    roles?: OrganizationRole[] | undefined;
     readonly objectType?: string | undefined;
     name?: string | undefined;
     memberType?: string | undefined;
@@ -3258,6 +3360,7 @@ export interface OrganizationMembership {
     organizationName?: string | undefined;
     isLocked?: boolean;
     lockoutEnd?: Date | undefined;
+    status?: string | undefined;
     readonly isCurrentlyLocked?: boolean;
     roles?: OrganizationMembershipRole[] | undefined;
     createdDate?: Date;
@@ -3276,6 +3379,13 @@ export interface OrganizationMembershipRole {
 
 export interface OrganizationMembershipSearchCriteria {
     userId?: string | undefined;
+    userIds?: string[] | undefined;
+    organizationId?: string | undefined;
+    organizationIds?: string[] | undefined;
+    roleIds?: string[] | undefined;
+    onlyLocked?: boolean;
+    onlyUnlocked?: boolean;
+    statuses?: string[] | undefined;
     responseGroup?: string | undefined;
     objectType?: string | undefined;
     objectTypes?: string[] | undefined;
@@ -3292,6 +3402,13 @@ export interface OrganizationMembershipSearchCriteria {
 export interface OrganizationMembershipSearchResult {
     totalCount?: number;
     results?: OrganizationMembership[] | undefined;
+}
+
+export interface OrganizationRole {
+    organizationId?: string | undefined;
+    roleId?: string | undefined;
+    roleName?: string | undefined;
+    id?: string | undefined;
 }
 
 export interface OrganizationSearchResult {

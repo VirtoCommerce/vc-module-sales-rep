@@ -11,7 +11,9 @@
     "sales-rep:create": "Create Sales Rep related data",
     "sales-rep:read": "View Sales Rep related data",
     "sales-rep:update": "Update Sales Rep related data",
-    "sales-rep:delete": "Delete Sales Rep related data"
+    "sales-rep:delete": "Delete Sales Rep related data",
+    "sales-rep-documents:read": "View Sales Rep documents library",
+    "sales-rep-documents:write": "Manage Sales Rep documents library"
   },
   "settings": {
     "SalesRep": {

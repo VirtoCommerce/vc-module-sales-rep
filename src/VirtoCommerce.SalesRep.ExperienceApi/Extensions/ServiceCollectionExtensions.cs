@@ -19,9 +19,13 @@ public static class ServiceCollectionExtensions
 
         serviceCollection.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
 
+        serviceCollection.AddSingleton<ISalesRepCustomerOrderResponseGroupParser, SalesRepCustomerOrderResponseGroupParser>();
+
         serviceCollection.AddSingleton<ISalesRepMemberResponseGroupParser, SalesRepMemberResponseGroupParser>();
 
         serviceCollection.AddSingleton<ISalesRepCommunicationResponseGroupParser, SalesRepCommunicationResponseGroupParser>();
+
+        serviceCollection.AddSingleton<ISalesRepCartStatisticsResponseGroupParser, SalesRepCartStatisticsResponseGroupParser>();
 
         serviceCollection.AddTransient<ISalesRepCurrencyResolver, SalesRepCurrencyResolver>();
 

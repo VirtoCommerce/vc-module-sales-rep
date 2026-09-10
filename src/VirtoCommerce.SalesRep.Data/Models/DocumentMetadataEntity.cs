@@ -1,0 +1,91 @@
+using System;
+using System.ComponentModel.DataAnnotations;
+using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.Platform.Core.Domain;
+using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Models;
+
+namespace VirtoCommerce.SalesRep.Data.Models;
+
+public class DocumentMetadataEntity : AuditableEntity, IDataEntity<DocumentMetadataEntity, SalesRepDocumentMetadata>
+{
+    public const int FileIdLength = 128;
+    public const int NameLength = 512;
+    public const int SummaryLength = 2048;
+    public const int PreviewUrlLength = 2083;
+
+    // No FK — the referenced file is stored by the file-experience-api module.
+    [Required]
+    [StringLength(FileIdLength)]
+    public string FileId { get; set; }
+
+    [Required]
+    [StringLength(NameLength)]
+    public string Name { get; set; }
+
+    [Required]
+    [StringLength(ModuleConstants.Documents.CategoryMaxLength)]
+    public string Category { get; set; }
+
+    public bool IsPinned { get; set; }
+
+    [StringLength(SummaryLength)]
+    public string Summary { get; set; }
+
+    public int? PageCount { get; set; }
+
+    [StringLength(PreviewUrlLength)]
+    public string PreviewUrl { get; set; }
+
+    public virtual DocumentMetadataEntity FromModel(SalesRepDocumentMetadata model, PrimaryKeyResolvingMap pkMap)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        pkMap.AddPair(model, this);
+
+        Id = model.Id;
+        CreatedBy = model.CreatedBy;
+        CreatedDate = model.CreatedDate;
+        ModifiedBy = model.ModifiedBy;
+        ModifiedDate = model.ModifiedDate;
+        FileId = model.FileId;
+        Name = model.Name;
+        Category = model.Category;
+        Summary = model.Summary;
+        PageCount = model.PageCount;
+        PreviewUrl = model.PreviewUrl;
+
+        return this;
+    }
+
+    public virtual SalesRepDocumentMetadata ToModel(SalesRepDocumentMetadata model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+
+        model.Id = Id;
+        model.CreatedBy = CreatedBy;
+        model.CreatedDate = CreatedDate;
+        model.ModifiedBy = ModifiedBy;
+        model.ModifiedDate = ModifiedDate;
+        model.FileId = FileId;
+        model.Name = Name;
+        model.Category = Category;
+        model.IsPinned = IsPinned;
+        model.Summary = Summary;
+        model.PageCount = PageCount;
+        model.PreviewUrl = PreviewUrl;
+
+        return model;
+    }
+
+    // FileId is not patched (the file link is immutable). IsPinned is read-only for model saves — absent from
+    // FromModel AND Patch — so the pin column has exactly one writer: SetPinnedAsync's atomic set-based UPDATE.
+    public virtual void Patch(DocumentMetadataEntity target)
+    {
+        target.Name = Name;
+        target.Category = Category;
+        target.Summary = Summary;
+        target.PageCount = PageCount;
+        target.PreviewUrl = PreviewUrl;
+    }
+}

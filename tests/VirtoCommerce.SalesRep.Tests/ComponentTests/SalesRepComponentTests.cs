@@ -121,7 +121,7 @@ public class SalesRepComponentTests
         // DB: account carries StoreId + login + lockout
         await using (var sdb = ctx.NewSecurityDbContext())
         {
-            var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id);
+            var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id, TestContext.Current.CancellationToken);
             user.UserName.Should().Be("jane@test.com");
             user.StoreId.Should().Be("B2B-store");
             (user.LockoutEnd != null && user.LockoutEnd > DateTimeOffset.UtcNow).Should().BeTrue();
@@ -130,9 +130,9 @@ public class SalesRepComponentTests
         // DB: contact, addresses and per-org memberships persisted
         await using (var cdb = ctx.NewCustomerDbContext())
         {
-            (await cdb.Set<ContactEntity>().SingleAsync(x => x.Id == created.Id)).Name.Should().Be("Jane Q Rep");
-            (await cdb.Set<AddressEntity>().CountAsync(x => x.MemberId == created.Id)).Should().Be(2);
-            (await cdb.Set<OrganizationMembershipEntity>().CountAsync(x => x.UserId == created.UserId)).Should().Be(2);
+            (await cdb.Set<ContactEntity>().SingleAsync(x => x.Id == created.Id, TestContext.Current.CancellationToken)).Name.Should().Be("Jane Q Rep");
+            (await cdb.Set<AddressEntity>().CountAsync(x => x.MemberId == created.Id, TestContext.Current.CancellationToken)).Should().Be(2);
+            (await cdb.Set<OrganizationMembershipEntity>().CountAsync(x => x.UserId == created.UserId, TestContext.Current.CancellationToken)).Should().Be(2);
         }
     }
 
@@ -194,7 +194,7 @@ public class SalesRepComponentTests
     private static async Task<string> GetAccountIdAsync(SalesRepTestContext ctx, string memberId)
     {
         await using var sdb = ctx.NewSecurityDbContext();
-        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == memberId);
+        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == memberId, TestContext.Current.CancellationToken);
         return user.Id;
     }
 
@@ -204,7 +204,7 @@ public class SalesRepComponentTests
         return await sdb.Set<IdentityUserRole<string>>()
             .Where(ur => ur.UserId == userId)
             .Select(ur => ur.RoleId)
-            .ToListAsync();
+            .ToListAsync(TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -280,18 +280,18 @@ public class SalesRepComponentTests
         // DB reflects the final state
         await using (var cdb = ctx.NewCustomerDbContext())
         {
-            (await cdb.Set<AddressEntity>().CountAsync(x => x.MemberId == created.Id)).Should().Be(2);
+            (await cdb.Set<AddressEntity>().CountAsync(x => x.MemberId == created.Id, TestContext.Current.CancellationToken)).Should().Be(2);
             var orgIds = await cdb.Set<OrganizationMembershipEntity>()
                 .Where(x => x.UserId == created.UserId)
                 .Select(x => x.OrganizationId)
-                .ToListAsync();
+                .ToListAsync(TestContext.Current.CancellationToken);
             orgIds.Should().BeEquivalentTo(["org-b", "org-c"]);
         }
 
         // Login email unchanged -> account UserName unchanged
         await using (var sdb = ctx.NewSecurityDbContext())
         {
-            (await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id)).UserName.Should().Be("login@test.com");
+            (await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id, TestContext.Current.CancellationToken)).UserName.Should().Be("login@test.com");
         }
     }
 
@@ -307,7 +307,7 @@ public class SalesRepComponentTests
         updated.Emails[0].Should().Be("new-login@test.com");
 
         await using var sdb = ctx.NewSecurityDbContext();
-        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id);
+        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == created.Id, TestContext.Current.CancellationToken);
         user.UserName.Should().Be("new-login@test.com");
         user.Email.Should().Be("new-login@test.com");
     }
@@ -321,20 +321,20 @@ public class SalesRepComponentTests
 
         await using (var db = ctx.NewCustomerDbContext())
         {
-            (await db.Set<OrganizationMembershipEntity>().CountAsync(x => x.OrganizationId == "org-9")).Should().Be(1);
+            (await db.Set<OrganizationMembershipEntity>().CountAsync(x => x.OrganizationId == "org-9", TestContext.Current.CancellationToken)).Should().Be(1);
         }
 
         await ctx.Controller.Delete([created.Id]);
 
         await using (var db = ctx.NewCustomerDbContext())
         {
-            (await db.Set<ContactEntity>().CountAsync(x => x.Id == created.Id)).Should().Be(0);
-            (await db.Set<OrganizationMembershipEntity>().CountAsync(x => x.OrganizationId == "org-9")).Should().Be(0);
+            (await db.Set<ContactEntity>().CountAsync(x => x.Id == created.Id, TestContext.Current.CancellationToken)).Should().Be(0);
+            (await db.Set<OrganizationMembershipEntity>().CountAsync(x => x.OrganizationId == "org-9", TestContext.Current.CancellationToken)).Should().Be(0);
         }
 
         await using (var db = ctx.NewSecurityDbContext())
         {
-            (await db.Set<ApplicationUser>().CountAsync(x => x.MemberId == created.Id)).Should().Be(0);
+            (await db.Set<ApplicationUser>().CountAsync(x => x.MemberId == created.Id, TestContext.Current.CancellationToken)).Should().Be(0);
         }
     }
 
@@ -369,11 +369,11 @@ public class SalesRepComponentTests
 
         await using (var cdb = ctx.NewCustomerDbContext())
         {
-            (await cdb.Set<ContactEntity>().CountAsync()).Should().Be(1, "the failed create must not leave an orphan contact");
+            (await cdb.Set<ContactEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(1, "the failed create must not leave an orphan contact");
         }
         await using (var sdb = ctx.NewSecurityDbContext())
         {
-            (await sdb.Set<ApplicationUser>().CountAsync()).Should().Be(1);
+            (await sdb.Set<ApplicationUser>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(1);
         }
 
         // The pre-existing rep is untouched.
@@ -391,12 +391,12 @@ public class SalesRepComponentTests
 
         await using (var cdb = ctx.NewCustomerDbContext())
         {
-            (await cdb.Set<ContactEntity>().CountAsync()).Should().Be(0, "a create that failed on a non-existent organization must not leave an orphan contact");
-            (await cdb.Set<OrganizationMembershipEntity>().CountAsync()).Should().Be(0);
+            (await cdb.Set<ContactEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0, "a create that failed on a non-existent organization must not leave an orphan contact");
+            (await cdb.Set<OrganizationMembershipEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
         }
         await using (var sdb = ctx.NewSecurityDbContext())
         {
-            (await sdb.Set<ApplicationUser>().CountAsync()).Should().Be(0);
+            (await sdb.Set<ApplicationUser>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0);
         }
     }
 
@@ -557,7 +557,7 @@ public class SalesRepComponentTests
         SalesRepTestContext.Unwrap(await ctx.Controller.Get(rep.Id)).IsLocked.Should().BeFalse();
 
         await using var sdb = ctx.NewSecurityDbContext();
-        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == rep.Id);
+        var user = await sdb.Set<ApplicationUser>().SingleAsync(x => x.MemberId == rep.Id, TestContext.Current.CancellationToken);
         (user.LockoutEnd == null || user.LockoutEnd <= DateTimeOffset.UtcNow).Should().BeTrue("unblock must clear the lockout");
     }
 
@@ -625,7 +625,7 @@ public class SalesRepComponentTests
         await act.Should().ThrowAsync<InvalidOperationException>().WithMessage("*login email*");
 
         await using var cdb = ctx.NewCustomerDbContext();
-        (await cdb.Set<ContactEntity>().CountAsync()).Should().Be(0, "the guard must reject the create before anything is persisted");
+        (await cdb.Set<ContactEntity>().CountAsync(TestContext.Current.CancellationToken)).Should().Be(0, "the guard must reject the create before anything is persisted");
     }
 
     // ---- read endpoints ----
