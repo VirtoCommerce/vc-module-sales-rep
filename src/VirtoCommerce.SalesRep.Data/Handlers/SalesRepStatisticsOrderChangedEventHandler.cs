@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -9,6 +8,8 @@ using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Data.Caching;
+using LineItemSignature = (string Id, string ProductId, string Sku, string Name, string ImageUrl,
+    string CategoryId, string Currency, decimal Price, int Quantity, bool IsCancelled);
 
 namespace VirtoCommerce.SalesRep.Data.Handlers;
 
@@ -64,16 +65,22 @@ public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderCha
     }
 
     // The top-seller ranking reads the line items, down to the display columns it renders, so their signature is part
-    // of what the aggregates see. Keyed by line id, so the comparison doesn't depend on collection order. Ordinal on
-    // purpose — unlike an id lookup this is change detection, where a differing case IS a change: the aggregation
-    // groups on these columns in SQL, and a case-sensitive collation splits the groups.
-    private static HashSet<string> GetLineItemSignatures(CustomerOrder order)
+    // of what the aggregates see. A set, so the comparison doesn't depend on collection order.
+    //
+    // Compared as values, never as a joined string: the two sides come from different origins — OldEntry is loaded
+    // from the database, where a decimal(18,4) column reads back as 12.0000, while NewEntry is the client's payload,
+    // where JSON 12 arrives with scale 0. decimal.ToString() keeps that scale, so a string signature made every save
+    // look like a change and the filter never declined (VCST-5755 F1). Value equality compares decimals numerically
+    // and is culture-proof besides. Strings still compare ordinal (the default): unlike an id lookup this is change
+    // detection, where a differing case IS a change — the aggregation groups on these columns in SQL, and a
+    // case-sensitive collation splits the groups.
+    private static HashSet<LineItemSignature> GetLineItemSignatures(CustomerOrder order)
     {
-        var signatures = order.Items?
-            .Select(x => string.Join('|', x.Id, x.ProductId, x.Sku, x.Name, x.ImageUrl, x.CategoryId,
+        IEnumerable<LineItemSignature> signatures = order.Items?
+            .Select(x => (x.Id, x.ProductId, x.Sku, x.Name, x.ImageUrl, x.CategoryId,
                 x.Currency, x.Price, x.Quantity, x.IsCancelled))
             ?? [];
 
-        return new HashSet<string>(signatures, StringComparer.Ordinal);
+        return [.. signatures];
     }
 }

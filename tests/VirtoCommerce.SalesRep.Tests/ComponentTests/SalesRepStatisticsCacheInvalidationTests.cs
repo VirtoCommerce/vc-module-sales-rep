@@ -187,6 +187,54 @@ public class SalesRepStatisticsCacheInvalidationTests
     }
 
     [Fact]
+    public async Task OrderStatistics_SurviveASaveThatOnlyRestatesTheSameDecimals()
+    {
+        const string org = "invalidation-order-scale-org";
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await CreateRepAsync(ctx, org);
+        SeedOrder(ctx, "o1", org, total: 100m);
+
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+        SeedOrder(ctx, "o2", org, total: 250m);
+
+        // The shape production actually produces: OldEntry is loaded from the database, where a decimal(18,4)
+        // column reads back as 12.0000, while NewEntry is the client's payload, where JSON 12 deserializes with
+        // scale 0. Equal numbers, and nothing an aggregate reads has moved — so this must not evict.
+        var before = NewOrder(org, total: 100m, status: "New");
+        before.Items = [NewLineItem(quantity: 1, price: 12.0000m)];
+        var after = NewOrder(org, total: 100m, status: "New");
+        after.Items = [NewLineItem(quantity: 1, price: 12m)];
+
+        await PublishOrderChangedAsync(ctx, before, after);
+
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+    }
+
+    [Fact]
+    public async Task OrderStatistics_AreEvictedWhenAPartialPayloadOmitsLineItems()
+    {
+        const string org = "invalidation-order-partial-org";
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await CreateRepAsync(ctx, org);
+        SeedOrder(ctx, "o1", org, total: 100m);
+
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+        SeedOrder(ctx, "o2", org, total: 250m);
+
+        // The orders module accepts partial updates, so NewEntry can arrive without line items at all. Absent is not
+        // the same as unchanged: reading it as "nothing moved" would turn this performance filter into stale figures,
+        // so the conservative answer — evict — is the correct one.
+        var before = NewOrder(org, total: 100m, status: "New");
+        before.Items = [NewLineItem(quantity: 1)];
+        var after = NewOrder(org, total: 100m, status: "New");
+        after.Items = null;
+
+        await PublishOrderChangedAsync(ctx, before, after);
+
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(350m);
+    }
+
+    [Fact]
     public async Task OrderStatistics_AreEvictedByALineItemChange()
     {
         const string org = "invalidation-order-lines-org";
@@ -407,13 +455,13 @@ public class SalesRepStatisticsCacheInvalidationTests
         return order;
     }
 
-    private static OrderLineItem NewLineItem(int quantity)
+    private static OrderLineItem NewLineItem(int quantity, decimal price = 10m)
     {
         var lineItem = AbstractTypeFactory<OrderLineItem>.TryCreateInstance();
         lineItem.Id = "changed-order-li";
         lineItem.ProductId = "product-1";
         lineItem.Currency = "USD";
-        lineItem.Price = 10m;
+        lineItem.Price = price;
         lineItem.Quantity = quantity;
         return lineItem;
     }
