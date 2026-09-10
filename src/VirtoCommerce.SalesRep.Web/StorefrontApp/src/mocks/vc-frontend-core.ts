@@ -37,12 +37,16 @@ export const useNotifications = () => ({ success: () => {}, error: () => {}, war
 export const useBreadcrumbs = (items: unknown) => items;
 export const usePageHead = () => {};
 export const useNavigations = () => ({ mergeMenuSchema: () => {}, registerAccountSection: () => {} });
-export const useExtensionRegistry = () => ({ register: () => {} });
+export const useExtensionRegistry = () => ({ register: () => {}, registerContribution: () => {} });
 export const useWishlistSharingScopes = () => ({ registerSharingScope: () => {} });
 export const registerCacheTypePolicies = () => {};
 export const registerLocaleLoader = () => {};
 export const getProductRoute = () => ({ name: "Product" });
 export const EXTENSION_NAMES = { sharedList: { provenanceNote: "provenanceNote" } };
+export const ROUTES = {
+  ACCOUNT: { NAME: "Account", PATH: "/account" },
+  COMPANY: { NAME: "Company", PATH: "/company" },
+};
 export const CORE_VERSION = "0.0.0-test";
 
 /**

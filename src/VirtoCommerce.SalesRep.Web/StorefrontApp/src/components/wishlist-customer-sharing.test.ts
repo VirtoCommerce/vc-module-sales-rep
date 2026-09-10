@@ -115,30 +115,6 @@ const VcTextarea = defineComponent({
   },
 });
 
-const VcCheckbox = defineComponent({
-  props: { modelValue: { type: Boolean, default: false }, testId: { type: String, default: "" } },
-  emits: ["update:modelValue"],
-  setup(props, { emit }) {
-    // Mirrors the real component: the id lands on the input, not on a wrapper.
-    return () =>
-      h("div", [
-        h("input", {
-          type: "checkbox",
-          "data-test-id": props.testId,
-          checked: props.modelValue,
-          onChange: (event: Event) => emit("update:modelValue", (event.target as HTMLInputElement).checked),
-        }),
-      ]);
-  },
-});
-
-const VcLabel = defineComponent({
-  setup:
-    (_, { slots }) =>
-    () =>
-      h("label", slots.default?.()),
-});
-
 let component: RenderResult;
 /** Reached the way the modal reaches it — through a template ref. */
 let controls: IWishlistSharingScopeControlsType;
@@ -168,7 +144,7 @@ function renderSharing(sharedWithId?: string) {
   component = render(Host, {
     props: { sharedWithId, sharingLink: SHARING_LINK },
     global: {
-      components: { VcSelect, VcTextarea, VcCheckbox, VcLabel },
+      components: { VcSelect, VcTextarea },
       stubs: { VcIcon: true },
     },
   });
@@ -182,13 +158,6 @@ function customerSelect() {
 
 function shareMessage() {
   return component.getByTestId<HTMLTextAreaElement>("wishlist-share-message-input");
-}
-
-function channels() {
-  return {
-    email: component.getByTestId<HTMLInputElement>("wishlist-share-email-checkbox"),
-    push: component.getByTestId<HTMLInputElement>("wishlist-share-push-checkbox"),
-  };
 }
 
 const SUCCESS = { succeeded: true, pushSent: true, emailSent: true, warnings: [] as string[] };
@@ -284,8 +253,8 @@ describe("WishlistCustomerSharing", () => {
     });
   });
 
-  describe("the message and channels", () => {
-    it("appear only once a new customer is chosen", async () => {
+  describe("the message", () => {
+    it("appears only once a new customer is chosen", async () => {
       renderSharing();
 
       expect(component.queryByTestId("wishlist-share-message-input")).toBeNull();
@@ -293,17 +262,24 @@ describe("WishlistCustomerSharing", () => {
       await fireEvent.update(customerSelect(), "org-1");
 
       expect(shareMessage()).toBeInTheDocument();
-      expect(channels().email).toBeChecked();
-      expect(channels().push).toBeChecked();
     });
 
-    it("stay hidden when the list is re-opened on its current customer", () => {
+    it("stays hidden when the list is re-opened on its current customer", () => {
       renderSharing("org-1");
 
       expect(component.queryByTestId("wishlist-share-message-input")).toBeNull();
     });
 
-    it("cap the message so the appended link cannot exceed the backend limit", async () => {
+    it("offers no channel choice, since every share goes out on both", async () => {
+      renderSharing();
+
+      await fireEvent.update(customerSelect(), "org-1");
+
+      expect(component.queryByTestId("wishlist-share-email-checkbox")).toBeNull();
+      expect(component.queryByTestId("wishlist-share-push-checkbox")).toBeNull();
+    });
+
+    it("caps the message so the appended link cannot exceed the backend limit", async () => {
       renderSharing();
       await fireEvent.update(customerSelect(), "org-1");
 
@@ -371,23 +347,10 @@ describe("WishlistCustomerSharing", () => {
       expect(command.message).toBe(`New season is live.\n\n${SHARING_LINK}`);
     });
 
-    it("honours the channel checkboxes", async () => {
-      renderSharing();
-      await fireEvent.update(customerSelect(), "org-1");
-      await fireEvent.click(channels().push);
-      await controls.onSaved!(SAVED_CONTEXT);
+    it("always requests both channels", async () => {
+      await shareWith("org-1");
 
-      expect(mocks.sendCommunication.mock.calls[0][0]).toMatchObject({ sendEmail: true, sendPush: false });
-    });
-
-    it("sends nothing when both channels are cleared", async () => {
-      renderSharing();
-      await fireEvent.update(customerSelect(), "org-1");
-      await fireEvent.click(channels().email);
-      await fireEvent.click(channels().push);
-      await controls.onSaved!(SAVED_CONTEXT);
-
-      expect(mocks.sendCommunication).not.toHaveBeenCalled();
+      expect(mocks.sendCommunication.mock.calls[0][0]).toMatchObject({ sendEmail: true, sendPush: true });
     });
 
     it("sends nothing when the target did not change", async () => {
