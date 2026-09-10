@@ -719,7 +719,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 
 `SalesRep.Enabled` is a presentation switch only — it does *not* gate the backend X-API or the data it returns (those stay secured by rep-membership scoping). It is registered for the `Store` type and marked public, so the storefront reads it from `store.settings.modules`.
 
-**Statistics cache behavior** is the product of the two axes above, per family, and both are read at runtime (no redeploy to change one):
+**Statistics cache behavior** is the product of the two axes above, per family, and both are read at runtime (no redeploy to change one). A flag governs entries created from then on: one cached while the flag was `false` carries no invalidation token, so it cannot be evicted until it expires.
 
 | Expiration | `InvalidateOnChange` | Behavior |
 |---|---|---|
