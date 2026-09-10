@@ -5,6 +5,7 @@ import {
   Logger,
   registerCacheTypePolicies,
   registerLocaleLoader,
+  ROUTES,
   useExtensionRegistry,
   useNavigations,
   useUser,
@@ -95,11 +96,11 @@ export function init(): void {
   const { router } = globals;
 
   // Relative routes -> mount under the "Company" parent (/company/sales-reps, /company/dashboard, /company/my-customers).
-  router.addRoute("Company", salesRepsRoute);
-  router.addRoute("Company", dashboardRoute);
-  router.addRoute("Company", myCustomersRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, salesRepsRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, dashboardRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, myCustomersRoute);
   // Customer profile (VCST-5308) -> /company/my-customers/:organizationId.
-  router.addRoute("Company", customerProfileRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, customerProfileRoute);
 
   const { mergeMenuSchema, registerAccountSection } = useNavigations();
   const { checkPermissions } = useUser();
@@ -107,11 +108,11 @@ export function init(): void {
   // My customers links showing the total-customer count badge. Desktop needs its own
   // component for the sibling-route highlight; mobile only contributes the count, so the
   // host renders its own menu link with it.
-  const { register } = useExtensionRegistry();
+  const { register, registerContribution } = useExtensionRegistry();
   register("accountMenu", MY_CUSTOMERS_NAV_LINK_ID, {
     component: defineAsyncComponent(() => import("./components/link-my-customers.vue")),
   });
-  register("mobileMenu", MY_CUSTOMERS_NAV_LINK_ID, {
+  registerContribution("mobileMenu", MY_CUSTOMERS_NAV_LINK_ID, {
     use: useSharedSalesRepCustomersCount,
   });
 
@@ -161,7 +162,7 @@ export function init(): void {
 
   // Layout regions and blocks carry ids that repeat across surfaces, so Apollo would normalize them
   // into entities shared by every scope. See layout/cache-policies.ts.
-  registerCacheTypePolicies(layoutTypePolicies);
+  registerCacheTypePolicies(layoutTypePolicies, { owner: "sales-rep" });
 
   loadLocale();
 }
