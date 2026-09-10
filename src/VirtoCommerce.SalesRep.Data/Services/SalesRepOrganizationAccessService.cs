@@ -38,6 +38,25 @@ public class SalesRepOrganizationAccessService(
         return memberships.Count > 0;
     }
 
+    // One membership query for the whole set; nothing to check is fine, an empty id is never served.
+    public virtual async Task<bool> ServesAllOrganizationsAsync(string userId, IList<string> organizationIds)
+    {
+        if (organizationIds.IsNullOrEmpty())
+        {
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(userId) || organizationIds.Any(string.IsNullOrEmpty))
+        {
+            return false;
+        }
+
+        var memberships = await GetGrantingMembershipsAsync([userId], organizationIds);
+        var servedOrganizationIds = memberships.Select(x => x.OrganizationId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return organizationIds.All(servedOrganizationIds.Contains);
+    }
+
     public virtual Task<IList<string>> GetServedOrganizationIdsAsync(string userId)
     {
         return GetVisibleOrganizationIdsAsync(userId, organizationId: null);

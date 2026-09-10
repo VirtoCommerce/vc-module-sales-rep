@@ -6,6 +6,7 @@ using FluentAssertions;
 using VirtoCommerce.CartModule.Core.Model;
 using VirtoCommerce.CartModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
@@ -15,12 +16,14 @@ using VirtoCommerce.XCart.Core.Services;
 using VirtoCommerce.XCart.Data.Services;
 using VirtoCommerce.XCart.Data.Services.SharingScopes;
 using Xunit;
+using Address = VirtoCommerce.CustomerModule.Core.Model.Address;
 
 namespace VirtoCommerce.SalesRep.Tests;
 
-// The "Customer" wishlist scope (VCST-5332). Most cases run through a real CartSharingService holding the XCart
-// built-ins plus this policy, so the scopes are exercised as they compose. The IsAuthorized cases guard the
-// data-isolation invariant: a customer sees ONLY lists shared with their own organization.
+// The "Customer" wishlist scope (VCST-5332; N target organizations + a persisted message since VCST-5850/5728). Most
+// cases run through a real CartSharingService holding the XCart built-ins plus this policy, so the scopes are exercised
+// as they compose. The IsAuthorized cases guard the data-isolation invariant: a customer sees ONLY lists shared with
+// their own organization.
 [Trait("Category", "Unit")]
 public class SalesRepCustomerCartSharingScopePolicyTests
 {
@@ -29,13 +32,14 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     private const string OrgB = "org-b";
     private const string OrgC = "org-c";
     private const string CustomerUserId = "customer-user-1";
+    private const string SharingKey = "sharing-key-1";
 
-    private static SalesRepCustomerCartSharingScopePolicy CustomerPolicy(bool servesOrganization = false) =>
-        new(new FakeOrganizationAccessService(servesOrganization));
+    private static SalesRepCustomerCartSharingScopePolicy CustomerPolicy(bool servesOrganization = false, IList<Member> organizations = null) =>
+        new(new FakeOrganizationAccessService(servesOrganization), new FakeMemberService(organizations ?? []));
 
     // XCart built-ins plus the sales-rep scope. Only the Customer policy is under test - the built-ins exercise
     // transitions, so this list need not track XCart's registration. The repository is unused by these paths.
-    private static ICartSharingService SharingService(bool servesOrganization = false) =>
+    private static ICartSharingService SharingService(bool servesOrganization = false, IList<Member> organizations = null) =>
         new CartSharingService(
             cartAggregateRepository: null,
             [
@@ -44,12 +48,14 @@ public class SalesRepCustomerCartSharingScopePolicyTests
                 new AnyoneAuthorizedCartSharingScopePolicy(),
                 new OrganizationCartSharingScopePolicy(),
                 new UserCartSharingScopePolicy(),
-                CustomerPolicy(servesOrganization),
+                CustomerPolicy(servesOrganization, organizations),
             ]);
 
     private sealed class FakeOrganizationAccessService(bool servesOrganization) : ISalesRepOrganizationAccessService
     {
         public Task<bool> ServesOrganizationAsync(string userId, string organizationId) => Task.FromResult(servesOrganization);
+
+        public Task<bool> ServesAllOrganizationsAsync(string userId, IList<string> organizationIds) => Task.FromResult(servesOrganization);
 
         public Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(IList<string> userIds = null, IList<string> organizationIds = null) => Task.FromResult<IList<OrganizationMembership>>([]);
 
@@ -60,33 +66,69 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         public Task<IList<OrganizationMembership>> GetVisibleGrantingMembershipsAsync(string userId, string organizationId) => Task.FromResult<IList<OrganizationMembership>>([]);
     }
 
+    /// <summary>Only the read-by-ids path is real: that is all target resolution needs.</summary>
+    private sealed class FakeMemberService(IList<Member> members) : IMemberService
+    {
+        public Task<Member[]> GetByIdsAsync(string[] memberIds, string responseGroup = null, string[] memberTypes = null) =>
+            Task.FromResult(members.Where(x => memberIds.Contains(x.Id, StringComparer.OrdinalIgnoreCase)).ToArray());
+
+        public Task<Member> GetByIdAsync(string memberId, string responseGroup = null, string memberType = null) =>
+            Task.FromResult(members.FirstOrDefault(x => x.Id == memberId));
+
+        public Task SaveChangesAsync(Member[] members) => throw new NotSupportedException();
+
+        public Task DeleteAsync(string[] ids, string[] memberTypes = null) => throw new NotSupportedException();
+    }
+
     private static ShoppingCart EmptyCart() => new() { SharingSettings = [] };
 
-    private static WishlistScopeContext ScopeContext(string scope, string sharedWithId, string currentUserId, string currentOrganizationId = null) =>
+    private static WishlistScopeContext ScopeContext(
+        string scope,
+        string currentUserId,
+        IList<string> addSharedWithIds = null,
+        IList<string> removeSharedWithIds = null,
+        string message = null,
+        string currentOrganizationId = null) =>
         new()
         {
             Scope = scope,
-            SharingKey = "sharing-key-1",
-            SharedWithId = sharedWithId,
+            SharingKey = SharingKey,
+            AddSharedWithIds = addSharedWithIds,
+            RemoveSharedWithIds = removeSharedWithIds,
+            Message = message,
             CurrentUserId = currentUserId,
             CustomerName = "Rep Name",
             CurrentOrganizationId = currentOrganizationId,
         };
 
+    private static WishlistScopeContext CustomerContext(IList<string> addSharedWithIds = null, IList<string> removeSharedWithIds = null, string message = null) =>
+        ScopeContext(ModuleConstants.Sharing.CustomerScope, RepUserId, addSharedWithIds, removeSharedWithIds, message);
+
+    // One setting (the sharing key) with one target row per organization - the persisted shape.
     private static ShoppingCart CustomerSharedCart(string ownerUserId, params string[] organizationIds)
     {
         return new ShoppingCart
         {
             CustomerId = ownerUserId,
-            SharingSettings = organizationIds.Select(organizationId => new CartSharingSetting
-            {
-                Id = Guid.NewGuid().ToString("N"),
-                Scope = ModuleConstants.Sharing.CustomerScope,
-                Access = CartSharingAccess.Read,
-                SharedWithId = organizationId,
-            }).ToList(),
+            SharingSettings =
+            [
+                new CartSharingSetting
+                {
+                    Id = SharingKey,
+                    Scope = ModuleConstants.Sharing.CustomerScope,
+                    Access = CartSharingAccess.Read,
+                    Targets = organizationIds.Select(organizationId => new CartSharingSettingTarget
+                    {
+                        Id = Guid.NewGuid().ToString("N"),
+                        CartSharingSettingId = SharingKey,
+                        SharedWithId = organizationId,
+                    }).ToList(),
+                },
+            ],
         };
     }
+
+    private static IEnumerable<string> TargetIds(ShoppingCart cart) => cart.SharingSettings.Single().Targets.Select(x => x.SharedWithId);
 
     [Fact]
     public void Registration_ExposesTheCustomerScope()
@@ -127,7 +169,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     }
 
     [Fact]
-    public void IsAuthorized_MemberOfSharedOrganization_ReturnsTrue()
+    public void IsAuthorized_MemberOfAnySharedOrganization_ReturnsTrue()
     {
         var service = SharingService();
         var cart = CustomerSharedCart(RepUserId, OrgA, OrgB);
@@ -184,6 +226,19 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     }
 
     [Fact]
+    public async Task IsAuthorized_RemovedOrganization_IsDeniedImmediately()
+    {
+        // Revocation is a target row gone, not a flag - the next authorization check already fails closed.
+        var service = SharingService(servesOrganization: true);
+        var cart = CustomerSharedCart(RepUserId, OrgA, OrgB);
+
+        await service.UpdateScopeAsync(cart, CustomerContext(removeSharedWithIds: [OrgB]));
+
+        service.IsAuthorized(cart, CustomerUserId, OrgB).Should().BeFalse();
+        service.IsAuthorized(cart, CustomerUserId, OrgA).Should().BeTrue();
+    }
+
+    [Fact]
     public void GetSharingAccess_Owner_ReturnsWrite_TargetedCustomer_ReturnsRead()
     {
         var service = SharingService();
@@ -206,42 +261,98 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     }
 
     [Fact]
-    public async Task UpdateScopeAsync_CustomerScope_RepServesOrganization_WritesCustomerSetting()
+    public async Task UpdateScopeAsync_CustomerScope_RepServesOrganizations_WritesOneSettingWithAllTargets()
     {
         var service = SharingService(servesOrganization: true);
         var cart = EmptyCart();
 
-        await service.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgA, RepUserId));
+        await service.UpdateScopeAsync(cart, CustomerContext(addSharedWithIds: [OrgA, OrgB], message: "Have a look"));
 
         var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Id.Should().Be(SharingKey);
         setting.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
-        setting.SharedWithId.Should().Be(OrgA);
         setting.Access.Should().Be(CartSharingAccess.Read);
+        setting.Message.Should().Be("Have a look");
+        TargetIds(cart).Should().BeEquivalentTo(new[] { OrgA, OrgB });
         cart.CustomerId.Should().Be(RepUserId); // owner stays the rep
+        cart.OrganizationId.Should().BeNull(); // no owner organization: the list is reachable by key, not by org listing
     }
 
     [Fact]
-    public async Task UpdateScopeAsync_CustomerScope_RepDoesNotServeOrganization_ThrowsForbidden()
+    public async Task UpdateScopeAsync_CustomerScope_AddingAnOrganization_DoesNotRevokeTheOthers()
+    {
+        // VCST-5707: sharing with a second customer used to replace the first one.
+        var service = SharingService(servesOrganization: true);
+        var cart = CustomerSharedCart(RepUserId, OrgA);
+
+        await service.UpdateScopeAsync(cart, CustomerContext(addSharedWithIds: [OrgB]));
+
+        cart.SharingSettings.Should().ContainSingle().Which.Id.Should().Be(SharingKey); // the existing link keeps working
+        TargetIds(cart).Should().BeEquivalentTo(new[] { OrgA, OrgB });
+        service.IsAuthorized(cart, CustomerUserId, OrgA).Should().BeTrue();
+        service.IsAuthorized(cart, CustomerUserId, OrgB).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task UpdateScopeAsync_CustomerScope_RepDoesNotServeAnAddedOrganization_ThrowsForbidden()
     {
         var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
         // DATA-ISOLATION INVARIANT: the server-side gate - a rep must not publish to an org they do not serve.
-        await service.Invoking(x => x.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgC, RepUserId)))
+        await service.Invoking(x => x.UpdateScopeAsync(cart, CustomerContext(addSharedWithIds: [OrgC])))
             .Should().ThrowAsync<AuthorizationError>();
         cart.SharingSettings.Should().BeEmpty(); // nothing persisted
     }
 
     [Fact]
-    public async Task UpdateScopeAsync_CustomerScope_AnonymousOrNoTarget_ThrowsForbidden()
+    public async Task UpdateScopeAsync_CustomerScope_RemovingAnOrganization_DoesNotRequireServingIt()
     {
-        // Even when the org would be served, an unauthenticated caller or a missing target is denied (fails closed).
+        // VCST-5925 §2.5: a rep unassigned from an organization must still be able to revoke its access.
+        var service = SharingService(servesOrganization: false);
+        var cart = CustomerSharedCart(RepUserId, OrgA, OrgB);
+
+        await service.UpdateScopeAsync(cart, CustomerContext(removeSharedWithIds: [OrgB]));
+
+        TargetIds(cart).Should().Equal(OrgA);
+    }
+
+    [Fact]
+    public async Task UpdateScopeAsync_CustomerScope_Anonymous_ThrowsForbidden()
+    {
         var service = SharingService(servesOrganization: true);
 
-        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgA, currentUserId: null)))
+        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext(ModuleConstants.Sharing.CustomerScope, currentUserId: null, addSharedWithIds: [OrgA])))
             .Should().ThrowAsync<AuthorizationError>();
-        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext(ModuleConstants.Sharing.CustomerScope, sharedWithId: null, RepUserId)))
-            .Should().ThrowAsync<AuthorizationError>();
+    }
+
+    [Fact]
+    public async Task UpdateScopeAsync_CustomerScope_NoTargetLeft_Throws()
+    {
+        // "Stop sharing" is the Private scope; a Customer list without a target is rejected rather than saved empty.
+        var service = SharingService(servesOrganization: true);
+
+        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), CustomerContext()))
+            .Should().ThrowAsync<InvalidOperationException>();
+        await service.Invoking(x => x.UpdateScopeAsync(CustomerSharedCart(RepUserId, OrgA), CustomerContext(removeSharedWithIds: [OrgA])))
+            .Should().ThrowAsync<InvalidOperationException>();
+    }
+
+    [Fact]
+    public async Task UpdateScopeAsync_CustomerScope_Message_IsSavedKeptAndCleared()
+    {
+        // VCST-5728: the message is persisted with the share; null keeps it, an empty string clears it.
+        var service = SharingService(servesOrganization: true);
+        var cart = CustomerSharedCart(RepUserId, OrgA);
+
+        await service.UpdateScopeAsync(cart, CustomerContext(message: "Check these out"));
+        cart.SharingSettings.Single().Message.Should().Be("Check these out");
+
+        await service.UpdateScopeAsync(cart, CustomerContext(addSharedWithIds: [OrgB]));
+        cart.SharingSettings.Single().Message.Should().Be("Check these out");
+
+        await service.UpdateScopeAsync(cart, CustomerContext(message: ""));
+        cart.SharingSettings.Single().Message.Should().BeNull();
     }
 
     [Fact]
@@ -250,7 +361,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         // A scope no registered policy claims is rejected loudly.
         var service = SharingService(servesOrganization: true);
 
-        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext("BogusScope", sharedWithId: null, RepUserId)))
+        await service.Invoking(x => x.UpdateScopeAsync(EmptyCart(), ScopeContext("BogusScope", RepUserId)))
             .Should().ThrowAsync<InvalidOperationException>();
     }
 
@@ -261,11 +372,11 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
-        await service.UpdateScopeAsync(cart, ScopeContext(CartSharingScope.Organization, sharedWithId: null, RepUserId, currentOrganizationId: OrgA));
+        await service.UpdateScopeAsync(cart, ScopeContext(CartSharingScope.Organization, RepUserId, currentOrganizationId: OrgA));
 
         var setting = cart.SharingSettings.Should().ContainSingle().Subject;
         setting.Scope.Should().Be(CartSharingScope.Organization);
-        setting.SharedWithId.Should().BeNull();
+        setting.Targets.Should().BeNullOrEmpty();
         cart.OrganizationId.Should().Be(OrgA);
     }
 
@@ -276,47 +387,33 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         var service = SharingService(servesOrganization: false);
         var cart = EmptyCart();
 
-        await service.UpdateScopeAsync(cart, ScopeContext(scope: null, sharedWithId: null, RepUserId));
+        await service.UpdateScopeAsync(cart, ScopeContext(scope: null, RepUserId));
 
         cart.SharingSettings.Should().BeEmpty();
     }
 
     // Edits of an ALREADY-shared list: the sharing key (the /shared-list/{key} link) survives every transition,
-    // and a customer target never outlives the Customer scope.
-
-    [Fact]
-    public async Task UpdateScopeAsync_CustomerScope_Retarget_KeepsSharingKeyAndReplacesTarget()
-    {
-        var service = SharingService(servesOrganization: true);
-        var cart = CustomerSharedCart(RepUserId, OrgA);
-        var originalKey = cart.SharingSettings.Single().Id;
-
-        await service.UpdateScopeAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, OrgB, RepUserId));
-
-        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
-        setting.Id.Should().Be(originalKey); // the existing link keeps working...
-        setting.SharedWithId.Should().Be(OrgB); // ...and now resolves for the new customer only
-        setting.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
-        setting.Access.Should().Be(CartSharingAccess.Read);
-    }
+    // and customer targets never outlive the Customer scope.
 
     [Theory]
     [InlineData(CartSharingScope.Private)]
     [InlineData(CartSharingScope.Organization)]
     [InlineData(CartSharingScope.AnyoneAnonymous)]
-    public async Task UpdateScopeAsync_LeavingCustomerScope_ClearsTargetAndKeepsSharingKey(string scope)
+    public async Task UpdateScopeAsync_LeavingCustomerScope_ClearsTargetsAndMessageAndKeepsSharingKey(string scope)
     {
-        // DATA-ISOLATION INVARIANT: a stale target must not survive, or re-sharing could expose the list again.
+        // DATA-ISOLATION INVARIANT: stale targets must not survive, or re-sharing could expose the list again.
         var service = SharingService(servesOrganization: true);
-        var cart = CustomerSharedCart(RepUserId, OrgA);
-        var originalKey = cart.SharingSettings.Single().Id;
+        var cart = CustomerSharedCart(RepUserId, OrgA, OrgB);
+        cart.SharingSettings.Single().Message = "Check these out";
 
-        await service.UpdateScopeAsync(cart, ScopeContext(scope, sharedWithId: null, RepUserId, currentOrganizationId: OrgB));
+        await service.UpdateScopeAsync(cart, ScopeContext(scope, RepUserId, currentOrganizationId: OrgC));
 
         var setting = cart.SharingSettings.Should().ContainSingle().Subject;
-        setting.Id.Should().Be(originalKey);
+        setting.Id.Should().Be(SharingKey);
         setting.Scope.Should().Be(scope);
-        setting.SharedWithId.Should().BeNull();
+        setting.Targets.Should().BeEmpty();
+        setting.Message.Should().BeNull();
+        service.IsAuthorized(cart, CustomerUserId, OrgA).Should().Be(scope == CartSharingScope.AnyoneAnonymous);
     }
 
     [Fact]
@@ -325,28 +422,57 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         // A rename-only edit submits no scope; dropping the share here would silently unshare the list.
         var service = SharingService(servesOrganization: false);
         var cart = CustomerSharedCart(RepUserId, OrgA);
-        var originalKey = cart.SharingSettings.Single().Id;
 
-        await service.UpdateScopeAsync(cart, ScopeContext(scope: null, sharedWithId: OrgB, RepUserId));
+        await service.UpdateScopeAsync(cart, ScopeContext(scope: null, RepUserId, addSharedWithIds: [OrgB]));
 
         var setting = cart.SharingSettings.Should().ContainSingle().Subject;
-        setting.Id.Should().Be(originalKey);
+        setting.Id.Should().Be(SharingKey);
         setting.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
-        setting.SharedWithId.Should().Be(OrgA); // not retargeted to OrgB either
+        TargetIds(cart).Should().Equal(OrgA); // OrgB was not added either
     }
 
     [Fact]
-    public async Task UpdateScopeAsync_BuiltInScope_IgnoresStraySharedWithId()
+    public async Task UpdateScopeAsync_BuiltInScope_IgnoresStrayTargets()
     {
-        // A target is meaningful only for the Customer scope; dropped, not rejected, so wishlists stay saveable.
+        // Targets are meaningful only for the Customer scope; dropped, not rejected, so wishlists stay saveable.
         var service = SharingService(servesOrganization: true);
         var cart = EmptyCart();
 
-        await service.UpdateScopeAsync(cart, ScopeContext(CartSharingScope.Organization, OrgA, RepUserId, currentOrganizationId: OrgB));
+        await service.UpdateScopeAsync(cart, ScopeContext(CartSharingScope.Organization, RepUserId, addSharedWithIds: [OrgA], currentOrganizationId: OrgB));
 
         var setting = cart.SharingSettings.Should().ContainSingle().Subject;
         setting.Scope.Should().Be(CartSharingScope.Organization);
-        setting.SharedWithId.Should().BeNull();
+        setting.Targets.Should().BeNullOrEmpty();
         cart.OrganizationId.Should().Be(OrgB); // owner org comes from the caller's context, not from the stray target
+    }
+
+    [Fact]
+    public async Task ResolveTargetsAsync_ResolvesOrganizationDisplayData_IndependentOfTheRepAssignment()
+    {
+        // VCST-5925 §1.2: names resolve for every grant on the list (even for an org the rep no longer serves);
+        // a deleted organization keeps its id and has no name.
+        var organizations = new List<Member>
+        {
+            new Organization
+            {
+                Id = OrgA,
+                Name = "Acme Corp",
+                IconUrl = "/acme.png",
+                Addresses = [new Address { City = "Berlin", RegionName = "Berlin", IsDefault = true }],
+            },
+            new Organization { Id = OrgB, Name = "No Address Ltd" },
+        };
+        var service = SharingService(servesOrganization: false, organizations);
+        var cart = CustomerSharedCart(RepUserId, OrgA, OrgB, OrgC);
+
+        var targets = await service.ResolveTargetsAsync(cart.SharingSettings.Single());
+
+        targets.Select(x => x.Id).Should().Equal(OrgA, OrgB, OrgC);
+        targets[0].Name.Should().Be("Acme Corp");
+        targets[0].Subtitle.Should().Be("Berlin, Berlin");
+        targets[0].ImageUrl.Should().Be("/acme.png");
+        targets[1].Name.Should().Be("No Address Ltd");
+        targets[1].Subtitle.Should().BeNull();
+        targets[2].Name.Should().BeNull();
     }
 }

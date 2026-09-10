@@ -526,12 +526,12 @@ The keyword matches the **display name** (the raw file name is internal), and `u
 
 ### Mutation
 
-Send a communication — a storefront push notification and/or an email — to the members of a customer organization the rep serves (the "My customers" contact action):
+Send a communication — a storefront push notification and/or an email — to the members of one or more customer organizations the rep serves (the "My customers" contact action and its multi-select "Send message" popup):
 
 ```graphql
 mutation {
   sendCustomerCommunication(command: {
-    organizationId: "7b8c..."
+    organizationIds: ["7b8c...", "9d0e..."]
     sendPush: true
     sendEmail: true
     title: "New products available"
@@ -555,11 +555,11 @@ The mutation returns a **result** describing each channel's outcome, so a partia
 | `pushSent` / `emailSent` | Per-channel delivery outcome. Each channel is attempted **independently** — one failing never blocks the other. |
 | `warnings` | Stable string codes explaining any channel that did not deliver (empty on full success). |
 
-The request itself is rejected with a GraphQL error only when it is **malformed or not allowed**: not authenticated, `message` missing or over 1000 characters, `title` over 128 characters, no channel selected, or the rep does not serve the organization (`Access denied.`). Everything else is reported through `warnings`:
+The request itself is rejected with a GraphQL error only when it is **malformed or not allowed**: not authenticated, `message` missing or over 1000 characters, `title` over 128 characters, no organization given, no channel selected, or the rep does not serve **every** listed organization (`Access denied.`). Everything else is reported through `warnings`:
 
 | Warning code | Channel | When |
 |--------------|---------|------|
-| `NoRecipients` | — | The organization has no members to notify (the rep is excluded from their own send). |
+| `NoRecipients` | — | The organizations have no members to notify (the rep is excluded from their own send). |
 | `EmailUnavailable` | email | The store's email is not configured — no `SalesRepMessageEmailNotification` template, or the store has no sender address. |
 | `EmailStoreAccessDenied` | email | The `storeId` is not the caller's own store (nor one of its trusted groups). Email uses the store's template and sender address, so it is scoped to the caller's store; push is store-agnostic and unaffected. |
 | `EmailNoRecipients` | email | Recipients exist, but none has an email address. |
@@ -568,7 +568,7 @@ The request itself is rejected with a GraphQL error only when it is **malformed 
 
 Codes are plain strings (see `ModuleConstants.Communication.Warnings`) — not an enum — so a downstream project can contribute its own codes; the storefront maps each to a localized message.
 
-Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
+Recipients are resolved **once** across all `organizationIds` — a member of several of them receives the message once — and fed to both channels, so the audience is identical regardless of which channels are selected. The legacy single `organizationId` is still accepted and counts as one more organization. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
 
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
@@ -615,12 +615,12 @@ The dashboard numbers are **aggregated in the database**: the module reads the O
 
 A sales rep can **publish a shopping list to a customer organization**: the list becomes visible to that organization's members, read-only, so they can review it and add its items to their own cart. This adds a `Customer` sharing scope to the platform's existing wishlist sharing (the Cart Experience API) **without forking it** — the module extends the X-Cart sharing pipeline (`ICartSharingService`) rather than replacing it.
 
-* **One target organization per list.** Sharing goes through the standard X-Cart `createWishlist` / `changeWishlist` mutation with `scope: "Customer"` and `sharedWithId` set to the customer organization id — there is no separate "share" mutation, so saving a list and its sharing is one call. The `/shared-list/{sharingKey}` link is the platform's existing one, and the key is stable across edits.
-* **Read access (data isolation).** The list's owner (the rep) always sees it; a customer member sees it only when their **active organization** matches the target (`sharedWithId`) — a member of any other organization, or an anonymous visitor, is denied. Customers get read-only access (add to cart, not edit); the rep keeps write.
-* **Write authorization.** Setting the `Customer` scope is gated server-side: the caller must be a **Sales Rep who actually serves the target organization** — the same *serves-organization* check `sendCustomerCommunication` uses, so *"can share with an org" == "can message it"*. A non-rep, or a rep targeting an organization they don't serve, is rejected (`Access denied.`); this is not a frontend-only gate.
+* **Any number of target organizations per list, one link.** Sharing goes through the standard X-Cart `createWishlist` / `changeWishlist` mutation with `scope: "Customer"` plus `addSharedWithIds` / `removeSharedWithIds` (customer organization ids — deltas, so adding a second customer never revokes the first) and an optional `message`, saved with the share and returned as `sharingSetting.message`. There is no separate "share" mutation, so saving a list and its sharing is one call. The `/shared-list/{sharingKey}` link is the platform's existing one and the key is stable across edits; `sharingSetting.targets` lists every organization with its resolved `name` / `subtitle` / `imageUrl`, whether or not the rep still serves it. The legacy single `sharedWithId` is still accepted as one more organization to add.
+* **Read access (data isolation).** The list's owner (the rep) always sees it; a customer member sees it only when their **active organization** is one of the targets, and never sees the other recipients (`sharingSetting.targets` / `sharedWithId` resolve for the owning rep only; the `message` is visible to recipients) — a member of any other organization, or an anonymous visitor, is denied. Customers get read-only access (add to cart, not edit); the rep keeps write.
+* **Write authorization.** Adding organizations to the `Customer` scope is gated server-side: the caller must be a **Sales Rep who actually serves every organization being added** — the same *serves-organization* check `sendCustomerCommunication` uses, so *"can share with an org" == "can message it"*. A non-rep, or a rep targeting an organization they don't serve, is rejected (`Access denied.`); this is not a frontend-only gate. Removing an organization needs no such check — the list owner can always revoke, even after being unassigned from that organization. A `Customer` list must keep at least one target; "stop sharing" is the `Private` scope.
 * **Notification.** Telling the customer their list is ready reuses the `sendCustomerCommunication` mutation above (the rep's message plus the shared-list link) — no new notification surface.
 
-Implementation-wise the module registers a `SalesRepCartSharingService` (a subclass of X-Cart's `CartSharingService`, last-registration-wins) that teaches the pipeline the `Customer` scope's visibility and write-authorization rules, and a `SalesRepWishlistScopeType` that exposes the new value on the core wishlist schema. The serves-organization gate is a single shared service (`ISalesRepOrganizationAccessService`) used by both the sharing authorization and the query/communication handlers, so *"which organizations does this rep serve"* has one implementation.
+Implementation-wise the module registers a `SalesRepCustomerCartSharingScopePolicy` (an `ICartSharingScopePolicy` in X-Cart's additive sharing-scope registry) that teaches the pipeline the `Customer` scope's visibility, write-authorization and target-resolution rules; the enum value appears on the core wishlist schema automatically. The serves-organization gate is a single shared service (`ISalesRepOrganizationAccessService`) used by both the sharing authorization and the query/communication handlers, so *"which organizations does this rep serve"* has one implementation.
 
 ### Documents library
 
@@ -717,7 +717,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
 | `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics and Top Sellers. |
-| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics; persists the shared-list target (`CartSharingSetting.SharedWithId`). |
+| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics; persists the shared-list targets and message (`CartSharingSetting` + `CartSharingSettingTarget`). |
 | `VirtoCommerce.XCart` | Wishlist-sharing pipeline (`ICartSharingService`) extended with the `Customer` scope for publishing a list to a customer organization. |
 | `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
 | `VirtoCommerce.PushMessages` | Storefront push notifications for customer communications. |
