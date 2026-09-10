@@ -273,7 +273,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         setting.Scope.Should().Be(ModuleConstants.Sharing.CustomerScope);
         setting.Access.Should().Be(CartSharingAccess.Read);
         setting.Message.Should().Be("Have a look");
-        TargetIds(cart).Should().BeEquivalentTo(new[] { OrgA, OrgB });
+        TargetIds(cart).Should().BeEquivalentTo(OrgA, OrgB);
         cart.CustomerId.Should().Be(RepUserId); // owner stays the rep
         cart.OrganizationId.Should().BeNull(); // no owner organization: the list is reachable by key, not by org listing
     }
@@ -288,7 +288,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         await service.UpdateScopeAsync(cart, CustomerContext(addSharedWithIds: [OrgB]));
 
         cart.SharingSettings.Should().ContainSingle().Which.Id.Should().Be(SharingKey); // the existing link keeps working
-        TargetIds(cart).Should().BeEquivalentTo(new[] { OrgA, OrgB });
+        TargetIds(cart).Should().BeEquivalentTo(OrgA, OrgB);
         service.IsAuthorized(cart, CustomerUserId, OrgA).Should().BeTrue();
         service.IsAuthorized(cart, CustomerUserId, OrgB).Should().BeTrue();
     }

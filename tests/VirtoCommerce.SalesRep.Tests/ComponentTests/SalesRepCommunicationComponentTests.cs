@@ -464,9 +464,9 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":true");
-        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo(new[] { "c1", "c2", "c3" });
+        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c2", "c3");
         Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To)
-            .Should().BeEquivalentTo(new[] { "c1@test.com", "c2@test.com", "c3@test.com" });
+            .Should().BeEquivalentTo("c1@test.com", "c2@test.com", "c3@test.com");
     }
 
     [Fact]
@@ -482,7 +482,7 @@ public class SalesRepCommunicationComponentTests
         var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation(["org-2"], legacyOrganizationId: "org-1", email: false), userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo(new[] { "c1", "c3" });
+        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c3");
     }
 
     [Fact]

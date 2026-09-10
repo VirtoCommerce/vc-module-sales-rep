@@ -145,13 +145,9 @@ public class SendCustomerCommunicationCommandHandler
 
         foreach (var organizationId in organizationIds)
         {
-            foreach (var recipient in await _recipientResolver.ResolveRecipientsAsync(organizationId, responseGroup))
-            {
-                if (memberIds.Add(recipient.Id))
-                {
-                    result.Add(recipient);
-                }
-            }
+            var recipients = await _recipientResolver.ResolveRecipientsAsync(organizationId, responseGroup);
+
+            result.AddRange(recipients.Where(recipient => memberIds.Add(recipient.Id)));
         }
 
         return result;
