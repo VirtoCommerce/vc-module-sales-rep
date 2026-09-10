@@ -227,6 +227,8 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepDocumentService, SalesRepDocumentService>();
         services.AddTransient<ISalesRepDocumentSearchService, SalesRepDocumentSearchService>();
         services.AddTransient<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+        services.AddTransient<SalesRepStatisticsCartChangedEventHandler>();
+        services.AddTransient<SalesRepStatisticsOrderChangedEventHandler>();
 
         services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
         services.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
@@ -242,7 +244,8 @@ internal static class TestServicesConfiguration
         // already registered above; currencies and settings get lightweight doubles (the component tests don't
         // exercise dictionary contents — the controller just needs the graph to resolve).
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
-        services.AddSingleton<ISettingsManager, TestSettingsManager>();
+        services.AddSingleton<TestSettingsManager>();
+        services.AddSingleton<ISettingsManager>(sp => sp.GetRequiredService<TestSettingsManager>());
 
         // Lightweight IStoreService double: SalesRepService reads the store's ContactDefaultStatus setting to
         // seed a rep's member status. Registered as a singleton so tests can configure per-store defaults
@@ -272,9 +275,14 @@ internal static class TestServicesConfiguration
     }
 
     /// <summary>Minimal <see cref="ISettingsManager"/> double: only <see cref="GetObjectSettingAsync"/> is used
-    /// (by the dictionaries endpoint, to read the configured languages); the rest are inert.</summary>
-    private sealed class TestSettingsManager : ISettingsManager
+    /// (by the dictionaries endpoint reading the configured languages, and by the statistics cache reading its
+    /// expirations and invalidation flags); the rest are inert. A setting left out of <see cref="Values"/> reports no
+    /// value, which is how <c>GetValueAsync</c> falls back to the descriptor default — so tests get the module's real
+    /// defaults unless they configure otherwise (see <see cref="SalesRepTestContext.SetSetting"/>).</summary>
+    internal sealed class TestSettingsManager : ISettingsManager
     {
+        public ConcurrentDictionary<string, object> Values { get; } = new();
+
         public IEnumerable<SettingDescriptor> AllRegisteredSettings => [];
         public void RegisterSettings(IEnumerable<SettingDescriptor> settings, string moduleId = null) { }
         public void RegisterSettingsForType(IEnumerable<SettingDescriptor> settings, string typeName) { }
@@ -286,6 +294,7 @@ internal static class TestServicesConfiguration
             var setting = new ObjectSettingEntry
             {
                 Name = name,
+                Value = Values.GetValueOrDefault(name),
                 // Non-null AllowedValues everywhere: FileExtensionService unions the white/blacklist settings'
                 // AllowedValues without a null guard.
                 AllowedValues = name == PlatformConstants.Settings.General.Languages.Name ? ["en-US", "de-DE"] : [],

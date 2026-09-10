@@ -45,8 +45,8 @@ public class SalesRepOrderStatusService : ISalesRepOrderStatusService
         // The DISTINCT is too heavy to run per request and the vocabulary only changes when a status is first used, so
         // it rides the order-statistics TTL.
         return await StatisticsCache.GetOrCreateAsync(
-            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration,
-            GetType(), nameof(GetUsedStatusesAsync), criteria.GetCacheKey(),
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.Families.Order,
+            GetType(), nameof(GetUsedStatusesAsync), criteria,
             () => ComputeUsedStatusesAsync(criteria));
     }
 

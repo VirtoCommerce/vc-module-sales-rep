@@ -4,7 +4,7 @@ using VirtoCommerce.Platform.Core.Common;
 
 namespace VirtoCommerce.SalesRep.Core.Models;
 
-public class CustomerCartStatisticsCriteria : ValueObject
+public class CustomerCartStatisticsCriteria : ValueObject, IStatisticsCacheCriteria
 {
     public IList<string> OrganizationIds { get; set; }
 
