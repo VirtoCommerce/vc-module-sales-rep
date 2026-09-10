@@ -30,8 +30,8 @@ internal static class StatisticsCache
             if (Apply(options, TimeSpan.FromMinutes(minutes)) &&
                 await StatisticsCacheInvalidation.IsEnabledAsync(settingsManager, family))
             {
-                // Before running the aggregation, not after: cancelling a token removes its source, so a token
-                // created after a racing invalidation comes back live and caches the value the change invalidated.
+                // Before the aggregation, not after: cancelling a token removes its source, so one created after a
+                // racing invalidation comes back live and caches the value that change invalidated.
                 options.AddExpirationToken(SalesRepStatisticsCacheRegion.CreateChangeToken(family, criteria.OrganizationIds));
             }
 
@@ -39,7 +39,7 @@ internal static class StatisticsCache
         });
     }
 
-    /// <returns><c>false</c> when the entry is not going to be cached at all, so nothing should be attached to it.</returns>
+    // False when the entry will not be cached at all, so nothing should be attached to it.
     private static bool Apply(MemoryCacheEntryOptions options, TimeSpan ttl)
     {
         if (options.AbsoluteExpirationRelativeToNow == CacheDisabled)
@@ -55,8 +55,8 @@ internal static class StatisticsCache
 
         options.AbsoluteExpirationRelativeToNow = ttl;
 
-        // The platform's default entry options may carry a sliding window; left in place it would silently cap the
-        // configured lifetime at min(ttl, idle time). This setting is the whole lifetime.
+        // The platform's default options may carry a sliding window, which would silently cap the configured
+        // lifetime at min(ttl, idle time). This setting is the whole lifetime.
         options.SlidingExpiration = null;
 
         return true;

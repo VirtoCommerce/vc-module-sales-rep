@@ -6,18 +6,11 @@ using VirtoCommerce.SalesRep.Core.Caching;
 
 namespace VirtoCommerce.SalesRep.Data.Caching;
 
-/// <summary>
-/// Invalidation tokens for the statistics aggregates, keyed by (family, organization): every cached key variant of an
-/// organization — periods, filters, currencies, reps — dies together, which is what makes the hub totals agree with
-/// the sum of their own customer cards. Expirations propagate, so with the Redis backplane configured they reach
-/// every instance; the whole region can also be dropped at once.
-/// </summary>
+// Keyed by (family, organization): every cached variant of an organization — periods, filters, currencies, reps —
+// dies together, which is what makes the hub totals agree with the sum of their own customer cards.
 public class SalesRepStatisticsCacheRegion : CancellableCacheRegion<SalesRepStatisticsCacheRegion>
 {
-    /// <param name="organizationIds">
-    /// The organizations the entry aggregates. An unscoped criteria (no organizations — which the statistics services
-    /// accept) yields the region token alone, so such an entry rides its TTL and region-wide expiry instead of failing.
-    /// </param>
+    // No organizations (an unscoped criteria, which the services accept) yields the region token alone.
     public static IChangeToken CreateChangeToken(StatisticsCacheFamily family, IList<string> organizationIds)
     {
         var changeTokens = new List<IChangeToken> { CreateChangeToken() };

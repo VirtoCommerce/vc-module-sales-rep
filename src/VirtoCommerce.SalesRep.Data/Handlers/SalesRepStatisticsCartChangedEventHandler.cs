@@ -9,10 +9,8 @@ using VirtoCommerce.SalesRep.Data.Caching;
 
 namespace VirtoCommerce.SalesRep.Data.Handlers;
 
-// The hub's cart figures are aggregated straight from the carts table, so a cart change is the only thing that can
-// move them. The event is published after the commit and the in-process bus awaits its handlers, so by the time a
-// mutation answers, the rep's own edit is already gone from this instance's cache; other instances are reached by the
-// Redis backplane, which carries the expirations.
+// The event is published after the commit and the bus awaits its handlers, so the rep's own edit is already gone
+// from this instance's cache by the time the mutation answers; other instances are reached by the Redis backplane.
 public class SalesRepStatisticsCartChangedEventHandler : IEventHandler<CartChangedEvent>
 {
     private readonly ISettingsManager _settingsManager;

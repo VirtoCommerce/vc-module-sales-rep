@@ -25,15 +25,10 @@ using ShoppingCartEntity = VirtoCommerce.CartModule.Data.Model.ShoppingCartEntit
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
-/// Component tests for the statistics cache's invalidation (VCST-5755). The aggregates are read through the real
-/// GraphQL path over the real <see cref="VirtoCommerce.Platform.Core.Caching.IPlatformMemoryCache"/>, so every test
-/// carries its own control: the same query, same arguments, re-issued after a database change that no event
-/// announced, must still answer from the cache. Without that half, a passing "it went fresh" assertion would also
-/// pass with no cache at all.
-/// <para>
-/// Organization ids are unique per test: the platform's cache-region token dictionaries are static, so tests sharing
-/// an organization id would expire each other's entries.
-/// </para>
+/// Statistics cache invalidation (VCST-5755), over the real GraphQL path and the real platform cache. Every test
+/// carries its own control — the same query re-issued after a change no event announced must still answer from the
+/// cache — because without it a passing "it went fresh" would also pass with no cache at all. Organization ids are
+/// unique per test: the region token dictionaries are static, so a shared id would cross-expire.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepStatisticsCacheInvalidationTests
@@ -64,7 +59,7 @@ public class SalesRepStatisticsCacheInvalidationTests
 
         (await ReadCartQuantityAsync(ctx, org, rep)).Should().Be(2);
 
-        // A change nothing announced: the cached answer must survive it, or the test below proves nothing.
+        // A change nothing announced: the cached answer must survive it, or the assertion below proves nothing.
         SeedCartWithItem(ctx, "c2", org, quantity: 3);
         (await ReadCartQuantityAsync(ctx, org, rep)).Should().Be(2);
 
@@ -107,7 +102,7 @@ public class SalesRepStatisticsCacheInvalidationTests
         SeedCartWithItem(ctx, "c2", org, quantity: 3);
         await PublishCartChangedAsync(ctx, org);
 
-        // The flag is consulted when the entry is created as well, so no token was ever attached to expire.
+        // The flag is consulted at entry creation too, so no token was ever attached to expire.
         (await ReadCartQuantityAsync(ctx, org, rep)).Should().Be(2);
     }
 
@@ -173,7 +168,7 @@ public class SalesRepStatisticsCacheInvalidationTests
         (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
         SeedOrder(ctx, "o2", org, total: 250m);
 
-        // The status pipeline saves an order repeatedly; a save that moves nothing an aggregate reads keeps the entry.
+        // A save that moves nothing an aggregate reads keeps the entry.
         var before = NewOrder(org, total: 100m, status: "New");
         var afterComment = NewOrder(org, total: 100m, status: "New");
         afterComment.Comment = "called the customer back";
@@ -197,9 +192,8 @@ public class SalesRepStatisticsCacheInvalidationTests
         (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
         SeedOrder(ctx, "o2", org, total: 250m);
 
-        // The shape production actually produces: OldEntry is loaded from the database, where a decimal(18,4)
-        // column reads back as 12.0000, while NewEntry is the client's payload, where JSON 12 deserializes with
-        // scale 0. Equal numbers, and nothing an aggregate reads has moved — so this must not evict.
+        // The shape production produces: OldEntry from the database carries the stored scale, NewEntry is the
+        // client payload where JSON 12 has scale 0. Equal numbers, nothing moved — so this must not evict.
         var before = NewOrder(org, total: 100m, status: "New");
         before.Items = [NewLineItem(quantity: 1, price: 12.0000m)];
         var after = NewOrder(org, total: 100m, status: "New");
@@ -221,9 +215,8 @@ public class SalesRepStatisticsCacheInvalidationTests
         (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
         SeedOrder(ctx, "o2", org, total: 250m);
 
-        // The orders module accepts partial updates, so NewEntry can arrive without line items at all. Absent is not
-        // the same as unchanged: reading it as "nothing moved" would turn this performance filter into stale figures,
-        // so the conservative answer — evict — is the correct one.
+        // Partial updates mean NewEntry can arrive without line items. Absent is not unchanged: reading it as
+        // "nothing moved" would turn this performance filter into stale figures, so evicting is the correct answer.
         var before = NewOrder(org, total: 100m, status: "New");
         before.Items = [NewLineItem(quantity: 1)];
         var after = NewOrder(org, total: 100m, status: "New");
@@ -245,7 +238,7 @@ public class SalesRepStatisticsCacheInvalidationTests
         (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
         SeedOrder(ctx, "o2", org, total: 250m);
 
-        // The top-seller ranking aggregates the line items, so their signature is part of what the families read.
+        // Top sellers aggregates the line items, so they are part of what the families read.
         var before = NewOrder(org, total: 100m, status: "New");
         before.Items = [NewLineItem(quantity: 1)];
         var after = NewOrder(org, total: 100m, status: "New");
@@ -269,7 +262,7 @@ public class SalesRepStatisticsCacheInvalidationTests
         SeedOrder(ctx, "o2", org, total: 100m, categoryId: "cat-2");
         await PublishOrderChangedAsync(ctx, org);
 
-        // The top-seller family defaults to TTL-only: the heaviest query, and no acceptance criterion needs it fresh.
+        // The top-seller family defaults to TTL-only.
         (await ReadSoldCategoriesAsync(ctx, org, rep)).Should().BeEquivalentTo(["cat-1"]);
     }
 
@@ -334,8 +327,8 @@ public class SalesRepStatisticsCacheInvalidationTests
         await CreateRepAsync(ctx, "invalidation-unscoped-org");
         SeedCartWithItem(ctx, "c1", "invalidation-unscoped-org", quantity: 2);
 
-        // The statistics services accept a criteria with no organizations (BuildQuery treats it as unscoped), and a
-        // custom project calling them directly is a documented seam — attaching tokens must not narrow that contract.
+        // An unscoped criteria is legal (BuildQuery treats it as such) and calling the service directly is a
+        // documented seam, so attaching tokens must not narrow that contract.
         var criteria = AbstractTypeFactory<CustomerCartStatisticsCriteria>.TryCreateInstance();
         criteria.ResponseGroup = CartStatisticsResponseGroup.ItemQuantities;
         criteria.Names = [CartModuleConstants.DefaultCartName];
@@ -360,8 +353,7 @@ public class SalesRepStatisticsCacheInvalidationTests
 
         await PublishOrderChangedAsync(ctx, org);
 
-        // The customers list's inline figures and ordering route through the same per-organization aggregate as the
-        // hub statistics, so they go fresh with it — the rows were never the stale part.
+        // The list's inline figures route through the same per-organization aggregate as the hub statistics.
         (await ReadCustomerPurchasesAsync(ctx, rep)).Should().Be(350m);
     }
 

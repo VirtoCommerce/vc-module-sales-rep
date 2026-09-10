@@ -708,7 +708,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | Setting | Scope | Type | Default | Purpose |
 |---------|-------|------|---------|---------|
 | `SalesRep.Enabled` | Per store (public) | Boolean | `true` | Toggles visibility of the Sales Rep UI on a store's storefront. |
-| `SalesRep.Statistics.CartCacheExpirationMinutes` | Module | Integer | `5` | Lifetime of the cached cart aggregates. `0` disables caching for the family — every read is fresh SQL. |
+| `SalesRep.Statistics.CartCacheExpirationMinutes` | Module | Integer | `5` | Lifetime of the cached cart aggregates. `0` stops the family caching anything new. |
 | `SalesRep.Statistics.OrderCacheExpirationMinutes` | Module | Integer | `5` | Same, for the order figures and the used-status vocabulary. |
 | `SalesRep.Statistics.CustomerCountsCacheExpirationMinutes` | Module | Integer | `5` | Same, for the customer counts. |
 | `SalesRep.Statistics.TopSellerCacheExpirationMinutes` | Module | Integer | `5` | Same, for the top-seller ranking and the sold-category vocabulary. |
@@ -723,7 +723,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 
 | Expiration | `InvalidateOnChange` | Behavior |
 |---|---|---|
-| `0` | ignored | No cache. Every read runs the aggregation. |
+| `0` | ignored | Nothing new is cached, so every read recomputes. An entry cached under a previous setting keeps serving until it expires — dropping the expiration to `0` does not flush what is already there. |
 | `> 0` | `false` | Pure TTL cache: an entry can be up to its expiration old. |
 | `> 0` | `true` | Cart/order changes evict the affected organization's entries; the expiration is only a ceiling. |
 

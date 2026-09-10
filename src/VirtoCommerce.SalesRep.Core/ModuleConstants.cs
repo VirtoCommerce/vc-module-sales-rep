@@ -132,11 +132,9 @@ public static class ModuleConstants
                 DefaultValue = DefaultCacheLifetimeMinutes,
             };
 
-            // The second axis of every family's cache behavior (the first is its expiration above):
-            //   expiration 0            -> no cache at all, the flag is not consulted
-            //   expiration > 0, false   -> pure short-TTL cache
-            //   expiration > 0, true    -> cart/order changes evict the organization's entries, TTL is the ceiling
-            // Consulted on both sides — entry creation and the event handlers — so it is flippable at runtime.
+            // The second axis of each family's behavior, alongside its expiration above (matrix in the README).
+            // Flippable at runtime, but it governs entries created from now on: one cached while the flag was off
+            // carries no token and cannot be evicted until it expires.
             public static SettingDescriptor OrderStatisticsInvalidateOnChange { get; } = new()
             {
                 Name = "SalesRep.Statistics.OrderInvalidateOnChange",
@@ -161,7 +159,7 @@ public static class ModuleConstants
                 DefaultValue = true,
             };
 
-            // The heaviest query, and no acceptance criterion touches its freshness: deliberately TTL-only.
+            // The heaviest query, and nothing on the hub needs it fresh to the second: deliberately TTL-only.
             public static SettingDescriptor TopSellerInvalidateOnChange { get; } = new()
             {
                 Name = "SalesRep.Statistics.TopSellerInvalidateOnChange",
@@ -185,8 +183,7 @@ public static class ModuleConstants
                 public static StatisticsCacheFamily TopSeller { get; } =
                     new(nameof(TopSeller), TopSellerCacheExpiration, TopSellerInvalidateOnChange);
 
-                // The families an order change concerns: order figures and the status vocabulary, the ordering-customer
-                // count, and the top-seller ranking (which aggregates the orders' line items).
+                // Top sellers is here because it aggregates the orders' line items.
                 public static StatisticsCacheFamily[] OrderDriven { get; } = [Order, CustomerCounts, TopSeller];
             }
 

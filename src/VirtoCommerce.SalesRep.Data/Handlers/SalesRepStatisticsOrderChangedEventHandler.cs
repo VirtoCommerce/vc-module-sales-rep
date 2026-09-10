@@ -13,8 +13,8 @@ using LineItemSignature = (string Id, string ProductId, string Sku, string Name,
 
 namespace VirtoCommerce.SalesRep.Data.Handlers;
 
-// Order figures, the used-status vocabulary, the ordering-customer count and the top-seller ranking are all
-// aggregated straight from the orders table, so an order change is what moves them.
+// Order figures, the status vocabulary, the ordering-customer count and the top-seller ranking all aggregate the
+// orders table, so an order change is what moves them.
 public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderChangedEvent>
 {
     private readonly ISettingsManager _settingsManager;
@@ -38,10 +38,7 @@ public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderCha
             _settingsManager, ModuleConstants.Settings.Caching.Families.OrderDriven, organizationIds);
     }
 
-    /// <summary>
-    /// An order carries far more than the aggregates read, and its status pipeline saves it repeatedly. Only a change
-    /// to something an aggregate actually reads is worth a recompute; everything else keeps the entries it can't move.
-    /// </summary>
+    // The status pipeline saves an order repeatedly; only a change an aggregate actually reads is worth a recompute.
     protected virtual bool IsAggregateRelevant(GenericChangedEntry<CustomerOrder> entry)
     {
         var oldEntry = entry.OldEntry;
@@ -64,16 +61,10 @@ public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderCha
             !GetLineItemSignatures(oldEntry).SetEquals(GetLineItemSignatures(newEntry));
     }
 
-    // The top-seller ranking reads the line items, down to the display columns it renders, so their signature is part
-    // of what the aggregates see. A set, so the comparison doesn't depend on collection order.
-    //
-    // Compared as values, never as a joined string: the two sides come from different origins — OldEntry is loaded
-    // from the database, where a decimal(18,4) column reads back as 12.0000, while NewEntry is the client's payload,
-    // where JSON 12 arrives with scale 0. decimal.ToString() keeps that scale, so a string signature made every save
-    // look like a change and the filter never declined (VCST-5755 F1). Value equality compares decimals numerically
-    // and is culture-proof besides. Strings still compare ordinal (the default): unlike an id lookup this is change
-    // detection, where a differing case IS a change — the aggregation groups on these columns in SQL, and a
-    // case-sensitive collation splits the groups.
+    // Top sellers reads the line items down to the display columns, so their values are part of what the aggregates
+    // see. A set, so collection order doesn't matter — and values, never a joined string: OldEntry comes from the
+    // database carrying the stored scale (12.0000) while NewEntry is the client payload, where JSON 12 has scale 0.
+    // decimal.ToString() keeps that scale, so a string signature made every save look like a change (VCST-5755 F1).
     private static HashSet<LineItemSignature> GetLineItemSignatures(CustomerOrder order)
     {
         IEnumerable<LineItemSignature> signatures = order.Items?
