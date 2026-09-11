@@ -51,15 +51,16 @@
     <Exec Command="yarn install --immutable" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
     <Exec Command="yarn build" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
   </Target>
-  <!-- The default Content glob is evaluated before any target runs, so the built files need adding by hand. -->
-  <Target Name="PublishStorefrontPlugin" DependsOnTargets="BuildStorefrontPlugin" BeforeTargets="ComputeResolvedFilesToPublishList" Condition="'$(SkipStorefrontPlugin)' != 'true'">
+  <!--
+    The platform probes {moduleRoot}/plugins/vc-frontend/, but vc-build publishes the web project into
+    {moduleRoot}/bin - so the plugin goes one level above the publish dir, the way NotificationTemplates does
+    below. (Adding it to ResolvedFileToPublish put it in bin/plugins/, where nothing looks.)
+  -->
+  <Target Name="PublishStorefrontPlugin" AfterTargets="Publish" DependsOnTargets="BuildStorefrontPlugin" Condition="'$(SkipStorefrontPlugin)' != 'true'">
     <ItemGroup>
       <StorefrontPluginFile Include="$(MSBuildProjectDirectory)\plugins\**\*" />
-      <ResolvedFileToPublish Include="@(StorefrontPluginFile)">
-        <RelativePath>plugins\%(RecursiveDir)%(Filename)%(Extension)</RelativePath>
-        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-      </ResolvedFileToPublish>
     </ItemGroup>
+    <Copy SourceFiles="@(StorefrontPluginFile)" DestinationFiles="$(PublishDir)\..\plugins\%(RecursiveDir)%(Filename)%(Extension)" />
   </Target>
   <Target Name="CopyCustomContentOnPublish" AfterTargets="Publish">
     <Copy SourceFiles="@(NotificationTemplates)" DestinationFiles="$(PublishDir)\..\%(Identity)" />
