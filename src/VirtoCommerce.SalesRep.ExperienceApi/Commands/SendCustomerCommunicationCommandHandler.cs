@@ -140,7 +140,7 @@ public class SendCustomerCommunicationCommandHandler
     // Deduplicated by member: a contact in several of the organizations gets the message once.
     protected virtual async Task<IList<Member>> ResolveRecipientsAsync(IList<string> organizationIds, string responseGroup)
     {
-        var result = new List<Member>();
+        List<Member> result = [];
         var memberIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var organizationId in organizationIds)
