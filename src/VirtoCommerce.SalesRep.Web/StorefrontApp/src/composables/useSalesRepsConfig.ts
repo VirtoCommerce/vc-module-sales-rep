@@ -1,5 +1,4 @@
-import { useModuleSettings } from "@vc-frontend/core";
-import { useUser } from "@vc-frontend/core";
+import { useModuleSettings, useUser } from "@vc-frontend/core";
 import { ENABLED_KEY, MODULE_ID, SALES_REP_ACCESS_PERMISSION } from "../constants";
 
 // The Sales reps feature is gated by the backend module's storefront setting

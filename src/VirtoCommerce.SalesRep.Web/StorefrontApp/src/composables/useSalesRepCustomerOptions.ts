@@ -1,6 +1,5 @@
 import { computed, ref, watch } from "vue";
-import { globals } from "@vc-frontend/core";
-import { Logger } from "@vc-frontend/core";
+import { globals, Logger } from "@vc-frontend/core";
 import { SalesRepCustomerOptionsDocument } from "../api/graphql/types";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 

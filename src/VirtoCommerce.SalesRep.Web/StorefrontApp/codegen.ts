@@ -9,7 +9,7 @@ if (!env.APP_BACKEND_URL) {
   throw new Error("APP_BACKEND_URL is not set — put it in .env (see .env.example) or export it in the shell.");
 }
 
-const config: CodegenConfig = {
+const codegen: CodegenConfig = {
   // The sales-rep backend module's scoped schema (registered via ScopedSchemaFactory,
   // exposed at /graphql/sales-rep by its Web module).
   schema: `${env.APP_BACKEND_URL}/graphql/sales-rep`,
@@ -62,4 +62,4 @@ const config: CodegenConfig = {
   },
 };
 
-export default config;
+export default codegen;

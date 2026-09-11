@@ -66,8 +66,7 @@ import { useField, useForm } from "vee-validate";
 import { computed, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { string } from "yup";
-import { useNotifications } from "@vc-frontend/core";
-import { VcModal } from "@vc-frontend/core";
+import { useNotifications, VcModal } from "@vc-frontend/core";
 import { useSalesRepCommunication } from "../composables/useSalesRepCommunication";
 
 interface IProps {

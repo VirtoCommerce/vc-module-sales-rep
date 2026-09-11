@@ -1,7 +1,5 @@
 import { useMutation } from "@vue/apollo-composable";
-import { SUPPRESS_ERROR_NOTIFICATIONS_CONTEXT } from "@vc-frontend/core";
-import { globals } from "@vc-frontend/core";
-import { Logger } from "@vc-frontend/core";
+import { globals, Logger, SUPPRESS_ERROR_NOTIFICATIONS_CONTEXT } from "@vc-frontend/core";
 import { SendCustomerCommunicationDocument } from "../api/graphql/types";
 import type { SalesRepCommunicationInputType, SalesRepCommunicationResultType } from "../types";
 

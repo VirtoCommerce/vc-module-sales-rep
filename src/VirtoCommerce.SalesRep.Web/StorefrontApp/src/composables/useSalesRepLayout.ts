@@ -1,7 +1,6 @@
 import { useMutation } from "@vue/apollo-composable";
 import { computed, onScopeDispose, readonly, ref, watchEffect } from "vue";
-import { globals } from "@vc-frontend/core";
-import { Logger } from "@vc-frontend/core";
+import { globals, Logger } from "@vc-frontend/core";
 import { SalesRepLayoutDocument, SaveSalesRepLayoutDocument } from "../api/graphql/types";
 import { echoMatchesSentBlocks, reconcileLayout, serializeLayout } from "../layout/document";
 import { getBlockRegistry } from "../layout/registry";

@@ -1,6 +1,5 @@
 import { computed, toValue } from "vue";
-import { globals } from "@vc-frontend/core";
-import { Logger } from "@vc-frontend/core";
+import { globals, Logger } from "@vc-frontend/core";
 import { SalesRepCustomerCartStatisticsDocument } from "../api/graphql/types";
 import { ACTIVE_CARTS_FILTER, HUB_FETCH_POLICY } from "../constants";
 import { needsCartStatistics } from "../layout/stat-data-needs";

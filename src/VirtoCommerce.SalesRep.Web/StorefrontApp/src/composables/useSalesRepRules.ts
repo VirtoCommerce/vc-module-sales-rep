@@ -1,7 +1,6 @@
 import { computed, toValue } from "vue";
 import { useI18n } from "vue-i18n";
-import { globals } from "@vc-frontend/core";
-import { Logger } from "@vc-frontend/core";
+import { globals, Logger } from "@vc-frontend/core";
 import {
   SalesRepCustomerFilterRulesDocument,
   SalesRepCustomerSortRulesDocument,

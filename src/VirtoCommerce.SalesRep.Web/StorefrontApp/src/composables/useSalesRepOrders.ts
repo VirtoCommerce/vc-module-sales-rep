@@ -1,6 +1,5 @@
 import { computed, toValue } from "vue";
-import { globals } from "@vc-frontend/core";
-import { Logger } from "@vc-frontend/core";
+import { globals, Logger } from "@vc-frontend/core";
 import { SalesRepOrdersDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY, ORDERS_DEFAULT_LIMIT } from "../constants";
 import { formatStatCount, formatStatMoney } from "../utils";

@@ -1,6 +1,5 @@
 import { computed, ref, watch } from "vue";
-import { globals } from "@vc-frontend/core";
-import { Logger } from "@vc-frontend/core";
+import { globals, Logger } from "@vc-frontend/core";
 import { CustomerSalesRepsDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
