@@ -17,7 +17,7 @@
     <dependency id="VirtoCommerce.PushMessages" version="3.1004.0" />
     <dependency id="VirtoCommerce.Store" version="3.1006.0" />
     <dependency id="VirtoCommerce.Xapi" version="3.1020.0" />
-    <dependency id="VirtoCommerce.XCart" version="3.1036.0-alpha.288-vcst-5850-5728-multi-sharing-key-message" />
+    <dependency id="VirtoCommerce.XCart" version="3.1036.0-alpha.290-vcst-5850-5728-multi-sharing-key-message" />
     <dependency id="VirtoCommerce.XOrder" version="3.1011.0" />
   </dependencies>
 
