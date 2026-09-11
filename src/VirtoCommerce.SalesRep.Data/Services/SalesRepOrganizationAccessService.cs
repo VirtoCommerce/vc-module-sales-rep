@@ -13,6 +13,10 @@ public class SalesRepOrganizationAccessService(
     ISalesRepRoleResolver roleResolver,
     IOrganizationMembershipSearchService membershipSearchService) : ISalesRepOrganizationAccessService
 {
+    // SearchAll pages by criteria.Take, and the platform default of 20 turns one 1000-organization
+    // authorization into ~50 sequential round trips.
+    private const int MembershipsBatchSize = 1000;
+
     public virtual async Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(
         IList<string> userIds = null,
         IList<string> organizationIds = null)
@@ -28,6 +32,7 @@ public class SalesRepOrganizationAccessService(
         criteria.OrganizationIds = organizationIds;
         criteria.RoleIds = grantingRoleIds.ToArray();
         criteria.OnlyUnlocked = true;
+        criteria.Take = MembershipsBatchSize;
 
         return await membershipSearchService.SearchAllNoCloneAsync(criteria);
     }
@@ -36,6 +41,25 @@ public class SalesRepOrganizationAccessService(
     {
         var memberships = await GetGrantingMembershipsAsync([userId], [organizationId]);
         return memberships.Count > 0;
+    }
+
+    // One membership query for the whole set; nothing to check is fine, an empty id is never served.
+    public virtual async Task<bool> ServesAllOrganizationsAsync(string userId, IList<string> organizationIds)
+    {
+        if (organizationIds.IsNullOrEmpty())
+        {
+            return true;
+        }
+
+        if (string.IsNullOrEmpty(userId) || organizationIds.Any(string.IsNullOrEmpty))
+        {
+            return false;
+        }
+
+        var memberships = await GetGrantingMembershipsAsync([userId], organizationIds);
+        var servedOrganizationIds = memberships.Select(x => x.OrganizationId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return organizationIds.All(servedOrganizationIds.Contains);
     }
 
     public virtual Task<IList<string>> GetServedOrganizationIdsAsync(string userId)

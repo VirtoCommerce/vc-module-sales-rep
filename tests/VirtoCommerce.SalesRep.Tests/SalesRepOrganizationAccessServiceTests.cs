@@ -63,6 +63,21 @@ public class SalesRepOrganizationAccessServiceTests
     }
 
     [Fact]
+    public async Task ServesAllOrganizationsAsync_ThousandOrganizations_AuthorizesInOneQuery()
+    {
+        // A Sales Rep may serve up to ~1000 organizations and share one list with all of them. SearchAll pages by
+        // criteria.Take, so the inherited default of 20 made this authorization ~50 sequential round trips.
+        var organizationIds = Enumerable.Range(0, 1000).Select(x => $"org-{x}").ToList();
+        var search = new FakeMembershipSearchService(organizationIds.Select(x => Membership(RepUserId, x)).ToArray());
+        var service = CreateService(search);
+
+        var result = await service.ServesAllOrganizationsAsync(RepUserId, organizationIds);
+
+        result.Should().BeTrue();
+        search.CapturedCriteria.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task ServesOrganizationAsync_UnlockedGrantingMembership_ReturnsTrue()
     {
         var service = CreateService(new FakeMembershipSearchService(Membership(RepUserId, OrgA)));
@@ -162,6 +177,52 @@ public class SalesRepOrganizationAccessServiceTests
 
         scoped.Select(x => x.OrganizationId).Should().BeEquivalentTo([OrgA]);
         all.Select(x => x.OrganizationId).Should().BeEquivalentTo([OrgA, OrgB]);
+    }
+
+    [Fact]
+    public async Task ServesAllOrganizationsAsync_EveryOrganizationServed_ReturnsTrueWithOneSearch()
+    {
+        // The multi-target sharing gate and the multi-org communication gate: one membership query for the whole set.
+        var search = new FakeMembershipSearchService(Membership(RepUserId, OrgA), Membership(RepUserId, OrgB));
+        var service = CreateService(search);
+
+        (await service.ServesAllOrganizationsAsync(RepUserId, [OrgA, OrgB])).Should().BeTrue();
+        search.CapturedCriteria.Should().ContainSingle().Which.OrganizationIds.Should().BeEquivalentTo([OrgA, OrgB]);
+    }
+
+    [Fact]
+    public async Task ServesAllOrganizationsAsync_OneOrganizationNotServed_ReturnsFalse()
+    {
+        // All-or-nothing: a single unserved (or unknown) organization rejects the whole request.
+        var service = CreateService(new FakeMembershipSearchService(Membership(RepUserId, OrgA), Membership(RepUserId, OrgLocked, isLocked: true)));
+
+        (await service.ServesAllOrganizationsAsync(RepUserId, [OrgA, OrgUnserved])).Should().BeFalse();
+        (await service.ServesAllOrganizationsAsync(RepUserId, [OrgA, OrgLocked])).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task ServesAllOrganizationsAsync_NothingToCheck_ReturnsTrueWithoutSearching()
+    {
+        // No added organizations = nothing to authorize (a removal-only or message-only edit); the search must not run.
+        var search = new FakeMembershipSearchService(Membership(RepUserId, OrgA));
+        var service = CreateService(search);
+
+        (await service.ServesAllOrganizationsAsync(RepUserId, [])).Should().BeTrue();
+        (await service.ServesAllOrganizationsAsync(RepUserId, null)).Should().BeTrue();
+        search.CapturedCriteria.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task ServesAllOrganizationsAsync_EmptyIdOrNoUser_FailsClosedWithoutSearching()
+    {
+        // A blank id can never be served, and an anonymous caller serves nothing - both fail before any search.
+        var search = new FakeMembershipSearchService(Membership(RepUserId, OrgA));
+        var service = CreateService(search);
+
+        (await service.ServesAllOrganizationsAsync(RepUserId, [OrgA, ""])).Should().BeFalse();
+        (await service.ServesAllOrganizationsAsync(RepUserId, [OrgA, null])).Should().BeFalse();
+        (await service.ServesAllOrganizationsAsync(null, [OrgA])).Should().BeFalse();
+        search.CapturedCriteria.Should().BeEmpty();
     }
 
     private static SalesRepOrganizationAccessService CreateService(IOrganizationMembershipSearchService search) =>
