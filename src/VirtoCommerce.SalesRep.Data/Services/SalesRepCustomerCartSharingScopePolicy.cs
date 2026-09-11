@@ -70,9 +70,10 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
         SetOwner(cart, context.CurrentUserId, context.CustomerName, organizationId: null);
     }
 
-    public override async Task<IList<WishlistSharingTarget>> ResolveTargetsAsync(CartSharingSetting setting)
+    public override async Task<IList<WishlistSharingTarget>> ResolveTargetsAsync(IList<string> sharedWithIds)
     {
-        var targets = await base.ResolveTargetsAsync(setting);
+        // One call for every list in the request: the batch loader hands over the ids of the whole page at once.
+        var targets = await base.ResolveTargetsAsync(sharedWithIds);
 
         if (targets.Count == 0)
         {

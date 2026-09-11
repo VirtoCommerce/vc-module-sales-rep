@@ -60,6 +60,8 @@ public static class ModuleConstants
 
         public const int MaxMessageLength = 1000;
 
+        public const int MaxOrganizations = 1000;
+
         public static class Warnings
         {
             public const string NoRecipients = "NoRecipients";

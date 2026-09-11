@@ -63,6 +63,21 @@ public class SalesRepOrganizationAccessServiceTests
     }
 
     [Fact]
+    public async Task ServesAllOrganizationsAsync_ThousandOrganizations_AuthorizesInOneQuery()
+    {
+        // A Sales Rep may serve up to ~1000 organizations and share one list with all of them. SearchAll pages by
+        // criteria.Take, so the inherited default of 20 made this authorization ~50 sequential round trips.
+        var organizationIds = Enumerable.Range(0, 1000).Select(x => $"org-{x}").ToList();
+        var search = new FakeMembershipSearchService(organizationIds.Select(x => Membership(RepUserId, x)).ToArray());
+        var service = CreateService(search);
+
+        var result = await service.ServesAllOrganizationsAsync(RepUserId, organizationIds);
+
+        result.Should().BeTrue();
+        search.CapturedCriteria.Should().ContainSingle();
+    }
+
+    [Fact]
     public async Task ServesOrganizationAsync_UnlockedGrantingMembership_ReturnsTrue()
     {
         var service = CreateService(new FakeMembershipSearchService(Membership(RepUserId, OrgA)));

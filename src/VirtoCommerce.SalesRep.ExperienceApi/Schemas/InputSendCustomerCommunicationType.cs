@@ -12,7 +12,7 @@ public class InputSendCustomerCommunicationType : ExtendableInputObjectGraphType
             .Description("Customer organization whose members receive the message.")
             .DeprecationReason("Use organizationIds");
         Field<ListGraphType<NonNullGraphType<StringGraphType>>>(nameof(SendCustomerCommunicationCommand.OrganizationIds))
-            .Description("Customer organizations whose members receive the message (each member once); at least one organization is required.");
+            .Description("Customer organizations whose members receive the message (each member once); at least one organization is required, at most 1000.");
         Field<NonNullGraphType<BooleanGraphType>>(nameof(SendCustomerCommunicationCommand.SendPush))
             .Description("Send an in-store push notification to the recipients.");
         Field<NonNullGraphType<BooleanGraphType>>(nameof(SendCustomerCommunicationCommand.SendEmail))

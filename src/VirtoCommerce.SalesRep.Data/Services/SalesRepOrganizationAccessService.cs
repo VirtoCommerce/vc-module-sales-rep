@@ -13,6 +13,10 @@ public class SalesRepOrganizationAccessService(
     ISalesRepRoleResolver roleResolver,
     IOrganizationMembershipSearchService membershipSearchService) : ISalesRepOrganizationAccessService
 {
+    // SearchAll pages by criteria.Take, and the platform default of 20 turns one 1000-organization
+    // authorization into ~50 sequential round trips.
+    private const int MembershipsBatchSize = 1000;
+
     public virtual async Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(
         IList<string> userIds = null,
         IList<string> organizationIds = null)
@@ -28,6 +32,7 @@ public class SalesRepOrganizationAccessService(
         criteria.OrganizationIds = organizationIds;
         criteria.RoleIds = grantingRoleIds.ToArray();
         criteria.OnlyUnlocked = true;
+        criteria.Take = MembershipsBatchSize;
 
         return await membershipSearchService.SearchAllNoCloneAsync(criteria);
     }

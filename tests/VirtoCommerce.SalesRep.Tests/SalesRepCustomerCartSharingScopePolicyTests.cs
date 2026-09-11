@@ -463,9 +463,9 @@ public class SalesRepCustomerCartSharingScopePolicyTests
             new Organization { Id = OrgB, Name = "No Address Ltd" },
         };
         var service = SharingService(servesOrganization: false, organizations);
-        var cart = CustomerSharedCart(RepUserId, OrgA, OrgB, OrgC);
 
-        var targets = await service.ResolveTargetsAsync(cart.SharingSettings.Single());
+        // The ids of every list in the request arrive together - one resolve per scope, not one per list.
+        var targets = await service.ResolveTargetsAsync(ModuleConstants.Sharing.CustomerScope, [OrgA, OrgB, OrgC]);
 
         targets.Select(x => x.Id).Should().Equal(OrgA, OrgB, OrgC);
         targets[0].Name.Should().Be("Acme Corp");

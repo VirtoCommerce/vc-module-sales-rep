@@ -504,6 +504,25 @@ public class SalesRepCommunicationComponentTests
     }
 
     [Fact]
+    public async Task SendCommunication_TooManyOrganizations_ReturnsValidationError()
+    {
+        // The cap is checked before the membership query and the recipient fan-out, so an oversized request costs
+        // one validation instead of a per-organization resolve loop.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
+
+        var organizationIds = Enumerable.Range(0, 1001).Select(x => $"org-{x}").ToArray();
+
+        var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation(organizationIds), userId: rep.UserId);
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)1000");
+        Push(ctx).Saved.Should().BeEmpty();
+        Email(ctx).Scheduled.Should().BeEmpty();
+    }
+
+    [Fact]
     public async Task SendCommunication_NoOrganization_ReturnsValidationError()
     {
         using var ctx = SalesRepTestContext.Create();
