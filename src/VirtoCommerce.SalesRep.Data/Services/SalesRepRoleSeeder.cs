@@ -20,6 +20,10 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
         _roleManagerFactory = roleManagerFactory;
     }
 
+    // IMPORTANT (keep): a permission added to a seeded role reaches FRESH installs only. EnsureRoleAsync skips a
+    // role that already exists by name, so an install upgraded from a version that seeded a smaller set keeps that
+    // set — there, sales-rep:diagnostics has to be granted by hand. Pinned by
+    // Seed_ManagerRoleFromAnEarlierVersionExists_DoesNotGainTheNewPermission.
     public virtual async Task EnsureDocumentRolesAsync()
     {
         using var roleManager = _roleManagerFactory();
@@ -33,12 +37,21 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
             "Grants Sales Rep access and documents library read (sales-rep:access, sales-rep-documents:read).",
             [ModuleConstants.Security.Permissions.Access, ModuleConstants.Security.Permissions.DocumentsRead]);
 
+        // IMPORTANT (keep): the back-office role must never carry sales-rep:access. SalesRepRoleResolver treats
+        // ANY role carrying it as granting rep access through an OrganizationMembership, so putting it here would
+        // make whoever administers the feature a rep for every organization they belong to, and would widen the
+        // role set the data-isolation query matches. Back-office capabilities only — one role, not one per feature.
         await EnsureRoleAsync(
             roleManager,
             roles,
             ModuleConstants.Security.Roles.DocumentsManagerRoleName,
-            "Grants Sales Rep documents library management (sales-rep-documents:read, sales-rep-documents:write).",
-            [ModuleConstants.Security.Permissions.DocumentsRead, ModuleConstants.Security.Permissions.DocumentsWrite]);
+            "Grants Sales Rep back-office management: documents library read/write plus analytics diagnostics " +
+            "(sales-rep-documents:read, sales-rep-documents:write, sales-rep:diagnostics).",
+            [
+                ModuleConstants.Security.Permissions.DocumentsRead,
+                ModuleConstants.Security.Permissions.DocumentsWrite,
+                ModuleConstants.Security.Permissions.Diagnostics,
+            ]);
     }
 
     protected virtual async Task<IList<Role>> LoadRolesAsync(RoleManager<Role> roleManager)
@@ -58,9 +71,12 @@ public class SalesRepRoleSeeder : ISalesRepRoleSeeder
         return roles;
     }
 
-    // Matches by permission set, not name/id: any role already carrying every listed permission counts, so renames
-    // don't re-seed. A role with the seeded NAME also suppresses seeding whatever its permissions — it is owned by
-    // the administrator (or an earlier seeder version) and is never mutated or collided with.
+    // Matches by permission set, not name/id: any role already carrying every listed permission counts. A role
+    // with the seeded NAME also suppresses seeding whatever its permissions — it is owned by the administrator
+    // (or an earlier seeder version) and is never mutated or collided with.
+    //
+    // A rename survives re-seeding only while the renamed role carries the WHOLE list, so adding a permission
+    // re-seeds beside a role renamed under an earlier release. Declare that whenever this list changes.
     protected virtual async Task EnsureRoleAsync(RoleManager<Role> roleManager, IList<Role> existingRoles, string name, string description, string[] permissions)
     {
         if (existingRoles.Any(role =>

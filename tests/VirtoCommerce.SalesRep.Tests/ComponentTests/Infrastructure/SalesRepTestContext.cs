@@ -413,7 +413,10 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <see cref="SalesRepController"/>, and return the created details.
     /// </summary>
     public Task<SalesRepDetails> CreateRepAsync(string firstName, string lastName, string email, params string[] organizationIds)
-        => CreateRepInStoreAsync(firstName, lastName, email, storeId: null, organizationIds);
+        => CreateRepInStoreAsync(firstName, lastName, email, DefaultStoreId, organizationIds);
+
+    // A real rep account carries a store; CreateRepInStoreAsync(storeId: null) asks for one that does not.
+    public const string DefaultStoreId = "B2B-store";
 
     /// <summary>As <see cref="CreateRepAsync"/>, but binds the rep's account to a specific store.</summary>
     public async Task<SalesRepDetails> CreateRepInStoreAsync(string firstName, string lastName, string email, string storeId, params string[] organizationIds)

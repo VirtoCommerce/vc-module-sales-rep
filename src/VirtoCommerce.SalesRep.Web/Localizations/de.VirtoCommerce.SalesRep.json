@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "sales-rep:access": "Menü „Vertriebsmitarbeiter“ öffnen",
+    "sales-rep:diagnostics": "Analytics-Diagnose für Vertriebsmitarbeiter ausführen",
+    "sales-rep-documents:read": "Dokumentenbibliothek für Vertriebsmitarbeiter anzeigen",
+    "sales-rep-documents:write": "Dokumentenbibliothek für Vertriebsmitarbeiter verwalten"
+  },
+  "settings": {
+    "SalesRep": {
+      "Enabled": {
+        "title": "Vertriebsmitarbeiter aktiviert",
+        "description": "Aktiviert die Vertriebsmitarbeiter-Oberfläche im Storefront"
+      }
+    }
+  }
+}

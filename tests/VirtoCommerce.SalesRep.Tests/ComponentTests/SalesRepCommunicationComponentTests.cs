@@ -421,4 +421,24 @@ public class SalesRepCommunicationComponentTests
         json.Should().Contain("\"warnings\":[]");
         Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).Should().Contain("c1@test.com");
     }
+
+    // Store ids are ids, and ids compare ignore-case in memory. Ordinal here refused a rep whose own store id
+    // differs only in case from the one the store trusts.
+    [Theory]
+    [InlineData("GROUP-A")]
+    [InlineData("B2B-STORE")]
+    public async Task SendCommunication_StoreIdDiffersOnlyInCase_EmailAllowed(string repStoreId)
+    {
+        using var ctx = SalesRepTestContext.Create();
+        ctx.SetStoreEmail(Store, StoreEmail);
+        ctx.SetStoreTrustedGroups(Store, "group-a");
+        await ctx.SeedOrganizationAsync("org-1");
+        await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", repStoreId, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: false, email: true), userId: rep.UserId);
+
+        json.Should().Contain("\"emailSent\":true");
+        json.Should().Contain("\"warnings\":[]");
+    }
 }
