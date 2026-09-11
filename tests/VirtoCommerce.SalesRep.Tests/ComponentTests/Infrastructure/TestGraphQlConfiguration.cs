@@ -232,7 +232,10 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISchemaFilter, DefaultSchemaFilter>();
 
         // The REAL module mapper: it converts the index aggregations the orders list returns into the facets
-        // its connection exposes, over X-Order's real mapper (registered here as AddXOrder would).
+        // its connection exposes, over X-Order's real mapper (registered here as AddXOrder would). XOrderMapper
+        // now delegates term/range shaping to the shared IFacetMapper (registered by Xapi.Data's AddXCore in
+        // production), so the harness must provide it too.
+        services.AddSingleton<IFacetMapper, FacetMapper>();
         services.AddSingleton<IXOrderMapper, XOrderMapper>();
         services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
 
