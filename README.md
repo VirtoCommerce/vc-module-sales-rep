@@ -656,7 +656,7 @@ against the stored `ResponsibleId` on every call:
 mutation {
   createSalesRepTask(command: {
     name: "Renew Cabin Co. contract"
-    dueDate: "2026-09-04T09:00:00Z"     # required by the schema
+    dueDate: "2026-09-04T09:00:00Z"     # required on CREATE (by validation, not by the type)
     priority: "High"                     # Lowest | Low | Normal | High | Highest; defaults to Normal.
                                          # An unknown value is an error, never a silent default - numeric
                                          # strings included, so "999" is rejected rather than stored.
@@ -664,7 +664,8 @@ mutation {
     description: "Escalate to regional manager."
   }) { id name priority dueDate isActive completed }
 
-  # REPLACES the task: every editable field is required, so send the whole record back.
+  # REPLACES the task, so send the whole record back - an omitted field is cleared, like null or "".
+  # Accepts exactly what the read returns, nulls included, so a dateless task can be written back unchanged.
   updateSalesRepTask(command: {
     id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…"
   }) { id name description type priority dueDate }
@@ -677,12 +678,19 @@ mutation {
 ```
 
 `name` is required and capped at **256** characters; `type` at **128** (both mirror the storage columns, and both
-are rejected with an error rather than truncated). `description` has no limit — that column is unbounded.
+are rejected with an error rather than truncated). `description` has no limit — that column is unbounded. Nothing is
+required at the database level, so every one of these is a *validation* rule, stated where it can say so.
 
-⚠️ `updateSalesRepTask` **replaces, it does not patch**. `description`, `type` and `priority` are non-null on
-purpose: were they optional, an omitted field would be indistinguishable from one cleared on purpose and a rename
-would quietly drop all three. Clear one with the empty string (which is stored as null; an empty `priority` means
-`Normal`). `createSalesRepTask` keeps them optional — there is nothing to lose.
+⚠️ `updateSalesRepTask` **replaces, it does not patch** — an omitted field is *cleared*, exactly like an explicit
+`null` or `""`. So send the whole record back, which is what the shared shape is for: **create, read and update
+carry the same five editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
+accept. Every column behind them is nullable, so the read is the reference; a non-null input would be an invention
+that made a task with no description — or no due date — impossible to write back.
+
+`name` is the one exception, required on both inputs because the read never returns it null. And `dueDate` is
+**required on create only**, enforced in validation rather than by the type: a task with no due date lands in no tab
+and on no calendar day, so a rep must not create one — but one that arrives from the admin UI still has to be
+editable.
 
 ⚠️ The task's **store is stamped from the rep's own account**, never from input — `createSalesRepTask` has no
 `storeId` field and `updateSalesRepTask` never changes it. A rep whose account is **not** store-bound

@@ -50,6 +50,19 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         return SalesRepTask.FromWorkTask(task);
     }
 
+    // Stricter than the storage and than update, deliberately. A task with no due date lands in no tab and on no
+    // calendar day, so a rep must not be able to create one - but the TYPE stays nullable to match the read, because
+    // update has to be able to write back a dateless task that arrived from the admin UI.
+    protected override void ValidateInput(ISalesRepTaskInput input)
+    {
+        base.ValidateInput(input);
+
+        if (input.DueDate == null)
+        {
+            throw new ExecutionError("Task due date is required.");
+        }
+    }
+
     // The rep's own account store, never client input: which store a task belongs to is not the client's to say.
     protected virtual async Task<string> ResolveStoreIdAsync(string userId)
     {

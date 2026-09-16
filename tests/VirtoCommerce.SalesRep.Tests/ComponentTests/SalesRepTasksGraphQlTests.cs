@@ -665,7 +665,112 @@ public class SalesRepTasksGraphQlTests
     }
 
     [Fact]
-    public async Task UpdateSalesRepTask_ReplacesEveryEditableField_AndCannotOmitOne()
+    public async Task SortRules_PublishTheWholeVocabulary_AndEachOneResolves()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        await CreateTaskAsync(ctx, rep, "Beta", Today.AddDays(2));
+        await CreateTaskAsync(ctx, rep, "Alpha", Today.AddDays(1));
+
+        var rules = SalesRepTestContext.Node(await QueryAsync(ctx, rep, "salesRepTaskSortRules { name }"), "salesRepTaskSortRules")
+            .EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToArray();
+        rules.Should().Equal("due-date", "recent", "name");
+
+        // Every published rule has to be usable, not just offered: `name` had no test at all, and `recent` was
+        // exercised only in the direction it REFUSES.
+        Names(await ListTasksAsync(ctx, rep, "sort: \"name\"")).Should().Equal("Alpha", "Beta");
+        Names(await ListTasksAsync(ctx, rep, "sort: \"name:desc\"")).Should().Equal("Beta", "Alpha");
+
+        // `recent` orders by CreatedDate, which two rows written in the same tick can share - so this pins that the
+        // valid direction is ACCEPTED and complete, and leaves the ordering to the due-date rules above.
+        Names(await ListTasksAsync(ctx, rep, "sort: \"recent\"")).Should().BeEquivalentTo("Alpha", "Beta");
+    }
+
+    [Fact]
+    public async Task Paging_ExposesCursorMetadata()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        await CreateTaskAsync(ctx, rep, "First", Today.AddDays(1));
+        await CreateTaskAsync(ctx, rep, "Second", Today.AddDays(2));
+        await CreateTaskAsync(ctx, rep, "Third", Today.AddDays(3));
+
+        var page = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, "salesRepTasks(first: 2) { totalCount pageInfo { hasNextPage endCursor } items { name } }"),
+            "salesRepTasks");
+
+        page.GetProperty("totalCount").GetInt32().Should().Be(3);
+        page.GetProperty("pageInfo").GetProperty("hasNextPage").GetBoolean().Should().BeTrue();
+        page.GetProperty("pageInfo").GetProperty("endCursor").GetString().Should().Be("2");
+
+        var last = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, "salesRepTasks(first: 2, after: \"2\") { pageInfo { hasNextPage } items { name } }"),
+            "salesRepTasks");
+        last.GetProperty("pageInfo").GetProperty("hasNextPage").GetBoolean().Should().BeFalse();
+        Names(last).Should().Equal("Third");
+    }
+
+    [Fact]
+    public async Task DayBoundary_FallsBackToTheCurrentUtcDay_WhenTodayIsOmitted()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // Every other filter test passes `today` explicitly, so ResolveDayStart's fallback never ran. Real UTC dates
+        // here rather than the suite's fixed Today, because the fallback is DateTime.UtcNow.Date by definition.
+        var utcToday = DateTime.UtcNow.Date;
+        await CreateTaskAsync(ctx, rep, "Yesterday", utcToday.AddDays(-1));
+        await CreateTaskAsync(ctx, rep, "Tomorrow", utcToday.AddDays(1));
+
+        // NOT NamesForFilterAsync - that helper always injects `today`, which is exactly what must be absent here.
+        Names(await ListTasksAsync(ctx, rep, "filter: \"overdue\"")).Should().Equal("Yesterday");
+        Names(await ListTasksAsync(ctx, rep, "filter: \"upcoming\"")).Should().Equal("Tomorrow");
+    }
+
+    [Fact]
+    public async Task DatelessTask_CanBeWrittenBackUnchanged()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // Arrives from the admin UI or a workflow - createSalesRepTask refuses to make one (see below).
+        var taskId = await SaveTaskDirectlyAsync(ctx, rep, "No due date", dueDate: null, isActive: true, completed: null);
+
+        // The whole point of matching the input shape to the read: a client reads dueDate: null and can send it back.
+        // While dueDate was DateTime! this task was visible in the rep's list and impossible to edit at all.
+        var updated = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Renamed\", dueDate: null }}) {{ name dueDate }}"),
+            "updateSalesRepTask");
+
+        updated.GetProperty("name").GetString().Should().Be("Renamed");
+        updated.GetProperty("dueDate").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+    }
+
+    [Fact]
+    public async Task CreateSalesRepTask_StillRequiresADueDate_EvenThoughTheTypeAllowsNull()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // The rule moved from the type system into validation when the inputs were aligned with the read. It is a
+        // product rule - a dateless task lands in no tab and on no calendar day - so it says so, rather than failing
+        // at input coercion. Update deliberately does NOT share it.
+        foreach (var dueDate in new[] { "null", null })
+        {
+            var argument = dueDate == null ? string.Empty : $", dueDate: {dueDate}";
+            var json = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"X\"{argument} }}) {{ id }}");
+
+            json.Should().Contain("\"errors\"");
+            json.Should().MatchRegex("(?i)due date");
+        }
+
+        (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_ReplacesEveryEditableField_AndTreatsNullOmittedAndEmptyAlike()
     {
         using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
@@ -673,18 +778,27 @@ public class SalesRepTasksGraphQlTests
         var created = await CreateTaskAsync(ctx, rep, "Draft", Today, priority: "High", type: "Call", description: "First pass.");
         var taskId = created.GetProperty("id").GetString();
 
-        // The update REPLACES: every editable field is non-null, so a rename cannot silently drop the description,
-        // the type or the priority the way an omitted optional field would.
-        var omitted = await MutateAsync(ctx, rep, $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Renamed\", dueDate: \"{TodayIso}\" }}) {{ id }}");
-        omitted.Should().Contain("\"errors\"");
-        omitted.Should().Contain("description");
+        // REPLACES, not patches - so an omitted field is CLEARED. The inputs mirror what salesRepTask returns rather
+        // than forcing non-null, because a client has to be able to write back exactly what it just read; the cost is
+        // that "omitted" and "cleared" are one instruction, which is what replace semantics mean.
+        var omitted = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Renamed\", dueDate: \"{TodayIso}\" }}) {{ name description type priority }}"),
+            "updateSalesRepTask");
+        omitted.GetProperty("name").GetString().Should().Be("Renamed");
+        omitted.GetProperty("description").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        omitted.GetProperty("type").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        omitted.GetProperty("priority").GetString().Should().Be("Normal");
 
-        var stillThere = SalesRepTestContext.Node(
-            await QueryAsync(ctx, rep, $"salesRepTask(id: \"{taskId}\") {{ name description type priority }}"), "salesRepTask");
-        stillThere.GetProperty("name").GetString().Should().Be("Draft");
-        stillThere.GetProperty("description").GetString().Should().Be("First pass.");
-        stillThere.GetProperty("type").GetString().Should().Be("Call");
-        stillThere.GetProperty("priority").GetString().Should().Be("High");
+        // An explicit null says the same thing, and null is precisely what the read returns for a cleared field.
+        var nulls = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Renamed\", dueDate: \"{TodayIso}\", description: null, type: null, priority: null }}) {{ description type priority }}"),
+            "updateSalesRepTask");
+        nulls.GetProperty("description").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        nulls.GetProperty("type").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        nulls.GetProperty("priority").GetString().Should().Be("Normal");
+
+        // Restore the values so the explicit-clear leg below still has something to clear.
+        await UpdateTaskAsync(ctx, rep, taskId, "Draft", Today, description: "First pass.", type: "Call", priority: "High");
 
         // Clearing is explicit, and blank collapses to null so a cleared field reads like one never set.
         var cleared = SalesRepTestContext.Node(
