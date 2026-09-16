@@ -592,6 +592,13 @@ the count and show the list. A dedicated "no due date" tab is **not implementabl
 bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
 flag in `VirtoCommerce.TaskManagement` first.
 
+⚠️ **"Stays in the unfiltered list" is true of this API, not of any storefront screen.** `salesRepTasks` with
+neither `filter` nor `period` does return a dateless task — but the calendar sends a `period` for the selected day
+whenever no tab is active, and that window uses the same `>=` / `<=` bounds that drop NULLs. So every reachable
+view is either day-scoped or tab-scoped, and a rep never sees one. Deliberate: the storefront cannot create these,
+and they are managed where they come from — the admin Tasks screen. Worth stating because the sentence above
+describes the API's contract, and a reader can easily take it as a promise about the UI.
+
 🛠 **Extenders:** `SalesRepTaskHandlerBase.GetVisibleResponsibleIdsAsync` is the seam for widening whose tasks a
 caller may see and change — today always their own. Override it (e.g. a team lead seeing their reps') and every
 read, and every mutation of an existing task, follows with no call site to change. **Creation is not part of the
