@@ -317,6 +317,8 @@ public class SalesRepTasksGraphQlTests
         // Neither shape is reachable through this API - both arrive from the admin UI, the REST API or a workflow.
         await SaveTaskDirectlyAsync(ctx, rep, "No due date", dueDate: null, isActive: true, completed: null);
         var canceledId = await SaveTaskDirectlyAsync(ctx, rep, "Canceled", dueDate: Today.AddDays(1), isActive: false, completed: false);
+        // Closed-without-completing has a second shape: TimeoutAsync sets IsActive only, leaving Completed null.
+        var timedOutId = await SaveTaskDirectlyAsync(ctx, rep, "Timed out", dueDate: Today.AddDays(1), isActive: false, completed: null);
 
         // The upstream criteria bound the due date with >= / <=, which drop NULLs, and `completed` means finished as
         // done - so neither row matches any rule. Pinned, because it means the tab counts do NOT sum to the total:
@@ -326,15 +328,19 @@ public class SalesRepTasksGraphQlTests
         (await NamesForFilterAsync(ctx, rep, "completed")).Should().BeEmpty();
 
         // They are still the rep's tasks, so the unfiltered list keeps them visible rather than hiding work.
-        Names(await ListTasksAsync(ctx, rep)).Should().BeEquivalentTo("Has a due date", "No due date", "Canceled");
+        Names(await ListTasksAsync(ctx, rep)).Should().BeEquivalentTo("Has a due date", "No due date", "Canceled", "Timed out");
 
         // ...and the storefront renders that row with a live toggle, so the mutation is reachable. Both directions
         // are refused: raising IsActive would turn a cancellation into an ordinary open task with no way back, and
         // completing it would silently promote a cancellation to a completion.
-        foreach (var completed in new[] { "true", "false" })
+        // Both shapes and both directions - so narrowing the guard to `Completed == false` cannot pass this test.
+        foreach (var id in new[] { canceledId, timedOutId })
         {
-            var refused = await MutateAsync(ctx, rep, $"changeSalesRepTaskStatus(command: {{ id: \"{canceledId}\", completed: {completed} }}) {{ id }}");
-            refused.Should().Contain("\"errors\"");
+            foreach (var completed in new[] { "true", "false" })
+            {
+                var refused = await MutateAsync(ctx, rep, $"changeSalesRepTaskStatus(command: {{ id: \"{id}\", completed: {completed} }}) {{ id }}");
+                refused.Should().Contain("\"errors\"");
+            }
         }
 
         var stored = (await ListTasksAsync(ctx, rep)).GetProperty("items").EnumerateArray()
@@ -518,12 +524,33 @@ public class SalesRepTasksGraphQlTests
         Names(secondPage).Should().Equal("Third");
     }
 
+    [Fact]
+    public async Task DayBoundaryAtTheFloor_IsClamped_NotAnUnhandledException()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        await CreateTaskAsync(ctx, rep, "Due tomorrow", Today.AddDays(1));
+
+        // `today` is unguarded client input. At DateTime.MinValue the overdue epsilon would underflow into an
+        // ArgumentOutOfRangeException - which is not an ExecutionError, so x-api strips its message in production
+        // and logs it as a crash. Clamped instead: nothing can be due before the floor, so the tab is simply empty.
+        var json = await QueryAsync(ctx, rep,
+            "salesRepTasks(filter: \"overdue\", today: \"0001-01-01T00:00:00Z\") { totalCount items { name } }");
+
+        json.Should().NotContain("\"errors\"");
+        SalesRepTestContext.Node(json, "salesRepTasks").GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
     [Theory]
     [InlineData("Urgent")]
-    // Enum.TryParse accepts any numeric string, so these two parse to an undefined TaskPriority - Enum.IsDefined
-    // is what rejects them. Without it "999" would be stored and read straight back out of the projection.
+    // Enum.TryParse accepts two shapes that are not priority names. Numeric strings, in or out of range:
     [InlineData("999")]
     [InlineData("-1")]
+    [InlineData("3")]
+    // ...and a comma-separated list, for ANY enum rather than only a [Flags] one, ORing the members - so this
+    // one is Low(1) | Normal(2) = 3 = High, a typo silently carried through as a different priority.
+    [InlineData("Low, Normal")]
     public async Task UnknownPriority_IsRejected_RatherThanSilentlyDefaulted(string priority)
     {
         using var ctx = SalesRepTestContext.Create();

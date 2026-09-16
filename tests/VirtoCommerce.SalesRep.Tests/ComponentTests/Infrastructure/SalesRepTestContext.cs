@@ -77,6 +77,8 @@ internal sealed class SalesRepTestContext : IDisposable
     private readonly SqliteConnection _catalogConnection;
     private readonly SqliteConnection _assetsConnection;
     private readonly SqliteConnection _salesRepConnection;
+    // Null when the context is built without the task-management slice.
+    private readonly SqliteConnection _taskConnection;
     private readonly ServiceProvider _provider;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
     private readonly DbContextOptions<CustomerDbContext> _customerOptions;
@@ -94,6 +96,7 @@ internal sealed class SalesRepTestContext : IDisposable
         SqliteConnection catalogConnection,
         SqliteConnection assetsConnection,
         SqliteConnection salesRepConnection,
+        SqliteConnection taskConnection,
         ServiceProvider provider,
         DbContextOptions<SecurityDbContext> securityOptions,
         DbContextOptions<CustomerDbContext> customerOptions,
@@ -110,6 +113,7 @@ internal sealed class SalesRepTestContext : IDisposable
         _catalogConnection = catalogConnection;
         _assetsConnection = assetsConnection;
         _salesRepConnection = salesRepConnection;
+        _taskConnection = taskConnection;
         _provider = provider;
         _securityOptions = securityOptions;
         _customerOptions = customerOptions;
@@ -196,7 +200,7 @@ internal sealed class SalesRepTestContext : IDisposable
 
         return new SalesRepTestContext(
             securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
-            assetsConnection, salesRepConnection,
+            assetsConnection, salesRepConnection, taskConnection,
             provider, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions,
             assetsOptions, salesRepOptions);
     }
@@ -710,5 +714,6 @@ internal sealed class SalesRepTestContext : IDisposable
         _catalogConnection.Dispose();
         _assetsConnection.Dispose();
         _salesRepConnection.Dispose();
+        _taskConnection?.Dispose();
     }
 }

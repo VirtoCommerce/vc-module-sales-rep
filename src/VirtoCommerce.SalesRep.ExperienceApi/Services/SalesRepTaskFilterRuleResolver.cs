@@ -60,7 +60,7 @@ public class SalesRepTaskFilterRuleResolver : FilterRuleResolverBase<SalesRepTas
                 // A millisecond, not a tick: EndDueDate compares inclusively and 100 ns is not representable on
                 // PostgreSQL or MySQL DATETIME(6). The cost is the final millisecond before midnight, which nothing
                 // the storefront writes can land in - it emits day-aligned due dates.
-                criteria.EndDueDate = Earliest(criteria.EndDueDate, dayStart.AddMilliseconds(-1));
+                criteria.EndDueDate = Earliest(criteria.EndDueDate, JustBefore(dayStart));
                 break;
             case CompletedRuleName:
                 criteria.IsActive = false;
@@ -75,6 +75,12 @@ public class SalesRepTaskFilterRuleResolver : FilterRuleResolverBase<SalesRepTas
 
         return criteria;
     }
+
+    // Clamped rather than validated: `today` is unguarded client input, and DateTime.MinValue would underflow the
+    // epsilon into an ArgumentOutOfRangeException - which x-api reports without its message in production, unlike
+    // every other rejection on this surface. At the floor "nothing is overdue" is the right answer anyway.
+    private static DateTime JustBefore(DateTime dayStart) =>
+        dayStart > DateTime.MinValue.AddMilliseconds(1) ? dayStart.AddMilliseconds(-1) : DateTime.MinValue;
 
     private static DateTime Latest(DateTime? current, DateTime candidate) =>
         current == null || candidate > current.Value ? candidate : current.Value;
