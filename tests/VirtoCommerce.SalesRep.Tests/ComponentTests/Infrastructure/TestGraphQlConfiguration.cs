@@ -278,7 +278,7 @@ internal static class TestGraphQlConfiguration
 
         // Activity feed (VCST-5337): the real aggregation service over the real sources. The analytics module is
         // OPTIONAL — the IOptionalDependency<> registration below reports it present only when a test override
-        // registers IAnalyticsService (FakeAnalyticsService), so the default harness models the module being absent.
+        // registers IAnalyticsService (TestAnalytics), so the default harness models the module being absent.
         services.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
         services.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
         services.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();

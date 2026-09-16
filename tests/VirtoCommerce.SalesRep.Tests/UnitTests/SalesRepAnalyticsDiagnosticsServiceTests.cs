@@ -46,7 +46,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
     public async Task Run_ForwardsSalesRepExpectations()
     {
         var diagnostics = new FakeAnalyticsDiagnosticsService();
-        var service = CreateService(diagnostics, new FakeAnalyticsService());
+        var service = CreateService(diagnostics, new TestAnalytics().CreateService());
 
         await service.RunAsync(StoreId, includeLiveData: true);
 
@@ -76,8 +76,8 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
     public async Task Run_PassesIncludeLiveDataThrough(bool includeLiveData)
     {
         var diagnostics = new FakeAnalyticsDiagnosticsService();
-        var analytics = new FakeAnalyticsService();
-        var service = CreateService(diagnostics, analytics);
+        var analytics = new TestAnalytics();
+        var service = CreateService(diagnostics, analytics.CreateService());
 
         var result = await service.RunAsync(StoreId, includeLiveData);
 
@@ -88,14 +88,14 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         if (!includeLiveData)
         {
             featureQueryCheck.Status.Should().Be(Statuses.Skipped);
-            analytics.ReceivedSearchCriteria.Should().BeEmpty();
+            analytics.ReceivedQueries.Should().BeEmpty();
         }
     }
 
     [Fact]
     public async Task Run_FeatureQuery_ReportsPerReportRowCounts()
     {
-        var analytics = new FakeAnalyticsService();
+        var analytics = new TestAnalytics();
         var occurredAt = DateTime.UtcNow.AddDays(-1);
         analytics.AddEvent("search", occurredAt, count: 3, organizationId: "org-1", dimensions: [("searchTerm", "pumps")]);
         analytics.AddEvent("view_item", occurredAt, count: 2, organizationId: "org-1", dimensions: [("itemId", "SKU-1"), ("itemName", "Pump")]);
@@ -103,7 +103,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         analytics.AddEvent("view_item", occurredAt, count: 1, organizationId: "org-1",
             sessionKind: SalesRepConstants.Analytics.SessionKinds.Impersonated, dimensions: [("itemId", "SKU-3"), ("itemName", "Hose")]);
 
-        var result = await CreateService(new FakeAnalyticsDiagnosticsService(), analytics).RunAsync(StoreId, includeLiveData: true);
+        var result = await CreateService(new FakeAnalyticsDiagnosticsService(), analytics.CreateService()).RunAsync(StoreId, includeLiveData: true);
 
         result.Checks.Should().HaveCount(8);
 
@@ -112,23 +112,27 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         check.Status.Should().Be(Statuses.Passed);
         check.Message.Should().Contain("searchTerms=1 rows").And.Contain("browsedProducts=2 rows").And.Contain("no organization filter");
 
-        analytics.ReceivedSearchCriteria.Should().HaveCount(2);
+        analytics.ReceivedQueries.Should().HaveCount(2);
 
-        var searchTermsCriteria = analytics.ReceivedSearchCriteria[0];
-        searchTermsCriteria.StoreId.Should().Be(StoreId);
+        var searchTermsCriteria = analytics.ReceivedQueries[0];
+        analytics.ReceivedStoreIds.Should().OnlyContain(x => x == StoreId);
         searchTermsCriteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Count);
         searchTermsCriteria.EventNames.Should().Equal("search");
         searchTermsCriteria.DimensionNames.Should().Equal("searchTerm");
 
-        var productViewsCriteria = analytics.ReceivedSearchCriteria[1];
+        var productViewsCriteria = analytics.ReceivedQueries[1];
         productViewsCriteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Date);
         productViewsCriteria.EventNames.Should().Equal("view_item");
         productViewsCriteria.DimensionNames.Should().Equal("itemId", "itemName");
 
-        foreach (var criteria in analytics.ReceivedSearchCriteria)
+        foreach (var criteria in analytics.ReceivedQueries)
         {
             criteria.Take.Should().Be(5);
-            criteria.From.Should().BeCloseTo(DateTime.UtcNow.AddDays(-30), TimeSpan.FromMinutes(5));
+            // Whole days, not the clock reading this service took: the analytics module rounds a read's dates
+            // because a GA date range IS whole days. Asserting the raw timestamp only ever passed because a
+            // hand-written IAnalyticsService double stood in for the module that does the rounding.
+            criteria.From.Should().Be(criteria.From!.Value.Date);
+            criteria.From.Should().BeCloseTo(DateTime.UtcNow.AddDays(-30), TimeSpan.FromDays(1));
             var filter = criteria.DimensionFilters.Should().ContainSingle().Subject;
             filter.DimensionName.Should().Be(AnalyticsConstants.UserDimensions.SessionKind);
             filter.Values.Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
@@ -138,7 +142,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
     [Fact]
     public async Task Run_FeatureQuery_NoRows_ReturnsWarning()
     {
-        var result = await CreateService(new FakeAnalyticsDiagnosticsService(), new FakeAnalyticsService()).RunAsync(StoreId, includeLiveData: true);
+        var result = await CreateService(new FakeAnalyticsDiagnosticsService(), new TestAnalytics().CreateService()).RunAsync(StoreId, includeLiveData: true);
 
         var check = result.Checks[^1];
         check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQuery);
@@ -149,14 +153,14 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
     [Fact]
     public async Task Run_FeatureQuery_Unconfigured_ReturnsWarning()
     {
-        var analytics = new FakeAnalyticsService { Configured = false };
+        var analytics = new TestAnalytics { Configured = false };
 
-        var result = await CreateService(new FakeAnalyticsDiagnosticsService(), analytics).RunAsync(StoreId, includeLiveData: true);
+        var result = await CreateService(new FakeAnalyticsDiagnosticsService(), analytics.CreateService()).RunAsync(StoreId, includeLiveData: true);
 
         var check = result.Checks[^1];
         check.Status.Should().Be(Statuses.Warning);
         check.Message.Should().Contain($"not configured for store '{StoreId}'");
-        analytics.ReceivedSearchCriteria.Should().BeEmpty();
+        analytics.ReceivedQueries.Should().BeEmpty();
     }
 
     [Fact]

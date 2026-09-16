@@ -63,9 +63,10 @@ public static class ModuleConstants
 
     public static class Activities
     {
-        // The depth of the feed's paging window, and the module's cap on the work one request can cost. A single
-        // category pages natively and costs the same at any depth; the MERGED view is what this bounds, because a
-        // merged page can only be sliced from the top (Skip + Take) rows of EVERY category it covers. At this
+        // The depth of the feed's paging window, and the module's cap on the work one request can cost. It is
+        // checked before the native/merged distinction, so it bounds every request; the MERGED view is what sets
+        // the value, because a merged page can only be sliced from the top (Skip + Take) rows of EVERY category it
+        // covers — a single category pages natively and costs the same at any depth. At this
         // value the worst case — the "All" view, five categories, a full page — is 3,000 rows to render 50, where
         // an unbounded Skip has no worst case at all. 25 pages at the storefront's page size of 20; past that the
         // feed reports no rows.

@@ -658,14 +658,16 @@ Every rep-facing GA query is constrained by two **user-scoped custom dimensions*
 What the module adds on top of the raw source:
 
 * **Product codes are resolved within the store's catalog.** Analytics carries a product *code*; a code is unique
-  inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` the
-  search stays catalog-wide and a code carried by **more than one catalog resolves to nothing** rather than to
-  whichever product came back first. An unresolved code — unknown or ambiguous — keeps the name analytics tracked
-  and reports a null `productId`, so a rep never sees a foreign catalog's product as their customer's activity.
+  inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` there
+  is no catalog to narrow by and the search spans all of them: a code carried by **more than one catalog resolves
+  to nothing** rather than to whichever product came back first — but a code carried by exactly one *other* catalog
+  does resolve to that catalog's product, so pass a `storeId` whenever the caller knows one. An unresolved code —
+  unknown or ambiguous — keeps the name analytics tracked and reports a null `productId`.
 * **Activity counts count rows, not raw events.** One analytics row is one (hour bucket x dimension tuple), and its
   `count` field says how many events it aggregates. A row GA returns without a usable hour bucket cannot be placed
-  on a time-ordered feed, so it leaves both the page and the category count — that is what keeps a category badge
-  equal to the list beneath it.
+  on a time-ordered feed, so it leaves the page — but not the category count, which keeps describing the whole set.
+  A badge can therefore exceed the list beneath it; correcting it instead made a badge change value when its own
+  tab was selected.
 * **The merged feed is bounded.** See [Activity feed](#activity-feed) for the paging window and what it costs.
 
 Caveats inherent to the source, by design:
@@ -673,7 +675,7 @@ Caveats inherent to the source, by design:
 * **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity. `dataAsOf` reports how fresh the data actually is.
 * **Hour precision** — GA reports are aggregates; all `last*Date` values are UTC hour-bucket starts, not event timestamps. The storefront renders them as approximate.
 * **Sample, not record** — ad blockers, consent and untracked channels mean GA sees a subset of real activity; the UI carries a "based on tracked activity" caveat.
-* **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and an outage degrades to an empty list rather than an error. The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.
+* **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and a misconfigured property cannot burn it on a hot page. A failed read **throws** rather than answering with an empty list, which is what keeps "reporting is broken" distinguishable from "this customer did nothing". The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.
 
 ## How it works
 
@@ -813,7 +815,7 @@ Full REST documentation is browsable through Swagger on any running platform ins
 
 Permissions are granular and composed by **roles** — neither documents permission implies the other (a write-only holder cannot list or download; grant both to managers). Administrators pass every permission check.
 
-The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two more roles. **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) is a *membership* role, assigned on an `OrganizationMembership` like **Sales Representative**. **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write` + `sales-rep:diagnostics`) is the single *back-office* role for whoever administers the feature: it deliberately does **not** carry `sales-rep:access`, because that permission is what turns a membership into a rep. Managing rep accounts themselves is not part of it — `SalesRepController` requires the Customer module's member permissions and the platform's security permissions, which are far broader than this feature and are not seeded here. Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may freely rename, edit or delete them (reps are identified by the permission, never by a role's id).
+The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two more roles. **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) is a *membership* role, assigned on an `OrganizationMembership` like **Sales Representative**. **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write` + `sales-rep:diagnostics`) is the single *back-office* role for whoever administers the feature: it deliberately does **not** carry `sales-rep:access`, because that permission is what turns a membership into a rep. Managing rep accounts themselves is not part of it — `SalesRepController` requires the Customer module's member permissions and the platform's security permissions, which are far broader than this feature and are not seeded here. Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may edit or delete them, and may rename them as long as the permission list stays the same (reps are identified by the permission, never by a role's id). When a release **adds** a permission to a seeded role, a role renamed under an earlier release matches neither rule and a fresh role is seeded beside it; this release adds `sales-rep:diagnostics` to **Sales Rep Documents Manager**.
 
 ## Settings
 

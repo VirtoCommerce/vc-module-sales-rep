@@ -32,8 +32,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_SearchTerms_DefaultSortIsTopByCount_CountsSearchEventOnly()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
@@ -59,7 +59,7 @@ public class SalesRepCustomerInsightsGraphQlTests
             .Should().Equal(("pumps", 5), ("valves", 4));
         terms.Should().OnlyContain(x => x.GetProperty("lastSearchedDate").ValueKind == JsonValueKind.Null);
 
-        var criteria = analytics.ReceivedSearchCriteria.Should().ContainSingle().Subject;
+        var criteria = analytics.ReceivedQueries.Should().ContainSingle().Subject;
         criteria.EventNames.Should().Equal(AnalyticsConstants.EventNames.Search); // 'search' alone, never 'view_search_results'
         criteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Count);
         criteria.Take.Should().Be(50); // bounded count-mode page
@@ -68,8 +68,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_SearchTerms_SortDate_AggregatesBucketsNewestFirst_AndDataAsOf()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
@@ -94,7 +94,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         terms[1].GetProperty("count").GetInt32().Should().Be(5); // summed across the pumped hour buckets
         terms[1].GetProperty("lastSearchedDate").GetDateTime().ToUniversalTime().Should().Be(_mar);
 
-        var criteria = analytics.ReceivedSearchCriteria.Should().ContainSingle().Subject; // dataAsOf shares the fetch
+        var criteria = analytics.ReceivedQueries.Should().ContainSingle().Subject; // dataAsOf shares the fetch
         criteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Date);
         criteria.Take.Should().Be(200); // bounded page of the newest hour buckets
     }
@@ -102,8 +102,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_BrowsedProducts_CountSort_ResolvesCatalogAndFallsBackToCode()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png");
@@ -141,8 +141,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_BrowsedProducts_SortDate_OrdersByRecency_AndDataAsOf()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
@@ -169,8 +169,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_Take_DefaultsToFive_AndClampsTo1To20()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
@@ -201,8 +201,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_SelectingOnlySearchTerms_DoesNotFireTheProductReport()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
@@ -215,15 +215,15 @@ public class SalesRepCustomerInsightsGraphQlTests
             userId: rep.UserId);
 
         Insights(json).GetProperty("searchTerms").GetArrayLength().Should().Be(1);
-        var criteria = analytics.ReceivedSearchCriteria.Should().ContainSingle().Subject;
+        var criteria = analytics.ReceivedQueries.Should().ContainSingle().Subject;
         criteria.EventNames.Should().Equal(AnalyticsConstants.EventNames.Search);
     }
 
     [Fact]
     public async Task Insights_DataAsOfListedFirst_SharesTheCollectionFetch()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 2, "org-1",
@@ -237,14 +237,14 @@ public class SalesRepCustomerInsightsGraphQlTests
         var insights = Insights(json);
         insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar);
         insights.GetProperty("searchTerms").GetArrayLength().Should().Be(1);
-        analytics.ReceivedSearchCriteria.Should().ContainSingle();
+        analytics.ReceivedQueries.Should().ContainSingle();
     }
 
     [Fact]
     public async Task Insights_PeriodBoundsApply()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _feb, count: 1, "org-1",
@@ -263,8 +263,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_DataIsolation_ForeignAndImpersonatedEventsNeverLeak()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
@@ -291,8 +291,8 @@ public class SalesRepCustomerInsightsGraphQlTests
         insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar); // the foreign april events never count
 
         // Every analytics read carries the mandatory scope: own sessions only, and only the requested organization.
-        analytics.ReceivedSearchCriteria.Should().NotBeEmpty();
-        foreach (var criteria in analytics.ReceivedSearchCriteria)
+        analytics.ReceivedQueries.Should().NotBeEmpty();
+        foreach (var criteria in analytics.ReceivedQueries)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
             filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
@@ -303,8 +303,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_OmittedOrganizationId_AggregatesAcrossAssignedOrganizations()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
 
@@ -323,7 +323,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         terms.Select(x => (x.GetProperty("term").GetString(), x.GetProperty("count").GetInt32()))
             .Should().Equal(("pumps", 5), ("valves", 4)); // both assigned orgs' events aggregate together
 
-        var criteria = analytics.ReceivedSearchCriteria.Should().ContainSingle().Subject;
+        var criteria = analytics.ReceivedQueries.Should().ContainSingle().Subject;
         var organizationFilter = criteria.DimensionFilters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.OrganizationId);
         organizationFilter.Values.Should().BeEquivalentTo("org-1", "org-2"); // the full assigned-org scope
     }
@@ -331,8 +331,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_OmittedOrganizationId_ForeignAndImpersonatedEventsNeverLeak()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1", "org-2", "org-3");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
 
@@ -359,8 +359,8 @@ public class SalesRepCustomerInsightsGraphQlTests
         insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar); // the foreign april events never count
 
         // Every analytics read carries the mandatory scope: own sessions only, and only the rep's assigned organizations.
-        analytics.ReceivedSearchCriteria.Should().NotBeEmpty();
-        foreach (var criteria in analytics.ReceivedSearchCriteria)
+        analytics.ReceivedQueries.Should().NotBeEmpty();
+        foreach (var criteria in analytics.ReceivedQueries)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
             filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
@@ -371,8 +371,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_OmittedOrganizationId_NonRepCaller_ReturnsNull()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         // A real account: the caller must clear the account-state gate to reach the rep-scope answer under test.
         await ctx.EnsureAccountAsync("not-a-rep");
@@ -385,7 +385,7 @@ public class SalesRepCustomerInsightsGraphQlTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"salesRepCustomerInsights\":null");
-        analytics.ReceivedSearchCriteria.Should().BeEmpty(); // empty rep scope short-circuits before any read
+        analytics.ReceivedQueries.Should().BeEmpty(); // empty rep scope short-circuits before any read
     }
 
     [Fact]
@@ -406,8 +406,8 @@ public class SalesRepCustomerInsightsGraphQlTests
     [Fact]
     public async Task Insights_AnalyticsUnconfigured_ReturnsNull()
     {
-        var analytics = new FakeAnalyticsService { Configured = false };
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics { Configured = false };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
@@ -419,14 +419,14 @@ public class SalesRepCustomerInsightsGraphQlTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"salesRepCustomerInsights\":null");
-        analytics.ReceivedSearchCriteria.Should().BeEmpty(); // unconfigured short-circuits before any read
+        analytics.ReceivedQueries.Should().BeEmpty(); // unconfigured short-circuits before any read
     }
 
     [Fact]
     public async Task Insights_ForeignOrganizationId_ReturnsNull()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-2",
@@ -438,7 +438,7 @@ public class SalesRepCustomerInsightsGraphQlTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"salesRepCustomerInsights\":null");
-        analytics.ReceivedSearchCriteria.Should().BeEmpty(); // rejected before any analytics read
+        analytics.ReceivedQueries.Should().BeEmpty(); // rejected before any analytics read
     }
 
     [Fact]

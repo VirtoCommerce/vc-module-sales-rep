@@ -55,8 +55,9 @@ public class SalesRepActivityService : ISalesRepActivityService
             return (plan.Category, Fetched: fetchRows, Result: await SearchCategoryAsync(criteria, plan, fetchRows, pagesNatively));
         }));
 
-        // A fetched category takes its count from its own row fetch, so a tab's count always matches its own list
-        // (a separate Take=0 pass could hit a different cache vintage of the analytics source).
+        // A fetched category takes its count from its own row fetch rather than from a separate Take=0 pass, which
+        // could hit a different cache vintage of the analytics source. The count still describes the whole set, so
+        // an analytics category that drops rows without a usable hour bucket shows a badge above its own list.
         // Grouped, not one row per plan: a category two sources claim would otherwise appear twice.
         result.CategoryCounts = searches
             .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)

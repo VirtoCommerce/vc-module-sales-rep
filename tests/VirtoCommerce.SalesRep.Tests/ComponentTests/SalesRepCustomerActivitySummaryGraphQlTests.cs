@@ -32,8 +32,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
     [Fact]
     public async Task Summary_ReturnsAnalyticsFiguresAndResolvedProduct()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump", imageUrl: "https://img/pump.png");
@@ -69,8 +69,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         product.GetProperty("imageUrl").GetString().Should().Be("https://img/pump.png");
 
         // Every analytics read is scoped to the single organization and to the customer's own sessions.
-        foreach (var filters in analytics.ReceivedSearchCriteria.Select(x => x.DimensionFilters)
-                     .Concat(analytics.ReceivedSummaryCriteria.Select(x => x.DimensionFilters)))
+        foreach (var filters in analytics.ReceivedQueries.Select(x => x.DimensionFilters)
+                     .Concat(analytics.ReceivedQueries.Select(x => x.DimensionFilters)))
         {
             filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.SessionKind).Values.Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
             filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.OrganizationId).Values.Should().Equal("org-1");
@@ -82,8 +82,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
     [Fact]
     public async Task Summary_NewestRowsMissingTheDimension_LooksDeeper()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SalesRepActivitiesGraphQlTests.SeedProduct(ctx, "prod-1", "CODE-1", "Catalog Pump");
@@ -108,8 +108,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
     [Fact]
     public async Task Summary_UnresolvableProductCode_KeepsCodeAndTrackedName()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 1, "org-1",
@@ -149,8 +149,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
     [Fact]
     public async Task Summary_AnalyticsUnconfigured_ReportsNotConfigured()
     {
-        var analytics = new FakeAnalyticsService { Configured = false };
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics { Configured = false };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 3, "org-1");
@@ -162,14 +162,14 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         var summary = Summary(json);
         summary.GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeFalse();
         summary.GetProperty("visitsCount").GetInt32().Should().Be(0); // unconfigured short-circuits before any read
-        analytics.ReceivedSummaryCriteria.Should().BeEmpty();
+        analytics.ReceivedQueries.Should().BeEmpty();
     }
 
     [Fact]
     public async Task Summary_ForeignOrganizationId_ReturnsNull()
     {
-        var analytics = new FakeAnalyticsService();
-        using var ctx = SalesRepTestContext.Create(services => services.AddSingleton<IAnalyticsService>(analytics));
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 3, "org-2");
@@ -180,7 +180,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"salesRepCustomerActivitySummary\":null");
-        analytics.ReceivedSummaryCriteria.Should().BeEmpty(); // rejected before any analytics read
+        analytics.ReceivedQueries.Should().BeEmpty(); // rejected before any analytics read
     }
 
     [Fact]

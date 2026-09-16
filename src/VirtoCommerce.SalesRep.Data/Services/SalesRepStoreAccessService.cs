@@ -1,8 +1,9 @@
+using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
-using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.StoreModule.Core.Services;
 
@@ -11,12 +12,12 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 public class SalesRepStoreAccessService : ISalesRepStoreAccessService
 {
     private readonly IStoreService _storeService;
-    private readonly IUserSearchService _userSearchService;
+    private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
 
-    public SalesRepStoreAccessService(IStoreService storeService, IUserSearchService userSearchService)
+    public SalesRepStoreAccessService(IStoreService storeService, Func<UserManager<ApplicationUser>> userManagerFactory)
     {
         _storeService = storeService;
-        _userSearchService = userSearchService;
+        _userManagerFactory = userManagerFactory;
     }
 
     public virtual async Task<bool> IsAllowedAsync(string userId, string storeId)
@@ -48,6 +49,9 @@ public class SalesRepStoreAccessService : ISalesRepStoreAccessService
         return store?.TrustedGroups?.Any(x => x.EqualsIgnoreCase(callerStoreId)) == true;
     }
 
+    // A lookup by primary key, on every rep-facing query that names a store: CustomUserManager.FindByIdAsync is
+    // memory-cached with a change token, where routing the same question through the user SEARCH service costs a
+    // count, a paged query including the roles, and a roles query per hit — uncached, every time.
     protected virtual async Task<ApplicationUser> GetUserAsync(string userId)
     {
         if (string.IsNullOrEmpty(userId))
@@ -55,10 +59,8 @@ public class SalesRepStoreAccessService : ISalesRepStoreAccessService
             return null;
         }
 
-        var criteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
-        criteria.ObjectIds = [userId];
-        criteria.Take = 1;
+        using var userManager = _userManagerFactory();
 
-        return (await _userSearchService.SearchUsersAsync(criteria)).Results.FirstOrDefault();
+        return await userManager.FindByIdAsync(userId);
     }
 }

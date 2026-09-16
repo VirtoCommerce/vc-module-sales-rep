@@ -51,8 +51,9 @@ public static class SalesRepAnalyticsScope
 
     public static AnalyticsDimensionFilter CreateOrganizationFilter(IList<string> organizationIds)
     {
-        // The one input this helper cannot make safe: the analytics module drops a valueless filter, so the read
-        // would come back scoped by session kind alone — every organization in the property.
+        // The one input this helper cannot make safe. The analytics module refuses a valueless filter too, but
+        // this refuses closer to the caller and names the scope at stake: an organization-less read would come
+        // back scoped by session kind alone — every organization in the property.
         if (organizationIds.IsNullOrEmpty())
         {
             throw new ArgumentException("An analytics read must name at least one organization.", nameof(organizationIds));

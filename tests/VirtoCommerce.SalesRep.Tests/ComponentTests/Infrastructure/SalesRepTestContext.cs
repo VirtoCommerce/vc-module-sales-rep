@@ -353,6 +353,25 @@ internal sealed class SalesRepTestContext : IDisposable
         }
     }
 
+    /// <summary>
+    /// Mark an account as a platform administrator. An administrator is not bound to a store, which is the only
+    /// way a caller carrying no StoreId passes <c>ISalesRepStoreAccessService</c>.
+    /// </summary>
+    public async Task MakeAdministratorAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+
+        // A detached clone, never the FindByIdAsync instance: that one is the cached (and possibly tracked) user.
+        var user = (await userManager.FindByIdAsync(userId)).CloneTyped();
+        user.IsAdministrator = true;
+
+        var result = await userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
     /// <summary>Delete the login account, leaving any member and membership rows behind.</summary>
     public async Task DeleteAccountAsync(string userId)
     {

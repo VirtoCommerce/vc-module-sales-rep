@@ -18,6 +18,9 @@
     <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1032.0" />
     <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1014.0" />
     <PackageReference Include="VirtoCommerce.FileExperienceApi.Data" Version="3.1004.0" />
+    <!-- Test-only, and deliberately .Data: it carries the real AnalyticsService plus the two provider seams the
+         component harness doubles, so these tests run the analytics module rather than restate it. -->
+    <PackageReference Include="VirtoCommerce.GoogleEcommerceAnalyticsModule.Data" Version="4.1004.0-alpha.263-vcst-5337-ga-event-search" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1048.0" />
