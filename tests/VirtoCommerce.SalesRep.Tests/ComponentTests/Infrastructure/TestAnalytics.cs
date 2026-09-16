@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -42,11 +43,14 @@ internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsRe
     /// <summary>
     /// Every query that reached the provider: one per search, and 1 + N per summary read (the count-mode totals
     /// plus a newest-bucket probe for each event name that has any).
+    ///
+    /// Concurrent because the summary probes are: the real service runs them through Parallel.ForEachAsync, so a
+    /// plain List here would be written from several threads at once the moment a read names two event names.
     /// </summary>
-    public List<AnalyticsDataQuery> ReceivedQueries { get; } = [];
+    public ConcurrentQueue<AnalyticsDataQuery> ReceivedQueries { get; } = new();
 
     /// <summary>Every store id the module resolved settings for — including the absent one.</summary>
-    public List<string> ReceivedStoreIds { get; } = [];
+    public ConcurrentQueue<string> ReceivedStoreIds { get; } = new();
 
     /// <summary>Wires the real service over these two seams, the way the analytics module's own Module.cs does.</summary>
     public void Register(IServiceCollection services)
@@ -94,7 +98,7 @@ internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsRe
 
     public Task<AnalyticsDataApiSettings> ResolveAsync(string storeId)
     {
-        ReceivedStoreIds.Add(storeId);
+        ReceivedStoreIds.Enqueue(storeId);
 
         return Task.FromResult(new AnalyticsDataApiSettings
         {
@@ -104,7 +108,7 @@ internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsRe
 
     public Task<AnalyticsEventSearchResult> GetRowsAsync(AnalyticsDataQuery query)
     {
-        ReceivedQueries.Add(query);
+        ReceivedQueries.Enqueue(query);
 
         if (FailWith != null)
         {

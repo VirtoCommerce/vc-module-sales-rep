@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Exceptions;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -41,10 +43,14 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
     ];
 
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
+    private readonly ILogger<AnalyticsSalesRepActivitySource> _logger;
 
-    public AnalyticsSalesRepActivitySource(IOptionalDependency<IAnalyticsService> analyticsService)
+    public AnalyticsSalesRepActivitySource(
+        IOptionalDependency<IAnalyticsService> analyticsService,
+        ILogger<AnalyticsSalesRepActivitySource> logger)
     {
         _analyticsService = analyticsService;
+        _logger = logger;
     }
 
     public IList<string> Categories { get; } = _analyticsCategories.Select(x => x.Category).ToList();
@@ -64,7 +70,22 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 
         var analyticsService = _analyticsService.Value;
 
-        var searchResult = await analyticsService.SearchEventsAsync(CreateSearchCriteria(category, criteria));
+        AnalyticsEventSearchResult searchResult;
+
+        try
+        {
+            searchResult = await analyticsService.SearchEventsAsync(CreateSearchCriteria(category, criteria));
+        }
+        catch (AnalyticsException ex)
+        {
+            // This category is merged with orders and customers into one feed, so letting the exception out would
+            // take the whole feed down — every tab — because reporting is unconfigured or Google is having a bad
+            // day. The rep keeps the rest of the feed and an empty analytics tab; the cause is here in the log.
+            _logger.LogWarning(ex, "Analytics activity category {Category} is unavailable for store {StoreId}",
+                category.Category, criteria.StoreId);
+
+            return result;
+        }
 
         // One row per (hour bucket x dimension tuple), not per tracked event — deliberately, since a raw event
         // feed would be unreadable. A row GA returns without a usable hour bucket cannot be placed on a

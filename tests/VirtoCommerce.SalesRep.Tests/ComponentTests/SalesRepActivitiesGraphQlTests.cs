@@ -457,6 +457,44 @@ public class SalesRepActivitiesGraphQlTests
         Connection(configured).GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeTrue();
     }
 
+    // The analytics module's reads THROW — unconfigured store, refused credential, Google outage alike. This feed
+    // merges analytics with orders and customers, so an escaping exception would empty every tab over a reporting
+    // problem. Both cases below go through the real AnalyticsService, so they fail if that contract is mishandled.
+    [Fact]
+    public async Task Activities_AnalyticsUnconfigured_KeepsTheRestOfTheFeed()
+    {
+        var analytics = new TestAnalytics { Configured = false };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "o1", "org-1", _feb);
+
+        var json = await ctx.ExecuteGraphQlAsync($"query {{ salesRepActivities {{ {AllFields} }} }}", userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        var connection = Connection(json);
+        CategoryCounts(connection).Should().Contain(("orders", 1)).And.Contain(("searches", 0));
+        connection.GetProperty("items").EnumerateArray().Should().NotBeEmpty();
+    }
+
+    [Fact]
+    public async Task Activities_AnalyticsReadFails_KeepsTheRestOfTheFeed()
+    {
+        var analytics = new TestAnalytics { FailWith = new InvalidOperationException("GA responded 429") };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        SeedOrder(ctx, "o1", "org-1", _feb);
+
+        var json = await ctx.ExecuteGraphQlAsync($"query {{ salesRepActivities {{ {AllFields} }} }}", userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        var connection = Connection(json);
+        CategoryCounts(connection).Should().Contain(("orders", 1)).And.Contain(("searches", 0));
+        // The read was actually attempted — otherwise this test would pass on a feed that never calls Google.
+        analytics.ReceivedQueries.Should().NotBeEmpty();
+    }
+
     // A store id chooses whose analytics property is read and whose orders are counted, so a rep bound to one
     // store cannot answer for another. A caller with no store of their own claims none and is not checked.
     // StoreId is optional and unvalidated, so a rep CAN be saved without one: treating that as "administrator"

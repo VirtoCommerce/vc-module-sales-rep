@@ -675,7 +675,8 @@ Caveats inherent to the source, by design:
 * **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity. `dataAsOf` reports how fresh the data actually is.
 * **Hour precision** — GA reports are aggregates; all `last*Date` values are UTC hour-bucket starts, not event timestamps. The storefront renders them as approximate.
 * **Sample, not record** — ad blockers, consent and untracked channels mean GA sees a subset of real activity; the UI carries a "based on tracked activity" caveat.
-* **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and a misconfigured property cannot burn it on a hot page. A failed read **throws** rather than answering with an empty list, which is what keeps "reporting is broken" distinguishable from "this customer did nothing". The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.
+* **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and a misconfigured property cannot burn it on a hot page. The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.
+* **When reporting is unavailable** — a failed read **throws** in the analytics module (unconfigured store, refused credential, Google outage alike) rather than answering with an empty list, so this module can tell "reporting is broken" from "this customer did nothing". The activity feed catches it per category and logs: the analytics tabs come back empty while orders and customers keep working, because one reporting outage must not empty a rep's whole feed. `isAnalyticsConfigured` reports whether the store can report at all, and is `false` when the answer cannot be determined.
 
 ## How it works
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
@@ -114,13 +115,14 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
 
         analytics.ReceivedQueries.Should().HaveCount(2);
 
-        var searchTermsCriteria = analytics.ReceivedQueries[0];
+        var queries = analytics.ReceivedQueries.ToList();
+        var searchTermsCriteria = queries[0];
         analytics.ReceivedStoreIds.Should().OnlyContain(x => x == StoreId);
         searchTermsCriteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Count);
         searchTermsCriteria.EventNames.Should().Equal("search");
         searchTermsCriteria.DimensionNames.Should().Equal("searchTerm");
 
-        var productViewsCriteria = analytics.ReceivedQueries[1];
+        var productViewsCriteria = queries[1];
         productViewsCriteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Date);
         productViewsCriteria.EventNames.Should().Equal("view_item");
         productViewsCriteria.DimensionNames.Should().Equal("itemId", "itemName");
