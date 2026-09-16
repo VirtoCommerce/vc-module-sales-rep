@@ -43,8 +43,8 @@ public class CustomerCartStatisticsService : ICustomerCartStatisticsService
         ArgumentNullException.ThrowIfNull(criteria);
 
         return StatisticsCache.GetOrCreateAsync(
-            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.CartStatisticsCacheExpiration,
-            GetType(), nameof(GetStatisticsAsync), criteria.GetCacheKey(),
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.Families.Cart,
+            GetType(), nameof(GetStatisticsAsync), criteria,
             () => ComputeStatisticsAsync(criteria));
     }
 
