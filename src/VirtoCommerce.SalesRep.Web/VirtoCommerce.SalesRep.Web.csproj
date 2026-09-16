@@ -16,6 +16,10 @@
     <Content Remove="App\**" />
     <EmbeddedResource Remove="App\**" />
     <None Remove="App\**" />
+    <Compile Remove="StorefrontApp\**" />
+    <Content Remove="StorefrontApp\**" />
+    <EmbeddedResource Remove="StorefrontApp\**" />
+    <None Remove="StorefrontApp\**" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="Localizations\**">
@@ -36,6 +40,28 @@
   <ItemGroup>
     <NotificationTemplates Include="NotificationTemplates\**" />
   </ItemGroup>
+  <!--
+    vc-build's BuildCustomApp cannot build this: it only walks <apps> from module.manifest, and
+    declaring the plugin as an <app> would claim a host app id we do not own and drop the App/
+    fallback the admin UI relies on. Pass -p:SkipStorefrontPlugin=true to build without node.
+  -->
+  <Target Name="BuildStorefrontPlugin" BeforeTargets="Publish" Condition="'$(SkipStorefrontPlugin)' != 'true' AND Exists('$(MSBuildProjectDirectory)\StorefrontApp\package.json')">
+    <!-- The runner's global yarn is 1.x; package.json pins yarn 4. -->
+    <Exec Command="corepack enable" ContinueOnError="true" />
+    <Exec Command="yarn install --immutable" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
+    <Exec Command="yarn build" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
+  </Target>
+  <!--
+    The platform probes {moduleRoot}/plugins/vc-frontend/, but vc-build publishes the web project into
+    {moduleRoot}/bin - so the plugin goes one level above the publish dir, the way NotificationTemplates does
+    below. (Adding it to ResolvedFileToPublish put it in bin/plugins/, where nothing looks.)
+  -->
+  <Target Name="PublishStorefrontPlugin" AfterTargets="Publish" DependsOnTargets="BuildStorefrontPlugin" Condition="'$(SkipStorefrontPlugin)' != 'true'">
+    <ItemGroup>
+      <StorefrontPluginFile Include="$(MSBuildProjectDirectory)\plugins\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(StorefrontPluginFile)" DestinationFiles="$(PublishDir)\..\plugins\%(RecursiveDir)%(Filename)%(Extension)" />
+  </Target>
   <Target Name="CopyCustomContentOnPublish" AfterTargets="Publish">
     <Copy SourceFiles="@(NotificationTemplates)" DestinationFiles="$(PublishDir)\..\%(Identity)" />
   </Target>
