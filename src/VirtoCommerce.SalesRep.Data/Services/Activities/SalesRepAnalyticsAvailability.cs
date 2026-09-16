@@ -20,8 +20,8 @@ public class SalesRepAnalyticsAvailability : ISalesRepAnalyticsAvailability
         _logger = logger;
     }
 
-    // Absent module and unconfigured store are one answer on purpose: a caller can do nothing different
-    // about either, and both mean the tracked figures beside it are not measurements.
+    // Absent module, unconfigured store and "could not find out" are one answer on purpose: a caller can do
+    // nothing different about any of them, and all three mean the figures beside it are not measurements.
     public virtual async Task<bool> IsConfiguredAsync(string storeId)
     {
         if (!_analyticsService.HasValue)
@@ -35,9 +35,6 @@ public class SalesRepAnalyticsAvailability : ISalesRepAnalyticsAvailability
         }
         catch (AnalyticsException ex)
         {
-            // The analytics module distinguishes "no property id" from "could not find out", and it is right to.
-            // This is where that distinction is spent: a rep screen has one neutral empty state either way, and
-            // the question is asked to decide whether to render figures — not to explain the server to a rep.
             _logger.LogWarning(ex, "Could not determine whether Google Analytics is configured for store {StoreId}", storeId);
 
             return false;

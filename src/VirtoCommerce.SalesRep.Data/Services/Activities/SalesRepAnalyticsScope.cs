@@ -10,8 +10,7 @@ namespace VirtoCommerce.SalesRep.Data.Services.Activities;
 
 public static class SalesRepAnalyticsScope
 {
-    // The single construction site for scoped analytics reads: going through it is what makes it structurally
-    // impossible for a new reader to forget the scope filters.
+    // The single construction site for scoped analytics reads, so a new reader cannot forget the scope filters.
     public static AnalyticsEventSearchCriteria CreateCriteria(
         string storeId,
         IList<string> organizationIds,
@@ -51,9 +50,8 @@ public static class SalesRepAnalyticsScope
 
     public static AnalyticsDimensionFilter CreateOrganizationFilter(IList<string> organizationIds)
     {
-        // The one input this helper cannot make safe. The analytics module refuses a valueless filter too, but
-        // this refuses closer to the caller and names the scope at stake: an organization-less read would come
-        // back scoped by session kind alone — every organization in the property.
+        // The analytics module refuses a valueless filter too; this refuses closer to the caller and names the
+        // scope at stake — an organization-less read is scoped by session kind alone, i.e. every organization.
         if (organizationIds.IsNullOrEmpty())
         {
             throw new ArgumentException("An analytics read must name at least one organization.", nameof(organizationIds));

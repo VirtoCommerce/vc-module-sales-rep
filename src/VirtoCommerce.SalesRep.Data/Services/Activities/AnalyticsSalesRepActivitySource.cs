@@ -19,12 +19,9 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 {
     private static readonly SalesRepAnalyticsCategory[] _analyticsCategories =
     [
-        // Only the 'search' event, as the insights lists count it: the storefront fires 'view_search_results'
-        // as well for one search journey — the dropdown searches, the results page opens — and GA returns a row
-        // per event name, so asking for both would show the same search twice and count it twice. The cost is a
-        // search that never went through the header dropdown (a results URL opened directly, or a result page
-        // turned); "last search term" still reads both event names, because finding the most recent one is not
-        // counting.
+        // Only 'search': the storefront also fires 'view_search_results' for the same search journey, and GA
+        // returns a row per event name, so asking for both would count one search twice. The cost is a search
+        // that never went through the header dropdown. "Last search term" reads both — finding is not counting.
         new(
             ActivityConstants.Categories.Searches,
             ActivityConstants.Types.Search,
@@ -78,18 +75,16 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
         }
         catch (AnalyticsException ex)
         {
-            // This category is merged with orders and customers into one feed, so letting the exception out would
-            // take the whole feed down — every tab — because reporting is unconfigured or Google is having a bad
-            // day. The rep keeps the rest of the feed and an empty analytics tab; the cause is here in the log.
+            // This category is merged with orders and customers, so letting it out would empty every tab over a
+            // reporting problem. The rep keeps the rest of the feed; the cause is in the log.
             _logger.LogWarning(ex, "Analytics activity category {Category} is unavailable for store {StoreId}",
                 category.Category, criteria.StoreId);
 
             return result;
         }
 
-        // One row per (hour bucket x dimension tuple), not per tracked event — deliberately, since a raw event
-        // feed would be unreadable. A row GA returns without a usable hour bucket cannot be placed on a
-        // time-ordered feed, so it is dropped from the page.
+        // One row per (hour bucket x dimension tuple), not per tracked event. A row with no usable hour bucket
+        // cannot be placed on a time-ordered feed, so it leaves the page.
         var rows = searchResult.Events.Where(x => x.OccurredAt != null).ToList();
 
         // Uncorrected on purpose: TotalCount describes the whole set while the drop is only visible on the

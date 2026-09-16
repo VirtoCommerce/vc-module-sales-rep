@@ -20,13 +20,10 @@ using SalesRepConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
 /// <summary>
-/// The analytics module as a consumer actually meets it: the REAL <see cref="AnalyticsService"/> — its cache, its
-/// argument/configuration/call ordering, its summary shape and its failure contract — over a seeded event pool
-/// standing in for Google.
-///
-/// Only the module's own two provider seams are doubled. A hand-written <see cref="IAnalyticsService"/> could not
-/// do this: it re-stated the module's behaviour instead of running it, so a contract change (reads that throw, a
-/// store id that stopped being optional) passed straight through a green suite.
+/// The analytics module as a consumer meets it: the REAL <see cref="AnalyticsService"/> over a seeded event pool
+/// standing in for Google, with only the module's own two provider seams doubled. A hand-written
+/// <see cref="IAnalyticsService"/> re-stated the module's behaviour instead of running it, so a contract change
+/// passed straight through a green suite.
 /// </summary>
 internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsResolver
 {
@@ -41,11 +38,8 @@ internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsRe
     public List<AnalyticsEvent> Events { get; } = [];
 
     /// <summary>
-    /// Every query that reached the provider: one per search, and 1 + N per summary read (the count-mode totals
-    /// plus a newest-bucket probe for each event name that has any).
-    ///
-    /// Concurrent because the summary probes are: the real service runs them through Parallel.ForEachAsync, so a
-    /// plain List here would be written from several threads at once the moment a read names two event names.
+    /// Every query that reached the provider: one per search, and 1 + N per summary read. Concurrent because the
+    /// probes are — the real service runs them through Parallel.ForEachAsync.
     /// </summary>
     public ConcurrentQueue<AnalyticsDataQuery> ReceivedQueries { get; } = new();
 
