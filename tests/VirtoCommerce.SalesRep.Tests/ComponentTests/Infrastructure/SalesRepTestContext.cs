@@ -353,6 +353,25 @@ internal sealed class SalesRepTestContext : IDisposable
         }
     }
 
+    /// <summary>
+    /// Mark an account as a platform administrator. An administrator is not bound to a store, which is the only
+    /// way a caller carrying no StoreId passes <c>ISalesRepStoreAccessService</c>.
+    /// </summary>
+    public async Task MakeAdministratorAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+
+        // A detached clone, never the FindByIdAsync instance: that one is the cached (and possibly tracked) user.
+        var user = (await userManager.FindByIdAsync(userId)).CloneTyped();
+        user.IsAdministrator = true;
+
+        var result = await userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
     /// <summary>Delete the login account, leaving any member and membership rows behind.</summary>
     public async Task DeleteAccountAsync(string userId)
     {
@@ -413,7 +432,10 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <see cref="SalesRepController"/>, and return the created details.
     /// </summary>
     public Task<SalesRepDetails> CreateRepAsync(string firstName, string lastName, string email, params string[] organizationIds)
-        => CreateRepInStoreAsync(firstName, lastName, email, storeId: null, organizationIds);
+        => CreateRepInStoreAsync(firstName, lastName, email, DefaultStoreId, organizationIds);
+
+    // A real rep account carries a store; CreateRepInStoreAsync(storeId: null) asks for one that does not.
+    public const string DefaultStoreId = "B2B-store";
 
     /// <summary>As <see cref="CreateRepAsync"/>, but binds the rep's account to a specific store.</summary>
     public async Task<SalesRepDetails> CreateRepInStoreAsync(string firstName, string lastName, string email, string storeId, params string[] organizationIds)

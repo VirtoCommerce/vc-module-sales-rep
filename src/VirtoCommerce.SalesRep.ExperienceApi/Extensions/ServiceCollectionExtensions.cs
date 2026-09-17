@@ -41,6 +41,8 @@ public static class ServiceCollectionExtensions
         serviceCollection.AddTransient<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         serviceCollection.AddTransient<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
+        serviceCollection.AddTransient<ISalesRepProductResolver, SalesRepProductResolver>();
+
         return serviceCollection;
     }
 }
