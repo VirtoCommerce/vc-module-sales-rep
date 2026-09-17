@@ -41,8 +41,10 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         Name = "SalesRepCustomerInsights";
 
         Field<NonNullGraphType<BooleanGraphType>>("isAnalyticsAvailable")
-            .Description("Whether the collections beside this are measurements. False means the lists are empty "
-                + "for want of a source, not for want of activity.")
+            .Description("Whether the collections beside this are measurements: false means they are empty "
+                + "for want of a source, not for want of activity. Always reflects configuration, and a selected "
+                + "collection whose read fails turns it false as well. Asked on its own, with no collection "
+                + "selected, it reports configuration only — no read is made merely to test one.")
             .ResolveAsync(GetIsAnalyticsAvailableAsync);
 
         Field<DateTimeGraphType>("dataAsOf")
@@ -71,7 +73,8 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
     }
 
     // GraphQL may resolve this before the collections, so it awaits the same memoized slices dataAsOf does —
-    // read first, then report.
+    // read first, then report. Only the SELECTED collections: the handler has already set the configuration
+    // half, and a read is never issued merely to answer this field.
     private async Task<object> GetIsAnalyticsAvailableAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
     {
         foreach (var (field, fieldType) in GetSelectedCollections(context))

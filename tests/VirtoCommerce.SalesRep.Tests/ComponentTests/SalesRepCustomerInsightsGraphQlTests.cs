@@ -499,6 +499,47 @@ public class SalesRepCustomerInsightsGraphQlTests
         Insights(json).GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
     }
 
+    // Selected alone the flag answers for configuration, and nothing reads. A store that is configured but
+    // would refuse the read still reports true — the field describes the collections beside it, and a query
+    // that selects none gets no GA call spent on finding out.
+    [Fact]
+    public async Task Insights_FlagSelectedAlone_AnswersWithoutReading()
+    {
+        var analytics = new TestAnalytics { FailWith = new InvalidOperationException("GA responded 503") };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") " +
+            "{ isAnalyticsAvailable } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        Insights(json).GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeTrue();
+        analytics.ReceivedQueries.Should().BeEmpty();
+    }
+
+    // The other half of the same rule: configuration is answered by the handler, so an unconfigured store is
+    // reported correctly even when nothing is selected to read.
+    [Fact]
+    public async Task Insights_FlagSelectedAlone_StillReportsAnUnconfiguredStore()
+    {
+        var analytics = new TestAnalytics { Configured = false };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") " +
+            "{ isAnalyticsAvailable } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        Insights(json).GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
+        analytics.ReceivedQueries.Should().BeEmpty();
+    }
+
     private static JsonElement Insights(string json)
         => SalesRepTestContext.Node(json, "salesRepCustomerInsights");
 }
