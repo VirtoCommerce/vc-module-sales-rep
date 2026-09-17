@@ -80,6 +80,8 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
             _logger.LogWarning(ex, "Analytics activity category {Category} is unavailable for store {StoreId}",
                 category.Category, criteria.StoreId);
 
+            result.IsAnalyticsAvailable = false;
+
             return result;
         }
 

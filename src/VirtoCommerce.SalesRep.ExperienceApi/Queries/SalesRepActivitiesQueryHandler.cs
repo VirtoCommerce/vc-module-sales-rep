@@ -76,7 +76,8 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         }
 
         var result = await _activityService.SearchActivitiesAsync(criteria);
-        result.IsAnalyticsConfigured = await _availability.IsConfiguredAsync(criteria.StoreId);
+        // AND, not assignment: a source that caught a failed read has already turned this off.
+        result.IsAnalyticsAvailable = result.IsAnalyticsAvailable && await _availability.IsConfiguredAsync(criteria.StoreId);
 
         await ResolveProductsAsync(result, request);
 

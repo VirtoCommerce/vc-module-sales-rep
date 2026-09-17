@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Exceptions;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
@@ -19,13 +21,16 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
     private readonly ISalesRepAnalyticsAvailability _availability;
+    private readonly ILogger<SalesRepCustomerActivityService> _logger;
 
     public SalesRepCustomerActivityService(
         IOptionalDependency<IAnalyticsService> analyticsService,
-        ISalesRepAnalyticsAvailability availability)
+        ISalesRepAnalyticsAvailability availability,
+        ILogger<SalesRepCustomerActivityService> logger)
     {
         _analyticsService = analyticsService;
         _availability = availability;
+        _logger = logger;
     }
 
     public virtual async Task<SalesRepCustomerActivitySummary> GetSummaryAsync(SalesRepCustomerActivityCriteria criteria)
@@ -41,24 +46,36 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
         var analyticsService = _analyticsService.Value;
 
-        result.IsAnalyticsConfigured = await _availability.IsConfiguredAsync(criteria.StoreId);
-        if (!result.IsAnalyticsConfigured)
+        result.IsAnalyticsAvailable = await _availability.IsConfiguredAsync(criteria.StoreId);
+        if (!result.IsAnalyticsAvailable)
         {
             return result;
         }
 
-        // The three reads are independent and cached under distinct keys, so they do not serialize on each other.
-        var loginSummaryTask = GetLoginSummaryAsync(analyticsService, criteria);
-        var lastSearchTermTask = GetLastSearchTermAsync(analyticsService, criteria);
-        var lastViewedProductTask = GetLastViewedProductAsync(analyticsService, criteria);
+        try
+        {
+            // The three reads are independent and cached under distinct keys, so they do not serialize on each other.
+            var loginSummaryTask = GetLoginSummaryAsync(analyticsService, criteria);
+            var lastSearchTermTask = GetLastSearchTermAsync(analyticsService, criteria);
+            var lastViewedProductTask = GetLastViewedProductAsync(analyticsService, criteria);
 
-        await Task.WhenAll(loginSummaryTask, lastSearchTermTask, lastViewedProductTask);
+            await Task.WhenAll(loginSummaryTask, lastSearchTermTask, lastViewedProductTask);
 
-        var loginSummary = await loginSummaryTask;
-        result.VisitsCount = loginSummary?.TotalCount ?? 0;
-        result.LastWebLogin = loginSummary?.LastOccurredAt;
-        result.LastSearchTerm = await lastSearchTermTask;
-        result.LastViewedProduct = await lastViewedProductTask;
+            var loginSummary = await loginSummaryTask;
+            result.VisitsCount = loginSummary?.TotalCount ?? 0;
+            result.LastWebLogin = loginSummary?.LastOccurredAt;
+            result.LastSearchTerm = await lastSearchTermTask;
+            result.LastViewedProduct = await lastViewedProductTask;
+        }
+        catch (AnalyticsException ex)
+        {
+            // createdOn beside these comes from the database: letting this out would lose it to a reporting
+            // outage. The GA fields stay at their unmeasured defaults and the flag says why.
+            _logger.LogWarning(ex, "Analytics summary is unavailable for organization {OrganizationId} in store {StoreId}",
+                criteria.OrganizationId, criteria.StoreId);
+
+            result.IsAnalyticsAvailable = false;
+        }
 
         return result;
     }

@@ -26,7 +26,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
     private static readonly DateTime _apr = new(2026, 4, 10, 13, 0, 0, DateTimeKind.Utc);
 
     private const string AllFields =
-        "createdOn lastWebLogin visitsCount lastSearchTerm isAnalyticsConfigured " +
+        "createdOn lastWebLogin visitsCount lastSearchTerm isAnalyticsAvailable " +
         "lastViewedProduct { code productId name imageUrl }";
 
     [Fact]
@@ -52,7 +52,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
             userId: rep.UserId);
 
         var summary = Summary(json);
-        summary.GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeTrue();
+        summary.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeTrue();
         // createdOn passes the organization's own creation date through, so compare it with the member record:
         // the value is stamped by the platform's auditable triggers, which a test host does not always wire up.
         var organization = await ctx.GetRequiredService<IMemberService>().GetByIdAsync("org-1");
@@ -138,7 +138,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
             userId: rep.UserId);
 
         var summary = Summary(json);
-        summary.GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeFalse();
+        summary.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
         summary.GetProperty("createdOn").ValueKind.Should().Be(JsonValueKind.String); // DB data still served
         summary.GetProperty("visitsCount").GetInt32().Should().Be(0);
         summary.GetProperty("lastWebLogin").ValueKind.Should().Be(JsonValueKind.Null);
@@ -160,7 +160,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
             userId: rep.UserId);
 
         var summary = Summary(json);
-        summary.GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeFalse();
+        summary.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
         summary.GetProperty("visitsCount").GetInt32().Should().Be(0); // unconfigured short-circuits before any read
         analytics.ReceivedQueries.Should().BeEmpty();
     }
@@ -193,6 +193,31 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
+    }
+
+    // The case that used to fail the whole query: the configuration check passes (it makes no Google call), then
+    // the read throws. createdOn is database data — losing it to a reporting outage is what this prevents.
+    [Fact]
+    public async Task Summary_AnalyticsReadFails_KeepsDatabaseFieldsAndReportsUnavailable()
+    {
+        var analytics = new TestAnalytics { FailWith = new InvalidOperationException("GA responded 503") };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepCustomerActivitySummary(organizationId: \"org-1\", storeId: \"B2B-store\", cultureName: \"en-US\") {{ {AllFields} }} }}",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+
+        var summary = Summary(json);
+        summary.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
+        summary.GetProperty("createdOn").ValueKind.Should().NotBe(JsonValueKind.Null, "createdOn comes from the database");
+        summary.GetProperty("visitsCount").GetInt32().Should().Be(0);
+        summary.GetProperty("lastWebLogin").ValueKind.Should().Be(JsonValueKind.Null);
+        // The read was attempted — otherwise this would pass on a summary that never calls Google at all.
+        analytics.ReceivedQueries.Should().NotBeEmpty();
     }
 
     private static JsonElement Summary(string json)

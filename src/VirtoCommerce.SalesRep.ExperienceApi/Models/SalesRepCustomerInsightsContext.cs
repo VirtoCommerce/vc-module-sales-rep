@@ -18,6 +18,10 @@ public class SalesRepCustomerInsightsContext
 
     public DateTime? To { get; set; }
 
+    // Turned off by the collection resolvers when a read fails; the insights lists have no other way to say
+    // "these rows are missing because the source is unavailable" rather than "the customer did nothing".
+    public bool IsAnalyticsAvailable { get; set; } = true;
+
     // One fetch per (collection, sort, take): aliased selections and the dataAsOf resolver share the same read.
     public virtual async Task<T> GetOrAddSliceAsync<T>(string key, Func<Task<T>> factory) where T : class
     {

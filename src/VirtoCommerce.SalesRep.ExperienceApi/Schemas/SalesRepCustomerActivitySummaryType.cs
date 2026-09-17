@@ -17,6 +17,6 @@ public class SalesRepCustomerActivitySummaryType : ExtendableGraphType<SalesRepC
         Field<SalesRepActivityProductType>("lastViewedProduct")
             .Description("Most recently viewed product (null when analytics is not configured or has no data).")
             .Resolve(context => context.Source.LastViewedProduct);
-        Field(x => x.IsAnalyticsConfigured, nullable: false).Description("Whether analytics is available and configured for the store; false means the analytics figures carry no data.");
+        Field(x => x.IsAnalyticsAvailable, nullable: false).Description("Whether the analytics figures beside this are measurements. False when analytics is absent, unconfigured, or could not be read — the figures are then zero/null for want of a source, not for want of activity. Non-analytics fields such as createdOn are unaffected.");
     }
 }

@@ -439,10 +439,10 @@ public class SalesRepActivitiesGraphQlTests
             var quietRep = await unconfigured.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
             var json = await unconfigured.ExecuteGraphQlAsync(
-                "query { salesRepActivities { totalCount isAnalyticsConfigured } }",
+                "query { salesRepActivities { totalCount isAnalyticsAvailable } }",
                 userId: quietRep.UserId);
 
-            Connection(json).GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeFalse();
+            Connection(json).GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
         }
 
         var analytics = new TestAnalytics();
@@ -451,10 +451,10 @@ public class SalesRepActivitiesGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var configured = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepActivities { totalCount isAnalyticsConfigured } }",
+            "query { salesRepActivities { totalCount isAnalyticsAvailable } }",
             userId: rep.UserId);
 
-        Connection(configured).GetProperty("isAnalyticsConfigured").GetBoolean().Should().BeTrue();
+        Connection(configured).GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeTrue();
     }
 
     // The analytics module's reads THROW — unconfigured store, refused credential, Google outage alike. This feed

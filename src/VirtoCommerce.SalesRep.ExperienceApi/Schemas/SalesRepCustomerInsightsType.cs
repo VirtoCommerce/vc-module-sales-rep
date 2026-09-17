@@ -6,6 +6,8 @@ using GraphQL;
 using GraphQL.Execution;
 using GraphQL.Types;
 using GraphQLParser.AST;
+using Microsoft.Extensions.Logging;
+using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Exceptions;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
@@ -25,13 +27,24 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
 
     private readonly ISalesRepCustomerInsightsService _insightsService;
     private readonly ISalesRepProductResolver _productResolver;
+    private readonly ILogger<SalesRepCustomerInsightsType> _logger;
 
-    public SalesRepCustomerInsightsType(ISalesRepCustomerInsightsService insightsService, ISalesRepProductResolver productResolver)
+    public SalesRepCustomerInsightsType(
+        ISalesRepCustomerInsightsService insightsService,
+        ISalesRepProductResolver productResolver,
+        ILogger<SalesRepCustomerInsightsType> logger)
     {
         _insightsService = insightsService;
         _productResolver = productResolver;
+        _logger = logger;
 
         Name = "SalesRepCustomerInsights";
+
+        Field<NonNullGraphType<BooleanGraphType>>("isAnalyticsAvailable")
+            .Description("Whether the collections beside this are measurements. False when analytics is "
+                + "absent, unconfigured, or could not be read — the lists are then empty for want of a source, "
+                + "not for want of activity. It carries no detail about which.")
+            .ResolveAsync(GetIsAnalyticsAvailableAsync);
 
         Field<DateTimeGraphType>("dataAsOf")
             .Description("Latest event hour (UTC) observed across the selected collections; null when they carry no data or only 'count'-sorted collections are selected (their aggregate rows carry no dates).")
@@ -56,6 +69,27 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
                 var (sortBy, take) = ReadOwnArguments(context);
                 return await GetBrowsedProductsAsync(context.Source, sortBy, take);
             });
+    }
+
+    // Awaits the same sibling selections dataAsOf does, because GraphQL may resolve this field before them:
+    // read first, then report. The memoized slices make that free.
+    private async Task<object> GetIsAnalyticsAvailableAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
+    {
+        foreach (var (field, fieldType) in GetSelectedCollections(context))
+        {
+            var (sortBy, take) = ReadSiblingArguments(context, field, fieldType);
+
+            if (fieldType.Name == SearchTermsField)
+            {
+                await GetSearchTermsAsync(context.Source, sortBy, take);
+            }
+            else
+            {
+                await GetBrowsedProductsAsync(context.Source, sortBy, take);
+            }
+        }
+
+        return context.Source.IsAnalyticsAvailable;
     }
 
     // dataAsOf covers exactly the sibling collection selections; the memoized per-(collection, sort, take)
@@ -131,17 +165,36 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
     private Task<IList<SalesRepSearchTerm>> GetSearchTermsAsync(SalesRepCustomerInsightsContext insights, string sortBy, int take)
     {
         return insights.GetOrAddSliceAsync($"{SearchTermsField}:{sortBy}:{take}",
-            () => _insightsService.GetSearchTermsAsync(CreateCriteria(insights, sortBy, take)));
+            () => ReadAsync(insights, () => _insightsService.GetSearchTermsAsync(CreateCriteria(insights, sortBy, take))));
     }
 
     private Task<IList<SalesRepBrowsedProduct>> GetBrowsedProductsAsync(SalesRepCustomerInsightsContext insights, string sortBy, int take)
     {
-        return insights.GetOrAddSliceAsync($"{BrowsedProductsField}:{sortBy}:{take}", async () =>
+        return insights.GetOrAddSliceAsync($"{BrowsedProductsField}:{sortBy}:{take}",
+            () => ReadAsync(insights, async () =>
+            {
+                var products = await _insightsService.GetBrowsedProductsAsync(CreateCriteria(insights, sortBy, take));
+                await ResolveProductsAsync(insights, products);
+                return products;
+            }));
+    }
+
+    // Both collections and dataAsOf come through here, so one catch covers the query: an empty list plus
+    // isAnalyticsAvailable=false, rather than an error that reads to a client as "the customer did nothing".
+    private async Task<IList<T>> ReadAsync<T>(SalesRepCustomerInsightsContext insights, Func<Task<IList<T>>> read)
+    {
+        try
         {
-            var products = await _insightsService.GetBrowsedProductsAsync(CreateCriteria(insights, sortBy, take));
-            await ResolveProductsAsync(insights, products);
-            return products;
-        });
+            return await read();
+        }
+        catch (AnalyticsException ex)
+        {
+            _logger.LogWarning(ex, "Customer insights are unavailable for store {StoreId}", insights.StoreId);
+
+            insights.IsAnalyticsAvailable = false;
+
+            return [];
+        }
     }
 
     private static SalesRepCustomerInsightsCriteria CreateCriteria(SalesRepCustomerInsightsContext insights, string sortBy, int take)

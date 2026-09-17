@@ -389,22 +389,26 @@ public class SalesRepCustomerInsightsGraphQlTests
     }
 
     [Fact]
-    public async Task Insights_AnalyticsAbsent_ReturnsNull()
+    public async Task Insights_AnalyticsAbsent_ReportsUnavailable()
     {
         using var ctx = SalesRepTestContext.Create(); // no IAnalyticsService registered = module absent
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerInsights(organizationId: \"org-1\") { dataAsOf searchTerms { term } } }",
+            "query { salesRepCustomerInsights(organizationId: \"org-1\") { isAnalyticsAvailable dataAsOf searchTerms { term } } }",
             userId: rep.UserId);
 
+        // Not a null field: null means the caller may not see this customer. An absent module is reported
+        // through the one flag, the same way an unconfigured store and a failed read are.
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"salesRepCustomerInsights\":null");
+        var insights = Insights(json);
+        insights.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
+        insights.GetProperty("searchTerms").EnumerateArray().Should().BeEmpty();
     }
 
     [Fact]
-    public async Task Insights_AnalyticsUnconfigured_ReturnsNull()
+    public async Task Insights_AnalyticsUnconfigured_ReportsUnavailable()
     {
         var analytics = new TestAnalytics { Configured = false };
         using var ctx = SalesRepTestContext.Create(analytics.Register);
@@ -414,11 +418,13 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") { searchTerms { term } } }",
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") { isAnalyticsAvailable searchTerms { term } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"salesRepCustomerInsights\":null");
+        var insights = Insights(json);
+        insights.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
+        insights.GetProperty("searchTerms").EnumerateArray().Should().BeEmpty();
         analytics.ReceivedQueries.Should().BeEmpty(); // unconfigured short-circuits before any read
     }
 
@@ -451,6 +457,48 @@ public class SalesRepCustomerInsightsGraphQlTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
+    }
+
+    // Same as the summary: configured, then Google refuses. An empty list plus the flag, never a GraphQL error —
+    // an error reads to a client as "the customer did nothing".
+    [Fact]
+    public async Task Insights_AnalyticsReadFails_ReportsUnavailableWithEmptyLists()
+    {
+        var analytics = new TestAnalytics { FailWith = new InvalidOperationException("GA responded 503") };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") " +
+            "{ isAnalyticsAvailable dataAsOf searchTerms { term } browsedProducts { sku } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+
+        var insights = Insights(json);
+        insights.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
+        insights.GetProperty("searchTerms").EnumerateArray().Should().BeEmpty();
+        insights.GetProperty("browsedProducts").EnumerateArray().Should().BeEmpty();
+        analytics.ReceivedQueries.Should().NotBeEmpty();
+    }
+
+    // The flag is resolved before the collections when a client asks for it first, so it has to await the same
+    // reads rather than report the state it was born with.
+    [Fact]
+    public async Task Insights_FlagSelectedBeforeTheCollections_StillObservesTheFailedRead()
+    {
+        var analytics = new TestAnalytics { FailWith = new InvalidOperationException("GA responded 503") };
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") " +
+            "{ isAnalyticsAvailable searchTerms { term } } }",
+            userId: rep.UserId);
+
+        Insights(json).GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
     }
 
     private static JsonElement Insights(string json)

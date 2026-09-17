@@ -43,17 +43,15 @@ public class SalesRepCustomerInsightsQueryHandler : SalesRepQueryHandlerBase, IQ
             return null;
         }
 
-        // "No insights provider configured" (analytics module absent or unconfigured) is an expected state, not an error.
-        if (!await _insightsService.IsAvailableAsync(request.StoreId))
-        {
-            return null;
-        }
-
         var result = AbstractTypeFactory<SalesRepCustomerInsightsContext>.TryCreateInstance();
         result.OrganizationIds = organizationIds;
         result.StoreId = request.StoreId;
         result.From = request.Period?.From;
         result.To = request.Period?.To;
+        // Absent or unconfigured analytics is an expected state, not an error, and not a null field either:
+        // isAnalyticsAvailable is the one signal for it and for a read that fails later. A null field keeps its
+        // own meaning — the caller may not see this customer at all.
+        result.IsAnalyticsAvailable = await _insightsService.IsAvailableAsync(request.StoreId);
         return result;
     }
 }

@@ -14,5 +14,8 @@ public class SalesRepCustomerActivitySummary
 
     public SalesRepActivityProduct LastViewedProduct { get; set; }
 
-    public bool IsAnalyticsConfigured { get; set; }
+    // One generic signal: false for an absent or unconfigured analytics module and for a read that failed
+    // alike, meaning the figures beside it are not measurements. Defaults FALSE — unlike the feed's result,
+    // this is built in one place, so every early return is a path that measured nothing.
+    public bool IsAnalyticsAvailable { get; set; }
 }
