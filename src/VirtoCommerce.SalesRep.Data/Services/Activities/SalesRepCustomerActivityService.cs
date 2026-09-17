@@ -69,8 +69,7 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         }
         catch (AnalyticsException ex)
         {
-            // createdOn beside these comes from the database: letting this out would lose it to a reporting
-            // outage. The GA fields stay at their unmeasured defaults and the flag says why.
+            // createdOn beside these is database data: letting this out would lose it to a reporting outage.
             _logger.LogWarning(ex, "Analytics summary is unavailable for organization {OrganizationId} in store {StoreId}",
                 criteria.OrganizationId, criteria.StoreId);
 

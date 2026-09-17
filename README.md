@@ -577,12 +577,12 @@ Ranked lists over tracked activity, for one customer or aggregated across all of
     lastWebLogin visitsCount
     lastSearchTerm
     lastViewedProduct { code productId name imageUrl }
-    isAnalyticsConfigured                      # the availability signal for the UI
+    isAnalyticsAvailable                       # the availability signal for the UI
   }
 }
 ```
 
-`sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. When the analytics module is absent or unconfigured these fields return `null` / zero rather than an error, and `isAnalyticsConfigured` is how a UI renders a "not configured" state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
+`sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. When analytics is unavailable these fields return `null` / zero rather than an error, and `isAnalyticsAvailable` is how a UI renders that state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
 
 ### Mutation
 
@@ -634,7 +634,9 @@ All statistics and rankings obey the same **data-isolation rule** as the rest of
 
 ## Google Analytics-based metrics
 
-Some metrics are **not** computed from platform data — they are read from **Google Analytics 4** (Data API `runReport`) through the `IAnalyticsService` abstraction of the optional [VirtoCommerce.GoogleEcommerceAnalytics](https://github.com/VirtoCommerce/vc-module-google-ecommerce-analytics) module. When that module is absent or not configured for the store, these fields return `null` / zero / empty — never an error.
+Some metrics are **not** computed from platform data — they are read from **Google Analytics 4** (Data API `runReport`) through the `IAnalyticsService` abstraction of the optional [VirtoCommerce.GoogleEcommerceAnalytics](https://github.com/VirtoCommerce/vc-module-google-ecommerce-analytics) module. When analytics is unavailable — the module absent, the store unconfigured, or a read that failed — these fields return `null` / zero / empty and **`isAnalyticsAvailable` is `false`**, never an error. One flag covers all three on purpose: a rep can do nothing different about any of them, and the cause belongs in the server log and the diagnostics endpoint, not on a rep's screen. A null `salesRepCustomerInsights` means something else entirely — the caller may not see that customer.
+
+> **Why `lastWebLogin` comes from GA and not from the platform.** `ApplicationUser.LastLoginDate` carries the exact instant, and this module already loads `ApplicationUser` for the store claim — so reading the login date from GA costs precision (an hour bucket) and freshness (GA's 24–48 hour processing lag). It is deliberate: this wave is about what GA can answer, and taking `visitsCount` from GA while taking the login date from the database would split one card across two sources with two different freshness guarantees, where the stale half is invisible. If the exactness matters more than the consistency, moving this one field to `LastLoginDate` is a small, self-contained change.
 
 | Metric (GraphQL field) | GA4 source | Notes |
 |---|---|---|

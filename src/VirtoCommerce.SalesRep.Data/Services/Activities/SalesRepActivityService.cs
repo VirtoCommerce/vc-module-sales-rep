@@ -63,8 +63,7 @@ public class SalesRepActivityService : ISalesRepActivityService
             .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
             .Select(x => CreateCategoryCount(x.Key, x.Sum(plan => plan.Result.TotalCount)))
             .ToList();
-        // One unavailable source makes the whole feed's flag false: a rep cannot be told the tracked counts
-        // are measurements when one of the categories behind them could not be read.
+        // One unavailable source makes the whole feed's flag false: the counts behind it are then incomplete.
         result.IsAnalyticsAvailable = searches.All(x => x.Result.IsAnalyticsAvailable);
         result.Results = GetPage(criteria, [.. searches.Where(x => x.Fetched).Select(x => x.Result)], pagesNatively ? 0 : criteria.Skip);
         // The pager is per-tab: only the requested categories add up to the total.

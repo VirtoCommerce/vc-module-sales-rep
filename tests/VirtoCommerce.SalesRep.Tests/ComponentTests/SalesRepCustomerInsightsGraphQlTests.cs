@@ -15,8 +15,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// <summary>
 /// End-to-end component tests for the <c>salesRepCustomerInsights</c> X-API query (VCST-5337 customer insights):
 /// top/recent search terms and browsed products from the (fake) analytics service, product resolution from the
-/// catalog, lazy per-collection fetches shared with dataAsOf, and the same organization authorization plus
-/// null-when-unavailable semantics as the activity summary. The organizationId argument is optional: omitted, the
+/// catalog, lazy per-collection fetches shared with dataAsOf, and the same organization authorization and
+/// isAnalyticsAvailable semantics as the activity summary. The organizationId argument is optional: omitted, the
 /// scope is all the rep's assigned organizations (same resolution as salesRepActivities).
 /// </summary>
 [Trait("Category", "Component")]
@@ -399,8 +399,7 @@ public class SalesRepCustomerInsightsGraphQlTests
             "query { salesRepCustomerInsights(organizationId: \"org-1\") { isAnalyticsAvailable dataAsOf searchTerms { term } } }",
             userId: rep.UserId);
 
-        // Not a null field: null means the caller may not see this customer. An absent module is reported
-        // through the one flag, the same way an unconfigured store and a failed read are.
+        // Not a null field: null means the caller may not see this customer.
         json.Should().NotContain("\"errors\"");
         var insights = Insights(json);
         insights.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeFalse();
@@ -459,8 +458,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         json.Should().MatchRegex("(?i)anonym");
     }
 
-    // Same as the summary: configured, then Google refuses. An empty list plus the flag, never a GraphQL error —
-    // an error reads to a client as "the customer did nothing".
+    // Same as the summary: configured, then Google refuses — an empty list plus the flag, never an error.
     [Fact]
     public async Task Insights_AnalyticsReadFails_ReportsUnavailableWithEmptyLists()
     {

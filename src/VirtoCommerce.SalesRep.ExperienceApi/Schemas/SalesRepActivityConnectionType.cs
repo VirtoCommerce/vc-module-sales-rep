@@ -15,9 +15,8 @@ public class SalesRepActivityConnectionType : ExtendableGraphType<SalesRepActivi
         Field(x => x.IsAnalyticsAvailable, nullable: false)
             .Description(
                 "Whether tracked storefront activity is measured for this store right now. False means the " +
-                "searches, product views and sign-in counts are zero because nothing is being measured — " +
-                "analytics is absent, unconfigured, or could not be read — not because the customer was " +
-                "inactive. It carries no detail about which: the server log and the diagnostics endpoint do.");
+                "searches, product views and sign-in counts are zero because nothing is being measured, not " +
+                "because the customer was inactive.");
 
         Field<NonNullGraphType<ListGraphType<NonNullGraphType<SalesRepActivityCategoryCountType>>>>("categoryCounts")
             .Description("Per-category totals for the applied filters (zero counts included).")

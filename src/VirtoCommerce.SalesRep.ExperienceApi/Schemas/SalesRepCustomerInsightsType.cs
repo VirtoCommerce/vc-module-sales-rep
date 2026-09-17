@@ -41,9 +41,8 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         Name = "SalesRepCustomerInsights";
 
         Field<NonNullGraphType<BooleanGraphType>>("isAnalyticsAvailable")
-            .Description("Whether the collections beside this are measurements. False when analytics is "
-                + "absent, unconfigured, or could not be read — the lists are then empty for want of a source, "
-                + "not for want of activity. It carries no detail about which.")
+            .Description("Whether the collections beside this are measurements. False means the lists are empty "
+                + "for want of a source, not for want of activity.")
             .ResolveAsync(GetIsAnalyticsAvailableAsync);
 
         Field<DateTimeGraphType>("dataAsOf")
@@ -71,8 +70,8 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             });
     }
 
-    // Awaits the same sibling selections dataAsOf does, because GraphQL may resolve this field before them:
-    // read first, then report. The memoized slices make that free.
+    // GraphQL may resolve this before the collections, so it awaits the same memoized slices dataAsOf does —
+    // read first, then report.
     private async Task<object> GetIsAnalyticsAvailableAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
     {
         foreach (var (field, fieldType) in GetSelectedCollections(context))
@@ -179,8 +178,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             }));
     }
 
-    // Both collections and dataAsOf come through here, so one catch covers the query: an empty list plus
-    // isAnalyticsAvailable=false, rather than an error that reads to a client as "the customer did nothing".
+    // Both collections and dataAsOf come through here, so one catch covers the query.
     private async Task<IList<T>> ReadAsync<T>(SalesRepCustomerInsightsContext insights, Func<Task<IList<T>>> read)
     {
         try

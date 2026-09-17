@@ -195,8 +195,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         json.Should().MatchRegex("(?i)anonym");
     }
 
-    // The case that used to fail the whole query: the configuration check passes (it makes no Google call), then
-    // the read throws. createdOn is database data — losing it to a reporting outage is what this prevents.
+    // The case that used to fail the whole query: the configuration check makes no Google call, so it passes
+    // and the read then throws. Losing the database-sourced createdOn to that is what this prevents.
     [Fact]
     public async Task Summary_AnalyticsReadFails_KeepsDatabaseFieldsAndReportsUnavailable()
     {
