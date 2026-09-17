@@ -1,0 +1,22 @@
+{
+  // Records every SQL command the component tests run, and writes the result to OutputDirectory.
+  //   sql-counts.txt - one line per test, sorted. Commit it; the next run's diff is the list of
+  //                    tests whose query count moved.
+  //   sql-report.html - the same view the local Application Insights stand-in gives: expand a test
+  //                    to see its queries, their order and their text.
+  // Off by default: switch Enabled to true, run the suite, switch it back.
+  //
+  // The count includes the queries of the test's own setup and seeding, not only the call under
+  // test. That is deliberate - it needs no markers in the tests, and a seeded count is just as
+  // stable to diff. It also means a change to a shared seeding helper moves many lines at once.
+  //
+  // SQLite is not PostgreSql: the counts and the shape of the queries carry over, the durations do
+  // not. Read this to see that a call started issuing MORE queries, never to judge how slow it is.
+  "Enabled": false,
+  "Html": true,
+  "Counts": true,
+
+  // How many tests the page carries, heaviest first. The counts file always keeps every test.
+  "HtmlMaxTests": 50,
+  "OutputDirectory": "../../../sql-metrics"
+}

@@ -41,6 +41,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
+    <None Update="sqlmetrics.json" CopyToOutputDirectory="PreserveNewest" />
+    <EmbeddedResource Include="Infrastructure\SqlMetrics\SqlMetricsDashboard.html" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.ExperienceApi\VirtoCommerce.SalesRep.ExperienceApi.csproj" />

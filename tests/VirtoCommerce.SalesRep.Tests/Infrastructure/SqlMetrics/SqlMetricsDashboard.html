@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>SQL metrics</title>
+  <style>
+    :root {
+      --highlight: #dfe8ff;
+    }
+
+    body {
+      font-family: Consolas, monospace;
+      font-size: 13px;
+      margin: 0 16px 16px;
+      background: #fbfbfb;
+      color: #555;
+    }
+
+    thead {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    thead th[colspan] {
+      padding: 6px 8px;
+      background: #fbfbfb;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    tbody:nth-child(even) td {
+      background: #f5f6f7;
+    }
+
+    td.method span,
+    td.method,
+    th.method {
+      width: 52px;
+      flex: none;
+      font-weight: bold;
+    }
+
+    td.method span {
+      display: inline-block;
+      text-align: center;
+      border-radius: 3px;
+      color: #fff;
+    }
+
+    .get {
+      background: #61affe;
+    }
+
+    .post {
+      background: #49cc90;
+    }
+
+    .put {
+      background: #fca130;
+    }
+
+    .patch {
+      background: #50e3c2;
+    }
+
+    .delete {
+      background: #f93e3e;
+    }
+
+    .head-method {
+      background: #9012fe;
+    }
+
+    .options {
+      background: #0d5aa7;
+    }
+
+    .host,
+    th.host {
+      width: 160px;
+      flex: none;
+    }
+
+    td.direct,
+    td.total,
+    th.direct,
+    th.total {
+      width: 44px;
+      color: #888;
+      text-align: right;
+    }
+
+    td.path,
+    th.path {
+      max-width: 22vw;
+    }
+
+    .filter {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .expand {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .expand button {
+      font-family: inherit;
+      font-size: inherit;
+      padding: 1px 8px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    .expand button:hover {
+      background: #f0f0f0;
+    }
+
+    .expand button.chosen {
+      background: highlight;
+      border-color: highlight;
+      color: highlighttext;
+    }
+
+    #clear {
+      margin-left: auto;
+      font-family: inherit;
+      font-size: inherit;
+      padding: 3px 14px;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      background: #fff;
+      cursor: pointer;
+    }
+
+    #clear:hover {
+      background: #f0f0f0;
+      color: #222;
+    }
+
+
+
+    thead th {
+      background: #fbfbfb;
+    }
+
+    th,
+    th[class] {
+      padding: 2px 8px;
+      text-align: left;
+      color: #999;
+      font-weight: bold;
+      border-bottom: 1px solid #eee;
+    }
+
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+      width: 100%;
+    }
+
+    td {
+      padding: 5px 8px;
+      border-top: 1px solid #f2f2f2;
+      white-space: nowrap;
+    }
+
+    td.name,
+    td.path {
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .time {
+      width: 104px;
+      flex: none;
+    }
+
+    td.time,
+    th.time {
+      width: 1%;
+    }
+
+
+    .duration {
+      width: 136px;
+    }
+
+    td.bar,
+    th.bar {
+      width: 240px;
+      min-width: 240px;
+      max-width: 240px;
+      overflow: visible;
+    }
+
+
+    .fill {
+      position: relative;
+      height: 14px;
+      min-width: 2px;
+    }
+
+    .tablebox {
+      position: relative;
+      max-width: 100%;
+    }
+
+    .guide {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      background: var(--highlight);
+      pointer-events: none;
+    }
+
+    td.name,
+    th.name {
+      max-width: 18vw;
+    }
+
+
+    tr:hover td {
+      background: var(--highlight);
+    }
+
+    tr.parent {
+      cursor: pointer;
+    }
+
+    tr.open td,
+    tbody:nth-child(even) tr.open td {
+      background: #e4eef7;
+    }
+
+    tr.open:hover td,
+    tbody:nth-child(even) tr.open:hover td {
+      background: #d2e3f2;
+    }
+
+    td.time::before {
+      content: '\25B8';
+      margin-right: 4px;
+      visibility: hidden;
+    }
+
+    tr.parent td.time::before {
+      visibility: visible;
+      color: #888;
+    }
+
+    tr.parent.open td.time::before {
+      content: '\25BE';
+    }
+
+    tr[hidden] {
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="tablebox">
+    <div class="guide" hidden></div>
+    <table id="records">
+      <thead>
+        <tr>
+          <th colspan="9">
+            <div class="top">
+              <span id="summary">reading...</span>
+              <span class="expand">expand:
+                <button data-depth="1">first</button>
+                <button data-depth="all">all</button>
+              </span>
+              <button id="clear">clear</button>
+            </div>
+          </th>
+        </tr>
+        <tr>
+          <th class="time">time</th>
+          <th class="duration">duration</th>
+          <th class="bar">timeline</th>
+          <th class="name">name</th>
+          <th class="method">method</th>
+          <th class="host">host</th>
+          <th class="path">path</th>
+          <th class="direct">direct</th>
+          <th class="total">all</th>
+        </tr>
+      </thead>
+    </table>
+  </div>
+  <script>
+    const drawn = new Map();
+    let shownLongestRoot = 0;
+
+    // The colour tells the kind of the record apart: an incoming request, a call, a query to the database
+    const colours = {
+      request: '#1d4ed8',
+      call: '#9333ea',
+      query: '#1a7f37',
+    };
+
+    function recordColour(record) {
+      if (record.type === 'RequestData') {
+        return colours.request;
+      }
+
+      return /^https?:\/\//.test(record.address) ? colours.call : colours.query;
+    }
+
+    function fillAddress(host, path, address, colour) {
+      host.textContent = '';
+      path.textContent = '';
+      path.title = address;
+      host.style.color = colour;
+      path.style.color = colour;
+
+      const parts = /^(https?:\/\/[^\/:]+)(:\d+)?([^?]*)(\?.*)?$/.exec(address);
+
+      if (!parts) {
+        path.textContent = address;
+        return;
+      }
+
+      host.textContent = parts[1].replace(/^https?:\/\//, '') + (parts[2] || '');
+      host.title = parts[1] + (parts[2] || '');
+
+      path.textContent = (parts[3] || '') + (parts[4] || '');
+    }
+
+    function toMilliseconds(value) {
+      const parts = /^(\d+):(\d+):(\d+)\.(\d+)$/.exec(value || '');
+
+      if (!parts) {
+        return 0;
+      }
+
+      return ((+parts[1] * 60 + +parts[2]) * 60 + +parts[3]) * 1000 + Number('0.' + parts[4]) * 1000;
+    }
+
+    function countAll(children, parent) {
+      let total = 0;
+
+      for (const record of children.get(parent) || []) {
+        // The empty key holds the roots, so a record without an id must not be followed
+        total += 1 + (record.id ? countAll(children, record.id) : 0);
+      }
+
+      return total;
+    }
+
+    function rows(records, children, parent, level, into, span) {
+      const list = (children.get(parent) || []).slice().sort((a, b) => a.time.localeCompare(b.time));
+
+      for (const record of list) {
+        const row = document.createElement('tr');
+        row.className = record.type === 'RequestData' || /^https?:\/\//.test(record.address) ? 'request' : 'dependency';
+        row.innerHTML =
+          '<td class="time"></td>' +
+          '<td class="duration"></td>' +
+          '<td class="bar"><div class="fill"></div></td>' +
+          '<td class="name"></td>' +
+          '<td class="method"><span></span></td>' +
+          '<td class="host"></td>' +
+          '<td class="path"></td>' +
+          '<td class="direct"></td>' +
+          '<td class="total"></td>';
+
+        row.children[0].textContent = record.time;
+        row.children[1].textContent = record.duration;
+
+        const colour = recordColour(record);
+        const direct = record.id ? (children.get(record.id) || []).length : 0;
+
+        row.children[7].textContent = direct ? direct : '';
+        row.children[8].textContent = direct ? countAll(children, record.id) : '';
+
+        const fill = row.children[2].firstChild;
+        const length = toMilliseconds(record.duration);
+
+        // A root record is measured against the longest root, the nested ones against their own operation
+        const scale = level === 0 ? { start: toMilliseconds(record.time), length: span.longestRoot } : span;
+
+        fill.style.marginLeft = ((toMilliseconds(record.time) - scale.start) / scale.length * 100) + '%';
+        fill.style.width = Math.max(length / scale.length * 100, 0.4) + '%';
+        fill.style.background = colour;
+        fill.title = record.duration;
+
+        const method = /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\b/.exec(record.name);
+
+        const badge = row.children[4].firstChild;
+
+        badge.textContent = method ? method[1] : '';
+        badge.className = method ? (method[1] === 'HEAD' ? 'head-method' : method[1].toLowerCase()) : '';
+
+        row.children[3].textContent = record.name;
+        row.children[3].title = record.name;
+        row.children[3].style.color = colour;
+        fillAddress(row.children[5], row.children[6], record.address, colour);
+
+        // The timeline keeps its own scale, so the nesting must not shift it
+        for (const cell of row.children) {
+          if (!cell.classList.contains('bar')) {
+            cell.style.paddingLeft = (level * 16 + 8) + 'px';
+          }
+        }
+
+        row.dataset.level = level;
+        row.hidden = level > 0;
+
+        into.appendChild(row);
+
+        if (record.id && children.has(record.id)) {
+          row.classList.add('parent');
+          row.addEventListener('click', () => toggleChildren(row));
+
+          rows(records, children, record.id, level + 1, into, span);
+        }
+      }
+    }
+
+    const box = document.querySelector('.tablebox');
+    const guide = box.querySelector('.guide');
+
+    function showGuide(row) {
+      const cell = row && row.querySelector('td.bar');
+
+      if (!cell) {
+        return;
+      }
+
+      // The root has its own scale, so its bar says nothing about the operation
+      if (row.dataset.level === '0') {
+        guide.hidden = true;
+        return;
+      }
+
+      const place = box.getBoundingClientRect();
+      const bar = cell.firstChild.getBoundingClientRect();
+      const body = row.parentElement.getBoundingClientRect();
+      const root = row.parentElement.rows[0].getBoundingClientRect();
+
+      const ratio = window.devicePixelRatio || 1;
+      const snap = value => Math.round(value * ratio) / ratio;
+
+      guide.style.left = snap(bar.left - place.left) + 'px';
+      guide.style.width = Math.max(snap(bar.width), 1 / ratio) + 'px';
+      guide.style.top = snap(root.bottom - place.top) + 'px';
+      guide.style.height = snap(body.bottom - root.bottom) + 'px';
+      guide.hidden = false;
+    }
+
+    function toggleChildren(row) {
+      const level = +row.dataset.level;
+      const opening = !row.classList.contains('open');
+
+      row.classList.toggle('open', opening);
+
+      for (let next = row.nextElementSibling; next; next = next.nextElementSibling) {
+        const nextLevel = +next.dataset.level;
+
+        if (nextLevel <= level) {
+          break;
+        }
+
+        if (opening) {
+          next.hidden = depth !== 'all' && nextLevel > level + 1;
+          next.classList.toggle('open', depth === 'all' && next.classList.contains('parent'));
+        }
+        else {
+          next.hidden = true;
+          next.classList.remove('open');
+        }
+      }
+
+      showGuide(row);
+    }
+
+    let depth = 1;
+
+    function applyDepth(body, value) {
+      for (const row of body.rows) {
+        if (row.dataset.level === undefined) {
+          continue;
+        }
+
+        const level = +row.dataset.level;
+
+        row.hidden = value !== 'all' && level > value;
+        row.classList.toggle('open', (value === 'all' || level < value) && row.classList.contains('parent'));
+      }
+    }
+
+    function render(records) {
+      const operations = new Map();
+
+      for (const record of records) {
+        if (!operations.has(record.operation)) {
+          operations.set(record.operation, []);
+        }
+
+        operations.get(record.operation).push(record);
+      }
+
+      const sorted = [...operations.entries()].sort((a, b) => {
+        const first = x => x[1].map(r => r.time).sort()[0];
+        return first(b).localeCompare(first(a));
+      });
+
+      const container = document.getElementById('records');
+      const onlyRequests = false;
+      const hideFiles = false;
+
+      const wanted = sorted.filter(([, group]) => {
+        if (onlyRequests && !group.some(r => r.type === 'RequestData')) {
+          return false;
+        }
+
+        // A request to a controller is named after it, a request to a file keeps the path
+        return !hideFiles || !group.some(r => r.type === 'RequestData' && /^[A-Z]+ \//.test(r.name));
+      });
+      const names = new Set(wanted.map(([operation]) => operation));
+
+      for (const [operation, item] of [...drawn]) {
+        if (!names.has(operation)) {
+          item.body.remove();
+          drawn.delete(operation);
+        }
+      }
+
+      const longestRoot = Math.max(...wanted.map(([, group]) => toMilliseconds(rootOf(group).duration)), 1);
+
+      if (longestRoot !== shownLongestRoot) {
+        shownLongestRoot = longestRoot;
+        clearRows();
+      }
+
+      let previous = container.tHead;
+
+      for (const [operation, group] of wanted) {
+        let item = drawn.get(operation);
+
+        if (!item || item.size !== group.length) {
+          const body = buildOperation(group, longestRoot);
+
+          if (item) {
+            item.body.replaceWith(body);
+          }
+
+          item = { body: body, size: group.length };
+          drawn.set(operation, item);
+        }
+
+        if (item.body !== previous.nextSibling) {
+          container.insertBefore(item.body, previous.nextSibling);
+        }
+
+        previous = item.body;
+      }
+
+      const shown = wanted.reduce((total, [, group]) => total + group.length, 0);
+
+      document.getElementById('summary').textContent =
+        shown + ' of ' + records.length + ' records, ' + wanted.length + ' of ' + operations.size + ' tests';
+    }
+
+    function rootOf(group) {
+      const known = new Set(group.map(r => r.id).filter(Boolean));
+      const roots = group.filter(record => !known.has(record.parent));
+
+      return roots.slice().sort((a, b) => a.time.localeCompare(b.time))[0];
+    }
+
+    function buildOperation(group, longestRoot) {
+      const children = new Map();
+      const known = new Set(group.map(r => r.id).filter(Boolean));
+
+      const roots = group.filter(record => !known.has(record.parent));
+      const first = roots.slice().sort((a, b) => a.time.localeCompare(b.time))[0];
+
+      // A record whose parent is missing goes under the first one, so that the tree stays whole
+      for (const record of group) {
+        const parent = known.has(record.parent) ? record.parent : (record === first ? '' : first.id);
+
+        if (!children.has(parent)) {
+          children.set(parent, []);
+        }
+
+        children.get(parent).push(record);
+      }
+
+      const starts = group.map(r => toMilliseconds(r.time));
+      const ends = group.map(r => toMilliseconds(r.time) + toMilliseconds(r.duration));
+
+      const span = {
+        start: Math.min(...starts),
+        length: Math.max(Math.max(...ends) - Math.min(...starts), 1),
+        longestRoot: longestRoot,
+      };
+
+      const body = document.createElement('tbody');
+
+      rows(group, children, '', 0, body, span);
+      applyDepth(body, 0);
+
+      return body;
+    }
+
+    // Written in by the test run; the page is a file, with nothing to ask
+    const RECORDS = /*__RECORDS__*/[];
+
+    let lastRecords = [];
+
+    function refresh() {
+      lastRecords = RECORDS;
+      render(lastRecords);
+    }
+
+    for (const filter of document.querySelectorAll('.filter input')) {
+      filter.addEventListener('change', () => render(lastRecords));
+    }
+
+    for (const button of document.querySelectorAll('.expand button')) {
+      button.classList.toggle('chosen', button.dataset.depth === String(depth));
+
+      button.addEventListener('click', () => {
+        depth = button.dataset.depth === 'all' ? 'all' : +button.dataset.depth;
+
+        for (const other of document.querySelectorAll('.expand button')) {
+          other.classList.toggle('chosen', other === button);
+        }
+
+        // Only the operations the user has opened follow the button
+        for (const body of document.querySelectorAll('#records tbody')) {
+          const root = body.rows[0];
+
+          if (root && root.classList.contains('open')) {
+            applyDepth(body, depth);
+          }
+        }
+      });
+    }
+
+    function clearRows() {
+      drawn.clear();
+
+      for (const body of [...document.querySelectorAll('#records tbody')]) {
+        body.remove();
+      }
+    }
+
+    document.getElementById('clear').addEventListener('click', () => {
+      lastRecords = [];
+
+      clearRows();
+      render(lastRecords);
+    });
+
+    box.addEventListener('mouseover', event => showGuide(event.target.closest('tr')));
+
+    box.addEventListener('mouseleave', () => {
+      guide.hidden = true;
+    });
+
+    refresh();
+  </script>
+</body>
+
+</html>

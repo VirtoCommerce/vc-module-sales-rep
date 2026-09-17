@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Runs the suite on one thread, for the SQL metrics run only.
+
+  Counts have to repeat between runs, or the diff is noise rather than a signal, and in parallel they do not.
+  Caches are process wide, so whichever test reaches a thing first pays for filling it - ordinary behaviour,
+  but which test gets there first changes with the scheduling. Measured on two parallel runs of the unchanged
+  suite, 38 tests moved. On one thread the order is fixed and two runs come out byte identical.
+
+  Use it together with "Enabled": true in sqlmetrics.json. See Infrastructure/SqlMetrics/README.md for the command.
+-->
+<RunSettings>
+  <xUnit>
+    <ParallelizeTestCollections>false</ParallelizeTestCollections>
+    <ParallelizeAssembly>false</ParallelizeAssembly>
+    <MaxParallelThreads>1</MaxParallelThreads>
+  </xUnit>
+</RunSettings>
