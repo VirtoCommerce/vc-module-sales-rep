@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.TaskManagement.Core.Models;
 using VirtoCommerce.TaskManagement.Core.Services;
@@ -685,6 +686,27 @@ public class SalesRepTasksGraphQlTests
         // `recent` orders by CreatedDate, which two rows written in the same tick can share - so this pins that the
         // valid direction is ACCEPTED and complete, and leaves the ordering to the due-date rules above.
         Names(await ListTasksAsync(ctx, rep, "sort: \"recent\"")).Should().BeEquivalentTo("Alpha", "Beta");
+    }
+
+    // The ordering itself is asserted on the resolved criteria rather than end to end: two rows written in the
+    // same tick share a ModifiedDate, so a list-order assertion would pass or fail on clock resolution.
+    // WorkTaskSearchService.BuildSortExpression hands criteria.SortInfos straight to the query, so what this
+    // pins is the whole of our contribution.
+    [Theory]
+    [InlineData("due-date", "dueDate:asc;modifiedDate:desc")]
+    [InlineData("due-date:desc", "dueDate:desc;modifiedDate:desc")]
+    [InlineData("name", "name:asc;modifiedDate:desc")]
+    // `recent` already orders by a timestamp, but CreatedDate is not ModifiedDate - an edited task still has
+    // to float inside a group created together.
+    [InlineData("recent", "createdDate:desc;modifiedDate:desc")]
+    // An unknown rule falls back to the first one, and the tie-break rides along with it.
+    [InlineData("no-such-rule", "dueDate:asc;modifiedDate:desc")]
+    public async Task SortRules_EndWithARecencyTieBreak(string sort, string expected)
+    {
+        var criteria = await new SalesRepTaskSortRuleResolver()
+            .ApplySortAsync(storeId: null, sort, new WorkTaskSearchCriteria());
+
+        criteria.Sort.Should().Be(expected);
     }
 
     [Fact]
