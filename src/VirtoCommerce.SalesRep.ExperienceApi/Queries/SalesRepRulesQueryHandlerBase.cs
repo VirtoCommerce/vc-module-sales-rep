@@ -23,21 +23,36 @@ public abstract class SalesRepRulesQueryHandlerBase<TQuery, TRule> : SalesRepQue
             return [];
         }
 
-        // Rule vocabulary is sales-rep-only: a caller with no granting membership gets an empty list, never the
-        // vocabulary — otherwise e.g. the top-seller filter rules would leak the store's top-level catalog categories.
-        // Narrowed to one customer when the query asks for it, by the same membership lookup the lists use.
-        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(
-            request.UserId,
-            (request as ISalesRepScopedRulesQuery)?.OrganizationId);
-        if (organizationIds.Count == 0)
+        var scope = await ResolveScopeAsync(request);
+        if (scope is null)
         {
             return [];
         }
 
-        return await GetRulesAsync(request, organizationIds);
+        return await GetRulesAsync(request, scope);
+    }
+
+    // The organizations a data-derived vocabulary is built within; null denies. A caller with no granting
+    // membership gets an empty list, never the vocabulary — otherwise e.g. the top-seller filter rules would
+    // leak the store's top-level catalog categories. A personal-rules query is scoped to the caller instead,
+    // where an empty scope means "allowed, but not data-derived".
+    protected virtual async Task<IList<string>> ResolveScopeAsync(TQuery request)
+    {
+        if (request is ISalesRepPersonalRulesQuery)
+        {
+            return await IsSalesRepAsync(request.UserId) ? [] : null;
+        }
+
+        var organizationIds = await OrganizationAccessService.GetVisibleOrganizationIdsAsync(
+            request.UserId,
+            (request as ISalesRepScopedRulesQuery)?.OrganizationId);
+
+        return organizationIds.Count == 0 ? null : organizationIds;
     }
 
     /// <param name="organizationIds">The organizations the caller serves — the scope a data-derived rule set must be
-    /// built within, so it only offers rules the caller's own lists can return records for.</param>
+    /// built within, so it only offers rules the caller's own lists can return records for. <b>Empty</b> for a
+    /// personal-rules query (<see cref="ISalesRepPersonalRulesQuery"/>): the caller is allowed, but the vocabulary is
+    /// not derived from organization data. Never null — <see cref="ResolveScopeAsync"/> denies before reaching here.</param>
     protected abstract Task<IList<TRule>> GetRulesAsync(TQuery request, IList<string> organizationIds);
 }
