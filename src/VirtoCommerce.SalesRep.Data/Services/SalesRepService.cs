@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.CustomerModule.Core.Model;
@@ -26,6 +27,7 @@ public class SalesRepService : ISalesRepService
     private readonly ISalesRepRoleResolver _roleResolver;
     private readonly IStoreService _storeService;
     private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
+    private readonly AbstractValidator<SalesRepDetails> _validator;
     private readonly ILogger<SalesRepService> _logger;
 
     public SalesRepService(
@@ -36,6 +38,7 @@ public class SalesRepService : ISalesRepService
         ISalesRepRoleResolver roleResolver,
         IStoreService storeService,
         Func<UserManager<ApplicationUser>> userManagerFactory,
+        AbstractValidator<SalesRepDetails> validator,
         ILogger<SalesRepService> logger)
     {
         _memberService = memberService;
@@ -45,6 +48,7 @@ public class SalesRepService : ISalesRepService
         _roleResolver = roleResolver;
         _storeService = storeService;
         _userManagerFactory = userManagerFactory;
+        _validator = validator;
         _logger = logger;
     }
 
@@ -138,6 +142,9 @@ public class SalesRepService : ISalesRepService
     {
         ArgumentNullException.ThrowIfNull(salesRep);
 
+        Normalize(salesRep);
+        await ValidateAsync(salesRep);
+
         var isNew = string.IsNullOrEmpty(salesRep.Id);
 
         var contact = await SaveContactAsync(salesRep, isNew);
@@ -161,13 +168,6 @@ public class SalesRepService : ISalesRepService
 
     protected virtual async Task<Contact> SaveContactAsync(SalesRepDetails salesRep, bool isNew)
     {
-        ValidateAddresses(salesRep);
-
-        if (isNew)
-        {
-            EnsureHasLoginIdentifier(salesRep);
-        }
-
         var contact = isNew
             ? AbstractTypeFactory<Contact>.TryCreateInstance()
             : await _memberService.GetByIdAsync(salesRep.Id, nameof(MemberResponseGroup.Full)) as Contact
@@ -198,49 +198,42 @@ public class SalesRepService : ISalesRepService
         return (assignableRole, grantingRoleIds);
     }
 
-    protected static void EnsureHasLoginIdentifier(SalesRepDetails salesRep)
+    // VC-Shell's VcInput emits the raw value, so trim every field the blade lets an admin type before
+    // validating: a whitespace-only name must fail NotEmpty instead of being persisted and flowing into
+    // FullName/Name, and padded emails must not become the account's user name.
+    protected virtual void Normalize(SalesRepDetails salesRep)
     {
-        var hasLogin = !string.IsNullOrWhiteSpace(salesRep.UserName)
-            || salesRep.Emails?.Any(e => !string.IsNullOrWhiteSpace(e)) == true;
-        if (!hasLogin)
+        salesRep.Salutation = salesRep.Salutation?.Trim();
+        salesRep.FirstName = salesRep.FirstName?.Trim();
+        salesRep.MiddleName = salesRep.MiddleName?.Trim();
+        salesRep.LastName = salesRep.LastName?.Trim();
+        salesRep.About = salesRep.About?.Trim();
+        salesRep.UserName = salesRep.UserName?.Trim();
+
+        foreach (var address in salesRep.Addresses ?? [])
         {
-            throw new InvalidOperationException("A Sales Rep requires a login email (or user name).");
+            NormalizeAddress(address);
         }
     }
 
-    protected virtual void ValidateAddresses(SalesRepDetails salesRep)
+    protected virtual void NormalizeAddress(Address address)
     {
-        if (salesRep.Addresses.IsNullOrEmpty())
-        {
-            return;
-        }
+        address.FirstName = address.FirstName?.Trim();
+        address.LastName = address.LastName?.Trim();
+        address.Line1 = address.Line1?.Trim();
+        address.Line2 = address.Line2?.Trim();
+        address.City = address.City?.Trim();
+        address.RegionName = address.RegionName?.Trim();
+        address.PostalCode = address.PostalCode?.Trim();
+        address.CountryCode = address.CountryCode?.Trim();
+        address.CountryName = address.CountryName?.Trim();
+        address.Phone = address.Phone?.Trim();
+        address.Email = address.Email?.Trim();
+    }
 
-        for (var i = 0; i < salesRep.Addresses.Count; i++)
-        {
-            var address = salesRep.Addresses[i];
-            List<string> missing = [];
-            if (string.IsNullOrWhiteSpace(address.CountryCode))
-            {
-                missing.Add("country");
-            }
-            if (string.IsNullOrWhiteSpace(address.City))
-            {
-                missing.Add("city");
-            }
-            if (string.IsNullOrWhiteSpace(address.Line1))
-            {
-                missing.Add("address line 1");
-            }
-            if (string.IsNullOrWhiteSpace(address.PostalCode))
-            {
-                missing.Add("postal code");
-            }
-
-            if (missing.Count > 0)
-            {
-                throw new InvalidOperationException($"Address {i + 1} is missing required field(s): {string.Join(", ", missing)}.");
-            }
-        }
+    protected virtual Task ValidateAsync(SalesRepDetails salesRep)
+    {
+        return _validator.ValidateAndThrowAsync(salesRep);
     }
 
     protected virtual async Task TryRollbackContactAsync(string memberId)
@@ -554,22 +547,19 @@ public class SalesRepService : ISalesRepService
         contact.Organizations = DistinctNonEmpty(salesRep.Organizations?.Select(o => o.OrganizationId));
     }
 
+    // First and last name are required (SalesRepDetailsValidator), so the parts always yield a name; only the
+    // optional middle name has to be filtered out.
     protected static string DeriveFullName(SalesRepDetails salesRep)
     {
         string[] nameParts = [salesRep.FirstName, salesRep.MiddleName, salesRep.LastName];
-        var fullName = string.Join(' ', nameParts.Where(x => !string.IsNullOrWhiteSpace(x)));
-        if (!string.IsNullOrWhiteSpace(fullName))
-        {
-            return fullName;
-        }
-
-        return !string.IsNullOrWhiteSpace(salesRep.FullName) ? salesRep.FullName : salesRep.Emails?.FirstOrDefault();
+        return string.Join(' ', nameParts.Where(x => !string.IsNullOrWhiteSpace(x)));
     }
 
     protected static List<string> DistinctNonEmpty(IEnumerable<string> values)
     {
         return values?
             .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList() ?? [];
     }
