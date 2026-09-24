@@ -3,7 +3,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
-public class SalesRepOrderSortRule : INamedSortRule
+public class SalesRepOrderSortRule : IFieldSortRule
 {
     public string Name { get; set; }
 

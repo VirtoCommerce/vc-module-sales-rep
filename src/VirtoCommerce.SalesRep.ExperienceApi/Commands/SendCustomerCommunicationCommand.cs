@@ -4,7 +4,7 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-public class SendCustomerCommunicationCommand : ICommand<SalesRepCommunicationResult>
+public class SendCustomerCommunicationCommand : ICommand<SalesRepCommunicationResult>, ISalesRepUserCommand
 {
     public string OrganizationId { get; set; }
 
