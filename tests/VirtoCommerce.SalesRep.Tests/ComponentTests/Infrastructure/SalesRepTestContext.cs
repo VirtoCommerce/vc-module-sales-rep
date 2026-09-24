@@ -76,7 +76,6 @@ internal sealed class SalesRepTestContext : IDisposable
     private readonly SqliteConnection _catalogConnection;
     private readonly SqliteConnection _assetsConnection;
     private readonly SqliteConnection _salesRepConnection;
-    // Null when the context is built without the task-management slice.
     private readonly SqliteConnection _taskConnection;
     private readonly ServiceProvider _provider;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
