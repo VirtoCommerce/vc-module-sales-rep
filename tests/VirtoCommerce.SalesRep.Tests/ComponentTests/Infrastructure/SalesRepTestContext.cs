@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using GraphQL;
-using GraphQL.Types;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
