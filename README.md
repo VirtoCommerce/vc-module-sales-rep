@@ -584,6 +584,87 @@ Ranked lists over tracked activity, for one customer or aggregated across all of
 
 `sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. When analytics is unavailable these fields return `null` / zero rather than an error, and `isAnalyticsAvailable` is how a UI renders that state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
 
+#### Tasks
+
+The rep's own tasks, stored by **`VirtoCommerce.TaskManagement`** — an **optional** dependency. With that module
+absent or disabled every read below answers empty and every mutation errors cleanly, so the storefront can hide
+the feature without the API changing shape.
+
+Ownership is the whole security boundary: a task is the caller's when `WorkTask.ResponsibleId` equals their
+**contact id**, taken from the `memberId` claim. There is no organization scoping — a task belongs to a person,
+not to a customer — and no dedicated permission beyond being a sales rep.
+
+```graphql
+{
+  # `today` is the START OF THE CALLER'S DAY as an instant (e.g. 2026-05-28T05:00:00Z for a UTC-5 viewer).
+  # It decides where "upcoming" ends and "overdue" begins. Send the SAME value used to render the status,
+  # or a task can sit in one tab and read as another. Defaults to the start of the current UTC day, which for a
+  # viewer west of UTC is TOMORROW for part of their day - omitting it shifts the split, it does not disable it.
+  # `period` is a due-date window (a calendar month, or one day); it INTERSECTS with `filter` rather than
+  # replacing it, so "this month" + "overdue" composes.
+  # `storeId` narrows to the tasks stamped with that store (the creating rep's account store); omit for all.
+  salesRepTasks(
+    first: 20, after: "0", keyword: "contract", sort: "due-date",
+    filter: "overdue", today: "2026-05-28T05:00:00Z", storeId: "B2B-store",
+    period: { from: "2026-05-01T05:00:00Z", to: "2026-06-01T04:59:59Z" }
+  ) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    items { id name description type priority dueDate isActive completed createdDate modifiedDate }
+  }
+
+  salesRepTask(id: "…") { id name dueDate }   # null when missing OR not the caller's — existence never leaks
+
+  salesRepTaskFilterRules { name localizedName }                                  # upcoming / overdue / completed
+  salesRepTaskSortRules { name localizedName defaultDirection supportsDirection } # due-date / recent / name
+  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text)
+}
+```
+
+⚠️ **There is no status field, and no counts query — by design.**
+
+*Status* is derived, never stored. `WorkTask.Status` exists as a column — task-management persists and indexes it
+— but no service or search criteria there reads it, so this API neither sets nor exposes it. Read `isActive`,
+`completed` and `dueDate` instead: still open and due before the start of the viewer's today = **overdue**; still
+open otherwise = **upcoming**; `completed: true` = **done**; closed without completing = **canceled**. A task due
+at exactly 00:00 today is upcoming, not overdue.
+
+*Counts* for tab badges need no dedicated field — alias the same query, which costs one round trip:
+
+```graphql
+query Counts($today: DateTime!) {
+  all:       salesRepTasks(first: 0) { totalCount }
+  upcoming:  salesRepTasks(first: 0, filter: "upcoming",  today: $today) { totalCount }
+  overdue:   salesRepTasks(first: 0, filter: "overdue",   today: $today) { totalCount }
+  completed: salesRepTasks(first: 0, filter: "completed", today: $today) { totalCount }
+}
+```
+
+⚠️ **The three tabs do not add up to `all`, and that is not a rounding error.** Two shapes match no rule:
+a task with **no due date**, and a **canceled** one (closed without completing). Neither is reachable through this
+API — `createSalesRepTask` requires a due date and nothing here cancels — so they only arrive from the admin UI,
+the REST API or a task-management workflow, assigned to the same contact. They stay in the unfiltered list, because
+they are still the rep's work; they just have no tab. A canceled task's **status is fixed** here:
+`changeSalesRepTaskStatus` refuses it rather than reopening it or recording it as done, because nothing in this
+API could cancel it again. It stays editable and deletable like any other task — only the completion toggle is
+refused, and the storefront renders that checkbox disabled. Render `all` as its own tab rather than as the sum, or drop
+the count and show the list. A dedicated "no due date" tab is **not implementable today**: `WorkTaskSearchCriteria`
+bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
+flag in `VirtoCommerce.TaskManagement` first.
+
+⚠️ **"Stays in the unfiltered list" is true of this API, not of any storefront screen.** `salesRepTasks` with
+neither `filter` nor `period` does return a dateless task — but the calendar sends a `period` for the selected day
+whenever no tab is active, and that window uses the same `>=` / `<=` bounds that drop NULLs. So every reachable
+view is either day-scoped or tab-scoped, and a rep never sees one. Deliberate: the storefront cannot create these,
+and they are managed where they come from — the admin Tasks screen. Worth stating because the sentence above
+describes the API's contract, and a reader can easily take it as a promise about the UI.
+
+🛠 **Extenders:** `SalesRepTaskHandlerBase.GetVisibleResponsibleIdsAsync` is the seam for widening whose tasks a
+caller may see and change — today always their own. Override it (e.g. a team lead seeing their reps') and every
+read, and every mutation of an existing task, follows with no call site to change. **Creation is not part of the
+seam** — it stamps the caller directly, so it can only ever produce a task they own; creating on someone's behalf
+needs its own change. Returning an empty list means "nothing", never "everything".
+
 ### Mutation
 
 Send a communication — a storefront push notification and/or an email — to the members of a customer organization the rep serves (the "My customers" contact action):
@@ -631,6 +712,60 @@ Codes are plain strings (see `ModuleConstants.Communication.Warnings`) — not a
 Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
 
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
+
+Task writes. The responsible contact, its organization and the store are stamped **server-side** from the caller
+(the store is the rep's own account store) — none of the three is an input field, so a client-supplied owner is
+never honoured, and `updateSalesRepTask` / `changeSalesRepTaskStatus` / `deleteSalesRepTask` re-check ownership
+against the stored `ResponsibleId` on every call:
+
+```graphql
+mutation {
+  createSalesRepTask(command: {
+    name: "Renew Cabin Co. contract"
+    dueDate: "2026-09-04T09:00:00Z"     # required on CREATE (by validation, not by the type)
+    priority: "High"                     # Lowest | Low | Normal | High | Highest; defaults to Normal.
+                                         # An unknown value is an error, never a silent default - numeric
+                                         # strings included, so "999" is rejected rather than stored.
+    type: "Customer Support"             # free text; salesRepTaskTypes is the suggested vocabulary, not a constraint
+    description: "Escalate to regional manager."
+  }) { id name priority dueDate isActive completed }
+
+  # REPLACES the task, so send the whole record back - an omitted field is cleared, like null or "".
+  # Accepts exactly what the read returns, nulls included, so a dateless task can be written back unchanged.
+  updateSalesRepTask(command: {
+    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…"
+  }) { id name description type priority dueDate }
+
+  # completed: true finishes the task, false reopens it.
+  changeSalesRepTaskStatus(command: { id: "…", completed: true }) { id isActive completed }
+
+  deleteSalesRepTask(command: { id: "…" })
+}
+```
+
+`name` is required and capped at **256** characters; `type` at **128** (both mirror the storage columns, and both
+are rejected with an error rather than truncated). `description` has no limit — that column is unbounded. Nothing is
+required at the database level, so every one of these is a *validation* rule, stated where it can say so.
+
+⚠️ `updateSalesRepTask` **replaces, it does not patch** — an omitted field is *cleared*, exactly like an explicit
+`null` or `""`. So send the whole record back, which is what the shared shape is for: **create, read and update
+carry the same five editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
+accept. Every column behind them is nullable, so the read is the reference; a non-null input would be an invention
+that made a task with no description — or no due date — impossible to write back.
+
+`name` is the one exception, required on both inputs because the read never returns it null. And `dueDate` is
+**required on create only**, enforced in validation rather than by the type: a task with no due date lands in no tab
+and on no calendar day, so a rep must not create one — but one that arrives from the admin UI still has to be
+editable.
+
+⚠️ The task's **store is stamped from the rep's own account**, never from input — `createSalesRepTask` has no
+`storeId` field and `updateSalesRepTask` never changes it. A rep whose account is **not** store-bound
+(`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
+read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
+
+⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
+`WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
+two transitions stay symmetric.
 
 ## Google Analytics-based metrics
 
@@ -843,6 +978,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 | `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
+| `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |
 
 ## Documentation
 

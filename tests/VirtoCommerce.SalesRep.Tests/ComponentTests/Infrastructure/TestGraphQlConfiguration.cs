@@ -276,6 +276,9 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         services.AddSingleton<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();
 
+        services.AddSingleton<ISalesRepTaskFilterRuleResolver, SalesRepTaskFilterRuleResolver>();
+        services.AddSingleton<ISalesRepTaskSortRuleResolver, SalesRepTaskSortRuleResolver>();
+
         // Activity feed (VCST-5337): the real aggregation service over the real sources. The analytics module is
         // OPTIONAL — the IOptionalDependency<> registration below reports it present only when a test override
         // registers IAnalyticsService (TestAnalytics), so the default harness models the module being absent.
@@ -299,7 +302,6 @@ internal static class TestGraphQlConfiguration
         // Its measures are empty here; the geo service is genuinely optional and stays absent, exactly as the
         // platform's own registration resolves it.
         services.AddSingleton<IMeasureService, EmptyMeasureService>();
-        services.Add(ServiceDescriptor.Singleton(typeof(IOptionalDependency<>), typeof(OptionalDependencyManager<>)));
         services.AddSingleton<IPropertyGroupService, EmptyPropertyGroupService>();
         services.AddSingleton<IPickupLocationSearchService, EmptyPickupLocationSearchService>();
         services.AddSingleton<IDynamicPropertyDictionaryItemsService, EmptyDynamicPropertyDictionaryItemsService>();
