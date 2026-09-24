@@ -73,6 +73,17 @@ public static class ModuleConstants
         }
     }
 
+    public static class Tasks
+    {
+        // Mirrors TaskManagement's WorkTaskEntity column widths. Description is deliberately absent: that column
+        // has no [StringLength], so capping it here would invent a limit the storage does not have.
+        public const int MaxNameLength = 256;
+
+        public const int MaxTypeLength = 128;
+
+        public const int MaxResponsibleNameLength = 256;
+    }
+
     public static class Settings
     {
         public static class General
