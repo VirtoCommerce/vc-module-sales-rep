@@ -34,8 +34,8 @@ public class SalesRepCustomerCountsService : ISalesRepCustomerCountsService
         ArgumentNullException.ThrowIfNull(criteria);
 
         return StatisticsCache.GetOrCreateAsync(
-            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.CustomerCountsCacheExpiration,
-            GetType(), nameof(GetCountsAsync), criteria.GetCacheKey(),
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.Families.CustomerCounts,
+            GetType(), nameof(GetCountsAsync), criteria,
             () => ComputeCountsAsync(criteria));
     }
 
