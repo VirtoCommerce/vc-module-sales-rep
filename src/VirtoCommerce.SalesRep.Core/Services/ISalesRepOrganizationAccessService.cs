@@ -10,6 +10,8 @@ public interface ISalesRepOrganizationAccessService
 
     Task<bool> ServesOrganizationAsync(string userId, string organizationId);
 
+    Task<bool> ServesAllOrganizationsAsync(string userId, IList<string> organizationIds);
+
     Task<IList<string>> GetServedOrganizationIdsAsync(string userId);
 
     Task<IList<string>> GetVisibleOrganizationIdsAsync(string userId, string organizationId);
