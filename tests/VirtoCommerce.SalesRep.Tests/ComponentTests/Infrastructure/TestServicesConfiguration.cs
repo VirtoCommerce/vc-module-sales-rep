@@ -56,6 +56,9 @@ using VirtoCommerce.SearchModule.Data.SearchPhraseParsing;
 using VirtoCommerce.SearchModule.Data.Services;
 using VirtoCommerce.StoreModule.Core.Model;
 using VirtoCommerce.StoreModule.Core.Services;
+using VirtoCommerce.TaskManagement.Core.Services;
+using VirtoCommerce.TaskManagement.Data.Repositories;
+using VirtoCommerce.TaskManagement.Data.Services;
 using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
@@ -208,6 +211,21 @@ internal static class TestServicesConfiguration
             AllowedExtensions = [],
         }));
         services.AddTransient<IFileUploadService, FileUploadService>();
+
+        return services;
+    }
+
+    // Deliberately optional: a context built without this slice leaves IWorkTaskSearchService unregistered,
+    // which is what a deployment without the module looks like to the task queries.
+    public static IServiceCollection AddTaskManagementSlice(this IServiceCollection services, DbContextOptions<TaskManagementDbContext> taskDbOptions)
+    {
+        services.AddSingleton(taskDbOptions);
+        services.AddScoped<TaskManagementDbContext>();
+        services.AddTransient<IWorkTaskRepository, WorkTaskRepository>();
+        services.AddSingleton<Func<IWorkTaskRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<IWorkTaskRepository>());
+
+        services.AddTransient<IWorkTaskService, WorkTaskService>();
+        services.AddTransient<IWorkTaskSearchService, WorkTaskSearchService>();
 
         return services;
     }
