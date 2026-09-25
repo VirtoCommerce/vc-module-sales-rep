@@ -914,7 +914,8 @@ public class SalesRepTasksGraphQlTests
     public async Task CreateSalesRepTask_LeavesTheStoreUnsetForAnAccountWithNoStore()
     {
         using var ctx = SalesRepTestContext.Create();
-        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        // Asked for explicitly: SeedRepAsync binds the account to the default store, as a real one is.
+        var rep = await SeedRepInStoreAsync(ctx, "Ann", "Rep", "ann@test.com", storeId: null, OrgA);
 
         // A rep whose account is not store-bound is supported configuration (SalesRepDetails.StoreId is
         // optional), so the write succeeds and the task simply carries no store.
@@ -935,10 +936,13 @@ public class SalesRepTasksGraphQlTests
     private static string[] Names(System.Text.Json.JsonElement node) =>
         node.GetProperty("items").EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToArray();
 
-    private static async Task<Rep> SeedRepAsync(SalesRepTestContext ctx, string firstName, string lastName, string email, params string[] organizationIds)
+    private static Task<Rep> SeedRepAsync(SalesRepTestContext ctx, string firstName, string lastName, string email, params string[] organizationIds)
+        => SeedRepInStoreAsync(ctx, firstName, lastName, email, SalesRepTestContext.DefaultStoreId, organizationIds);
+
+    private static async Task<Rep> SeedRepInStoreAsync(SalesRepTestContext ctx, string firstName, string lastName, string email, string storeId, params string[] organizationIds)
     {
         await ctx.SeedOrganizationsAsync(organizationIds);
-        var details = await ctx.CreateRepAsync(firstName, lastName, email, organizationIds);
+        var details = await ctx.CreateRepInStoreAsync(firstName, lastName, email, storeId, organizationIds);
 
         return new Rep(details.UserId, details.Id);
     }

@@ -53,7 +53,7 @@
   },
   "apiClientGenerator": {
     "version": "0.0.0",
-    "generatedAt": "2026-08-18T19:06:33.643Z"
+    "generatedAt": "2026-08-26T20:11:58.646Z"
   },
   "module": "./dist/virtocommerce.news.js",
   "types": "./dist/types/virtocommerce.news.d.ts"
