@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using VirtoCommerce.Platform.Core.Common;
@@ -17,6 +19,8 @@ public class SalesRepController : Controller
     private readonly ISalesRepService _salesRepService;
     private readonly ISalesRepSearchService _salesRepSearchService;
     private readonly ISalesRepDictionaryService _salesRepDictionaryService;
+
+    private const string MissingBodyMessage = "A Sales Rep is required.";
 
     public SalesRepController(
         ISalesRepService salesRepService,
@@ -65,10 +69,13 @@ public class SalesRepController : Controller
     [Authorize(PlatformPermissions.SecurityCreate)]
     public async Task<ActionResult<SalesRepDetails>> Create([FromBody] SalesRepDetails salesRep)
     {
+        if (salesRep == null)
+        {
+            return BadRequest(MissingBodyMessage);
+        }
+
         salesRep.Id = null;
-        await _salesRepService.SaveChangesAsync([salesRep]);
-        var result = await _salesRepService.GetByIdAsync(salesRep.Id);
-        return Ok(result);
+        return await SaveAsync(salesRep);
     }
 
     [HttpPut("")]
@@ -76,7 +83,29 @@ public class SalesRepController : Controller
     [Authorize(PlatformPermissions.SecurityUpdate)]
     public async Task<ActionResult<SalesRepDetails>> Update([FromBody] SalesRepDetails salesRep)
     {
-        await _salesRepService.SaveChangesAsync([salesRep]);
+        if (salesRep == null)
+        {
+            return BadRequest(MissingBodyMessage);
+        }
+
+        return await SaveAsync(salesRep);
+    }
+
+    // Every way a save can be refused is the caller's mistake - a rejected profile (missing name, unusable
+    // address, no login), a duplicate login email or another Identity refusal, an unknown id on edit - so all of
+    // them read as 400 with the reason the blade can show. Mirrors SalesRepDocumentsController; without the
+    // mapping the Identity and not-found paths surface as opaque 500s.
+    private async Task<ActionResult<SalesRepDetails>> SaveAsync(SalesRepDetails salesRep)
+    {
+        try
+        {
+            await _salesRepService.SaveChangesAsync([salesRep]);
+        }
+        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException or ValidationException)
+        {
+            return BadRequest(exception.Message);
+        }
+
         var result = await _salesRepService.GetByIdAsync(salesRep.Id);
         return Ok(result);
     }

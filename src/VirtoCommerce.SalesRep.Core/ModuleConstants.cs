@@ -73,6 +73,13 @@ public static class ModuleConstants
         }
     }
 
+    public static class Profile
+    {
+        // The ContactEntity column lengths these values are persisted into.
+        public const int NameMaxLength = 128;
+        public const int SalutationMaxLength = 256;
+    }
+
     public static class Tasks
     {
         // Mirrors TaskManagement's WorkTaskEntity column widths. Description is deliberately absent: that column
