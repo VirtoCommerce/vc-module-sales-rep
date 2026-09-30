@@ -340,3 +340,6 @@ dist/
 
 # Built VC-Shell embedded app (produced by `yarn build`; not committed, mirrors vc-module-news)
 /src/VirtoCommerce.SalesRep.Web/Content/vc-sales-rep
+
+# Built storefront MF plugin (produced by `yarn build` in StorefrontApp; not committed)
+/src/VirtoCommerce.SalesRep.Web/plugins/

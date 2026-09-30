@@ -1,0 +1,7 @@
+{
+  "id": "sales-rep",
+  "remote": {
+    "name": "sales-rep",
+    "exposed": "./plugin"
+  }
+}
