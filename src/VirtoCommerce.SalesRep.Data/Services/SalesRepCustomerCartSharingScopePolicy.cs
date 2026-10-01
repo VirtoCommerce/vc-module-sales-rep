@@ -56,18 +56,44 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
     {
         await AuthorizeCustomerShareAsync(context);
 
+        // Checked BEFORE anything is written: EnsureSetting changes the scope and drops the previous scope's
+        // targets, and the cart it mutates is the one held by the cached aggregate - so a write rejected after
+        // that point would still be served to later reads and persisted by the next save (VCST-6113).
+        // "Stop sharing" is the Private scope, not an empty target set.
+        if (GetResultingSharedWithIds(cart, context).Count == 0)
+        {
+            throw new InvalidOperationException("The Customer sharing scope requires at least one target organization.");
+        }
+
         var setting = EnsureSetting(cart, context.SharingKey, CartSharingAccess.Read);
 
         setting.ApplyTargets(context.AddSharedWithIds, context.RemoveSharedWithIds);
         setting.ApplyMessage(context.Message);
 
-        // "Stop sharing" is the Private scope, not an empty target set.
-        if (setting.Targets.IsNullOrEmpty())
+        SetOwner(cart, context.CurrentUserId, context.CustomerName, organizationId: null);
+    }
+
+    // What ApplyTargets would leave behind, computed without touching the stored set: the current ids minus the
+    // removals plus the additions. A scope change starts from nothing, the way EnsureSetting clears the targets
+    // that belonged to the scope being left.
+    protected virtual IList<string> GetResultingSharedWithIds(ShoppingCart cart, WishlistScopeContext context)
+    {
+        var setting = cart.GetEffectiveSharingSetting();
+        var currentIds = Scope.EqualsIgnoreCase(setting?.Scope) ? setting.GetSharedWithIds() : [];
+        var removeIds = (context.RemoveSharedWithIds ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var result = currentIds.Where(x => !removeIds.Contains(x)).ToList();
+        var resultIds = result.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var sharedWithId in (context.AddSharedWithIds ?? []).Where(x => !string.IsNullOrEmpty(x)))
         {
-            throw new InvalidOperationException("The Customer sharing scope requires at least one target organization.");
+            if (resultIds.Add(sharedWithId))
+            {
+                result.Add(sharedWithId);
+            }
         }
 
-        SetOwner(cart, context.CurrentUserId, context.CustomerName, organizationId: null);
+        return result;
     }
 
     public override async Task<IList<WishlistSharingTarget>> ResolveTargetsAsync(IList<string> sharedWithIds)

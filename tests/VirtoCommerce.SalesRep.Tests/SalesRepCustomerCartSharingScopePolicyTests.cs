@@ -339,6 +339,33 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     }
 
     [Fact]
+    public async Task UpdateScopeAsync_CustomerScope_NoTargetLeft_LeavesTheCartExactlyAsItWas()
+    {
+        // VCST-6113: the cart handed to a policy is the one the cached aggregate holds, so a write rejected AFTER
+        // the scope was already written stayed in the cache - served to later reads and persisted by the next
+        // save, as a Customer list with no targets, which is the state this very check refuses to create.
+        var service = SharingService(servesOrganization: true);
+        var cart = EmptyCart();
+        cart.SharingSettings =
+        [
+            new CartSharingSetting
+            {
+                Id = "key-1",
+                Scope = CartSharingScope.AnyoneAnonymous,
+                Access = CartSharingAccess.Read,
+                Targets = [],
+            },
+        ];
+
+        await service.Invoking(x => x.UpdateScopeAsync(cart, CustomerContext()))
+            .Should().ThrowAsync<InvalidOperationException>();
+
+        var setting = cart.SharingSettings.Should().ContainSingle().Subject;
+        setting.Scope.Should().Be(CartSharingScope.AnyoneAnonymous);
+        setting.Id.Should().Be("key-1");
+    }
+
+    [Fact]
     public async Task UpdateScopeAsync_CustomerScope_Message_IsSavedKeptAndCleared()
     {
         // VCST-5728: the message is persisted with the share; null keeps it, an empty string clears it.
