@@ -65,7 +65,7 @@ public static class ModuleConstants
     {
         // The feed's paging depth, checked before the native/merged split so it caps every request. The merged view
         // sets it: a merged page slices the top Skip+Take rows of every category, so "All" at a full page reads at
-        // most 3,000 rows. 25 pages of 20; past that the feed reports no rows.
+        // most 3,000 rows. 26 pages of 20 (skip 0–500); past that the feed reports no rows.
         public const int MaxSkip = 500;
 
         // Past page one, the merged view rounds its source window up to a multiple of this, so consecutive pages
