@@ -783,7 +783,7 @@ Some metrics are **not** computed from platform data — they are read from **Go
 | `salesRepCustomerActivitySummary.lastSearchTerm` | event `search`; latest `dateHour` bucket with a `searchTerm` | |
 | `salesRepCustomerActivitySummary.lastViewedProduct` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/image |
 | `salesRepCustomerInsights.searchTerms` (term, count, lastSearchedDate) | event `search`; dimension `searchTerm`; metric `eventCount` | `sort: "count"` = GA-aggregated top; `sort: "date"` = per-hour rows aggregated per term. Only `search` is counted — `view_search_results` describes the same user action and would double-count |
-| `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; unresolvable codes are returned as-is (`productId` falls back to the code) |
+| `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; an unresolvable code keeps its `sku` and reports a null `productId` |
 | `salesRepCustomerInsights.dataAsOf` | latest `dateHour` bucket observed in the returned payload | **not** "now" — see latency below |
 
 (`salesRepCustomerActivitySummary.createdOn` and the `orders`/`customers` activity categories come from platform data, not GA.)

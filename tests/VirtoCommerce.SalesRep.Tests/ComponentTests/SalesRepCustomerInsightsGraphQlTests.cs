@@ -100,7 +100,7 @@ public class SalesRepCustomerInsightsGraphQlTests
     }
 
     [Fact]
-    public async Task Insights_BrowsedProducts_CountSort_ResolvesCatalogAndFallsBackToCode()
+    public async Task Insights_BrowsedProducts_CountSort_ResolvesCatalogAndNullsUnknownCodes()
     {
         var analytics = new TestAnalytics();
         using var ctx = SalesRepTestContext.Create(analytics.Register);
@@ -131,7 +131,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         resolved.GetProperty("lastViewedDate").ValueKind.Should().Be(JsonValueKind.Null); // count-mode rows carry no dates
 
         var unresolved = products[1];
-        unresolved.GetProperty("productId").GetString().Should().Be("GONE-1"); // code fallback keeps the field non-null
+        unresolved.GetProperty("productId").ValueKind.Should().Be(JsonValueKind.Null); // as in the feed and the summary
         unresolved.GetProperty("sku").GetString().Should().Be("GONE-1");
         unresolved.GetProperty("name").GetString().Should().Be("Deleted Pump"); // GA snapshot survives
         unresolved.GetProperty("imageUrl").ValueKind.Should().Be(JsonValueKind.Null);

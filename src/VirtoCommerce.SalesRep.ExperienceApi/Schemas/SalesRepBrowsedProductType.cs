@@ -1,4 +1,3 @@
-using GraphQL.Types;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.Xapi.Core.Schemas;
 
@@ -10,9 +9,7 @@ public class SalesRepBrowsedProductType : ExtendableGraphType<SalesRepBrowsedPro
     {
         Name = "SalesRepBrowsedProduct";
 
-        Field<NonNullGraphType<StringGraphType>>("productId")
-            .Description("Resolved product id, falling back to the tracked product code when the code no longer matches a product.")
-            .Resolve(context => context.Source.ProductId ?? context.Source.Code);
+        Field(x => x.ProductId, nullable: true).Description("Resolved product id (null when the code no longer matches a product).");
         Field(x => x.Name, nullable: true).Description("Product name (resolved from the catalog, falling back to the tracked name).");
         Field("sku", x => x.Code, nullable: true).Description("Product code (SKU) as tracked by analytics.");
         Field(x => x.ImageUrl, nullable: true).Description("Product image URL (null when unresolved).");
