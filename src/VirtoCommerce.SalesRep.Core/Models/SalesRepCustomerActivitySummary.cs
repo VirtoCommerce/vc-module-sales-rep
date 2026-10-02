@@ -18,7 +18,6 @@ public class SalesRepCustomerActivitySummary
 
     public DateTime? LastViewedDate { get; set; }
 
-    // Defaults FALSE, unlike the feed's result: this is built in one place, so every early return is a path
-    // that measured nothing.
+    // Defaults FALSE, unlike the feed's result: every early return of its one builder measured nothing.
     public bool IsAnalyticsAvailable { get; set; }
 }

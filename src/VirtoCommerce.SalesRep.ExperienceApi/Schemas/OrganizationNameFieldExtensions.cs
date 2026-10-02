@@ -10,8 +10,7 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 
 internal static class OrganizationNameFieldExtensions
 {
-    // Shared by every type that exposes organizationName, so one query resolves all of them in a single member
-    // batch instead of one batch per type.
+    // Shared by every type exposing organizationName, so one query resolves them all in a single member batch.
     private const string LoaderKey = "SalesRep.OrganizationNameById";
 
     public static void AddOrganizationNameField<TSource>(
@@ -46,8 +45,7 @@ internal static class OrganizationNameFieldExtensions
                             nameof(MemberResponseGroup.Default),
                             [nameof(Organization)]);
 
-                        // DistinctBy first: the loader asks for distinct ids, but ToDictionary throws on a
-                        // duplicate key rather than answering, and a member service is free to return one.
+                        // DistinctBy first: ToDictionary throws on a duplicate key, and a member service may return one.
                         return organizations
                             .DistinctBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
                             .ToDictionary(x => x.Id, x => x.Name, StringComparer.OrdinalIgnoreCase);

@@ -31,9 +31,8 @@ public class SalesRepActivityService : ISalesRepActivityService
             return result;
         }
 
-        // Every registered category is planned, filter or no filter: the counts feed the storefront's category tabs,
-        // which must keep showing their own totals while one of them is selected. A caller that does not render
-        // those badges plans only what it asked for, and a DB-backed category then costs no analytics read at all.
+        // Every registered category is planned so the tabs keep their totals while one is selected; a caller without
+        // badges plans only what it asked for, and a DB-backed tab then costs no analytics read.
         var plans = _sources
             .SelectMany(source => (source.Categories ?? []).Select(category => (Source: source, Category: category)))
             .Where(x => criteria.IncludeCategoryCounts || criteria.IsCategoryRequested(x.Category))
@@ -44,8 +43,8 @@ public class SalesRepActivityService : ISalesRepActivityService
             return result;
         }
 
-        // A single fetched category has nothing to merge with, so it pages natively: Skip goes to the source and
-        // the page comes back ready. Only a merged view needs the fetch window below.
+        // A single fetched category has nothing to merge with, so it pages natively; only a merged view needs the
+        // fetch window below.
         var pagesNatively = plans.Count(x => IsFetched(criteria, x.Category)) == 1;
 
         // Task.WhenAll keeps the input order, so the results line up with the plans they came from.
@@ -55,10 +54,8 @@ public class SalesRepActivityService : ISalesRepActivityService
             return (plan.Category, Fetched: fetchRows, Result: await SearchCategoryAsync(criteria, plan, fetchRows, pagesNatively));
         }));
 
-        // A fetched category takes its count from its own row fetch rather than from a separate Take=0 pass, which
-        // could hit a different cache vintage of the analytics source. The count still describes the whole set, so
-        // an analytics category that drops rows without a usable hour bucket shows a badge above its own list.
-        // Grouped, not one row per plan: a category two sources claim would otherwise appear twice.
+        // A fetched category counts from its own row fetch, not a separate Take=0 pass that could hit another cache
+        // vintage. Grouped, not one row per plan: a category two sources claim would otherwise appear twice.
         result.CategoryCounts = searches
             .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
             .Select(x => CreateCategoryCount(x.Key, x.Sum(plan => plan.Result.TotalCount)))
@@ -92,14 +89,9 @@ public class SalesRepActivityService : ISalesRepActivityService
         return plan.Source.SearchAsync(sourceCriteria);
     }
 
-    // A merged page can only be sliced from the top Skip+Take rows of EVERY category it covers, so the merged view
-    // pays for depth where a single category pages natively.
-    //
-    // Asking for exactly Skip+Take would make every page a different question: Take belongs to a source criteria's
-    // cache key, so page 2 re-reads page 1's rows under a new key — another Google round trip per category, per
-    // page. Deeper pages therefore round up to a fixed bucket and ask the same question. The first page does not:
-    // it is by far the most common request (every dashboard widget is one), and rounding it up would make the
-    // cheapest read the most expensive one.
+    // A merged page slices the top Skip+Take rows of every category. Take is part of a source's cache key, so deeper
+    // pages round it up to a bucket and ask the same question; the first page does not — it is the commonest
+    // request, and rounding it would make the cheapest read the dearest.
     protected virtual int GetFetchTake(SalesRepActivitySearchCriteria criteria, bool pagesNatively)
     {
         if (pagesNatively || criteria.Skip == 0)

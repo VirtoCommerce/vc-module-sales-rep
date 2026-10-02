@@ -31,8 +31,7 @@ public static class SalesRepAnalyticsScope
         return result;
     }
 
-    // Every analytics read is scoped server-side: only the customer's own sessions (never impersonated ones)
-    // and only the organizations the rep serves.
+    // Only the customer's own sessions (never impersonated ones) and only the organizations the rep serves.
     public static IList<AnalyticsDimensionFilter> CreateScopeFilters(IList<string> organizationIds)
     {
         return [CreateSelfSessionFilter(), CreateOrganizationFilter(organizationIds)];
@@ -50,8 +49,8 @@ public static class SalesRepAnalyticsScope
 
     public static AnalyticsDimensionFilter CreateOrganizationFilter(IList<string> organizationIds)
     {
-        // The analytics module refuses a valueless filter too; this refuses closer to the caller and names the
-        // scope at stake — an organization-less read is scoped by session kind alone, i.e. every organization.
+        // Refused here, not only downstream: an organization-less read is scoped by session kind alone — every
+        // organization.
         if (organizationIds.IsNullOrEmpty())
         {
             throw new ArgumentException("An analytics read must name at least one organization.", nameof(organizationIds));

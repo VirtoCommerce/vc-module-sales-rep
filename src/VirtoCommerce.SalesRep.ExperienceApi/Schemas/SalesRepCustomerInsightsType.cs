@@ -72,9 +72,8 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             });
     }
 
-    // GraphQL may resolve this before the collections, so it awaits the same memoized slices dataAsOf does —
-    // read first, then report. Only the SELECTED collections: the handler has already set the configuration
-    // half, and a read is never issued merely to answer this field.
+    // May resolve before the collections, so it awaits the same memoized reads dataAsOf does. Only the SELECTED
+    // collections: a read is never issued merely to answer this field.
     private async Task<object> GetIsAnalyticsAvailableAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
     {
         foreach (var (field, fieldType) in GetSelectedCollections(context))
@@ -94,8 +93,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         return context.Source.IsAnalyticsAvailable;
     }
 
-    // dataAsOf covers exactly the sibling collection selections; the memoized per-(collection, sort, take)
-    // fetches on the context make the shared reads free regardless of field order.
+    // Covers exactly the sibling collection selections; the memoized fetches make the shared reads free.
     private async Task<object> GetDataAsOfAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
     {
         DateTime? result = null;

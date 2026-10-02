@@ -54,7 +54,6 @@ public class SalesRepProductResolver : ISalesRepProductResolver
         }
     }
 
-    // Analytics carries the product CODE (GA itemId); an unresolvable code simply stays absent from the map.
     protected virtual async Task<IDictionary<string, SalesRepActivityProduct>> ResolveByCodesAsync(IList<string> codes, string storeId)
     {
         var result = new Dictionary<string, SalesRepActivityProduct>(StringComparer.OrdinalIgnoreCase);
@@ -70,11 +69,9 @@ public class SalesRepProductResolver : ISalesRepProductResolver
 
         var criteria = AbstractTypeFactory<ProductSearchCriteria>.TryCreateInstance();
         criteria.Skus = codesToSearch;
-        // A code is unique within a catalog, not across them, so the store's catalog is what makes a code an
-        // answer. Without a storeId there is no catalog to narrow by and ambiguity is handled below instead.
+        // A code is unique within a catalog, not across them; without a storeId the ambiguity rule below decides.
         criteria.CatalogId = await GetStoreCatalogIdAsync(storeId);
-        // Analytics tracks item_id, which for a catalog selling by size or pack is the VARIATION's code — and a
-        // product search excludes variations unless asked.
+        // GA item_id is often a VARIATION's code (size, pack), and a product search skips variations unless asked.
         criteria.SearchInVariations = true;
         criteria.Take = codesToSearch.Count * MaxMatchesPerCode;
         criteria.ResponseGroup = _responseGroup;
@@ -91,10 +88,8 @@ public class SalesRepProductResolver : ISalesRepProductResolver
                      .Where(x => !string.IsNullOrEmpty(x.Code))
                      .GroupBy(x => x.Code, StringComparer.OrdinalIgnoreCase))
         {
-            // A code matching several catalog products cannot be attributed to one of them, so it stays
-            // unresolved: the caller keeps the name analytics tracked and a null product id, exactly as for a code
-            // no catalog carries any more. Guessing would put another catalog's name, image and deep link on the
-            // rep's screen as their customer's activity.
+            // Ambiguous, so unresolved — as for a code no catalog carries: guessing would show another catalog's name,
+            // image and link as this customer's activity.
             if (group.Count() == 1)
             {
                 result[group.Key] = ToActivityProduct(group.First());
@@ -130,12 +125,9 @@ public class SalesRepProductResolver : ISalesRepProductResolver
             return null;
         }
 
-        // A VIRTUAL catalog holds links to products, not products: a product search matches an item's own
-        // CatalogId, so narrowing by one matches nothing and EVERY code comes back unresolved — which is what
-        // a rep sees as a raw SKU where a product name and a link belong. A store built that way (the common
-        // B2B setup) cannot be narrowed by catalog here at all, so it is not narrowed: the ambiguity rule
-        // above is what keeps the answer honest, and a code carried by exactly one catalog resolves as it did
-        // before the narrowing existed.
+        // A VIRTUAL catalog holds links, not products, and product search matches an item's own CatalogId — so
+        // narrowing by one resolves NOTHING. Such a store (the common B2B setup) is not narrowed; the ambiguity
+        // rule above keeps the answer honest.
         var catalog = await _catalogService.GetNoCloneAsync(catalogId);
 
         return catalog?.IsVirtual == true ? null : catalogId;

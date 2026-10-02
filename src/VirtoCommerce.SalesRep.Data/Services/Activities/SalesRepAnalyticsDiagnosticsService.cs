@@ -19,9 +19,8 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
     private const int FeatureQueryTake = 5;
     private const int FeatureQueryDays = 30;
 
-    // The feature query is a store-wide diagnostics probe, unlike the widgets it mirrors: it keeps the
-    // session_kind=self filter but drops the per-organization one, so it answers "does the production read
-    // path return rows for this store at all".
+    // Store-wide, unlike the widgets it mirrors: session_kind=self but no organization filter, so it answers
+    // "does the production read path return rows for this store at all".
     private static readonly string _probeScopeNote =
         $"store-wide probe: session_kind=self, no organization filter, last {FeatureQueryDays} days, top {FeatureQueryTake}";
 
@@ -139,8 +138,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         criteria.DimensionNames = dimensionNames;
         criteria.DimensionFilters = [SalesRepAnalyticsScope.CreateSelfSessionFilter()];
         criteria.From = DateTime.UtcNow.AddDays(-FeatureQueryDays);
-        // This stage reports what Google answers right now. It used to miss the cache only as a side effect of
-        // the clock reading above, which the analytics module now rounds to a date.
+        // Reports what Google answers now, not the cached answer the widgets get.
         criteria.BypassCache = true;
         criteria.SortBy = sortBy;
         criteria.Take = FeatureQueryTake;

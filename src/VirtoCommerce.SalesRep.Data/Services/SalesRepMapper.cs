@@ -26,9 +26,8 @@ public class SalesRepMapper : ISalesRepMapper
     // Delegates so the facets match X-Order's own, including a project's own IXOrderMapper registration.
     public virtual IList<FacetResult> ToFacets(IList<OrderAggregation> aggregations, string cultureName)
     {
-        // Through the factory, and against X-Order's own closed subtype: FacetMappingContext documents that a
-        // consumer overrides the derived type, never the base, and OrderFacetMappingContext is what
-        // SearchOrderQuery builds — so a project's override is honoured here and on X-Order alike.
+        // Through the factory and X-Order's own subtype — consumers override the derived type, never the base — so a
+        // project's override is honoured here as on X-Order.
         var context = AbstractTypeFactory<OrderFacetMappingContext>.TryCreateInstance();
         context.CultureName = cultureName;
 

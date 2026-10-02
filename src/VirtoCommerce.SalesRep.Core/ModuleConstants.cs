@@ -63,19 +63,13 @@ public static class ModuleConstants
 
     public static class Activities
     {
-        // The depth of the feed's paging window, and the module's cap on the work one request can cost. It is
-        // checked before the native/merged distinction, so it bounds every request; the MERGED view is what sets
-        // the value, because a merged page can only be sliced from the top (Skip + Take) rows of EVERY category it
-        // covers — a single category pages natively and costs the same at any depth. At this
-        // value the worst case — the "All" view, five categories, a full page — is 3,000 rows to render 50, where
-        // an unbounded Skip has no worst case at all. 25 pages at the storefront's page size of 20; past that the
-        // feed reports no rows.
+        // The feed's paging depth, checked before the native/merged split so it caps every request. The merged view
+        // sets it: a merged page slices the top Skip+Take rows of every category, so "All" at a full page reads at
+        // most 3,000 rows. 25 pages of 20; past that the feed reports no rows.
         public const int MaxSkip = 500;
 
-        // Past its first page, the merged view rounds the window it asks every source for up to a multiple of
-        // this, so consecutive pages ask the same question and only the first page of each bucket reaches the
-        // sources — see SalesRepActivityService. It is also what turns the worst case above into 600 rows per
-        // category rather than 550.
+        // Past page one, the merged view rounds its source window up to a multiple of this, so consecutive pages
+        // ask the same (cached) question — see SalesRepActivityService.
         public const int PagingWindowBucket = 100;
 
         public static class Categories
@@ -105,9 +99,8 @@ public static class ModuleConstants
 
     public static class Analytics
     {
-        // Values of the storefront's user-scoped 'session_kind' custom dimension. Every analytics read is pinned to
-        // Self: 'impersonated' is a rep working the account, and showing that back would report the rep's own
-        // browsing as the customer's behaviour.
+        // Values of the storefront's 'session_kind' user dimension. Reads pin Self: 'impersonated' is a rep working
+        // the account, and showing it would report the rep's own browsing as the customer's.
         public static class SessionKinds
         {
             public const string Self = "self";
@@ -130,7 +123,6 @@ public static class ModuleConstants
 
     public static class DiagnosticsStages
     {
-        // The sales-rep stage appended after the analytics module's own diagnostics stages.
         public const string FeatureQuery = "featureQuery";
     }
 

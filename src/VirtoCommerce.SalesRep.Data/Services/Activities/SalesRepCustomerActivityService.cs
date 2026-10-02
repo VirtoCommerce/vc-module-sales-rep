@@ -54,7 +54,6 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
         try
         {
-            // The three reads are independent and cached under distinct keys, so they do not serialize on each other.
             var loginSummaryTask = GetLoginSummaryAsync(analyticsService, criteria);
             var lastSearchTask = GetLastSearchAsync(analyticsService, criteria);
             var lastProductViewTask = GetLastProductViewAsync(analyticsService, criteria);

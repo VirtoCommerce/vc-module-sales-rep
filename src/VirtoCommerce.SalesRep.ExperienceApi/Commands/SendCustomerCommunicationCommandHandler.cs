@@ -192,7 +192,6 @@ public class SendCustomerCommunicationCommandHandler
             return false;
         }
 
-        // Store ids are ids: compared in memory, so ignore-case, matching ISalesRepStoreAccessService.
         return store.Id.EqualsIgnoreCase(callerStoreId) ||
             store.TrustedGroups?.Any(x => x.EqualsIgnoreCase(callerStoreId)) == true;
     }

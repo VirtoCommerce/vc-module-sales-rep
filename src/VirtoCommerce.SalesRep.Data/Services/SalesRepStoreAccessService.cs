@@ -49,8 +49,7 @@ public class SalesRepStoreAccessService : ISalesRepStoreAccessService
         return store?.TrustedGroups?.Any(x => x.EqualsIgnoreCase(callerStoreId)) == true;
     }
 
-    // A lookup by primary key, on every rep-facing query that names a store: FindByIdAsync is memory-cached,
-    // where the user SEARCH service would cost a count plus a paged query plus a roles query, uncached.
+    // By primary key: FindByIdAsync is memory-cached, where the user search service costs three uncached queries.
     protected virtual async Task<ApplicationUser> GetUserAsync(string userId)
     {
         if (string.IsNullOrEmpty(userId))

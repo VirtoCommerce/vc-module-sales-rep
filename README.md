@@ -780,8 +780,8 @@ Some metrics are **not** computed from platform data — they are read from **Go
 | `salesRepActivities` → category `logins` rows | event `login`; metric `eventCount` | |
 | `salesRepCustomerActivitySummary.visitsCount` | event `login`; metric `eventCount` over the period | a proxy for "number of visits"; only tracked sign-ins count |
 | `salesRepCustomerActivitySummary.lastWebLogin` | event `login`; latest `dateHour` bucket | hour precision |
-| `salesRepCustomerActivitySummary.lastSearchTerm` | event `search`; latest `dateHour` bucket with a `searchTerm` | |
-| `salesRepCustomerActivitySummary.lastViewedProduct` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/image |
+| `salesRepCustomerActivitySummary.lastSearchTerm`, `lastSearchedDate` | events `search`, `view_search_results`; latest `dateHour` bucket with a `searchTerm` | the date is that bucket's start; either event names the term, and only the latest is kept, so nothing double-counts |
+| `salesRepCustomerActivitySummary.lastViewedProduct`, `lastViewedDate` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/image; the date is that bucket's start |
 | `salesRepCustomerInsights.searchTerms` (term, count, lastSearchedDate) | event `search`; dimension `searchTerm`; metric `eventCount` | `sort: "count"` = GA-aggregated top; `sort: "date"` = per-hour rows aggregated per term. Only `search` is counted — `view_search_results` describes the same user action and would double-count |
 | `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; an unresolvable code keeps its `sku` and reports a null `productId` |
 | `salesRepCustomerInsights.dataAsOf` | latest `dateHour` bucket observed in the returned payload | **not** "now" — see latency below |

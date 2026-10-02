@@ -15,9 +15,8 @@ namespace VirtoCommerce.SalesRep.Data.Services.Activities;
 
 public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
 {
-    // Bounded reads: 'date' mode pulls the newest hour buckets and aggregates them here (older activity is
-    // truncated); 'count' mode pulls GA-aggregated rows ordered by count, wide enough to survive dropped
-    // "(not set)" rows and per-name splits of one product code.
+    // Bounded reads: 'date' aggregates the newest hour buckets here (older activity is truncated); 'count' pulls
+    // GA-aggregated rows, wide enough to survive "(not set)" drops and per-name splits of one product code.
     private const int DateModeBucketFetchSize = 200;
     private const int CountModeRowFetchSize = 50;
 
@@ -41,8 +40,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
     {
         ArgumentNullException.ThrowIfNull(criteria);
 
-        // Only the 'search' event: the storefront fires both 'search' and 'view_search_results' for a single
-        // search action, so counting both would double-count it.
+        // Only 'search': 'view_search_results' is the same search action and would double-count it.
         var events = await SearchEventsAsync(
             criteria,
             [AnalyticsConstants.EventNames.Search],

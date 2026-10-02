@@ -20,8 +20,7 @@ public class SalesRepAnalyticsAvailability : ISalesRepAnalyticsAvailability
         _logger = logger;
     }
 
-    // Absent module, unconfigured store and "could not find out" are one answer on purpose: a caller can do
-    // nothing different about any of them, and all three mean the figures beside it are not measurements.
+    // Absent, unconfigured and "could not find out" are one answer on purpose: a caller can do nothing different.
     public virtual async Task<bool> IsConfiguredAsync(string storeId)
     {
         if (!_analyticsService.HasValue)

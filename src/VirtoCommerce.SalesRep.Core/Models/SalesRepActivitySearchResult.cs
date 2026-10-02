@@ -7,7 +7,6 @@ public class SalesRepActivitySearchResult : GenericSearchResult<SalesRepActivity
 {
     public IList<SalesRepActivityCategoryCount> CategoryCounts { get; set; } = [];
 
-    // Zero searches means "none this period" only when this is true. Defaults TRUE: every source returns one
-    // of these, so only a source that actually failed turns it off.
+    // Defaults TRUE: every source returns one of these, so only a source that failed turns it off.
     public bool IsAnalyticsAvailable { get; set; } = true;
 }

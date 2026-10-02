@@ -44,8 +44,6 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
             return null;
         }
 
-        // A named store is a claim, not a filter: it chooses whose analytics property is read and whose
-        // orders are counted, so it is checked against the caller's own store before it is used.
         if (!await _storeAccessService.IsAllowedAsync(request.UserId, request.StoreId))
         {
             return null;

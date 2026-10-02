@@ -46,8 +46,6 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
             return null;
         }
 
-        // A named store is a claim, not a filter: it chooses whose analytics property is read and whose
-        // orders are counted, so it is checked against the caller's own store before it is used.
         if (!await _storeAccessService.IsAllowedAsync(request.UserId, request.StoreId))
         {
             return null;
@@ -63,13 +61,10 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         criteria.To = request.Period?.To;
         criteria.Take = Math.Clamp(request.Take, 0, SalesRepActivitiesQuery.MaxTake);
         criteria.Skip = Math.Max(request.Skip, 0);
-        // Only the caller that renders the badges pays for them.
         criteria.IncludeCategoryCounts = request.IncludeFields.IncludesField(nameof(SalesRepActivitySearchResult.CategoryCounts));
 
-        // Past the paging window the feed has nothing to serve, and says so by returning no rows. Clamping Skip
-        // instead would answer page 40 with the window's last page, which a caller cannot tell from real data.
-        // The counters are unaffected: they still report the whole set, so a client can see the feed is longer
-        // than it can page.
+        // Past the paging window: no rows, not a clamped Skip — page 40 would repeat the window's last page, which a
+        // caller cannot tell from real data. The counters still report the whole set.
         if (criteria.Skip > ModuleConstants.Activities.MaxSkip)
         {
             criteria.Take = 0;

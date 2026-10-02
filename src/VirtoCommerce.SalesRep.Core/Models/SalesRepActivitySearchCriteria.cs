@@ -22,9 +22,7 @@ public class SalesRepActivitySearchCriteria : SearchCriteriaBase
 
     public DateTime? To { get; set; }
 
-    // Counting the categories the caller did NOT ask for is what makes a request cost an analytics read it has
-    // no use for: the Orders tab would wait on Google to fill in badges nobody selected. False plans only the
-    // requested categories, so a caller that skips the badges pays for its own rows and nothing else.
+    // False plans only the requested categories: counting the others is what costs an unwanted analytics read.
     public bool IncludeCategoryCounts { get; set; } = true;
 
     // The aggregator mutates Categories on each clone before firing the per-category reads concurrently,

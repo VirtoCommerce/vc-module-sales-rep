@@ -36,8 +36,6 @@ public class SalesRepCustomerInsightsQueryHandler : SalesRepQueryHandlerBase, IQ
             return null;
         }
 
-        // A named store is a claim, not a filter: it chooses whose analytics property is read, so it is
-        // checked against the caller's own store before it is used.
         if (!await _storeAccessService.IsAllowedAsync(request.UserId, request.StoreId))
         {
             return null;
