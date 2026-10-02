@@ -575,14 +575,14 @@ Ranked lists over tracked activity, for one customer or aggregated across all of
   salesRepCustomerActivitySummary(organizationId: "…", storeId: "B2B-store" /*, period */) {
     createdOn                                  # from the database, not GA
     lastWebLogin visitsCount
-    lastSearchTerm
-    lastViewedProduct { code productId name imageUrl }
+    lastSearchTerm lastSearchedDate
+    lastViewedProduct { code productId name imageUrl } lastViewedDate
     isAnalyticsAvailable                       # the availability signal for the UI
   }
 }
 ```
 
-`sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. When analytics is unavailable these fields return `null` / zero rather than an error, and `isAnalyticsAvailable` is how a UI renders that state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
+`sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. On the summary, `lastSearchedDate` and `lastViewedDate` date the row the term and the product come from: the newest one that carries the dimension. When analytics is unavailable these fields return `null` / zero rather than an error, and `isAnalyticsAvailable` is how a UI renders that state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
 
 #### Tasks
 

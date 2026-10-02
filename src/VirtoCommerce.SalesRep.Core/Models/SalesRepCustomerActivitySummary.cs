@@ -12,7 +12,11 @@ public class SalesRepCustomerActivitySummary
 
     public string LastSearchTerm { get; set; }
 
+    public DateTime? LastSearchedDate { get; set; }
+
     public SalesRepActivityProduct LastViewedProduct { get; set; }
+
+    public DateTime? LastViewedDate { get; set; }
 
     // Defaults FALSE, unlike the feed's result: this is built in one place, so every early return is a path
     // that measured nothing.

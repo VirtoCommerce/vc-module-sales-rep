@@ -26,8 +26,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
     private static readonly DateTime _apr = new(2026, 4, 10, 13, 0, 0, DateTimeKind.Utc);
 
     private const string AllFields =
-        "createdOn lastWebLogin visitsCount lastSearchTerm isAnalyticsAvailable " +
-        "lastViewedProduct { code productId name imageUrl }";
+        "createdOn lastWebLogin visitsCount lastSearchTerm lastSearchedDate isAnalyticsAvailable " +
+        "lastViewedProduct { code productId name imageUrl } lastViewedDate";
 
     [Fact]
     public async Task Summary_ReturnsAnalyticsFiguresAndResolvedProduct()
@@ -42,7 +42,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 3, "org-1");
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
-        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 1, "org-1",
+        // A month apart from the search, so the two dates cannot pass for each other.
+        analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _feb, count: 1, "org-1",
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
         // Foreign-org noise that must not affect org-1's figures.
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 100, "org-other");
@@ -61,6 +62,8 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         summary.GetProperty("visitsCount").GetInt32().Should().Be(5); // 2 + 3, org-1 logins only
         summary.GetProperty("lastWebLogin").GetDateTime().ToUniversalTime().Should().Be(_mar);
         summary.GetProperty("lastSearchTerm").GetString().Should().Be("pumps");
+        summary.GetProperty("lastSearchedDate").GetDateTime().ToUniversalTime().Should().Be(_mar);
+        summary.GetProperty("lastViewedDate").GetDateTime().ToUniversalTime().Should().Be(_feb);
 
         var product = summary.GetProperty("lastViewedProduct");
         product.GetProperty("code").GetString().Should().Be("CODE-1");
@@ -103,6 +106,9 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         var summary = Summary(json);
         summary.GetProperty("lastSearchTerm").GetString().Should().Be("pumps");
         summary.GetProperty("lastViewedProduct").GetProperty("productId").GetString().Should().Be("prod-1");
+        // Dated by the row the value came from, not by the newer row that lacked it.
+        summary.GetProperty("lastSearchedDate").GetDateTime().ToUniversalTime().Should().Be(_mar);
+        summary.GetProperty("lastViewedDate").GetDateTime().ToUniversalTime().Should().Be(_mar);
     }
 
     [Fact]
@@ -143,7 +149,9 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         summary.GetProperty("visitsCount").GetInt32().Should().Be(0);
         summary.GetProperty("lastWebLogin").ValueKind.Should().Be(JsonValueKind.Null);
         summary.GetProperty("lastSearchTerm").ValueKind.Should().Be(JsonValueKind.Null);
+        summary.GetProperty("lastSearchedDate").ValueKind.Should().Be(JsonValueKind.Null);
         summary.GetProperty("lastViewedProduct").ValueKind.Should().Be(JsonValueKind.Null);
+        summary.GetProperty("lastViewedDate").ValueKind.Should().Be(JsonValueKind.Null);
     }
 
     [Fact]

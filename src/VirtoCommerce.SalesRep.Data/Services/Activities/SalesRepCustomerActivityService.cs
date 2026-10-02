@@ -56,16 +56,23 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         {
             // The three reads are independent and cached under distinct keys, so they do not serialize on each other.
             var loginSummaryTask = GetLoginSummaryAsync(analyticsService, criteria);
-            var lastSearchTermTask = GetLastSearchTermAsync(analyticsService, criteria);
-            var lastViewedProductTask = GetLastViewedProductAsync(analyticsService, criteria);
+            var lastSearchTask = GetLastSearchAsync(analyticsService, criteria);
+            var lastProductViewTask = GetLastProductViewAsync(analyticsService, criteria);
 
-            await Task.WhenAll(loginSummaryTask, lastSearchTermTask, lastViewedProductTask);
+            await Task.WhenAll(loginSummaryTask, lastSearchTask, lastProductViewTask);
 
             var loginSummary = await loginSummaryTask;
             result.VisitsCount = loginSummary?.TotalCount ?? 0;
             result.LastWebLogin = loginSummary?.LastOccurredAt;
-            result.LastSearchTerm = await lastSearchTermTask;
-            result.LastViewedProduct = await lastViewedProductTask;
+
+            // Each date comes from the row its value came from, which need not be the newest row.
+            var lastSearch = await lastSearchTask;
+            result.LastSearchTerm = lastSearch == null ? null : SalesRepAnalyticsScope.GetDimension(lastSearch, AnalyticsConstants.Dimensions.SearchTerm);
+            result.LastSearchedDate = lastSearch?.OccurredAt;
+
+            var lastProductView = await lastProductViewTask;
+            result.LastViewedProduct = lastProductView == null ? null : CreateViewedProduct(lastProductView);
+            result.LastViewedDate = lastProductView?.OccurredAt;
         }
         catch (AnalyticsException ex)
         {
@@ -101,7 +108,7 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         return result;
     }
 
-    protected virtual async Task<string> GetLastSearchTermAsync(
+    protected virtual async Task<AnalyticsEvent> GetLastSearchAsync(
         IAnalyticsService analyticsService,
         SalesRepCustomerActivityCriteria criteria)
     {
@@ -113,11 +120,10 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         var searchResult = await analyticsService.SearchEventsAsync(searchCriteria);
 
         return searchResult.Events
-            .Select(x => SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm))
-            .FirstOrDefault(x => !string.IsNullOrEmpty(x));
+            .FirstOrDefault(x => !string.IsNullOrEmpty(SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm)));
     }
 
-    protected virtual async Task<SalesRepActivityProduct> GetLastViewedProductAsync(
+    protected virtual async Task<AnalyticsEvent> GetLastProductViewAsync(
         IAnalyticsService analyticsService,
         SalesRepCustomerActivityCriteria criteria)
     {
@@ -128,16 +134,15 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
         var searchResult = await analyticsService.SearchEventsAsync(searchCriteria);
 
-        var lastViewed = searchResult.Events
+        return searchResult.Events
             .FirstOrDefault(x => !string.IsNullOrEmpty(SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.ItemId)));
-        if (lastViewed == null)
-        {
-            return null;
-        }
+    }
 
+    protected virtual SalesRepActivityProduct CreateViewedProduct(AnalyticsEvent productView)
+    {
         var result = AbstractTypeFactory<SalesRepActivityProduct>.TryCreateInstance();
-        result.Code = SalesRepAnalyticsScope.GetDimension(lastViewed, AnalyticsConstants.Dimensions.ItemId);
-        result.Name = SalesRepAnalyticsScope.GetDimension(lastViewed, AnalyticsConstants.Dimensions.ItemName);
+        result.Code = SalesRepAnalyticsScope.GetDimension(productView, AnalyticsConstants.Dimensions.ItemId);
+        result.Name = SalesRepAnalyticsScope.GetDimension(productView, AnalyticsConstants.Dimensions.ItemName);
 
         return result;
     }

@@ -14,9 +14,11 @@ public class SalesRepCustomerActivitySummaryType : ExtendableGraphType<SalesRepC
         Field(x => x.LastWebLogin, nullable: true).Description("Last tracked storefront login, as the UTC start of an analytics hour bucket; null when analytics is unavailable or has no data.");
         Field(x => x.VisitsCount, nullable: false).Description("Number of tracked storefront logins in the period (0 when analytics is not configured).");
         Field(x => x.LastSearchTerm, nullable: true).Description("Most recently searched phrase (null when analytics is unavailable or has no data).");
+        Field(x => x.LastSearchedDate, nullable: true).Description("When lastSearchTerm was searched, as the UTC start of an analytics hour bucket; null with it.");
         Field<SalesRepActivityProductType>("lastViewedProduct")
             .Description("Most recently viewed product (null when analytics is unavailable or has no data).")
             .Resolve(context => context.Source.LastViewedProduct);
+        Field(x => x.LastViewedDate, nullable: true).Description("When lastViewedProduct was viewed, as the UTC start of an analytics hour bucket; null with it.");
         Field(x => x.IsAnalyticsAvailable, nullable: false).Description("Whether the analytics figures beside this are measurements. False means zero/null for want of a source, not for want of activity; createdOn is unaffected.");
     }
 }
