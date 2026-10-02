@@ -102,16 +102,22 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
 
         // Resolved for whoever may read the setting, regardless of the rep's current assignment: a grant to an
         // organization the rep no longer serves is the one they most need to recognize before revoking it.
+        // Sorted: the member service keys its cache on the joined id list, so the same set asked for in a
+        // different order would otherwise miss the cache and re-read every organization and its addresses.
         var organizations = await memberService.GetByIdsAsync(
-            targets.Select(x => x.Id).ToArray(),
+            targets.Select(x => x.Id).Order(StringComparer.Ordinal).ToArray(),
             MemberResponseGroup.WithAddresses.ToString(),
             [nameof(Organization)]);
 
+        // Indexed once: a list may carry a thousand targets, and a scan per target is a thousand scans of a
+        // thousand rows. GroupBy rather than ToDictionary - nothing promises one row back per id.
+        var organizationsById = organizations
+            .GroupBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Key, x => x.First(), StringComparer.OrdinalIgnoreCase);
+
         foreach (var target in targets)
         {
-            var organization = organizations.FirstOrDefault(x => x.Id.EqualsIgnoreCase(target.Id));
-
-            if (organization != null)
+            if (organizationsById.TryGetValue(target.Id, out var organization))
             {
                 target.Name = organization.Name;
                 target.Subtitle = GetSubtitle(organization);

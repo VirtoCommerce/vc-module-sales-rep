@@ -14,7 +14,9 @@ public class SalesRepOrganizationAccessService(
     IOrganizationMembershipSearchService membershipSearchService) : ISalesRepOrganizationAccessService
 {
     // SearchAll pages by criteria.Take, and the platform default of 20 turns one 1000-organization
-    // authorization into ~50 sequential round trips.
+    // authorization into ~50 sequential round trips. Must stay >= both caps on how many organizations can
+    // reach here in one request - ModuleConstants.Communication.MaxOrganizations and the Cart module's
+    // Sharing.MaxTargets - or the single-round-trip guarantee quietly becomes paging again.
     private const int MembershipsBatchSize = 1000;
 
     public virtual async Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(
