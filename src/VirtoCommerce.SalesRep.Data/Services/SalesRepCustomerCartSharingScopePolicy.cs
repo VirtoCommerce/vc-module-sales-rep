@@ -26,12 +26,6 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
 
     public override string Description => "Customer scope (shared by a Sales Rep with specific customer organizations)";
 
-    public override string GetAccess(ShoppingCart cart, string currentUserId)
-    {
-        // Owner (the rep) keeps write; targeted customers are read-only.
-        return IsOwner(cart, currentUserId) ? CartSharingAccess.Write : CartSharingAccess.Read;
-    }
-
     public override bool IsAuthorized(ShoppingCart cart, string currentUserId, string currentOrganizationId)
     {
         if (string.IsNullOrEmpty(currentUserId))
@@ -65,12 +59,12 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
             throw new InvalidOperationException("The Customer sharing scope requires at least one target organization.");
         }
 
-        var setting = EnsureSetting(cart, context.SharingKey, CartSharingAccess.Read);
+        var setting = EnsureSetting(cart, context.SharingKey);
 
         setting.ApplyTargets(context.AddSharedWithIds, context.RemoveSharedWithIds);
         setting.ApplyMessage(context.Message);
 
-        SetOwner(cart, context.CurrentUserId, context.CustomerName, organizationId: null);
+        SetOrganization(cart, organizationId: null);
     }
 
     // What ApplyTargets would leave behind, computed without touching the stored set: the current ids minus the

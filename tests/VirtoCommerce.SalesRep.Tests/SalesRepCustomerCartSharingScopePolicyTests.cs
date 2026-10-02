@@ -80,7 +80,8 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         public Task DeleteAsync(string[] ids, string[] memberTypes = null) => throw new NotSupportedException();
     }
 
-    private static ShoppingCart EmptyCart() => new() { SharingSettings = [] };
+    // A list the rep has just created: the handler assigns the owner before any scope is written.
+    private static ShoppingCart EmptyCart() => new() { CustomerId = RepUserId, SharingSettings = [] };
 
     private static WishlistScopeContext ScopeContext(
         string scope,
@@ -276,6 +277,20 @@ public class SalesRepCustomerCartSharingScopePolicyTests
         TargetIds(cart).Should().BeEquivalentTo(OrgA, OrgB);
         cart.CustomerId.Should().Be(RepUserId); // owner stays the rep
         cart.OrganizationId.Should().BeNull(); // no owner organization: the list is reachable by key, not by org listing
+    }
+
+    [Fact]
+    public async Task ApplyAsync_PolicyCalledDirectly_NeverChangesTheOwner()
+    {
+        // The service refuses a non-owner outright; on top of that the policy itself cannot re-own a list (VCST-6125).
+        var cart = CustomerSharedCart(RepUserId, OrgA);
+        cart.CustomerName = "Rep Name";
+
+        await CustomerPolicy(servesOrganization: true)
+            .ApplyAsync(cart, ScopeContext(ModuleConstants.Sharing.CustomerScope, CustomerUserId, addSharedWithIds: [OrgB]));
+
+        cart.CustomerId.Should().Be(RepUserId);
+        cart.CustomerName.Should().Be("Rep Name");
     }
 
     [Fact]
