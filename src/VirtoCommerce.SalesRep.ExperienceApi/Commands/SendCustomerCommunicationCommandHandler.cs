@@ -192,7 +192,8 @@ public class SendCustomerCommunicationCommandHandler
             return false;
         }
 
-        return store.Id == callerStoreId || store.TrustedGroups?.Contains(callerStoreId) == true;
+        return store.Id.EqualsIgnoreCase(callerStoreId) ||
+            store.TrustedGroups?.Any(x => x.EqualsIgnoreCase(callerStoreId)) == true;
     }
 
     private static bool HasEmail(Member member)

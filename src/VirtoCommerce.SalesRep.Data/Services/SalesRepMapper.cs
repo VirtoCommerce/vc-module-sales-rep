@@ -8,6 +8,7 @@ using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.Xapi.Core.Models.Facets;
+using VirtoCommerce.XOrder.Core.Models;
 using VirtoCommerce.XOrder.Core.Services;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 
@@ -25,7 +26,10 @@ public class SalesRepMapper : ISalesRepMapper
     // Delegates so the facets match X-Order's own, including a project's own IXOrderMapper registration.
     public virtual IList<FacetResult> ToFacets(IList<OrderAggregation> aggregations, string cultureName)
     {
-        var context = new FacetMappingContext { CultureName = cultureName };
+        // Through the factory and X-Order's own subtype — consumers override the derived type, never the base — so a
+        // project's override is honoured here as on X-Order.
+        var context = AbstractTypeFactory<OrderFacetMappingContext>.TryCreateInstance();
+        context.CultureName = cultureName;
 
         return (aggregations ?? [])
             .Select(x => _orderMapper.ToFacetResult(x, context))
