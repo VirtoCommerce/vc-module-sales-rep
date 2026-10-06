@@ -39,11 +39,7 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
         }
 
         // A targeted customer's org must be one of the targets; fails closed when the caller has none.
-        var setting = cart.GetEffectiveSharingSetting();
-
-        return !string.IsNullOrEmpty(currentOrganizationId)
-            && setting?.Scope.EqualsIgnoreCase(Scope) == true
-            && setting.Targets?.Any(x => x.SharedWithId.EqualsIgnoreCase(currentOrganizationId)) == true;
+        return IsSharedWith(cart, currentOrganizationId);
     }
 
     public override async Task ApplyAsync(ShoppingCart cart, WishlistScopeContext context)
@@ -53,8 +49,13 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
         // Checked BEFORE anything is written: EnsureSetting changes the scope and drops the previous scope's
         // targets, and the cart it mutates is the one held by the cached aggregate - so a write rejected after
         // that point would still be served to later reads and persisted by the next save (VCST-6113).
-        // "Stop sharing" is the Private scope, not an empty target set.
-        if (GetResultingSharedWithIds(cart, context).Count == 0)
+        // A scope change starts from nothing, the way EnsureSetting clears the targets that belonged to the
+        // scope being left. "Stop sharing" is the Private scope, not an empty target set.
+        var current = cart.GetEffectiveSharingSetting();
+        var resulting = (Scope.EqualsIgnoreCase(current?.Scope) ? current : null)
+            .GetResultingSharedWithIds(context.AddSharedWithIds, context.RemoveSharedWithIds);
+
+        if (resulting.Count == 0)
         {
             throw new InvalidOperationException("The Customer sharing scope requires at least one target organization.");
         }
@@ -65,29 +66,6 @@ public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessS
         setting.ApplyMessage(context.Message);
 
         SetOrganization(cart, organizationId: null);
-    }
-
-    // What ApplyTargets would leave behind, computed without touching the stored set: the current ids minus the
-    // removals plus the additions. A scope change starts from nothing, the way EnsureSetting clears the targets
-    // that belonged to the scope being left.
-    protected virtual IList<string> GetResultingSharedWithIds(ShoppingCart cart, WishlistScopeContext context)
-    {
-        var setting = cart.GetEffectiveSharingSetting();
-        var currentIds = Scope.EqualsIgnoreCase(setting?.Scope) ? setting.GetSharedWithIds() : [];
-        var removeIds = (context.RemoveSharedWithIds ?? []).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        var result = currentIds.Where(x => !removeIds.Contains(x)).ToList();
-        var resultIds = result.ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var sharedWithId in (context.AddSharedWithIds ?? []).Where(x => !string.IsNullOrEmpty(x)))
-        {
-            if (resultIds.Add(sharedWithId))
-            {
-                result.Add(sharedWithId);
-            }
-        }
-
-        return result;
     }
 
     public override async Task<IList<WishlistSharingTarget>> ResolveTargetsAsync(IList<string> sharedWithIds)
