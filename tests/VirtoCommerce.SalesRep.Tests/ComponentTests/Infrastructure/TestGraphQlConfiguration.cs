@@ -504,6 +504,11 @@ internal static class TestGraphQlConfiguration
         }
 
         public void EnqueueNotificationSending(string messageId) { }
+
+        // Notifications 3.1018.0 added this to the interface. It sends an already-persisted message by id, and
+        // this fake persists nothing - so there is no result it could honestly return.
+        public Task<NotificationSendResult> TrySendNotificationMessageAsync(string messageId)
+            => throw new NotSupportedException("The capturing sender does not persist messages.");
     }
 
     /// <summary>
