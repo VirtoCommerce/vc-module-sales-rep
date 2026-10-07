@@ -882,6 +882,48 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
 | `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |
 
+## Tests
+
+`tests/VirtoCommerce.SalesRep.Tests` holds three layers, selectable by the `Category` trait:
+
+| Category | Where | What runs | Backend |
+|----------|-------|-----------|---------|
+| `Unit` | `UnitTests/` and the classes at the project root | Validators, mappers, resolvers, response groups and authorization handlers in isolation. | Mocks. |
+| `Component` | `ComponentTests/` | The module's real services, repositories, GraphQL schema and REST controllers, called in-process. | The component harness (`SalesRepTestContext`): one in-memory SQLite database per module context, created with `EnsureCreated`; a RAM Lucene index; hand-written doubles for the platform parts the module only reads (store, settings, currency). |
+| `StorefrontE2E`, `VCShellAppE2E` | `StorefrontE2E/`, `VCShellAppE2E/` | The real UIs, driven by Playwright. | The same harness, hosted on Kestrel inside the test process. |
+
+`dotnet test` runs all three. The end-to-end groups skip themselves where their UI is not available (see below), so the shared CI workflow needs no filter.
+
+### End-to-end tests
+
+The idea is to keep the component-test shape — seed through the harness, exercise the module, assert on the rows — and replace the direct GraphQL or REST call with browser actions on the real UI. Nothing external takes part: no running platform, no PostgreSQL, no Redis, no background jobs; the installed platform folder is not read. A test group is one xunit collection with `DisableParallelization = true` and one environment fixture: the backend on a random loopback port, the group's seed, one browser. Tests inside a group share the environment and its data and each get their own signed-in browser context; groups run one after another.
+
+| | `StorefrontE2E` | `VCShellAppE2E` |
+|---|---|---|
+| UI | The B2B storefront (`vc-theme-b2b-vue`), served by its Vite dev server, which the test starts and stops. | The sales-rep VC-Shell app (`src/VirtoCommerce.SalesRep.Web/App`), served by the test host as static files under `/apps/vc-sales-rep/`. |
+| Backend surface | `/graphql` (one combined X-API schema) and `/connect/token`. | `/api/sales-rep/**` (the module's controllers, hosted as they are) plus replicas of the platform endpoints the VC-Shell framework and the blades call. |
+| Sign-in | A JWT minted from the real claim producers, placed in `localStorage` before the first navigation. | The platform's Identity cookie, obtained from the host before the first navigation. |
+| Needs on the machine | The storefront checkout with `node_modules` installed, at `<workspace>/front` or `VC_STOREFRONT_DIR`, and Node 22 on PATH. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
+| Opt-out | `VC_STOREFRONT_E2E=0` | `VC_VCSHELL_APP_E2E=0` |
+| Run | `dotnet test --filter "Category=StorefrontE2E"` | `dotnet test --filter "Category=VCShellAppE2E"` |
+| Diagnostics | `bin/Debug/net10.0/StorefrontE2E-diagnostics/` | `bin/Debug/net10.0/VCShellAppE2E-diagnostics/` |
+| Details | [StorefrontE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/StorefrontE2E/README.md) | [VCShellAppE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/VCShellAppE2E/README.md) |
+
+Common prerequisites: the .NET 10 SDK and Playwright's Chromium for the referenced `Microsoft.Playwright` version (`pwsh bin/Debug/net10.0/playwright.ps1 install chromium`, once). `E2E_HEADED=1` shows the browser. A failing test reports the page URL and title, the start of the page text, the API or GraphQL errors, dialogs, failed requests and console errors it saw, plus a full-page screenshot in the diagnostics folder.
+
+**On CI** every end-to-end fact carries a conditional skip (`SkipUnless` on its group's availability class), so the groups report as skipped and their fixtures start nothing. The storefront is a separate repository and is never on the runner. The VC-Shell app's output folders are gitignored, and the module workflow runs `vc-build Test` before `vc-build Compress`, the step that builds the app into `Content/vc-sales-rep`, so the runner has no built app at test time either.
+
+**Writing a test.** Seed in the group's environment (`SeedAsync`, through the harness helpers: organizations, contacts, reps, accounts, orders, tasks), open a signed-in context with `OpenAsync`, act with Playwright, assert through the harness (`NewSalesRepDbContext()`, `GetRequiredService<IMemberService>()`, `UserManager`, `GetMembershipsAsync`, …). What the harness does differently from a platform:
+
+* Databases are created with `EnsureCreated`, so nothing that only migrations create exists; every account, administrators included, comes from the seed (`ApplicationUser.IsAdministrator = true` makes one).
+* Nothing indexes on its own (there are no background jobs): a read that goes through the index needs `IndexMembersAsync` / `IndexOrdersAsync` in the seed. Member searches with a type filter and keyword searches are such reads.
+* Store, settings and currency are doubles; store-level configuration is set on the store double (`TestStoreService.Customize`), not by inserting rows.
+* The storefront's first page load in a group takes about fifteen seconds (Vite compiles on demand); the VC-Shell app loads in about a second.
+
+**Combining the two surfaces** in one test — create a rep in the VC-Shell app, then sign in as that rep on the storefront — is possible on one host: register both surfaces on one container, select the authentication scheme per request the way the platform does (bearer header → JWT, otherwise the cookie), and give the environment an `Open…` method per UI. The two UIs live on different origins, so a test holds one browser context per UI; the data behind them is the same database. The storefront's own sign-in page can serve the second half, because the host's `/connect/token` implements the password grant. Not built yet.
+
+The storefront could also be served the VC-Shell way, as a built theme from the test host, which would remove Vite and the checkout from the prerequisites and shorten the first page load to about a second; today's group drives the dev server.
+
 ## Documentation
 
 * Epic: [VCST-5142 — Sales Rep Hub](https://virtocommerce.atlassian.net/browse/VCST-5142)

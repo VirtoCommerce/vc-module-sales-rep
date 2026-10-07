@@ -338,6 +338,11 @@ internal static class TestServicesConfiguration
         // Trusted groups per store (mirrors Store.TrustedGroups for the store-access check).
         public ConcurrentDictionary<string, IList<string>> TrustedGroupsByStore { get; } = new();
 
+        // Last step applied to every store handed out. The storefront E2E host uses it to add what the real
+        // storefront boot needs (languages, currencies, public module settings) without touching the defaults
+        // the component tests rely on.
+        public Action<Store> Customize { get; set; }
+
         public Task<IList<Store>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
         {
             // Return a store for EVERY id (the VCST-5309 statistics tests need every store to report its default
@@ -369,6 +374,8 @@ internal static class TestServicesConfiguration
                             },
                         ];
                     }
+
+                    Customize?.Invoke(store);
 
                     return store;
                 })
