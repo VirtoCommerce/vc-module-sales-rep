@@ -65,9 +65,9 @@ group), `vite-<port>.log` (dev server output), `<TestName>.png` (full-page scree
 - "Schema-complete, data-empty" holds: a root field that is missing fails the whole operation with a validation error,
   so the shell fields exist with their real response types even where they return nothing.
 - Package skew is the recurring cost: the storefront is built against newer X-API packages than the module pins
-  (profile 3.1011 lacks `isLockedForCurrentUser`; the cart type in the pinned X-Cart package has different
-  constructor dependencies than the current source). The contract test turns each such gap into a four-second
-  failure with the exact field name.
+  (profile 3.1011 lacks `isLockedForCurrentUser`), and a package bump changes the graph types' constructor
+  dependencies (X-Cart 3.1039 added `IXapiMapper` to the cart types; the pre-bump package had none). The eager
+  schema build names the missing service; the contract test turns a missing field into a four-second failure.
 - The storefront's primary contact for a customer is the organization owner, falling back to its oldest contact,
   and a rep is a contact of the organizations they serve: a test that wants a buyer's details must seed the owner.
 

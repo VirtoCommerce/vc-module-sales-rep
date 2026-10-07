@@ -62,9 +62,11 @@ public class SendCustomerCommunicationCommandHandler
 
     public virtual async Task<SalesRepCommunicationResult> Handle(SendCustomerCommunicationCommand request, CancellationToken cancellationToken)
     {
-        ValidateRequest(request);
+        var organizationIds = GetOrganizationIds(request);
 
-        if (!await OrganizationAccessService.ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        ValidateRequest(request, organizationIds);
+
+        if (!await OrganizationAccessService.ServesAllOrganizationsAsync(request.UserId, organizationIds))
         {
             throw AuthorizationError.Forbidden();
         }
@@ -74,34 +76,41 @@ public class SendCustomerCommunicationCommandHandler
         var caller = await GetUserAsync(request.UserId);
 
         var responseGroup = _responseGroupParser.GetResponseGroup(request);
-        var recipients = await _recipientResolver.ResolveRecipientsAsync(request.OrganizationId, responseGroup);
+        var recipients = await ResolveRecipientsAsync(organizationIds, responseGroup);
         recipients = ExcludeInitiator(recipients, caller?.MemberId);
+
+        var organizationIdsText = string.Join(", ", organizationIds);
 
         if (recipients.Count == 0)
         {
-            _logger.LogInformation("Sales Rep communication to organization {OrganizationId} has no recipients.", request.OrganizationId);
+            _logger.LogInformation("Sales Rep communication to organizations {OrganizationIds} has no recipients.", organizationIdsText);
             result.Warnings.Add(ModuleConstants.Communication.Warnings.NoRecipients);
             return result;
         }
 
         if (request.SendPush)
         {
-            await DispatchPushAsync(request, recipients, result);
+            await DispatchPushAsync(request, recipients, result, organizationIdsText);
         }
 
         if (request.SendEmail)
         {
-            await DispatchEmailAsync(request, recipients, caller, result);
+            await DispatchEmailAsync(request, recipients, caller, result, organizationIdsText);
         }
 
         return result;
     }
 
-    protected virtual void ValidateRequest(SendCustomerCommunicationCommand request)
+    protected virtual void ValidateRequest(SendCustomerCommunicationCommand request, IList<string> organizationIds)
     {
-        if (string.IsNullOrEmpty(request.OrganizationId))
+        if (organizationIds.Count == 0)
         {
             throw new ExecutionError("Organization is required.");
+        }
+
+        if (organizationIds.Count > ModuleConstants.Communication.MaxOrganizations)
+        {
+            throw new ExecutionError($"Message must not target more than {ModuleConstants.Communication.MaxOrganizations} organizations.");
         }
 
         if (string.IsNullOrWhiteSpace(request.Message))
@@ -125,9 +134,35 @@ public class SendCustomerCommunicationCommandHandler
         }
     }
 
-    protected virtual async Task DispatchPushAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, SalesRepCommunicationResult result)
+    // organizationIds plus the legacy single organizationId, distinct.
+    protected static IList<string> GetOrganizationIds(SendCustomerCommunicationCommand request)
     {
-        if (await TryDispatchAsync(() => SendPushAsync(request, recipients), "push", request.OrganizationId))
+        return (request.OrganizationIds ?? [])
+            .Append(request.OrganizationId)
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    // Deduplicated by member: a contact in several of the organizations gets the message once.
+    protected virtual async Task<IList<Member>> ResolveRecipientsAsync(IList<string> organizationIds, string responseGroup)
+    {
+        List<Member> result = [];
+        var memberIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var organizationId in organizationIds)
+        {
+            var recipients = await _recipientResolver.ResolveRecipientsAsync(organizationId, responseGroup);
+
+            result.AddRange(recipients.Where(recipient => memberIds.Add(recipient.Id)));
+        }
+
+        return result;
+    }
+
+    protected virtual async Task DispatchPushAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, SalesRepCommunicationResult result, string organizationIds)
+    {
+        if (await TryDispatchAsync(() => SendPushAsync(request, recipients), "push", organizationIds))
         {
             result.PushSent = true;
         }
@@ -137,7 +172,7 @@ public class SendCustomerCommunicationCommandHandler
         }
     }
 
-    protected virtual async Task DispatchEmailAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, ApplicationUser caller, SalesRepCommunicationResult result)
+    protected virtual async Task DispatchEmailAsync(SendCustomerCommunicationCommand request, IList<Member> recipients, ApplicationUser caller, SalesRepCommunicationResult result, string organizationIds)
     {
         var store = await _storeService.GetByIdAsync(request.StoreId);
         if (!IsStoreAllowed(store, caller?.StoreId))
@@ -170,12 +205,12 @@ public class SendCustomerCommunicationCommandHandler
         var emailRecipients = recipients.Where(HasEmail).ToList();
         if (emailRecipients.Count == 0)
         {
-            _logger.LogInformation("Sales Rep email communication to organization {OrganizationId} has no recipients with an email address.", request.OrganizationId);
+            _logger.LogInformation("Sales Rep email communication to organizations {OrganizationIds} has no recipients with an email address.", organizationIds);
             result.Warnings.Add(ModuleConstants.Communication.Warnings.EmailNoRecipients);
             return;
         }
 
-        if (await TryDispatchAsync(() => SendEmailAsync(request, emailRecipients, store, template), "email", request.OrganizationId))
+        if (await TryDispatchAsync(() => SendEmailAsync(request, emailRecipients, store, template), "email", organizationIds))
         {
             result.EmailSent = true;
         }
@@ -200,7 +235,7 @@ public class SendCustomerCommunicationCommandHandler
         return member.Emails?.Any(x => !string.IsNullOrEmpty(x)) == true;
     }
 
-    protected virtual async Task<bool> TryDispatchAsync(Func<Task> dispatch, string channel, string organizationId)
+    protected virtual async Task<bool> TryDispatchAsync(Func<Task> dispatch, string channel, string organizationIds)
     {
         try
         {
@@ -209,7 +244,7 @@ public class SendCustomerCommunicationCommandHandler
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Sales Rep {Channel} communication to organization {OrganizationId} failed.", channel, organizationId);
+            _logger.LogError(ex, "Sales Rep {Channel} communication to organizations {OrganizationIds} failed.", channel, organizationIds);
             return false;
         }
     }

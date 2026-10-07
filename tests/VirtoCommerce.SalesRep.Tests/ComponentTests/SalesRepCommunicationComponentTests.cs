@@ -42,6 +42,32 @@ public class SalesRepCommunicationComponentTests
             }
             """;
 
+    /// <summary>The VCST-5850 shape: several organizations at once, optionally alongside the legacy single organizationId.</summary>
+    private static string MultiOrgMutation(string[] organizationIds, string legacyOrganizationId = null, bool push = true, bool email = true)
+    {
+        var legacy = legacyOrganizationId == null ? "" : $"organizationId: \"{legacyOrganizationId}\",";
+        var ids = string.Join(", ", organizationIds.Select(x => $"\"{x}\""));
+
+        return $$"""
+            mutation {
+              sendCustomerCommunication(command: {
+                {{legacy}}
+                organizationIds: [{{ids}}],
+                sendPush: {{(push ? "true" : "false")}},
+                sendEmail: {{(email ? "true" : "false")}},
+                title: "Update",
+                message: "Hello there",
+                storeId: "{{Store}}"
+              }) {
+                succeeded
+                pushSent
+                emailSent
+                warnings
+              }
+            }
+            """;
+    }
+
     private static TestGraphQlConfiguration.CapturingPushMessageService Push(SalesRepTestContext ctx)
         => ctx.GetRequiredService<TestGraphQlConfiguration.CapturingPushMessageService>();
 
@@ -420,5 +446,93 @@ public class SalesRepCommunicationComponentTests
         json.Should().Contain("\"succeeded\":true").And.Contain("\"emailSent\":true");
         json.Should().Contain("\"warnings\":[]");
         Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).Should().Contain("c1@test.com");
+    }
+
+    [Fact]
+    public async Task SendCommunication_MultipleOrganizations_DeliversOnceToEachMember()
+    {
+        // VCST-5850: one send to several served organizations; a contact in two of them gets the message once.
+        using var ctx = SalesRepTestContext.Create();
+        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
+        await ctx.SeedContactAsync("c2", c => { c.Organizations = ["org-1", "org-2"]; c.Emails = ["c2@test.com"]; });
+        await ctx.SeedContactAsync("c3", c => { c.Organizations = ["org-2"]; c.Emails = ["c3@test.com"]; });
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1", "org-2");
+
+        var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation(["org-1", "org-2"]), userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":true");
+        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c2", "c3");
+        Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To)
+            .Should().BeEquivalentTo("c1@test.com", "c2@test.com", "c3@test.com");
+    }
+
+    [Fact]
+    public async Task SendCommunication_LegacyOrganizationIdAndOrganizationIds_AreMerged()
+    {
+        // Released storefronts still send the single organizationId; it is one more recipient organization.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; });
+        await ctx.SeedContactAsync("c3", c => { c.Organizations = ["org-2"]; });
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1", "org-2");
+
+        var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation(["org-2"], legacyOrganizationId: "org-1", email: false), userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c3");
+    }
+
+    [Fact]
+    public async Task SendCommunication_OneUnservedOrganization_ReturnsForbiddenAndSendsNothing()
+    {
+        // All-or-nothing: a single organization the rep does not serve rejects the whole send.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
+        await ctx.SeedContactAsync("c3", c => { c.Organizations = ["org-2"]; c.Emails = ["c3@test.com"]; });
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation(["org-1", "org-2"]), userId: rep.UserId);
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)access denied");
+        Push(ctx).Saved.Should().BeEmpty();
+        Email(ctx).Scheduled.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SendCommunication_TooManyOrganizations_ReturnsValidationError()
+    {
+        // The cap is checked before the membership query and the recipient fan-out, so an oversized request costs
+        // one validation instead of a per-organization resolve loop.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
+
+        var organizationIds = Enumerable.Range(0, 1001).Select(x => $"org-{x}").ToArray();
+
+        var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation(organizationIds), userId: rep.UserId);
+
+        json.Should().Contain("\"errors\"");
+        json.Should().MatchRegex("(?i)1000");
+        Push(ctx).Saved.Should().BeEmpty();
+        Email(ctx).Scheduled.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task SendCommunication_NoOrganization_ReturnsValidationError()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation([]), userId: rep.UserId);
+
+        json.Should().Contain("\"errors\"");
+        json.Should().Contain("Organization is required");
+        Push(ctx).Saved.Should().BeEmpty();
     }
 }

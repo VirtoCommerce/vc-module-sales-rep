@@ -97,6 +97,7 @@ internal static class StorefrontServices
         services.AddTransient<IMemberAddressService, MemberAddressService>();
 
         // Constructor dependencies of the real cart graph types (cart resolves to null, but the type must build).
+        services.AddSingleton<IXapiMapper, XapiMapper>();
         services.AddSingleton<ICartAvailMethodsService, NoCartAvailMethodsService>();
 
         // The shell's remaining root fields: schema-complete (real response types, so the storefront's selection sets
