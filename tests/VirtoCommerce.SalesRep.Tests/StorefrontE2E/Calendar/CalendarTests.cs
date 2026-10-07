@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
+using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using VirtoCommerce.TaskManagement.Data.Models;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
@@ -15,7 +16,7 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calendar;
 [Trait("Category", "StorefrontE2E")]
 public sealed class CalendarTests(CalendarEnvironment env)
 {
-    [Fact(Timeout = 300_000)]
+    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
     public async Task Calendar_CompletingTheSeededTask_PersistsTheCompletion()
     {
         await using var session = await env.OpenAsync(env.RepUserId, "/company/calendar");
@@ -37,7 +38,7 @@ public sealed class CalendarTests(CalendarEnvironment env)
         task.Completed.Should().BeTrue();
     }
 
-    [Fact(Timeout = 300_000)]
+    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
     public async Task Calendar_CreatingATaskFromTheForm_WritesTheWorkTaskRow()
     {
         const string name = "Send the Q4 price list";

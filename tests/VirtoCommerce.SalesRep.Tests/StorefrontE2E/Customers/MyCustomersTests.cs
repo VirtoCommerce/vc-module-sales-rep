@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Playwright;
+using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
 
@@ -11,7 +12,7 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Customers;
 [Trait("Category", "StorefrontE2E")]
 public sealed class MyCustomersTests(CustomersEnvironment env)
 {
-    [Fact(Timeout = 300_000)]
+    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
     public async Task MyCustomers_ListsEveryServedOrganization_WithTheRepsLatestOrder()
     {
         await using var session = await env.OpenAsync(env.RepUserId, "/company/my-customers");
@@ -29,7 +30,7 @@ public sealed class MyCustomersTests(CustomersEnvironment env)
         memberships.Select(x => x.OrganizationId).Should().BeEquivalentTo([CustomersEnvironment.FabrikamId, CustomersEnvironment.ContosoId]);
     }
 
-    [Fact(Timeout = 300_000)]
+    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
     public async Task CustomerProfile_ShowsTheSeededOrganizationDetails()
     {
         await using var session = await env.OpenAsync(env.RepUserId, $"/company/my-customers/{CustomersEnvironment.FabrikamId}");

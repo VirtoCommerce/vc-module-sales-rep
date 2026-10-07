@@ -41,29 +41,8 @@ internal sealed class ViteDevServer : IAsyncDisposable
         }
     }
 
-    /// <summary>
-    /// <c>VC_STOREFRONT_DIR</c>, or the workspace layout this repo lives in (<c>&lt;workspace&gt;/front</c> next to
-    /// <c>&lt;workspace&gt;/vc-sources/&lt;this repo&gt;</c>).
-    /// </summary>
-    public static string ResolveFrontendDirectory()
-    {
-        var configured = Environment.GetEnvironmentVariable("VC_STOREFRONT_DIR");
-        if (!string.IsNullOrEmpty(configured))
-        {
-            return configured;
-        }
-
-        // bin/Debug/net10.0 -> tests project -> tests -> repo -> vc-sources -> workspace
-        var workspace = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", ".."));
-        var candidate = Path.Combine(workspace, "front");
-
-        if (!File.Exists(Path.Combine(candidate, "package.json")))
-        {
-            throw new InvalidOperationException($"Storefront not found at '{candidate}'. Set VC_STOREFRONT_DIR to the vc-frontend checkout.");
-        }
-
-        return candidate;
-    }
+    /// <summary>The vc-frontend checkout (see <see cref="StorefrontAvailability"/>), or an exception naming what is missing.</summary>
+    public static string ResolveFrontendDirectory() => StorefrontAvailability.FrontendDirectory;
 
     public static async Task<ViteDevServer> StartAsync(string frontendDirectory, string backendUrl, string logDirectory = null, TimeSpan? timeout = null)
     {

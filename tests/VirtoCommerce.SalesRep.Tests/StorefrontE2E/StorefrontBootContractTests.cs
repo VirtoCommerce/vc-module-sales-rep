@@ -21,7 +21,7 @@ public sealed class StorefrontBootContractTests
     /// <summary>What the in-process backend reports as installed; the storefront gates documents on this list.</summary>
     private static readonly string[] InstalledModules = ["VirtoCommerce.SalesRep", "VirtoCommerce.TaskManagement"];
 
-    [Fact(Timeout = 300_000)]
+    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
     public async Task Boot_AnswersTheStorefrontsOwnDocuments_ForASignedInRep()
     {
         await using var backend = await InProcessBackend.StartAsync();

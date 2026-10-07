@@ -32,6 +32,12 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
+        // Every test in the group skips itself without a storefront checkout; the environment must not fail first.
+        if (!StorefrontAvailability.IsAvailable)
+        {
+            return;
+        }
+
         Log("backend starting");
         Backend = await InProcessBackend.StartAsync();
         Log($"backend ready at {Backend.Url}");
@@ -92,6 +98,11 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
+        if (Backend == null)
+        {
+            return;
+        }
+
         Log("disposing");
 
         if (_browser != null)

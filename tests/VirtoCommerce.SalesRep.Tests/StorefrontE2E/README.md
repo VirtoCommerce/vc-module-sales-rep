@@ -39,6 +39,11 @@ compiles on demand), later loads ≈2 seconds.
 
 ## Running
 
+The storefront tests are local-only by construction: each fact carries `SkipUnless = StorefrontAvailability.IsAvailable`,
+so without a storefront checkout (a CI runner, or `VC_STOREFRONT_E2E=0`) the five tests report as skipped and the group
+fixtures start nothing. The shared CI workflow needs no filter. Verified: the full suite with the opt-out reports
+583 passed, 5 skipped, 0 failed.
+
 Prerequisites: the storefront checkout with `node_modules` installed (`<workspace>/front`, or `VC_STOREFRONT_DIR`),
 Node 22 on PATH, Playwright browsers for Microsoft.Playwright 1.63 (`pwsh bin/Debug/net10.0/playwright.ps1 install chromium`
 once, if `%LOCALAPPDATA%\ms-playwright\chromium-1243` is not already there).
