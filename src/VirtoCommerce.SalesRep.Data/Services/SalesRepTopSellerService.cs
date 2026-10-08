@@ -49,8 +49,8 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         }
 
         return await StatisticsCache.GetOrCreateAsync(
-            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.TopSellerCacheExpiration,
-            GetType(), nameof(GetTopSellersAsync), criteria.GetCacheKey(),
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.Families.TopSeller,
+            GetType(), nameof(GetTopSellersAsync), criteria,
             () => ComputeTopSellersAsync(criteria));
     }
 
@@ -175,8 +175,8 @@ public class SalesRepTopSellerService : ISalesRepTopSellerService
         }
 
         return await StatisticsCache.GetOrCreateAsync(
-            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.TopSellerCacheExpiration,
-            GetType(), nameof(GetSoldCategoryIdsAsync), criteria.GetCacheKey(),
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.Families.TopSeller,
+            GetType(), nameof(GetSoldCategoryIdsAsync), criteria,
             () => ComputeSoldCategoryIdsAsync(criteria));
     }
 
