@@ -1,9 +1,13 @@
 # sales-rep — storefront plugin
 
 The Sales Rep Hub as a Module Federation remote for the VC storefront (`vc-frontend`):
-the hub dashboard, My customers, the customer profile, list sharing to a customer, and
-the buyer-facing "My Sales Reps" page (`/company/sales-reps`). Data comes from this
-module's Experience API.
+the hub dashboard, My customers, the customer profile with its orders, all customer orders,
+tasks, the document library, list sharing to customers, and the buyer-facing "My Sales Reps"
+page (`/company/sales-reps`). Data comes from this module's Experience API; tasks also need
+`VirtoCommerce.TaskManagement` (an optional dependency — without it the tasks surfaces stay hidden).
+
+The code tracks the host's in-repo `client-app/modules/sales-rep` (vc-frontend `dev` at
+`1ae6a0318`); the host-only differences are listed in that module's `PORT_TO_MF.md`.
 
 It ships inside this module: `yarn build` writes the remote into
 `../plugins/vc-frontend/`, the folder the platform probes for `vc-frontend` plugins
@@ -21,7 +25,7 @@ gate, dev loop): the host repo's `client-app/modules/federated/HOWTO.md`.
 | `yarn type-check` | `vue-tsc` against the frozen facade contract |
 | `yarn generate:graphql-types` | Regenerate `src/api/graphql/types.ts` from the backend schema |
 | `yarn test` / `yarn test:watch` | Vitest unit tests (jsdom) |
-| `yarn lint` / `yarn format` | ESLint / Prettier over the sources |
+| `yarn lint` / `yarn lint:fix` / `yarn format` | ESLint / Prettier over the sources |
 
 ## Local development against the host
 
@@ -29,8 +33,10 @@ gate, dev loop): the host repo's `client-app/modules/federated/HOWTO.md`.
    `(host) yarn build:core-types && cd client-app/core-api && yalc publish --private`
    then `(plugin) yalc add @vc-frontend/core && yarn install`.
 2. Serve this plugin: `yarn build && yarn preview` (or `yarn dev` for HMR).
-3. Point the host at it:
-   `APP_MODULES_FEDERATION_ENABLED=true APP_MODULES_FEDERATION_REMOTES='{"sales-rep":"http://localhost:3001/mf-manifest.json"}' yarn build-only --mode=development && yarn preview`
+3. Point the host at it. The host's switch is `module_federation_enabled` in
+   `client-app/config/settings_data.json` (don't commit it), and its in-repo sales-rep module
+   must not initialize alongside the plugin (comment out `initSalesRep` in `app-runner.ts`):
+   `APP_MODULES_FEDERATION_REMOTES='{"sales-rep":"http://localhost:3001/mf-manifest.json"}' yarn build-only --mode=development && yarn preview`
 
 ## The facade dependency & contract versioning
 
@@ -44,7 +50,7 @@ commit a `file:.yalc/...` dependency.
 version does not satisfy it refuse to load this plugin (clean skip instead of a runtime
 error). When you adopt an export added in a newer facade version, bump
 `requiredHostVersion` **and** the pinned tarball URL together. This plugin requires
-**^1.1.0** (`useQuery` re-export).
+**^0.2.3**.
 
 ## GraphQL codegen
 
@@ -83,15 +89,14 @@ The platform discovers storefront plugins by walking installed modules and probi
 `VirtoCommerce.XFrontend`'s app declaration. Two things wire this module into that walk:
 
 1. `module.manifest` depends on `VirtoCommerce.XFrontend`.
-2. `yarn build` emits `remoteEntry.js` and `plugin.json` into `../plugins/vc-frontend/`
-   (`public/plugin.json` is copied verbatim by Vite).
+2. `yarn build` emits `remoteEntry.js` and `plugin.json` into `../plugins/vc-frontend/`.
 
-`plugin.json` overrides the platform defaults, which would otherwise be the .NET module
-id and `./Module`:
-
-```json
-{ "id": "sales-rep", "remote": { "name": "sales-rep", "exposed": "./plugin" } }
-```
+`plugin.json` starts from `public/plugin.json`, which overrides the platform defaults (the
+.NET module id and `./Module`) with `sales-rep` / `./plugin`. The build adds `contributions`
+from `plugin.config.ts`: what the storefront learns before any of this plugin's code is
+fetched — the plugin-level `SalesRep.Enabled` gate, the buyer-facing page and its Corporate
+menu link, and the list-sharing provenance slot. The hub's own pages are deliberately not
+declared; `plugin.config.ts` says why.
 
 The built folder is gitignored — CI builds it before packing the module zip.
 Deliberately no `permission` field: the plugin also contributes the buyer-facing
@@ -100,5 +105,8 @@ Deliberately no `permission` field: the plugin also contributes the buyer-facing
 The storefront then reads the plugin list from xAPI:
 
 ```graphql
-query { store(domain: $domain) { plugins(appId: "vc-frontend") { id version entry { type path } remote { name exposed } } } }
+query { store(domain: $domain) { plugins(appId: "vc-frontend") { id version entry { type path } remote { name exposed } contributions } } }
 ```
+
+`contributions` needs x-api with VirtoCommerce/vc-module-x-api#89 and a platform with
+VirtoCommerce/vc-platform#3127.

@@ -9,7 +9,11 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "verbatimModuleSyntax": true,
-    "types": ["vite/client"]
+    "types": ["vite/client", "@vc-frontend/core"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["src", "vite.config.ts", "plugin.config.ts"],
+  "vueCompilerOptions": {
+    "checkUnknownComponents": true,
+    "checkUnknownDirectives": true
+  }
 }

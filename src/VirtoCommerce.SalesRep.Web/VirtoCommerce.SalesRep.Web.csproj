@@ -49,6 +49,8 @@
     <!-- The runner's global yarn is 1.x; package.json pins yarn 4. -->
     <Exec Command="corepack enable" ContinueOnError="true" />
     <Exec Command="yarn install --immutable" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
+    <!-- vite build strips types without checking them; this is the plugin's only type gate in CI. -->
+    <Exec Command="yarn type-check" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
     <Exec Command="yarn build" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
   </Target>
   <!--
