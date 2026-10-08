@@ -13,8 +13,8 @@ using LineItemSignature = (string Id, string ProductId, string Sku, string Name,
 
 namespace VirtoCommerce.SalesRep.Data.Handlers;
 
-// Order figures, the status vocabulary, the ordering-customer count and the top-seller ranking all aggregate the
-// orders table, so an order change is what moves them.
+// The status vocabulary, the ordering-customer count and the top-seller ranking all aggregate the orders table, so an
+// order change is what moves them. The order figures are x-frontend's and expire through the platform's order cache.
 public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderChangedEvent>
 {
     private readonly ISettingsManager _settingsManager;
@@ -38,7 +38,8 @@ public class SalesRepStatisticsOrderChangedEventHandler : IEventHandler<OrderCha
             _settingsManager, ModuleConstants.Settings.Caching.Families.OrderDriven, organizationIds);
     }
 
-    // The status pipeline saves an order repeatedly; only a change an aggregate actually reads is worth a recompute.
+    // The status pipeline saves an order repeatedly; a save that leaves all of these fields alone keeps the entries.
+    // Currency and Total fed the order figures, now x-frontend's; a change to them alone only adds an eviction.
     protected virtual bool IsAggregateRelevant(GenericChangedEntry<CustomerOrder> entry)
     {
         var oldEntry = entry.OldEntry;

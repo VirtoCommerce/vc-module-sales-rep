@@ -16,7 +16,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// <summary>
 /// End-to-end component tests for the <c>salesRepCustomerOrderStatistics</c> X-API query (VCST-5309): seed real
 /// orders into in-memory SQLite, execute real GraphQL through the real scoped schema / MediatR handler / the
-/// real <c>CustomerOrderStatisticsService</c>, and assert the aggregated, currency-converted numbers exactly.
+/// <c>CustomerOrderStatisticsService</c> adapter over x-frontend's real <c>OrderStatisticsService</c>, and assert the
+/// aggregated, currency-converted numbers exactly.
 /// Money fields are MoneyType (like SalesRepOrder.total), so the numeric value is asserted via <c>{ amount }</c>.
 /// The only stand-ins are the peripheral currency/store data sources (fixed rates in <c>TestGraphQlConfiguration</c>).
 /// </summary>
@@ -545,7 +546,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         MoneyAmount(first, "total").Should().Be(100m);
 
         // A new order lands after the aggregate was cached; within the TTL the repeat query is served from cache and
-        // deliberately does NOT reflect it (time-based cache, bounded staleness — there is no entity change token).
+        // deliberately does NOT reflect it (written past the Orders services, it expires no order cache token).
         SeedOrder(ctx, "o2", "org-1", 500m, _feb2026);
 
         var second = Stats(await ctx.ExecuteGraphQlAsync(query, userId: rep.UserId)).GetProperty("ytd");
@@ -578,6 +579,51 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var bYtd = Stats(await ctx.ExecuteGraphQlAsync(query, userId: repB.UserId)).GetProperty("ytd");
         MoneyAmount(bYtd, "total").Should().Be(0m);
         bYtd.GetProperty("count").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Statistics_AfterAnOrganizationIsUnassigned_ItsOrdersLeaveTheTotalAtOnce()
+    {
+        // The served organizations are part of the cache key, so the figure cached while the rep still served org-2
+        // is not the one read once they no longer do.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+        SeedOrder(ctx, "o1", "org-1", 100m, _feb2026);
+        SeedOrder(ctx, "o2", "org-2", 250m, _feb2026);
+
+        var query = $$"""
+                      query { salesRepCustomerOrderStatistics(currencyCode: "USD") {
+                        ytd: period({{Ytd}}) { total { amount } count } } }
+                      """;
+
+        MoneyAmount(Stats(await ctx.ExecuteGraphQlAsync(query, userId: rep.UserId)).GetProperty("ytd"), "total")
+            .Should().Be(350m);
+
+        rep.Organizations = [new SalesRepOrganization { OrganizationId = "org-1" }];
+        SalesRepTestContext.Unwrap(await ctx.Controller.Update(rep));
+
+        var ytd = Stats(await ctx.ExecuteGraphQlAsync(query, userId: rep.UserId)).GetProperty("ytd");
+        MoneyAmount(ytd, "total").Should().Be(100m);
+        ytd.GetProperty("count").GetInt32().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task InlineStatistics_ForAnotherSetOfCustomers_AreNotReadFromTheFirstSetsEntry()
+    {
+        // The customers a page batches are part of the cache key: the one-row page caches org-1 alone, and the full
+        // list must still compute org-2 instead of reading it from that entry.
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+        SeedOrder(ctx, "o1", "org-1", 100m, _feb2026);
+        SeedOrder(ctx, "o2", "org-2", 250m, _feb2026);
+
+        var firstPage = await ReadInlineYtdTotalsAsync(ctx, rep.UserId, "salesRepCustomers(first: 1, sort: \"name\")");
+        firstPage.Should().BeEquivalentTo(new Dictionary<string, decimal> { ["org-1"] = 100m });
+
+        var fullList = await ReadInlineYtdTotalsAsync(ctx, rep.UserId, "salesRepCustomers(sort: \"name\")");
+        fullList.Should().BeEquivalentTo(new Dictionary<string, decimal> { ["org-1"] = 100m, ["org-2"] = 250m });
     }
 
     [Fact]
@@ -647,6 +693,22 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
     /// <summary>The <c>data.salesRepCustomerOrderStatistics</c> node, after asserting the response carries no errors.</summary>
     private static JsonElement Stats(string json)
         => SalesRepTestContext.Node(json, "salesRepCustomerOrderStatistics");
+
+    /// <summary>Each row's inline ytd total of a <c>salesRepCustomers</c> call, by organization id.</summary>
+    private static async Task<Dictionary<string, decimal>> ReadInlineYtdTotalsAsync(SalesRepTestContext ctx, string repUserId, string customersCall)
+    {
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ {customersCall} {{ items {{ organizationId ytd: orderStatistics({Ytd}, currencyCode: \"USD\") {{ total {{ amount }} }} }} }} }}",
+            userId: repUserId);
+
+        var totals = new Dictionary<string, decimal>();
+        foreach (var item in SalesRepTestContext.Node(json, "salesRepCustomers").GetProperty("items").EnumerateArray())
+        {
+            totals[item.GetProperty("organizationId").GetString()] = MoneyAmount(item.GetProperty("ytd"), "total");
+        }
+
+        return totals;
+    }
 
     /// <summary>Reads the numeric <c>amount</c> of a MoneyType money field (e.g. total / average / totalChange).</summary>
     private static decimal MoneyAmount(JsonElement parent, string field)

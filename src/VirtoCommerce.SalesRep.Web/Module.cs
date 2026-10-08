@@ -123,8 +123,6 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
-        serviceCollection.AddTransient<ILayoutService, LayoutService>();
-
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
 
         // VCST-5332: add the "Customer" wishlist scope. Additive - the /graphql WishlistScopeType enum picks it up.

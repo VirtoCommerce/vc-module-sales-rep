@@ -169,11 +169,6 @@ internal static class TestServicesConfiguration
         services.AddSingleton<IOrganizationMembershipSearchService, OrganizationMembershipSearchService>();
         services.AddSingleton<Func<IOrganizationMembershipSearchService>>(sp => () => sp.GetRequiredService<IOrganizationMembershipSearchService>());
 
-        // CustomerPreference services (user-scoped key/value store) — back the layout persistence.
-        services.AddTransient<ICustomerPreferenceCrudService, CustomerPreferenceCrudService>();
-        services.AddTransient<ICustomerPreferenceSearchService, CustomerPreferenceSearchService>();
-        services.AddTransient<ICustomerPreferenceService, CustomerPreferenceService>();
-
         // Delete-cascade handler (subscribed to the in-process bus by the harness build step)
         services.AddTransient<DeleteOrganizationMembershipUserChangedEventHandler>();
 
@@ -256,7 +251,6 @@ internal static class TestServicesConfiguration
         services.AddTransient<ISalesRepSearchService, SalesRepSearchService>();
         services.AddTransient<ISalesRepDictionaryService, SalesRepDictionaryService>();
         services.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
-        services.AddTransient<ILayoutService, LayoutService>();
         services.AddTransient<SalesRepController>();
 
         // Dependencies of the dictionaries endpoint that the harness doesn't otherwise stand up. Countries is

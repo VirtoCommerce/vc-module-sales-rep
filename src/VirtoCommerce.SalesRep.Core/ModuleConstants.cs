@@ -263,7 +263,7 @@ public static class ModuleConstants
 
             public static class Families
             {
-                // Order statistics and the used-status vocabulary share one family: same records, same lifetime.
+                // The used-status vocabulary. The order figures are x-frontend's, cached under its own setting.
                 public static StatisticsCacheFamily Order { get; } =
                     new(nameof(Order), OrderStatisticsCacheExpiration, OrderStatisticsInvalidateOnChange);
 

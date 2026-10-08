@@ -66,6 +66,8 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.Xapi.Core.Schemas;
 using VirtoCommerce.Xapi.Core.Services;
 using VirtoCommerce.Xapi.Data.Services;
+using VirtoCommerce.XFrontend.Core.Statistics.Services;
+using VirtoCommerce.XFrontend.Data.Statistics.Services;
 using VirtoCommerce.XOrder.Core;
 using VirtoCommerce.XOrder.Core.Schemas;
 using VirtoCommerce.XOrder.Core.Services;
@@ -105,12 +107,13 @@ internal static class TestGraphQlConfiguration
         // Post-load order scoping, shared by both order surfaces.
         services.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
 
-        // Sales statistics service under test (VCST-5309): the REAL CustomerOrderStatisticsService aggregating
-        // over the same order repository. Its currency data source is a fixed double (USD primary; EUR at 1.25);
-        // the store lookup is the shared TestServicesConfiguration.TestStoreService (every store's default = EUR),
-        // so the conversion/fold math is deterministic and asserted directly.
-        services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
+        // Order statistics under test (VCST-5309, VCST-6078): the sales-rep adapter over x-frontend's REAL
+        // OrderStatisticsService, aggregating over the same order repository and caching in the real platform cache.
+        // Its currency data source is a fixed double (USD primary; EUR at 1.25); the store lookup is the shared
+        // TestServicesConfiguration.TestStoreService (every store's default = EUR), so the conversion/fold math is
+        // deterministic and asserted directly.
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
+        services.AddTransient<IOrderStatisticsService, OrderStatisticsService>();
 
         // Recomputes the derived money for the exactly-Full group, as the real read path does.
         services.AddTransient<ICustomerOrderTotalsCalculator, DefaultCustomerOrderTotalsCalculator>();
@@ -238,6 +241,10 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<IFacetMapper, FacetMapper>();
         services.AddSingleton<IXOrderMapper, XOrderMapper>();
         services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
+
+        // X-Order's graph types take IXapiMapper since X-Order 3.1014 (the X-Order version x-frontend's packages
+        // bring in); registered by Xapi.Data's AddXCore in production.
+        services.AddSingleton<IXapiMapper, XapiMapper>();
 
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();

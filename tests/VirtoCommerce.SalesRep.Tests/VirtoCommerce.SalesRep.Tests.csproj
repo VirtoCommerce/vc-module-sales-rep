@@ -15,14 +15,14 @@
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
     <PackageReference Include="VirtoCommerce.AssetsModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1012.0" />
-    <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1032.0" />
+    <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1048.0" />
     <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1028.0" />
-    <PackageReference Include="VirtoCommerce.FileExperienceApi.Data" Version="3.1004.0" />
+    <PackageReference Include="VirtoCommerce.FileExperienceApi.Data" Version="3.1006.0" />
     <!-- Test-only, and deliberately .Data: it carries the real AnalyticsService plus the two provider seams the
          component harness doubles, so these tests run the analytics module rather than restate it. -->
     <PackageReference Include="VirtoCommerce.GoogleEcommerceAnalyticsModule.Data" Version="4.1005.0-alpha.277-vcst-5337-ga-event-search" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
-    <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
+    <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1018.0" />
     <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1076.0" />
     <PackageReference Include="VirtoCommerce.Platform.DistributedLock" Version="3.1076.0" />
     <PackageReference Include="VirtoCommerce.Platform.Modules" Version="3.1076.0" />
@@ -32,7 +32,7 @@
     <PackageReference Include="VirtoCommerce.TaskManagement.Data" Version="3.1005.0" />
     <PackageReference Include="VirtoCommerce.Xapi.Data" Version="3.1026.0" />
     <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1039.0" />
-    <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1011.0" />
+    <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1014.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -50,5 +50,10 @@
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.ExperienceApi\VirtoCommerce.SalesRep.ExperienceApi.csproj" />
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.Web\VirtoCommerce.SalesRep.Web.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- LOCAL DEV SHIM (VCST-6078): replace with <PackageReference Include="VirtoCommerce.XFrontend.Data" Version="(alpha)" /> before the PR.
+         Test-only: the component tests run the real x-frontend order statistics service behind the adapter. -->
+    <ProjectReference Include="..\..\..\vc-module-x-frontend\src\VirtoCommerce.XFrontend.Data\VirtoCommerce.XFrontend.Data.csproj" />
   </ItemGroup>
 </Project>

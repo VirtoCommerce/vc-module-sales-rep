@@ -35,11 +35,7 @@ internal static class StatisticsCurrencyConverter
                 logger.LogWarning("Skipping {Count} record(s) in unconfigured currency '{Currency}' while computing sales-rep statistics.", group.Count, group.Currency);
 
                 excludedCount += group.Count;
-                var label = string.IsNullOrEmpty(group.Currency) ? "unspecified" : group.Currency;
-                if (!excludedCurrencies.Contains(label, StringComparer.OrdinalIgnoreCase))
-                {
-                    excludedCurrencies.Add(label);
-                }
+                excludedCurrencies.Add(group.Currency);
 
                 continue;
             }
@@ -75,14 +71,20 @@ internal static class StatisticsCurrencyConverter
             : new Money(1m, source).ConvertTo(target).InternalAmount;
     }
 
-    private static string BuildWarning(int excludedCount, List<string> excludedCurrencies)
+    // Also words the order figures, which x-frontend folds, so every statistics block warns the same way.
+    public static string BuildWarning(int excludedCount, IEnumerable<string> excludedCurrencies)
     {
-        if (excludedCurrencies.Count == 0)
+        var labels = excludedCurrencies
+            .Select(x => string.IsNullOrEmpty(x) ? "unspecified" : x)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (labels.Count == 0)
         {
             return null;
         }
 
-        var codes = string.Join(", ", excludedCurrencies);
+        var codes = string.Join(", ", labels);
 
         // Order/cart folds carry real counts; the top-seller fold's groups are revenue-only (count 0), hence two forms.
         return excludedCount > 0

@@ -8,6 +8,7 @@ using VirtoCommerce.CartModule.Core.Model;
 using VirtoCommerce.OrdersModule.Core.Events;
 using VirtoCommerce.OrdersModule.Core.Model;
 using VirtoCommerce.OrdersModule.Data.Model;
+using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.SalesRep.Core;
@@ -29,6 +30,9 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// carries its own control — the same query re-issued after a change no event announced must still answer from the
 /// cache — because without it a passing "it went fresh" would also pass with no cache at all. Organization ids are
 /// unique per test: the region token dictionaries are static, so a shared id would cross-expire.
+/// The order figures are x-frontend's (VCST-6078) and expire through the platform's per-customer order token, which
+/// Orders' CustomerOrderService.ClearCache fires on every save; the sales-rep order family now holds the status
+/// vocabulary, so the order-change cases below read that.
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepStatisticsCacheInvalidationTests
@@ -140,7 +144,7 @@ public class SalesRepStatisticsCacheInvalidationTests
     }
 
     [Fact]
-    public async Task OrderStatistics_AreServedFromTheCacheUntilTheOrderChangeArrives()
+    public async Task OrderStatistics_AreServedFromTheCacheUntilTheRepsOrderTokenExpires()
     {
         const string org = "invalidation-order-org";
         using var ctx = SalesRepTestContext.Create();
@@ -152,45 +156,68 @@ public class SalesRepStatisticsCacheInvalidationTests
         SeedOrder(ctx, "o2", org, total: 250m);
         (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
 
-        await PublishOrderChangedAsync(ctx, org);
+        ClearOrderCache("o2", rep.UserId);
 
         (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(350m);
     }
 
     [Fact]
-    public async Task OrderStatistics_SurviveAnOrderChangeThatNoAggregateReads()
+    public async Task OrderStatistics_ABuyersOrderInAServedOrganization_NeitherCountsNorEvicts()
+    {
+        const string org = "invalidation-order-buyer-org";
+        const string buyer = "invalidation-order-buyer";
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await CreateRepAsync(ctx, org);
+        SeedOrder(ctx, "o1", org, total: 100m);
+
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+
+        // The rep's own unannounced order is the control: still hidden after the buyer's save, so nothing was evicted.
+        SeedOrder(ctx, "o2", org, total: 250m);
+        SeedOrder(ctx, "b1", org, total: 999m, customerId: buyer);
+        ClearOrderCache("b1", buyer);
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+
+        ClearOrderCache("o2", rep.UserId);
+
+        // Fresh now, and still without the buyer's order: it is not the rep's.
+        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(350m);
+    }
+
+    [Fact]
+    public async Task StatusVocabulary_SurvivesAnOrderChangeThatNoAggregateReads()
     {
         const string org = "invalidation-order-delta-org";
         using var ctx = SalesRepTestContext.Create();
         var rep = await CreateRepAsync(ctx, org);
         SeedOrder(ctx, "o1", org, total: 100m);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
-        SeedOrder(ctx, "o2", org, total: 250m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
+        SeedOrder(ctx, "o2", org, total: 250m, status: "Processing");
 
         // A save that moves nothing an aggregate reads keeps the entry.
         var before = NewOrder(org, total: 100m, status: "New");
         var afterComment = NewOrder(org, total: 100m, status: "New");
         afterComment.Comment = "called the customer back";
         await PublishOrderChangedAsync(ctx, before, afterComment);
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
 
         var afterStatus = NewOrder(org, total: 100m, status: "Processing");
         await PublishOrderChangedAsync(ctx, before, afterStatus);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(350m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New", "Processing"]);
     }
 
     [Fact]
-    public async Task OrderStatistics_SurviveASaveThatOnlyRestatesTheSameDecimals()
+    public async Task StatusVocabulary_SurvivesASaveThatOnlyRestatesTheSameDecimals()
     {
         const string org = "invalidation-order-scale-org";
         using var ctx = SalesRepTestContext.Create();
         var rep = await CreateRepAsync(ctx, org);
         SeedOrder(ctx, "o1", org, total: 100m);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
-        SeedOrder(ctx, "o2", org, total: 250m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
+        SeedOrder(ctx, "o2", org, total: 250m, status: "Processing");
 
         // The shape production produces: OldEntry from the database carries the stored scale, NewEntry is the
         // client payload where JSON 12 has scale 0. Equal numbers, nothing moved — so this must not evict.
@@ -201,19 +228,19 @@ public class SalesRepStatisticsCacheInvalidationTests
 
         await PublishOrderChangedAsync(ctx, before, after);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
     }
 
     [Fact]
-    public async Task OrderStatistics_AreEvictedWhenAPartialPayloadOmitsLineItems()
+    public async Task StatusVocabulary_IsEvictedWhenAPartialPayloadOmitsLineItems()
     {
         const string org = "invalidation-order-partial-org";
         using var ctx = SalesRepTestContext.Create();
         var rep = await CreateRepAsync(ctx, org);
         SeedOrder(ctx, "o1", org, total: 100m);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
-        SeedOrder(ctx, "o2", org, total: 250m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
+        SeedOrder(ctx, "o2", org, total: 250m, status: "Processing");
 
         // Partial updates mean NewEntry can arrive without line items. Absent is not unchanged: reading it as
         // "nothing moved" would turn this performance filter into stale figures, so evicting is the correct answer.
@@ -224,19 +251,19 @@ public class SalesRepStatisticsCacheInvalidationTests
 
         await PublishOrderChangedAsync(ctx, before, after);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(350m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New", "Processing"]);
     }
 
     [Fact]
-    public async Task OrderStatistics_AreEvictedByALineItemChange()
+    public async Task StatusVocabulary_IsEvictedByALineItemChange()
     {
         const string org = "invalidation-order-lines-org";
         using var ctx = SalesRepTestContext.Create();
         var rep = await CreateRepAsync(ctx, org);
         SeedOrder(ctx, "o1", org, total: 100m);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
-        SeedOrder(ctx, "o2", org, total: 250m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
+        SeedOrder(ctx, "o2", org, total: 250m, status: "Processing");
 
         // Top sellers aggregates the line items, so they are part of what the families read.
         var before = NewOrder(org, total: 100m, status: "New");
@@ -246,7 +273,7 @@ public class SalesRepStatisticsCacheInvalidationTests
 
         await PublishOrderChangedAsync(ctx, before, after);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(350m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New", "Processing"]);
     }
 
     [Fact]
@@ -284,20 +311,20 @@ public class SalesRepStatisticsCacheInvalidationTests
     }
 
     [Fact]
-    public async Task OrderStatistics_SurviveACartChange()
+    public async Task StatusVocabulary_SurvivesACartChange()
     {
         const string org = "invalidation-order-family-org";
         using var ctx = SalesRepTestContext.Create();
         var rep = await CreateRepAsync(ctx, org);
         SeedOrder(ctx, "o1", org, total: 100m);
 
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
 
-        SeedOrder(ctx, "o2", org, total: 250m);
+        SeedOrder(ctx, "o2", org, total: 250m, status: "Processing");
         await PublishCartChangedAsync(ctx, org);
 
         // The mirror of CartStatistics_SurviveAnOrderChange: a cart change concerns the cart family alone.
-        (await ReadOrderTotalAsync(ctx, org, rep)).Should().Be(100m);
+        (await ReadUsedStatusesAsync(ctx, org, rep)).Should().BeEquivalentTo(["New"]);
     }
 
     [Fact]
@@ -339,7 +366,7 @@ public class SalesRepStatisticsCacheInvalidationTests
     }
 
     [Fact]
-    public async Task CustomersList_InlinePurchaseFigures_AreEvictedByAnOrderChange()
+    public async Task CustomersList_InlinePurchaseFigures_AreRefreshedWhenTheRepsOrderTokenExpires()
     {
         const string org = "invalidation-customers-list-org";
         using var ctx = SalesRepTestContext.Create();
@@ -351,9 +378,9 @@ public class SalesRepStatisticsCacheInvalidationTests
         SeedOrder(ctx, "o2", org, total: 250m);
         (await ReadCustomerPurchasesAsync(ctx, rep)).Should().Be(100m);
 
-        await PublishOrderChangedAsync(ctx, org);
+        ClearOrderCache("o2", rep.UserId);
 
-        // The list's inline figures route through the same per-organization aggregate as the hub statistics.
+        // The list's inline figures route through the same per-customer cache as the hub statistics.
         (await ReadCustomerPurchasesAsync(ctx, rep)).Should().Be(350m);
     }
 
@@ -403,6 +430,13 @@ public class SalesRepStatisticsCacheInvalidationTests
             .GetProperty("ytd").GetProperty("total").GetProperty("amount").GetDecimal();
     }
 
+    private static Task<IList<string>> ReadUsedStatusesAsync(SalesRepTestContext ctx, string org, SalesRepDetails rep)
+    {
+        var criteria = SalesRepScopeCriteria.Create([org], rep.UserId, "B2B-store", null, null);
+
+        return ctx.GetRequiredService<ISalesRepOrderStatusService>().GetUsedStatusesAsync(criteria);
+    }
+
     private static async Task<IList<string>> ReadSoldCategoriesAsync(SalesRepTestContext ctx, string org, SalesRepDetails rep)
     {
         var criteria = SalesRepScopeCriteria.Create([org], rep.UserId, "B2B-store", null, null);
@@ -418,6 +452,14 @@ public class SalesRepStatisticsCacheInvalidationTests
 
         return ctx.GetRequiredService<IEventPublisher>()
             .Publish(new CartChangedEvent([new GenericChangedEntry<ShoppingCart>(cart, EntryState.Modified)]));
+    }
+
+    // Exactly what Orders' CustomerOrderService.ClearCache does for every order it saves or deletes.
+    private static void ClearOrderCache(string orderId, string customerId)
+    {
+        GenericSearchCachingRegion<CustomerOrder>.ExpireRegion();
+        GenericCachingRegion<CustomerOrder>.ExpireTokenForKey(orderId);
+        GenericCachingRegion<CustomerOrder>.ExpireTokenForKey(customerId);
     }
 
     private static Task PublishOrderChangedAsync(SalesRepTestContext ctx, string org)
@@ -494,7 +536,8 @@ public class SalesRepStatisticsCacheInvalidationTests
     }
 
     private static void SeedOrder(
-        SalesRepTestContext ctx, string id, string org, decimal total, string categoryId = null)
+        SalesRepTestContext ctx, string id, string org, decimal total, string categoryId = null, string status = "New",
+        string customerId = null)
     {
         using var db = ctx.NewOrderDbContext();
         var order = new CustomerOrderEntity
@@ -502,10 +545,10 @@ public class SalesRepStatisticsCacheInvalidationTests
             Id = id,
             Number = id,
             OrganizationId = org,
-            CustomerId = ctx.LastCreatedRepUserId,
+            CustomerId = customerId ?? ctx.LastCreatedRepUserId,
             CustomerName = "Customer 1",
             StoreId = "B2B-store",
-            Status = "New",
+            Status = status,
             Currency = "USD",
             Total = total,
             CreatedDate = _feb2026,
