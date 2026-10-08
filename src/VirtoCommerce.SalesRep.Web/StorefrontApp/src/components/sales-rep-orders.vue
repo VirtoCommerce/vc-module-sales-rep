@@ -1,7 +1,7 @@
 <template>
   <LayoutWidget :title="title" size="md" class="sales-rep-orders">
     <template #append>
-      <VcLink :to="{ name: 'Orders' }" class="sales-rep-orders__all-link" target="_blank" rel="noopener noreferrer">
+      <VcLink :to="allOrdersRoute" class="sales-rep-orders__all-link">
         {{ t("sales_rep.orders.view_all") }}
 
         <VcIcon name="arrow-right" size="xs" />
@@ -64,14 +64,14 @@
                 <div class="sales-rep-orders__mobile-row">
                   <VcLink
                     class="sales-rep-orders__order-link"
-                    :to="{ name: 'OrderDetails', params: { orderId: item.id } }"
+                    :to="{ name: BUYER_ORDER_ROUTE_NAME, params: { orderId: item.id } }"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
                     {{ item.number }}
                   </VcLink>
 
-                  <span>{{ item.total }}</span>
+                  <span class="sales-rep-orders__mobile-total">{{ item.total }}</span>
                 </div>
 
                 <div v-if="isCrossCustomer" class="sales-rep-orders__mobile-customer">{{ item.organizationName }}</div>
@@ -89,7 +89,7 @@
             <VcTableColumn id="number" v-slot="{ item }" :title="t('sales_rep.orders.number')">
               <VcLink
                 class="sales-rep-orders__order-link"
-                :to="{ name: 'OrderDetails', params: { orderId: item.id } }"
+                :to="{ name: BUYER_ORDER_ROUTE_NAME, params: { orderId: item.id } }"
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -111,11 +111,18 @@
               v-slot="{ item }"
               :title="t('sales_rep.orders.date')"
               :sortable="isColumnSortable('date')"
+              class="sales-rep-orders__value"
             >
               {{ $d(item.createdDate, "short") }}
             </VcTableColumn>
 
-            <VcTableColumn v-if="!isCrossCustomer" id="items" v-slot="{ item }" :title="t('sales_rep.orders.items')">
+            <VcTableColumn
+              v-if="!isCrossCustomer"
+              id="items"
+              v-slot="{ item }"
+              :title="t('sales_rep.orders.items')"
+              class="sales-rep-orders__value"
+            >
               {{ item.itemsCount }}
             </VcTableColumn>
 
@@ -129,7 +136,7 @@
               :title="t('sales_rep.orders.total')"
               :sortable="isColumnSortable('total')"
               align="right"
-              class="font-bold"
+              class="sales-rep-orders__value font-bold"
             >
               {{ item.total }}
             </VcTableColumn>
@@ -148,7 +155,12 @@ import { useSalesRepColumnSort } from "../composables/useSalesRepColumnSort";
 import { useSalesRepOrders } from "../composables/useSalesRepOrders";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
 import { useSalesRepRules } from "../composables/useSalesRepRules";
-import { ORDERS_DEFAULT_LIMIT } from "../constants";
+import {
+  ALL_CUSTOMER_ORDERS_ROUTE_NAME,
+  BUYER_ORDER_ROUTE_NAME,
+  CUSTOMER_ORDERS_ROUTE_NAME,
+  ORDERS_DEFAULT_LIMIT,
+} from "../constants";
 import { knownHiddenTabs, toggleTabRule, visibleTabRules } from "../layout/settings";
 import { selectableFilterRules } from "../utils";
 import LayoutWidget from "./layout-widget.vue";
@@ -176,6 +188,12 @@ const props = withDefaults(defineProps<IProps>(), {
 const { t } = useI18n();
 
 const isCrossCustomer = computed(() => !props.organizationId);
+
+const allOrdersRoute = computed(() =>
+  props.organizationId
+    ? { name: CUSTOMER_ORDERS_ROUTE_NAME, params: { organizationId: props.organizationId } }
+    : { name: ALL_CUSTOMER_ORDERS_ROUTE_NAME },
+);
 
 // Selected named rules; undefined → the server default (baseline filter / "recent" sort).
 const filter = ref<string | undefined>(undefined);
@@ -288,12 +306,21 @@ const failed = computed(() => Boolean(error.value));
     @apply text-[--link-color] hover:text-[--link-hover-color];
   }
 
+  // VcTable breaks cell text at any character; a long order number would otherwise split these values mid-word.
+  &__value {
+    @apply whitespace-nowrap;
+  }
+
   &__mobile-item {
     @apply flex flex-col gap-1 border-b px-5 py-4;
   }
 
   &__mobile-row {
-    @apply flex items-center justify-between font-bold;
+    @apply flex items-center justify-between gap-2 font-bold;
+  }
+
+  &__mobile-total {
+    @apply shrink-0 whitespace-nowrap;
   }
 
   &__mobile-customer {

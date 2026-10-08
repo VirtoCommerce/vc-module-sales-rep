@@ -1,40 +1,47 @@
 <template>
   <div class="sales-rep-rule-chips">
-    <!-- Baseline tab: active when no rule is chosen; clicking it clears the filter. -->
-    <button
-      type="button"
-      :class="['sales-rep-rule-chips__tab', { 'sales-rep-rule-chips__tab--active': !modelValue }]"
-      :aria-pressed="!modelValue"
-      :data-text="allLabel"
-      @click="modelValue = undefined"
-    >
-      {{ allLabel }}
-    </button>
+    <!-- Baseline tab: active when no rule is chosen; clicking it clears the filter. Its value is a
+         boolean so no non-empty rule name can collide with it (a rule named "" would still match,
+         but every surface here already reads a falsy filter as the baseline).
+         `Boolean(true)`, not `:value="true"`: the latter trips vue/prefer-true-attribute-shorthand,
+         and the shorthand it asks for passes "" instead — same reason as variations.vue. -->
+    <!-- A surface whose "no rule" state has more than one view (the Tasks page: Today / a day / All) draws its
+         own baseline chips here, inside the row so they share its layout. -->
+    <slot name="baseline">
+      <SalesRepRuleChip
+        :value="Boolean(true)"
+        :model-value="!modelValue"
+        :label="allLabel ?? ''"
+        :count="allCount"
+        @change="modelValue = undefined"
+      />
+    </slot>
 
-    <button
+    <SalesRepRuleChip
       v-for="rule in selectableRules"
       :key="rule.name"
-      type="button"
-      :class="['sales-rep-rule-chips__tab', { 'sales-rep-rule-chips__tab--active': modelValue === rule.name }]"
-      :aria-pressed="modelValue === rule.name"
-      :data-text="rule.label"
-      @click="modelValue = rule.name"
-    >
-      {{ rule.label }}
-    </button>
+      :value="rule.name"
+      :model-value="modelValue"
+      :label="rule.label"
+      :count="rule.count"
+      @change="modelValue = $event"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, watch } from "vue";
 import { selectableFilterRules } from "../utils";
+import SalesRepRuleChip from "./sales-rep-rule-chip.vue";
 import type { SalesRepRuleType } from "../types";
 
 interface IProps {
   // The server-defined filter rules to offer as tabs.
   rules: SalesRepRuleType[];
-  // Label for the synthetic baseline tab (the "All" / no-filter option).
-  allLabel: string;
+  // Label for the synthetic baseline tab (the "All" / no-filter option). Unused when the #baseline slot is filled.
+  allLabel?: string;
+  // Item count for the baseline tab; rendered as a highlighted counter when present (like `rule.count`).
+  allCount?: number;
   // Whether `rules` is still being fetched — an in-flight refetch must not look like "the rule is gone".
   loading?: boolean;
 }
@@ -69,26 +76,5 @@ const selectableRules = computed(() => selectableFilterRules(props.rules));
 // @apply: module is self-contained as an MF remote (no global utility layer).
 .sales-rep-rule-chips {
   @apply flex flex-wrap items-center gap-1;
-
-  // The transparent border keeps every tab the same size so selecting one causes no layout shift.
-  &__tab {
-    // Radius follows the app-wide `--vc-radius` token so it tracks the theme's roundness setting.
-    @apply inline-flex cursor-pointer flex-col items-center rounded-[--vc-radius] border border-transparent px-3 py-1.5 text-sm font-medium text-neutral-500;
-
-    // Invisible ::after reserves the bold width so toggling font-weight never resizes the tab (avoids reflow).
-    &::after {
-      @apply invisible h-0 overflow-hidden font-semibold;
-
-      content: attr(data-text);
-    }
-
-    &:hover {
-      @apply text-neutral-900;
-    }
-
-    &--active {
-      @apply border-neutral-200 bg-additional-50 font-semibold text-neutral-900 shadow;
-    }
-  }
 }
 </style>

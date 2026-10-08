@@ -89,6 +89,13 @@
         "empty_visible": "Ziehen Sie eine Kennzahl hierher, um sie einzublenden",
         "empty_hidden": "Ziehen Sie eine Kennzahl hierher, um sie auszublenden",
         "max_rows": "Max Zeilen",
+        "restored": "Standardlayout wiederhergestellt.",
+        "empty": {
+          "title": "Alle Blöcke sind ausgeblendet",
+          "text": "Alle Kennzahlen und Widgets auf dieser Seite wurden in den Layout-Einstellungen in den Bereich {hidden} verschoben. Stellen Sie das Standardlayout wieder her, um alles zurückzuholen, oder öffnen Sie {edit}, um genau festzulegen, was angezeigt wird.",
+          "hidden": "Ausgeblendet",
+          "restore": "Standardlayout wiederherstellen"
+        },
         "a11y": {
           "reorder": "{title} umsortieren",
           "hide": "{title} ausblenden",
@@ -125,6 +132,39 @@
         "ship_to": "Lieferadresse"
       }
     },
+    "customer_orders": {
+      "page": {
+        "title": "Bestellungen von {customer}",
+        "all_title": "Kundenbestellungen",
+        "title_fallback": "Bestellungen"
+      },
+      "breadcrumb": "Bestellungen",
+      "back_to_customer": "Zurück zum Kunden",
+      "back_to_orders": "Zurück zu den Bestellungen",
+      "order_not_found": "Bestellung nicht gefunden",
+      "order_load_failed": "This order couldn't be loaded. Try refreshing the page.",
+      "search_placeholder": "Nach Nummer, Name oder anderen Daten",
+      "search_aria": "Bestellungen durchsuchen",
+      "reset_search": "Suche zurücksetzen",
+      "filters": {
+        "button": "Filter",
+        "title": "Filter",
+        "created_date": "Erstellungsdatum",
+        "start_date": "Startdatum",
+        "end_date": "Enddatum",
+        "date_range": "Datumsbereich",
+        "order_status": "@:common.labels.status",
+        "customer": "Kunde auswählen",
+        "reset": "Zurücksetzen",
+        "apply": "Anwenden",
+        "custom_date": "Benutzerdefiniertes Datum",
+        "last_day": "Letzter Tag",
+        "last_week": "Letzte Woche",
+        "last_month": "Letzter Monat",
+        "last_year": "Letztes Jahr",
+        "remove_filter": "Filter „{label}“ entfernen"
+      }
+    },
     "communication": {
       "action": "E-Mail senden",
       "title": "Nachricht senden",
@@ -157,7 +197,7 @@
       }
     },
     "orders": {
-      "title": "Aktuelle Bestellungen",
+      "title": "Meine aktuellen Bestellungen",
       "view_all": "Alle Bestellungen",
       "empty": "Noch keine Bestellungen",
       "no_results": "Keine Bestellungen entsprechen diesem Filter",
@@ -170,6 +210,74 @@
       "filter_all": "Alle",
       "load_failed": "Bestellungen konnten nicht geladen werden"
     },
+    "tasks": {
+      "title": "Aufgaben",
+      "widget_title": "Aufgaben & Fälligkeiten",
+      "view_all": "Alle Aufgaben",
+      "new_task": "Neue Aufgabe",
+      "due_dates": "Fälligkeiten",
+      "today": "Heute",
+      "all": "Alle",
+      "clear_day_aria": "{date} entfernen",
+      "empty": "Keine Aufgaben in diesem Tab",
+      "empty_day": "An diesem Tag ist nichts fällig",
+      "load_failed": "Aufgaben konnten nicht geladen werden",
+      "day_task_count": "{count} Aufgabe | {count} Aufgaben",
+      "overdue_total": "{count} überfällige Aufgabe | {count} überfällige Aufgaben",
+      "day_task_count_capped": "{total} Aufgaben ({shown} angezeigt)",
+      "day_markers": "{count} Aufgabe. Markiert: {kinds} | {count} Aufgaben. Markiert: {kinds}",
+      "page": {
+        "subtitle": "Ihre Aufgaben, Follow-ups und Fälligkeiten über alle Konten hinweg — nach Tagen aufgeschlüsselt."
+      },
+      "table": {
+        "task": "Aufgabe",
+        "status": "Status",
+        "notes": "Notizen",
+        "actions": "Aktionen",
+        "mark_complete": "Erledigen",
+        "reopen": "Wieder öffnen",
+        "action_aria": "{action}: „{name}“",
+        "edit_aria": "„{name}“ bearbeiten"
+      },
+      "status": {
+        "upcoming": "Anstehend",
+        "overdue": "Überfällig",
+        "completed": "Erledigt",
+        "canceled": "Abgebrochen"
+      },
+      "priority": {
+        "lowest": "Sehr niedrig",
+        "low": "Niedrig",
+        "normal": "Normal",
+        "high": "Hoch",
+        "highest": "Sehr hoch"
+      },
+      "due_relative": {
+        "expired": "Abgelaufen {date}",
+        "due": "Fällig {date}"
+      },
+      "legend": {
+        "upcoming": "Anstehend",
+        "overdue": "Überfällig",
+        "completed": "Erledigt"
+      },
+      "form": {
+        "create_title": "Neue Aufgabe",
+        "edit_title": "Aufgabe bearbeiten",
+        "name_label": "Titel",
+        "due_date_label": "Fälligkeitsdatum",
+        "priority_label": "Priorität",
+        "type_label": "Typ",
+        "description_label": "Notizen",
+        "save_button": "Speichern",
+        "cancel_button": "Abbrechen",
+        "delete_button": "Löschen",
+        "delete_title": "Aufgabe löschen",
+        "delete_confirm": "Diese Aufgabe wird endgültig gelöscht. Fortfahren?",
+        "saved": "Aufgabe gespeichert",
+        "deleted": "Aufgabe gelöscht"
+      }
+    },
     "top_sellers": {
       "title": "Top-Seller",
       "rank": "#",
@@ -181,7 +289,45 @@
       "all_categories": "Alle Kategorien",
       "load_failed": "Topseller konnten nicht geladen werden"
     },
+    "documents": {
+      "title": "Dokumentbibliothek",
+      "browse_all": "Alle anzeigen",
+      "open": "Öffnen",
+      "empty": "Noch keine Dokumente",
+      "load_failed": "Dokumente konnten nicht geladen werden",
+      "page": {
+        "subtitle": "Kataloge, Lookbooks, Preislisten und Vertriebsleitfäden — öffnen oder laden Sie die neueste Veröffentlichung herunter.",
+        "search_placeholder": "Suche nach Name",
+        "search_aria": "Dokumente suchen",
+        "all_tab": "Alle",
+        "empty": "Noch keine Dokumente",
+        "no_results": "Keine Dokumente entsprechen Ihrer Suche",
+        "reset_search": "Suche zurücksetzen",
+        "load_failed": "Dokumente konnten nicht geladen werden"
+      },
+      "details": {
+        "pages_count": "{count} Seite | {count} Seiten",
+        "open": "Öffnen",
+        "download": "Herunterladen",
+        "close": "Details schließen",
+        "not_found": "Dieses Dokument ist nicht mehr verfügbar.",
+        "latest_publication": "Neueste Veröffentlichung"
+      },
+      "published": "Veröffentlicht {date}"
+    },
     "rules": {
+      "task": {
+        "filter": {
+          "upcoming": "Anstehend",
+          "overdue": "Überfällig",
+          "completed": "Erledigt"
+        },
+        "sort": {
+          "due-date": "Fälligkeitsdatum",
+          "recent": "Zuletzt erstellt",
+          "name": "Aufgabe"
+        }
+      },
       "load_failed": {
         "filter": "Die Filter konnten nicht geladen werden, daher wird die vollständige Liste angezeigt. Bitte die Seite neu laden.",
         "sort": "Die Sortieroptionen konnten nicht geladen werden, daher wird die Standardsortierung verwendet. Bitte die Seite neu laden.",
@@ -194,19 +340,28 @@
       }
     },
     "list_sharing": {
-      "share_customers_label": "Kunde",
-      "share_customers_placeholder": "Kunde auswählen",
+      "share_customers_label": "Kunden",
+      "share_customers_placeholder": "Kunden nach Namen suchen",
       "share_customers_error": "Die Kundenliste konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
-      "share_replace_hint": "Der zuvor ausgewählte Kunde verliert den Zugriff auf diese Liste.",
-      "share_message_label": "Nachricht",
-      "share_message_placeholder": "Optionale Nachricht hinzufügen",
+      "share_empty_hint": "Eine leere Liste beendet die Freigabe nicht – ändern Sie stattdessen, wer Zugriff hat.",
+      "share_message_label": "Nachricht (optional)",
+      "share_message_placeholder": "Notiz für die Empfänger hinzufügen",
+      "share_message_hint": "Neue Empfänger erhalten dies in ihrer Benachrichtigung.",
+      "recipients_title": "Empfänger · {count}",
+      "clear_recipients_button": "Alle entfernen",
+      "recipients_cleared": "Geleert · {count}",
+      "restore_recipients_button": "Rückgängig",
+      "show_all_recipients_button": "Alle {count} anzeigen",
+      "show_less_recipients_button": "Weniger anzeigen",
+      "remove_recipient_button": "{name} entfernen",
       "share_default_title": "Eine neue Liste von Ihrem Vertriebsmitarbeiter",
       "share_default_message": "Hallo! Ich habe die Liste „{listName}“ gerade für Ihre Organisation freigegeben. Schauen Sie sie sich an:",
-      "share_success": "Liste für den Kunden freigegeben.",
+      "share_success": "Liste für {count} Kunden freigegeben.",
+      "share_saved": "Liste gespeichert. Jetzt für {count} Kunden freigegeben.",
       "share_partial": "Liste freigegeben, aber nicht alle Benachrichtigungen wurden zugestellt.",
-      "share_notify_error": "Die Liste wurde gespeichert, der Kunde konnte jedoch nicht benachrichtigt werden.",
-      "scope_label": "Kunde",
-      "status": "Mit Kunde geteilt",
+      "share_notify_error": "Die Liste wurde gespeichert, die Benachrichtigung konnte jedoch nicht gesendet werden.",
+      "scope_label": "Bestimmte Kunden",
+      "status": "Mit 1 Kunden geteilt | Mit {count} Kunden geteilt",
       "badge": "Empfohlen von Ihrem Vertriebsmitarbeiter"
     }
   }

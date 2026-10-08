@@ -104,12 +104,12 @@ provideBlockChrome({
       @apply cursor-grabbing;
     }
 
-    &:focus-visible {
-      @apply outline-2 outline-primary-500;
-    }
-
+    // Self-sufficient: useKeyboardSort moves the card and restores focus a tick later,
+    // so the ring must not depend on `:focus-visible`. The grab itself reads from
+    // `--grabbed` (opacity + shadow), which is why no second ring is needed here.
     &[aria-pressed="true"] {
-      @apply outline-2 outline-primary-500 ring-2 ring-primary-200;
+      outline: var(--vc-focus-ring-width) solid var(--vc-focus-ring-color);
+      outline-offset: var(--vc-focus-ring-offset);
     }
   }
 

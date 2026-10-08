@@ -89,6 +89,13 @@
         "empty_visible": "Arrastre una métrica aquí para mostrarla",
         "empty_hidden": "Arrastre una métrica aquí para ocultarla",
         "max_rows": "Filas máximas",
+        "restored": "Se restableció el diseño predeterminado.",
+        "empty": {
+          "title": "Todos los bloques están ocultos",
+          "text": "Todas las métricas y widgets de esta página se han movido a {hidden} en la configuración del diseño. Restablezca el diseño predeterminado para recuperarlo todo o abra {edit} para elegir exactamente qué mostrar.",
+          "hidden": "Ocultos",
+          "restore": "Restablecer diseño predeterminado"
+        },
         "a11y": {
           "reorder": "Reordenar {title}",
           "hide": "Ocultar {title}",
@@ -125,6 +132,39 @@
         "ship_to": "Envío a"
       }
     },
+    "customer_orders": {
+      "page": {
+        "title": "Pedidos de {customer}",
+        "all_title": "Pedidos de clientes",
+        "title_fallback": "Pedidos"
+      },
+      "breadcrumb": "Pedidos",
+      "back_to_customer": "Volver al cliente",
+      "back_to_orders": "Volver a los pedidos",
+      "order_not_found": "Pedido no encontrado",
+      "order_load_failed": "This order couldn't be loaded. Try refreshing the page.",
+      "search_placeholder": "Buscar por número, nombre u otros datos",
+      "search_aria": "Buscar pedidos",
+      "reset_search": "Restablecer búsqueda",
+      "filters": {
+        "button": "Filtros",
+        "title": "Filtros",
+        "created_date": "Fecha de creación",
+        "start_date": "Fecha de inicio",
+        "end_date": "Fecha de finalización",
+        "date_range": "Intervalo de fechas",
+        "order_status": "@:common.labels.status",
+        "customer": "Seleccionar cliente",
+        "reset": "Restablecer",
+        "apply": "Aplicar",
+        "custom_date": "Fecha personalizada",
+        "last_day": "Último día",
+        "last_week": "Última semana",
+        "last_month": "Último mes",
+        "last_year": "Último año",
+        "remove_filter": "Quitar el filtro «{label}»"
+      }
+    },
     "communication": {
       "action": "Enviar correo",
       "title": "Enviar un mensaje",
@@ -157,7 +197,7 @@
       }
     },
     "orders": {
-      "title": "Pedidos recientes",
+      "title": "Mis pedidos recientes",
       "view_all": "Todos los pedidos",
       "empty": "Aún no hay pedidos",
       "no_results": "Ningún pedido coincide con este filtro",
@@ -170,6 +210,74 @@
       "filter_all": "Todos",
       "load_failed": "No se pudieron cargar los pedidos"
     },
+    "tasks": {
+      "title": "Tareas",
+      "widget_title": "Tareas y vencimientos",
+      "view_all": "Todas las tareas",
+      "new_task": "Nueva tarea",
+      "due_dates": "Vencimientos",
+      "today": "Hoy",
+      "all": "Todas",
+      "clear_day_aria": "Quitar {date}",
+      "empty": "No hay tareas en esta pestaña",
+      "empty_day": "No vence nada este día",
+      "load_failed": "No se pudieron cargar las tareas",
+      "day_task_count": "{count} tarea | {count} tareas",
+      "overdue_total": "{count} tarea vencida | {count} tareas vencidas",
+      "day_task_count_capped": "{total} tareas ({shown} mostradas)",
+      "day_markers": "{count} tarea. Marcado: {kinds} | {count} tareas. Marcado: {kinds}",
+      "page": {
+        "subtitle": "Sus tareas, seguimientos y vencimientos de todas las cuentas: organizados por día."
+      },
+      "table": {
+        "task": "Tarea",
+        "status": "Estado",
+        "notes": "Notas",
+        "actions": "Acciones",
+        "mark_complete": "Completar",
+        "reopen": "Reabrir",
+        "action_aria": "{action}: «{name}»",
+        "edit_aria": "Editar «{name}»"
+      },
+      "status": {
+        "upcoming": "Próxima",
+        "overdue": "Vencida",
+        "completed": "Completada",
+        "canceled": "Cancelada"
+      },
+      "priority": {
+        "lowest": "Mínima",
+        "low": "Baja",
+        "normal": "Normal",
+        "high": "Alta",
+        "highest": "Máxima"
+      },
+      "due_relative": {
+        "expired": "Venció {date}",
+        "due": "Vence {date}"
+      },
+      "legend": {
+        "upcoming": "Próximas",
+        "overdue": "Vencidas",
+        "completed": "Completadas"
+      },
+      "form": {
+        "create_title": "Nueva tarea",
+        "edit_title": "Editar tarea",
+        "name_label": "Título",
+        "due_date_label": "Fecha de vencimiento",
+        "priority_label": "Prioridad",
+        "type_label": "Tipo",
+        "description_label": "Notas",
+        "save_button": "Guardar",
+        "cancel_button": "Cancelar",
+        "delete_button": "Eliminar",
+        "delete_title": "Eliminar tarea",
+        "delete_confirm": "Esta tarea se eliminará de forma permanente. ¿Continuar?",
+        "saved": "Tarea guardada",
+        "deleted": "Tarea eliminada"
+      }
+    },
     "top_sellers": {
       "title": "Top vendedores",
       "rank": "#",
@@ -181,7 +289,45 @@
       "all_categories": "Todas las categorías",
       "load_failed": "No se pudieron cargar los más vendidos"
     },
+    "documents": {
+      "title": "Biblioteca de documentos",
+      "browse_all": "Ver todos",
+      "open": "Abrir",
+      "empty": "Aún no hay documentos",
+      "load_failed": "No se pudieron cargar los documentos",
+      "page": {
+        "subtitle": "Catálogos, lookbooks, listas de precios y guías de ventas: abra o descargue la última publicación.",
+        "search_placeholder": "Buscar por nombre",
+        "search_aria": "Buscar documentos",
+        "all_tab": "Todos",
+        "empty": "Aún no hay documentos",
+        "no_results": "Ningún documento coincide con su búsqueda",
+        "reset_search": "Restablecer búsqueda",
+        "load_failed": "No se pudieron cargar los documentos"
+      },
+      "details": {
+        "pages_count": "{count} página | {count} páginas",
+        "open": "Abrir",
+        "download": "Descargar",
+        "close": "Cerrar detalles",
+        "not_found": "Este documento ya no está disponible.",
+        "latest_publication": "Última publicación"
+      },
+      "published": "Publicado {date}"
+    },
     "rules": {
+      "task": {
+        "filter": {
+          "upcoming": "Próximas",
+          "overdue": "Vencidas",
+          "completed": "Completadas"
+        },
+        "sort": {
+          "due-date": "Fecha de vencimiento",
+          "recent": "Creadas recientemente",
+          "name": "Tarea"
+        }
+      },
       "load_failed": {
         "filter": "No se pudieron cargar los filtros, por lo que se muestra la lista completa. Actualice la página.",
         "sort": "No se pudieron cargar las opciones de ordenación, por lo que se usa el orden predeterminado. Actualice la página.",
@@ -194,19 +340,28 @@
       }
     },
     "list_sharing": {
-      "share_customers_label": "Cliente",
-      "share_customers_placeholder": "Seleccionar cliente",
+      "share_customers_label": "Clientes",
+      "share_customers_placeholder": "Buscar clientes por nombre",
       "share_customers_error": "No se pudo cargar la lista de clientes. Inténtelo de nuevo.",
-      "share_replace_hint": "El cliente seleccionado anteriormente perderá el acceso a esta lista.",
-      "share_message_label": "Mensaje",
-      "share_message_placeholder": "Mensaje opcional para incluir",
+      "share_empty_hint": "Una lista vacía no deja de compartir: cambie quién tiene acceso.",
+      "share_message_label": "Mensaje (opcional)",
+      "share_message_placeholder": "Añade una nota para los destinatarios",
+      "share_message_hint": "Los nuevos destinatarios recibirán esto en su notificación.",
+      "recipients_title": "Destinatarios · {count}",
+      "clear_recipients_button": "Borrar todo",
+      "recipients_cleared": "Borrados · {count}",
+      "restore_recipients_button": "Deshacer",
+      "show_all_recipients_button": "Mostrar todos ({count})",
+      "show_less_recipients_button": "Mostrar menos",
+      "remove_recipient_button": "Eliminar {name}",
       "share_default_title": "Una nueva lista de tu representante de ventas",
       "share_default_message": "¡Hola! Acabo de compartir la lista «{listName}» con tu organización. Échale un vistazo:",
-      "share_success": "Lista compartida con el cliente.",
+      "share_success": "Lista compartida con {count} cliente. | Lista compartida con {count} clientes.",
+      "share_saved": "Lista guardada. Ahora compartida con {count} cliente. | Lista guardada. Ahora compartida con {count} clientes.",
       "share_partial": "Lista compartida, pero no se entregaron todas las notificaciones.",
-      "share_notify_error": "La lista se guardó, pero no se pudo notificar al cliente.",
-      "scope_label": "Cliente",
-      "status": "Compartida con cliente",
+      "share_notify_error": "La lista se guardó, pero no se pudo enviar la notificación.",
+      "scope_label": "Clientes específicos",
+      "status": "Compartida con 1 cliente | Compartida con {count} clientes",
       "badge": "Recomendado por tu representante de ventas"
     }
   }

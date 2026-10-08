@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
+import { DASHBOARD_ROUTE_NAME } from "../constants";
 import CustomerProfile from "./customer-profile.vue";
 
 const state = await vi.hoisted(async () => {
@@ -26,10 +27,11 @@ vi.mock("../composables/useSalesRepCustomerWidgets", async () => {
   return { useSalesRepCustomerWidgets: () => ({ cards: ref([]) }) };
 });
 vi.mock("@vc-frontend/core", async (importOriginal) => {
-  const { ref } = await import("vue");
+  const { computed, unref } = await import("vue");
   return {
     ...(await importOriginal<Record<string, unknown>>()),
-    useBreadcrumbs: () => ref([]),
+    useBreadcrumbs: (sources: unknown) =>
+      computed(() => (typeof sources === "function" ? (sources as () => IBreadcrumb[])() : unref(sources))),
     usePageHead: vi.fn(),
   };
 });
@@ -39,7 +41,7 @@ const createWrapper = createWrapperFactory(mount, CustomerProfile, {
   global: {
     renderStubDefaultSlot: false,
     stubs: {
-      VcBreadcrumbs: true,
+      VcBreadcrumbs: { props: ["items"], template: '<nav class="crumbs" />' },
       VcEmptyView: true,
       VcButton: true,
       VcTypography: true,
@@ -60,6 +62,17 @@ beforeEach(() => {
 });
 
 describe("CustomerProfile states", () => {
+  it("links the hub breadcrumb to the Sales Rep dashboard", () => {
+    const wrapper = createWrapper();
+
+    // findComponent by selector is typed as WrapperLike, which exposes no props.
+    const stub = wrapper.findComponent("nav.crumbs") as unknown as { props: (key: string) => IBreadcrumb[] };
+    const items = stub.props("items");
+    const hub = items.find((item) => item.title === "sales_rep.hub.title");
+
+    expect(hub?.route).toEqual({ name: DASHBOARD_ROUTE_NAME });
+  });
+
   it("shows the profile once the customer resolved", () => {
     state.customer.value = { organizationId: "org-1", organizationName: "Acme" };
 

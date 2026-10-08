@@ -89,6 +89,13 @@
         "empty_visible": "Dra ett nyckeltal hit för att visa det",
         "empty_hidden": "Dra ett nyckeltal hit för att dölja det",
         "max_rows": "Max rader",
+        "restored": "Standardlayouten har återställts.",
+        "empty": {
+          "title": "Alla block är dolda",
+          "text": "Alla nyckeltal och widgetar på den här sidan har flyttats till {hidden} i layoutinställningarna. Återställ standardlayouten för att få tillbaka allt, eller öppna {edit} för att välja exakt vad som ska visas.",
+          "hidden": "Dolda",
+          "restore": "Återställ standardlayout"
+        },
         "a11y": {
           "reorder": "Ändra ordning på {title}",
           "hide": "Dölj {title}",
@@ -125,6 +132,39 @@
         "ship_to": "Leveransadress"
       }
     },
+    "customer_orders": {
+      "page": {
+        "title": "Beställningar för {customer}",
+        "all_title": "Kundorder",
+        "title_fallback": "Beställningar"
+      },
+      "breadcrumb": "Beställningar",
+      "back_to_customer": "Tillbaka till kunden",
+      "back_to_orders": "Tillbaka till order",
+      "order_not_found": "Ordern hittades inte",
+      "order_load_failed": "This order couldn't be loaded. Try refreshing the page.",
+      "search_placeholder": "Sök efter nummer, namn eller andra uppgifter",
+      "search_aria": "Sök beställningar",
+      "reset_search": "Återställ sökning",
+      "filters": {
+        "button": "Filter",
+        "title": "Filter",
+        "created_date": "Skapat datum",
+        "start_date": "Startdatum",
+        "end_date": "Slutdatum",
+        "date_range": "Datumintervall",
+        "order_status": "Välj beställningsstatus",
+        "customer": "Välj kund",
+        "reset": "Återställ",
+        "apply": "Tillämpa",
+        "custom_date": "Anpassat datum",
+        "last_day": "Sista dagen",
+        "last_week": "Förra veckan",
+        "last_month": "Förra månaden",
+        "last_year": "Förra året",
+        "remove_filter": "Ta bort filtret ”{label}”"
+      }
+    },
     "communication": {
       "action": "Skicka e-post",
       "title": "Skicka ett meddelande",
@@ -157,7 +197,7 @@
       }
     },
     "orders": {
-      "title": "Senaste ordrar",
+      "title": "Mina senaste ordrar",
       "view_all": "Alla beställningar",
       "empty": "Inga beställningar ännu",
       "no_results": "Inga ordrar matchar detta filter",
@@ -170,6 +210,74 @@
       "filter_all": "Alla",
       "load_failed": "Kunde inte läsa in ordrarna"
     },
+    "tasks": {
+      "title": "Uppgifter",
+      "widget_title": "Uppgifter och förfallodatum",
+      "view_all": "Alla uppgifter",
+      "new_task": "Ny uppgift",
+      "due_dates": "Förfallodatum",
+      "today": "I dag",
+      "all": "Alla",
+      "clear_day_aria": "Rensa {date}",
+      "empty": "Inga uppgifter på den här fliken",
+      "empty_day": "Inget förfaller denna dag",
+      "load_failed": "Kunde inte läsa in uppgifterna",
+      "day_task_count": "{count} uppgift | {count} uppgifter",
+      "overdue_total": "{count} försenad uppgift | {count} försenade uppgifter",
+      "day_task_count_capped": "{total} uppgifter ({shown} visas)",
+      "day_markers": "{count} uppgift. Markerad: {kinds} | {count} uppgifter. Markerad: {kinds}",
+      "page": {
+        "subtitle": "Dina uppgifter, uppföljningar och förfallodatum för alla konton — dag för dag."
+      },
+      "table": {
+        "task": "Uppgift",
+        "status": "Status",
+        "notes": "Anteckningar",
+        "actions": "Åtgärder",
+        "mark_complete": "Slutför",
+        "reopen": "Återöppna",
+        "action_aria": "{action}: ”{name}”",
+        "edit_aria": "Redigera ”{name}”"
+      },
+      "status": {
+        "upcoming": "Kommande",
+        "overdue": "Försenad",
+        "completed": "Slutförd",
+        "canceled": "Avbruten"
+      },
+      "priority": {
+        "lowest": "Lägsta",
+        "low": "Låg",
+        "normal": "Normal",
+        "high": "Hög",
+        "highest": "Högsta"
+      },
+      "due_relative": {
+        "expired": "Förföll {date}",
+        "due": "Förfaller {date}"
+      },
+      "legend": {
+        "upcoming": "Kommande",
+        "overdue": "Försenade",
+        "completed": "Slutförda"
+      },
+      "form": {
+        "create_title": "Ny uppgift",
+        "edit_title": "Redigera uppgift",
+        "name_label": "Titel",
+        "due_date_label": "Förfallodatum",
+        "priority_label": "Prioritet",
+        "type_label": "Typ",
+        "description_label": "Anteckningar",
+        "save_button": "Spara",
+        "cancel_button": "Avbryt",
+        "delete_button": "Radera",
+        "delete_title": "Ta bort uppgift",
+        "delete_confirm": "Den här uppgiften tas bort permanent. Vill du fortsätta?",
+        "saved": "Uppgiften har sparats",
+        "deleted": "Uppgiften har raderats"
+      }
+    },
     "top_sellers": {
       "title": "Topp säljare",
       "rank": "#",
@@ -181,7 +289,45 @@
       "all_categories": "Alla kategorier",
       "load_failed": "Kunde inte läsa in bästsäljarna"
     },
+    "documents": {
+      "title": "Dokumentbibliotek",
+      "browse_all": "Bläddra bland alla",
+      "open": "Öppna",
+      "empty": "Inga dokument ännu",
+      "load_failed": "Kunde inte läsa in dokumenten",
+      "page": {
+        "subtitle": "Kataloger, lookbooks, prislistor och säljguider — öppna eller ladda ner den senaste publikationen.",
+        "search_placeholder": "Sök efter namn",
+        "search_aria": "Sök dokument",
+        "all_tab": "Alla",
+        "empty": "Inga dokument ännu",
+        "no_results": "Inga dokument matchar din sökning",
+        "reset_search": "Återställ sökning",
+        "load_failed": "Kunde inte läsa in dokumenten"
+      },
+      "details": {
+        "pages_count": "{count} sida | {count} sidor",
+        "open": "Öppna",
+        "download": "Ladda ner",
+        "close": "Stäng detaljer",
+        "not_found": "Det här dokumentet är inte längre tillgängligt.",
+        "latest_publication": "Senaste publikation"
+      },
+      "published": "Publicerad {date}"
+    },
     "rules": {
+      "task": {
+        "filter": {
+          "upcoming": "Kommande",
+          "overdue": "Försenade",
+          "completed": "Slutförda"
+        },
+        "sort": {
+          "due-date": "Förfallodatum",
+          "recent": "Senast skapade",
+          "name": "Uppgift"
+        }
+      },
       "load_failed": {
         "filter": "Filtren kunde inte läsas in, så hela listan visas. Uppdatera sidan.",
         "sort": "Sorteringsalternativen kunde inte läsas in, så standardordningen används. Uppdatera sidan.",
@@ -194,19 +340,28 @@
       }
     },
     "list_sharing": {
-      "share_customers_label": "Kund",
-      "share_customers_placeholder": "Välj kund",
+      "share_customers_label": "Kunder",
+      "share_customers_placeholder": "Sök kunder efter namn",
       "share_customers_error": "Kundlistan kunde inte laddas. Försök igen.",
-      "share_replace_hint": "Kunden som valdes tidigare förlorar åtkomsten till den här listan.",
-      "share_message_label": "Meddelande",
-      "share_message_placeholder": "Valfritt meddelande",
+      "share_empty_hint": "En tom lista avslutar inte delningen – ändra i stället vem som har åtkomst.",
+      "share_message_label": "Meddelande (valfritt)",
+      "share_message_placeholder": "Lägg till ett meddelande till mottagarna",
+      "share_message_hint": "Nya mottagare får detta i sin avisering.",
+      "recipients_title": "Mottagare · {count}",
+      "clear_recipients_button": "Rensa alla",
+      "recipients_cleared": "Rensade · {count}",
+      "restore_recipients_button": "Ångra",
+      "show_all_recipients_button": "Visa alla {count}",
+      "show_less_recipients_button": "Visa mindre",
+      "remove_recipient_button": "Ta bort {name}",
       "share_default_title": "En ny lista från din säljare",
       "share_default_message": "Hej! Jag har just delat listan ”{listName}” med din organisation. Ta en titt:",
-      "share_success": "Listan har delats med kunden.",
+      "share_success": "Listan har delats med {count} kund. | Listan har delats med {count} kunder.",
+      "share_saved": "Listan har sparats. Nu delad med {count} kund. | Listan har sparats. Nu delad med {count} kunder.",
       "share_partial": "Listan har delats, men alla aviseringar levererades inte.",
-      "share_notify_error": "Listan sparades, men kunden kunde inte meddelas.",
-      "scope_label": "Kund",
-      "status": "Delad med kund",
+      "share_notify_error": "Listan sparades, men aviseringen kunde inte skickas.",
+      "scope_label": "Specifika kunder",
+      "status": "Delad med 1 kund | Delad med {count} kunder",
       "badge": "Rekommenderas av din säljare"
     }
   }

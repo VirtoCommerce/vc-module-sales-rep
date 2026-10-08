@@ -89,6 +89,13 @@
         "empty_visible": "指標をここにドラッグすると表示されます",
         "empty_hidden": "指標をここにドラッグすると非表示になります",
         "max_rows": "最大行数",
+        "restored": "デフォルトのレイアウトに戻しました。",
+        "empty": {
+          "title": "すべてのブロックが非表示です",
+          "text": "このページのすべての指標とウィジェットは、レイアウト設定で{hidden}に移動されています。デフォルトのレイアウトに戻してすべてを再表示するか、{edit}を開いて表示する内容を選択してください。",
+          "hidden": "非表示",
+          "restore": "デフォルトのレイアウトに戻す"
+        },
         "a11y": {
           "reorder": "{title} を並べ替え",
           "hide": "{title} を非表示",
@@ -125,6 +132,39 @@
         "ship_to": "配送先"
       }
     },
+    "customer_orders": {
+      "page": {
+        "title": "{customer} の注文",
+        "all_title": "顧客の注文",
+        "title_fallback": "注文"
+      },
+      "breadcrumb": "注文",
+      "back_to_customer": "顧客に戻る",
+      "back_to_orders": "注文一覧に戻る",
+      "order_not_found": "注文が見つかりません",
+      "order_load_failed": "This order couldn't be loaded. Try refreshing the page.",
+      "search_placeholder": "番号、名前、その他で検索",
+      "search_aria": "注文検索",
+      "reset_search": "検索をリセット",
+      "filters": {
+        "button": "フィルター",
+        "title": "フィルター",
+        "created_date": "作成日",
+        "start_date": "開始日",
+        "end_date": "終了日",
+        "date_range": "期間",
+        "order_status": "@:common.labels.status",
+        "customer": "顧客を選択",
+        "reset": "リセット",
+        "apply": "適用",
+        "custom_date": "日付指定",
+        "last_day": "昨日",
+        "last_week": "先週",
+        "last_month": "先月",
+        "last_year": "昨年",
+        "remove_filter": "フィルター「{label}」を削除"
+      }
+    },
     "communication": {
       "action": "メールを送信",
       "title": "メッセージを送信",
@@ -157,7 +197,7 @@
       }
     },
     "orders": {
-      "title": "最近の注文",
+      "title": "自分の最近の注文",
       "view_all": "すべての注文",
       "empty": "注文はまだありません",
       "no_results": "このフィルターに一致する注文はありません",
@@ -170,6 +210,74 @@
       "filter_all": "すべて",
       "load_failed": "注文を読み込めませんでした"
     },
+    "tasks": {
+      "title": "タスク",
+      "widget_title": "タスクと期限",
+      "view_all": "すべてのタスク",
+      "new_task": "新しいタスク",
+      "due_dates": "期限",
+      "today": "今日",
+      "all": "すべて",
+      "clear_day_aria": "{date} を解除",
+      "empty": "このタブにタスクはありません",
+      "empty_day": "この日に期限のタスクはありません",
+      "load_failed": "タスクを読み込めませんでした",
+      "day_task_count": "{count} 件のタスク",
+      "overdue_total": "期限切れのタスク {count} 件",
+      "day_task_count_capped": "{total} 件のタスク（{shown} 件を表示）",
+      "day_markers": "{count} 件のタスク。マーク: {kinds}",
+      "page": {
+        "subtitle": "すべての取引先のタスク、フォローアップ、期限を日付ごとに一覧表示します。"
+      },
+      "table": {
+        "task": "タスク",
+        "status": "ステータス",
+        "notes": "メモ",
+        "actions": "操作",
+        "mark_complete": "完了にする",
+        "reopen": "再開する",
+        "action_aria": "{action}：「{name}」",
+        "edit_aria": "「{name}」を編集する"
+      },
+      "status": {
+        "upcoming": "予定",
+        "overdue": "期限超過",
+        "completed": "完了",
+        "canceled": "キャンセル済み"
+      },
+      "priority": {
+        "lowest": "最低",
+        "low": "低",
+        "normal": "標準",
+        "high": "高",
+        "highest": "最高"
+      },
+      "due_relative": {
+        "expired": "期限切れ: {date}",
+        "due": "期限: {date}"
+      },
+      "legend": {
+        "upcoming": "予定",
+        "overdue": "期限超過",
+        "completed": "完了"
+      },
+      "form": {
+        "create_title": "新しいタスク",
+        "edit_title": "タスクを編集",
+        "name_label": "タイトル",
+        "due_date_label": "期限日",
+        "priority_label": "優先度",
+        "type_label": "種類",
+        "description_label": "メモ",
+        "save_button": "保存",
+        "cancel_button": "キャンセル",
+        "delete_button": "削除",
+        "delete_title": "タスクを削除",
+        "delete_confirm": "このタスクは完全に削除されます。続行しますか？",
+        "saved": "タスクを保存しました",
+        "deleted": "タスクを削除しました"
+      }
+    },
     "top_sellers": {
       "title": "トップセラー",
       "rank": "#",
@@ -181,7 +289,45 @@
       "all_categories": "全カテゴリー",
       "load_failed": "売上上位を読み込めませんでした"
     },
+    "documents": {
+      "title": "ドキュメントライブラリ",
+      "browse_all": "すべて表示",
+      "open": "開く",
+      "empty": "ドキュメントはまだありません",
+      "load_failed": "ドキュメントを読み込めませんでした",
+      "page": {
+        "subtitle": "カタログ、ルックブック、価格表、営業ガイド — 最新の公開資料を開くかダウンロードできます。",
+        "search_placeholder": "名前で検索",
+        "search_aria": "ドキュメントを検索",
+        "all_tab": "すべて",
+        "empty": "ドキュメントはまだありません",
+        "no_results": "検索条件に一致するドキュメントがありません",
+        "reset_search": "検索をリセット",
+        "load_failed": "ドキュメントを読み込めませんでした"
+      },
+      "details": {
+        "pages_count": "{count} ページ",
+        "open": "開く",
+        "download": "ダウンロード",
+        "close": "詳細を閉じる",
+        "not_found": "このドキュメントは利用できなくなりました。",
+        "latest_publication": "最新の公開"
+      },
+      "published": "公開日: {date}"
+    },
     "rules": {
+      "task": {
+        "filter": {
+          "upcoming": "予定",
+          "overdue": "期限超過",
+          "completed": "完了"
+        },
+        "sort": {
+          "due-date": "期限日",
+          "recent": "作成日が新しい順",
+          "name": "タスク"
+        }
+      },
       "load_failed": {
         "filter": "フィルターを読み込めなかったため、すべての一覧を表示しています。ページを再読み込みしてください。",
         "sort": "並べ替えオプションを読み込めなかったため、既定の順序を使用しています。ページを再読み込みしてください。",
@@ -195,18 +341,27 @@
     },
     "list_sharing": {
       "share_customers_label": "顧客",
-      "share_customers_placeholder": "顧客を選択",
+      "share_customers_placeholder": "名前で顧客を検索",
       "share_customers_error": "顧客リストを読み込めませんでした。もう一度お試しください。",
-      "share_replace_hint": "以前に選択した顧客はこのリストにアクセスできなくなります。",
-      "share_message_label": "メッセージ",
-      "share_message_placeholder": "任意のメッセージを入力",
+      "share_empty_hint": "リストを空にしても共有は停止しません。アクセスできる範囲を変更してください。",
+      "share_message_label": "メッセージ（任意）",
+      "share_message_placeholder": "受信者へのメモを追加",
+      "share_message_hint": "新しい受信者への通知に表示されます。",
+      "recipients_title": "受信者・{count}",
+      "clear_recipients_button": "すべて解除",
+      "recipients_cleared": "クリア済み・{count}",
+      "restore_recipients_button": "元に戻す",
+      "show_all_recipients_button": "すべて表示（{count}）",
+      "show_less_recipients_button": "表示を減らす",
+      "remove_recipient_button": "{name} を削除",
       "share_default_title": "営業担当者からの新しいリスト",
       "share_default_message": "こんにちは。リスト「{listName}」をあなたの組織と共有しました。ぜひご覧ください：",
-      "share_success": "リストを顧客と共有しました。",
+      "share_success": "リストを {count} 件の顧客と共有しました。",
+      "share_saved": "リストを保存しました。現在 {count} 件の顧客と共有しています。",
       "share_partial": "リストを共有しましたが、一部の通知を配信できませんでした。",
-      "share_notify_error": "リストは保存されましたが、顧客に通知できませんでした。",
-      "scope_label": "顧客",
-      "status": "顧客と共有",
+      "share_notify_error": "リストは保存されましたが、通知を送信できませんでした。",
+      "scope_label": "特定の顧客",
+      "status": "顧客 {count} 件と共有",
       "badge": "営業担当者のおすすめ"
     }
   }

@@ -98,7 +98,7 @@
                       }}</span>
 
                       <span class="my-customers__mobile-sub">
-                        {{ $d(item.lastOrder.createdDate) }} ·
+                        {{ $d(new Date(item.lastOrder.createdDate)) }} ·
                         <VcLink
                           class="my-customers__order"
                           :to="{ name: 'OrderDetails', params: { orderId: item.lastOrder.id } }"
@@ -177,7 +177,7 @@
               :sortable="isColumnSortable('lastOrder')"
             >
               <template v-if="item.lastOrder">
-                <div>{{ $d(item.lastOrder.createdDate) }}</div>
+                <div>{{ $d(new Date(item.lastOrder.createdDate)) }}</div>
 
                 <VcLink
                   class="my-customers__order"

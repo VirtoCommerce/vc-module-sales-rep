@@ -89,6 +89,13 @@
         "empty_visible": "Vedä tunnusluku tähän näyttääksesi sen",
         "empty_hidden": "Vedä tunnusluku tähän piilottaaksesi sen",
         "max_rows": "Maksimirivit",
+        "restored": "Oletusasettelu palautettu.",
+        "empty": {
+          "title": "Kaikki lohkot on piilotettu",
+          "text": "Kaikki tämän sivun tunnusluvut ja widgetit on siirretty asetteluasetuksissa kohtaan {hidden}. Palauta oletusasettelu tuodaksesi kaiken takaisin, tai avaa {edit} ja valitse tarkalleen, mitä näytetään.",
+          "hidden": "Piilotetut",
+          "restore": "Palauta oletusasettelu"
+        },
         "a11y": {
           "reorder": "Järjestä {title}",
           "hide": "Piilota {title}",
@@ -125,6 +132,39 @@
         "ship_to": "Toimitusosoite"
       }
     },
+    "customer_orders": {
+      "page": {
+        "title": "Asiakkaan {customer} tilaukset",
+        "all_title": "Asiakkaiden tilaukset",
+        "title_fallback": "Tilaukset"
+      },
+      "breadcrumb": "Tilaukset",
+      "back_to_customer": "Takaisin asiakkaan tietoihin",
+      "back_to_orders": "Takaisin tilauksiin",
+      "order_not_found": "Tilausta ei löytynyt",
+      "order_load_failed": "This order couldn't be loaded. Try refreshing the page.",
+      "search_placeholder": "Hae numerolla, nimellä tai muilla tiedoilla",
+      "search_aria": "Hae tilauksia",
+      "reset_search": "Nollaa haku",
+      "filters": {
+        "button": "Suodattimet",
+        "title": "Suodattimet",
+        "created_date": "Luontipäivämäärä",
+        "start_date": "Aloituspäivämäärä",
+        "end_date": "Lopetuspäivämäärä",
+        "date_range": "Päivämääräväli",
+        "order_status": "Valitse tilauksen tila",
+        "customer": "Valitse asiakas",
+        "reset": "Nollaa",
+        "apply": "Käytä",
+        "custom_date": "Mukautettu päivämäärä",
+        "last_day": "Viimeinen päivä",
+        "last_week": "Viime viikko",
+        "last_month": "Viime kuukausi",
+        "last_year": "Viime vuosi",
+        "remove_filter": "Poista suodatin ”{label}”"
+      }
+    },
     "communication": {
       "action": "Lähetä sähköposti",
       "title": "Lähetä viesti",
@@ -157,7 +197,7 @@
       }
     },
     "orders": {
-      "title": "Viimeisimmät tilaukset",
+      "title": "Omat viimeisimmät tilaukset",
       "view_all": "Kaikki tilaukset",
       "empty": "Ei vielä tilauksia",
       "no_results": "Mikään tilaus ei vastaa tätä suodatinta",
@@ -170,6 +210,74 @@
       "filter_all": "Kaikki",
       "load_failed": "Tilauksia ei voitu ladata"
     },
+    "tasks": {
+      "title": "Tehtävät",
+      "widget_title": "Tehtävät ja eräpäivät",
+      "view_all": "Kaikki tehtävät",
+      "new_task": "Uusi tehtävä",
+      "due_dates": "Eräpäivät",
+      "today": "Tänään",
+      "all": "Kaikki",
+      "clear_day_aria": "Poista {date}",
+      "empty": "Tällä välilehdellä ei ole tehtäviä",
+      "empty_day": "Tänä päivänä ei eräänny mitään",
+      "load_failed": "Tehtäviä ei voitu ladata",
+      "day_task_count": "{count} tehtävä | {count} tehtävää",
+      "overdue_total": "{count} myöhässä oleva tehtävä | {count} myöhässä olevaa tehtävää",
+      "day_task_count_capped": "{total} tehtävää ({shown} näytetään)",
+      "day_markers": "{count} tehtävä. Merkitty: {kinds} | {count} tehtävää. Merkitty: {kinds}",
+      "page": {
+        "subtitle": "Tehtäväsi, seurannat ja eräpäivät kaikilta asiakastileiltä — päiväkohtaisesti jaoteltuna."
+      },
+      "table": {
+        "task": "Tehtävä",
+        "status": "Tila",
+        "notes": "Muistiinpanot",
+        "actions": "Toiminnot",
+        "mark_complete": "Merkitse valmiiksi",
+        "reopen": "Avaa uudelleen",
+        "action_aria": "{action}: ”{name}”",
+        "edit_aria": "Muokkaa tehtävää ”{name}”"
+      },
+      "status": {
+        "upcoming": "Tulossa",
+        "overdue": "Myöhässä",
+        "completed": "Valmis",
+        "canceled": "Peruutettu"
+      },
+      "priority": {
+        "lowest": "Alin",
+        "low": "Matala",
+        "normal": "Normaali",
+        "high": "Korkea",
+        "highest": "Ylin"
+      },
+      "due_relative": {
+        "expired": "Erääntyi {date}",
+        "due": "Eräpäivä {date}"
+      },
+      "legend": {
+        "upcoming": "Tulossa",
+        "overdue": "Myöhässä",
+        "completed": "Valmis"
+      },
+      "form": {
+        "create_title": "Uusi tehtävä",
+        "edit_title": "Muokkaa tehtävää",
+        "name_label": "Otsikko",
+        "due_date_label": "Eräpäivä",
+        "priority_label": "Prioriteetti",
+        "type_label": "Tyyppi",
+        "description_label": "Muistiinpanot",
+        "save_button": "Tallenna",
+        "cancel_button": "Peruuta",
+        "delete_button": "Poista",
+        "delete_title": "Poista tehtävä",
+        "delete_confirm": "Tämä tehtävä poistetaan pysyvästi. Jatketaanko?",
+        "saved": "Tehtävä tallennettu",
+        "deleted": "Tehtävä poistettu"
+      }
+    },
     "top_sellers": {
       "title": "Suosituimmat myyjät",
       "rank": "#",
@@ -181,7 +289,45 @@
       "all_categories": "Kaikki kategoriat",
       "load_failed": "Myydyimpiä ei voitu ladata"
     },
+    "documents": {
+      "title": "Dokumenttikirjasto",
+      "browse_all": "Selaa kaikkia",
+      "open": "Avaa",
+      "empty": "Ei vielä dokumentteja",
+      "load_failed": "Dokumentteja ei voitu ladata",
+      "page": {
+        "subtitle": "Kuvastot, lookbookit, hinnastot ja myyntioppaat — avaa tai lataa uusin julkaisu.",
+        "search_placeholder": "Hae nimellä",
+        "search_aria": "Hae dokumentteja",
+        "all_tab": "Kaikki",
+        "empty": "Ei vielä dokumentteja",
+        "no_results": "Yksikään dokumentti ei vastaa hakuasi",
+        "reset_search": "Tyhjennä haku",
+        "load_failed": "Dokumentteja ei voitu ladata"
+      },
+      "details": {
+        "pages_count": "{count} sivu | {count} sivua",
+        "open": "Avaa",
+        "download": "Lataa",
+        "close": "Sulje tiedot",
+        "not_found": "Tämä dokumentti ei ole enää saatavilla.",
+        "latest_publication": "Uusin julkaisu"
+      },
+      "published": "Julkaistu {date}"
+    },
     "rules": {
+      "task": {
+        "filter": {
+          "upcoming": "Tulossa",
+          "overdue": "Myöhässä",
+          "completed": "Valmiit"
+        },
+        "sort": {
+          "due-date": "Eräpäivä",
+          "recent": "Viimeksi luodut",
+          "name": "Tehtävä"
+        }
+      },
       "load_failed": {
         "filter": "Suodattimia ei voitu ladata, joten koko luettelo näytetään. Päivitä sivu.",
         "sort": "Lajitteluvalintoja ei voitu ladata, joten käytetään oletusjärjestystä. Päivitä sivu.",
@@ -194,19 +340,28 @@
       }
     },
     "list_sharing": {
-      "share_customers_label": "Asiakas",
-      "share_customers_placeholder": "Valitse asiakas",
+      "share_customers_label": "Asiakkaat",
+      "share_customers_placeholder": "Etsi asiakkaita nimellä",
       "share_customers_error": "Asiakaslistaa ei voitu ladata. Yritä uudelleen.",
-      "share_replace_hint": "Aiemmin valittu asiakas menettää oikeuden tähän listaan.",
-      "share_message_label": "Viesti",
-      "share_message_placeholder": "Valinnainen viesti",
+      "share_empty_hint": "Tyhjä lista ei lopeta jakamista – muuta sen sijaan, kenellä on käyttöoikeus.",
+      "share_message_label": "Viesti (valinnainen)",
+      "share_message_placeholder": "Lisää viesti vastaanottajille",
+      "share_message_hint": "Uudet vastaanottajat näkevät tämän ilmoituksessaan.",
+      "recipients_title": "Vastaanottajat · {count}",
+      "clear_recipients_button": "Tyhjennä kaikki",
+      "recipients_cleared": "Tyhjennetty · {count}",
+      "restore_recipients_button": "Kumoa",
+      "show_all_recipients_button": "Näytä kaikki {count}",
+      "show_less_recipients_button": "Näytä vähemmän",
+      "remove_recipient_button": "Poista {name}",
       "share_default_title": "Uusi lista myyntiedustajaltasi",
       "share_default_message": "Hei! Jaoin juuri listan ”{listName}” organisaatiollesi. Katso se täältä:",
-      "share_success": "Lista jaettiin asiakkaalle.",
+      "share_success": "Lista jaettiin {count} asiakkaalle.",
+      "share_saved": "Lista tallennettiin. Nyt jaettu {count} asiakkaalle.",
       "share_partial": "Lista jaettiin, mutta kaikkia ilmoituksia ei toimitettu.",
-      "share_notify_error": "Lista tallennettiin, mutta asiakkaalle ei voitu ilmoittaa.",
-      "scope_label": "Asiakas",
-      "status": "Jaettu asiakkaalle",
+      "share_notify_error": "Lista tallennettiin, mutta ilmoitusta ei voitu lähettää.",
+      "scope_label": "Tietyt asiakkaat",
+      "status": "Jaettu 1 asiakkaalle | Jaettu {count} asiakkaalle",
       "badge": "Myyntiedustajasi suosittelema"
     }
   }

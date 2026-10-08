@@ -2,9 +2,8 @@ import { computed, toValue } from "vue";
 import { globals, Logger } from "@vc-frontend/core";
 import { SalesRepOrdersDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY, ORDERS_DEFAULT_LIMIT } from "../constants";
-import { formatStatCount, formatStatMoney } from "../utils";
+import { toSalesRepOrderRows } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
-import type { SalesRepOrderRowType } from "../types";
 import type { Ref } from "vue";
 
 type UseSalesRepOrdersOptionsType = {
@@ -49,22 +48,7 @@ export function useSalesRepOrders(options: UseSalesRepOrdersOptionsType = {}) {
     Logger.error("[sales-rep] salesRepOrders failed:", err);
   });
 
-  const orders = computed<SalesRepOrderRowType[]>(() =>
-    (result.value?.salesRepOrders?.items ?? [])
-      // Skip null connection items so one bad row doesn't blank the list.
-      .filter((order): order is NonNullable<typeof order> => order != null)
-      .map((order) => ({
-        id: order.id,
-        number: order.number ?? "",
-        organizationId: order.organizationId ?? "",
-        organizationName: order.organizationName ?? "",
-        createdDate: order.createdDate,
-        status: order.status ?? "",
-        statusDisplayValue: order.statusDisplayValue ?? "",
-        itemsCount: formatStatCount(order.itemsCount),
-        total: formatStatMoney(order.total),
-      })),
-  );
+  const orders = computed(() => toSalesRepOrderRows(result.value?.salesRepOrders?.items));
 
   return { orders, loading, error };
 }

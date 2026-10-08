@@ -89,6 +89,13 @@
         "empty_visible": "Przeciągnij tutaj wskaźnik, aby go pokazać",
         "empty_hidden": "Przeciągnij tutaj wskaźnik, aby go ukryć",
         "max_rows": "Maks. wierszy",
+        "restored": "Przywrócono układ domyślny.",
+        "empty": {
+          "title": "Wszystkie bloki są ukryte",
+          "text": "Wszystkie wskaźniki i widżety na tej stronie zostały przeniesione do sekcji {hidden} w ustawieniach układu. Przywróć układ domyślny, aby wszystko wróciło, lub otwórz {edit}, aby wybrać dokładnie, co ma być widoczne.",
+          "hidden": "Ukryte",
+          "restore": "Przywróć układ domyślny"
+        },
         "a11y": {
           "reorder": "Zmień kolejność: {title}",
           "hide": "Ukryj {title}",
@@ -125,6 +132,39 @@
         "ship_to": "Adres dostawy"
       }
     },
+    "customer_orders": {
+      "page": {
+        "title": "Zamówienia klienta {customer}",
+        "all_title": "Zamówienia klientów",
+        "title_fallback": "Zamówienia"
+      },
+      "breadcrumb": "Zamówienia",
+      "back_to_customer": "Powrót do klienta",
+      "back_to_orders": "Powrót do zamówień",
+      "order_not_found": "Nie znaleziono zamówienia",
+      "order_load_failed": "This order couldn't be loaded. Try refreshing the page.",
+      "search_placeholder": "Szukaj po numerze, nazwisku lub innych danych",
+      "search_aria": "Szukaj zamówień",
+      "reset_search": "Resetuj wyszukiwanie",
+      "filters": {
+        "button": "Filtry",
+        "title": "Filtry",
+        "created_date": "Data utworzenia",
+        "start_date": "Data rozpoczęcia",
+        "end_date": "Data zakończenia",
+        "date_range": "Zakres dat",
+        "order_status": "@:common.labels.status",
+        "customer": "Wybierz klienta",
+        "reset": "Resetuj",
+        "apply": "Zastosuj",
+        "custom_date": "Data niestandardowa",
+        "last_day": "Ostatni dzień",
+        "last_week": "Ostatni tydzień",
+        "last_month": "Ostatni miesiąc",
+        "last_year": "Ostatni rok",
+        "remove_filter": "Usuń filtr „{label}”"
+      }
+    },
     "communication": {
       "action": "Wyślij e-mail",
       "title": "Wyślij wiadomość",
@@ -157,7 +197,7 @@
       }
     },
     "orders": {
-      "title": "Ostatnie zamówienia",
+      "title": "Moje ostatnie zamówienia",
       "view_all": "Wszystkie zamówienia",
       "empty": "Brak zamówień",
       "no_results": "Żadne zamówienie nie pasuje do tego filtra",
@@ -170,6 +210,74 @@
       "filter_all": "Wszyscy",
       "load_failed": "Nie udało się wczytać zamówień"
     },
+    "tasks": {
+      "title": "Zadania",
+      "widget_title": "Zadania i terminy",
+      "view_all": "Wszystkie zadania",
+      "new_task": "Nowe zadanie",
+      "due_dates": "Terminy",
+      "today": "Dziś",
+      "all": "Wszystkie",
+      "clear_day_aria": "Usuń {date}",
+      "empty": "Brak zadań na tej karcie",
+      "empty_day": "Brak terminów w tym dniu",
+      "load_failed": "Nie udało się wczytać zadań",
+      "day_task_count": "{count} zadań | {count} zadanie | {count} zadania | {count} zadań",
+      "overdue_total": "{count} zaległych zadań | {count} zaległe zadanie | {count} zaległe zadania | {count} zaległych zadań",
+      "day_task_count_capped": "{total} zadań (wyświetlono {shown})",
+      "day_markers": "{count} zadań. Oznaczono: {kinds} | {count} zadanie. Oznaczono: {kinds} | {count} zadania. Oznaczono: {kinds} | {count} zadań. Oznaczono: {kinds}",
+      "page": {
+        "subtitle": "Twoje zadania, działania następcze i terminy ze wszystkich kont — w układzie dziennym."
+      },
+      "table": {
+        "task": "Zadanie",
+        "status": "Status",
+        "notes": "Notatki",
+        "actions": "Akcje",
+        "mark_complete": "Ukończ",
+        "reopen": "Otwórz ponownie",
+        "action_aria": "{action}: „{name}”",
+        "edit_aria": "Edytuj „{name}”"
+      },
+      "status": {
+        "upcoming": "Nadchodzące",
+        "overdue": "Po terminie",
+        "completed": "Ukończone",
+        "canceled": "Anulowane"
+      },
+      "priority": {
+        "lowest": "Najniższy",
+        "low": "Niski",
+        "normal": "Normalny",
+        "high": "Wysoki",
+        "highest": "Najwyższy"
+      },
+      "due_relative": {
+        "expired": "Termin minął {date}",
+        "due": "Termin {date}"
+      },
+      "legend": {
+        "upcoming": "Nadchodzące",
+        "overdue": "Po terminie",
+        "completed": "Ukończone"
+      },
+      "form": {
+        "create_title": "Nowe zadanie",
+        "edit_title": "Edytuj zadanie",
+        "name_label": "Tytuł",
+        "due_date_label": "Termin",
+        "priority_label": "Priorytet",
+        "type_label": "Typ",
+        "description_label": "Notatki",
+        "save_button": "Zapisz",
+        "cancel_button": "Anuluj",
+        "delete_button": "Usuń",
+        "delete_title": "Usuń zadanie",
+        "delete_confirm": "To zadanie zostanie trwale usunięte. Kontynuować?",
+        "saved": "Zadanie zapisane",
+        "deleted": "Zadanie usunięte"
+      }
+    },
     "top_sellers": {
       "title": "Najlepsi sprzedawcy",
       "rank": "#",
@@ -181,7 +289,45 @@
       "all_categories": "Wszystkie kategorie",
       "load_failed": "Nie udało się wczytać bestsellerów"
     },
+    "documents": {
+      "title": "Biblioteka dokumentów",
+      "browse_all": "Przeglądaj wszystkie",
+      "open": "Otwórz",
+      "empty": "Brak dokumentów",
+      "load_failed": "Nie udało się wczytać dokumentów",
+      "page": {
+        "subtitle": "Katalogi, lookbooki, cenniki i przewodniki sprzedażowe — otwieraj lub pobieraj najnowszą publikację.",
+        "search_placeholder": "Szukaj według nazwy",
+        "search_aria": "Szukaj dokumentów",
+        "all_tab": "Wszystkie",
+        "empty": "Brak dokumentów",
+        "no_results": "Żaden dokument nie pasuje do wyszukiwania",
+        "reset_search": "Resetuj wyszukiwanie",
+        "load_failed": "Nie udało się wczytać dokumentów"
+      },
+      "details": {
+        "pages_count": "{count} stron | {count} strona | {count} strony | {count} stron",
+        "open": "Otwórz",
+        "download": "Pobierz",
+        "close": "Zamknij szczegóły",
+        "not_found": "Ten dokument nie jest już dostępny.",
+        "latest_publication": "Najnowsza publikacja"
+      },
+      "published": "Opublikowano {date}"
+    },
     "rules": {
+      "task": {
+        "filter": {
+          "upcoming": "Nadchodzące",
+          "overdue": "Po terminie",
+          "completed": "Ukończone"
+        },
+        "sort": {
+          "due-date": "Termin",
+          "recent": "Ostatnio utworzone",
+          "name": "Zadanie"
+        }
+      },
       "load_failed": {
         "filter": "Nie udało się wczytać filtrów, więc wyświetlana jest pełna lista. Odśwież stronę.",
         "sort": "Nie udało się wczytać opcji sortowania, więc używana jest kolejność domyślna. Odśwież stronę.",
@@ -194,19 +340,28 @@
       }
     },
     "list_sharing": {
-      "share_customers_label": "Klient",
-      "share_customers_placeholder": "Wybierz klienta",
+      "share_customers_label": "Klienci",
+      "share_customers_placeholder": "Szukaj klientów według nazwy",
       "share_customers_error": "Nie udało się wczytać listy klientów. Spróbuj ponownie.",
-      "share_replace_hint": "Wcześniej wybrany klient utraci dostęp do tej listy.",
-      "share_message_label": "Wiadomość",
-      "share_message_placeholder": "Opcjonalna wiadomość",
+      "share_empty_hint": "Pusta lista nie zatrzymuje udostępniania — zmień, kto ma dostęp.",
+      "share_message_label": "Wiadomość (opcjonalnie)",
+      "share_message_placeholder": "Dodaj notatkę dla odbiorców",
+      "share_message_hint": "Nowi odbiorcy otrzymają to w powiadomieniu.",
+      "recipients_title": "Odbiorcy · {count}",
+      "clear_recipients_button": "Wyczyść wszystko",
+      "recipients_cleared": "Wyczyszczono · {count}",
+      "restore_recipients_button": "Cofnij",
+      "show_all_recipients_button": "Pokaż wszystkie ({count})",
+      "show_less_recipients_button": "Pokaż mniej",
+      "remove_recipient_button": "Usuń {name}",
       "share_default_title": "Nowa lista od Twojego przedstawiciela handlowego",
       "share_default_message": "Cześć! Lista „{listName}” jest już dostępna dla Twojej organizacji. Sprawdź ją:",
-      "share_success": "Lista została udostępniona klientowi.",
+      "share_success": "Lista udostępniona {count} klientom. | Lista udostępniona {count} klientowi. | Lista udostępniona {count} klientom. | Lista udostępniona {count} klientom.",
+      "share_saved": "Lista zapisana. Udostępniona {count} klientom. | Lista zapisana. Udostępniona {count} klientowi. | Lista zapisana. Udostępniona {count} klientom. | Lista zapisana. Udostępniona {count} klientom.",
       "share_partial": "Lista została udostępniona, ale nie wszystkie powiadomienia zostały dostarczone.",
-      "share_notify_error": "Lista została zapisana, ale nie udało się powiadomić klienta.",
-      "scope_label": "Klient",
-      "status": "Udostępniona klientowi",
+      "share_notify_error": "Lista została zapisana, ale nie udało się wysłać powiadomienia.",
+      "scope_label": "Wybrani klienci",
+      "status": "Udostępniona {count} klientom | Udostępniona {count} klientowi | Udostępniona {count} klientom | Udostępniona {count} klientom",
       "badge": "Polecane przez Twojego przedstawiciela handlowego"
     }
   }
