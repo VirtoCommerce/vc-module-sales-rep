@@ -524,14 +524,95 @@ The shared documents library (gated by `sales-rep-documents:read`). `after` is t
 
 The keyword matches the **display name** (the raw file name is internal), and `url` is the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL. The listing is **metadata-authoritative**: `totalCount` always matches the returned rows. A document whose file record is missing (out-of-band corruption — raw SQL, a mid-cascade failure) still lists with its metadata fields; the file-derived fields (`name`, `contentType`, `size`) degrade to null, while `url` stays resolvable (it is deterministic) — attempting the download yields the server's 404, uniformly with every other corruption class, and the document stays visible and deletable.
 
+#### Tasks
+
+The rep's own tasks, stored by **`VirtoCommerce.TaskManagement`** — an **optional** dependency. With that module
+absent or disabled every read below answers empty and every mutation errors cleanly, so the storefront can hide
+the feature without the API changing shape.
+
+Ownership is the whole security boundary: a task is the caller's when `WorkTask.ResponsibleId` equals their
+**contact id**, taken from the `memberId` claim. There is no organization scoping — a task belongs to a person,
+not to a customer — and no dedicated permission beyond being a sales rep.
+
+```graphql
+{
+  # `today` is the START OF THE CALLER'S DAY as an instant (e.g. 2026-05-28T05:00:00Z for a UTC-5 viewer).
+  # It decides where "upcoming" ends and "overdue" begins. Send the SAME value used to render the status,
+  # or a task can sit in one tab and read as another. Defaults to the start of the current UTC day, which for a
+  # viewer west of UTC is TOMORROW for part of their day - omitting it shifts the split, it does not disable it.
+  # `period` is a due-date window (a calendar month, or one day); it INTERSECTS with `filter` rather than
+  # replacing it, so "this month" + "overdue" composes.
+  # `storeId` narrows to the tasks stamped with that store (the creating rep's account store); omit for all.
+  salesRepTasks(
+    first: 20, after: "0", keyword: "contract", sort: "due-date",
+    filter: "overdue", today: "2026-05-28T05:00:00Z", storeId: "B2B-store",
+    period: { from: "2026-05-01T05:00:00Z", to: "2026-06-01T04:59:59Z" }
+  ) {
+    totalCount
+    pageInfo { hasNextPage endCursor }
+    items { id name description type priority dueDate isActive completed createdDate modifiedDate }
+  }
+
+  salesRepTask(id: "…") { id name dueDate }   # null when missing OR not the caller's — existence never leaks
+
+  salesRepTaskFilterRules { name localizedName }                                  # upcoming / overdue / completed
+  salesRepTaskSortRules { name localizedName defaultDirection supportsDirection } # due-date / recent / name
+  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text)
+}
+```
+
+⚠️ **There is no status field, and no counts query — by design.**
+
+*Status* is derived, never stored. `WorkTask.Status` exists as a column — task-management persists and indexes it
+— but no service or search criteria there reads it, so this API neither sets nor exposes it. Read `isActive`,
+`completed` and `dueDate` instead: still open and due before the start of the viewer's today = **overdue**; still
+open otherwise = **upcoming**; `completed: true` = **done**; closed without completing = **canceled**. A task due
+at exactly 00:00 today is upcoming, not overdue.
+
+*Counts* for tab badges need no dedicated field — alias the same query, which costs one round trip:
+
+```graphql
+query Counts($today: DateTime!) {
+  all:       salesRepTasks(first: 0) { totalCount }
+  upcoming:  salesRepTasks(first: 0, filter: "upcoming",  today: $today) { totalCount }
+  overdue:   salesRepTasks(first: 0, filter: "overdue",   today: $today) { totalCount }
+  completed: salesRepTasks(first: 0, filter: "completed", today: $today) { totalCount }
+}
+```
+
+⚠️ **The three tabs do not add up to `all`, and that is not a rounding error.** Two shapes match no rule:
+a task with **no due date**, and a **canceled** one (closed without completing). Neither is reachable through this
+API — `createSalesRepTask` requires a due date and nothing here cancels — so they only arrive from the admin UI,
+the REST API or a task-management workflow, assigned to the same contact. They stay in the unfiltered list, because
+they are still the rep's work; they just have no tab. A canceled task's **status is fixed** here:
+`changeSalesRepTaskStatus` refuses it rather than reopening it or recording it as done, because nothing in this
+API could cancel it again. It stays editable and deletable like any other task — only the completion toggle is
+refused, and the storefront renders that checkbox disabled. Render `all` as its own tab rather than as the sum, or drop
+the count and show the list. A dedicated "no due date" tab is **not implementable today**: `WorkTaskSearchCriteria`
+bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
+flag in `VirtoCommerce.TaskManagement` first.
+
+⚠️ **"Stays in the unfiltered list" is true of this API, not of any storefront screen.** `salesRepTasks` with
+neither `filter` nor `period` does return a dateless task — but the calendar sends a `period` for the selected day
+whenever no tab is active, and that window uses the same `>=` / `<=` bounds that drop NULLs. So every reachable
+view is either day-scoped or tab-scoped, and a rep never sees one. Deliberate: the storefront cannot create these,
+and they are managed where they come from — the admin Tasks screen. Worth stating because the sentence above
+describes the API's contract, and a reader can easily take it as a promise about the UI.
+
+🛠 **Extenders:** `SalesRepTaskHandlerBase.GetVisibleResponsibleIdsAsync` is the seam for widening whose tasks a
+caller may see and change — today always their own. Override it (e.g. a team lead seeing their reps') and every
+read, and every mutation of an existing task, follows with no call site to change. **Creation is not part of the
+seam** — it stamps the caller directly, so it can only ever produce a task they own; creating on someone's behalf
+needs its own change. Returning an empty list means "nothing", never "everything".
+
 ### Mutation
 
-Send a communication — a storefront push notification and/or an email — to the members of a customer organization the rep serves (the "My customers" contact action):
+Send a communication — a storefront push notification and/or an email — to the members of one or more customer organizations the rep serves (the "My customers" contact action and its multi-select "Send message" popup):
 
 ```graphql
 mutation {
   sendCustomerCommunication(command: {
-    organizationId: "7b8c..."
+    organizationIds: ["7b8c...", "9d0e..."]
     sendPush: true
     sendEmail: true
     title: "New products available"
@@ -555,11 +636,11 @@ The mutation returns a **result** describing each channel's outcome, so a partia
 | `pushSent` / `emailSent` | Per-channel delivery outcome. Each channel is attempted **independently** — one failing never blocks the other. |
 | `warnings` | Stable string codes explaining any channel that did not deliver (empty on full success). |
 
-The request itself is rejected with a GraphQL error only when it is **malformed or not allowed**: not authenticated, `message` missing or over 1000 characters, `title` over 128 characters, no channel selected, or the rep does not serve the organization (`Access denied.`). Everything else is reported through `warnings`:
+The request itself is rejected with a GraphQL error only when it is **malformed or not allowed**: not authenticated, `message` missing or over 1000 characters, `title` over 128 characters, no organization given, no channel selected, or the rep does not serve **every** listed organization (`Access denied.`). Everything else is reported through `warnings`:
 
 | Warning code | Channel | When |
 |--------------|---------|------|
-| `NoRecipients` | — | The organization has no members to notify (the rep is excluded from their own send). |
+| `NoRecipients` | — | The organizations have no members to notify (the rep is excluded from their own send). |
 | `EmailUnavailable` | email | The store's email is not configured — no `SalesRepMessageEmailNotification` template, or the store has no sender address. |
 | `EmailStoreAccessDenied` | email | The `storeId` is not the caller's own store (nor one of its trusted groups). Email uses the store's template and sender address, so it is scoped to the caller's store; push is store-agnostic and unaffected. |
 | `EmailNoRecipients` | email | Recipients exist, but none has an email address. |
@@ -568,9 +649,64 @@ The request itself is rejected with a GraphQL error only when it is **malformed 
 
 Codes are plain strings (see `ModuleConstants.Communication.Warnings`) — not an enum — so a downstream project can contribute its own codes; the storefront maps each to a localized message.
 
-Recipients are resolved **once** and fed to both channels, so the audience is identical regardless of which channels are selected. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
+Recipients are resolved **once** across all `organizationIds` — a member of several of them receives the message once — and fed to both channels, so the audience is identical regardless of which channels are selected. The legacy single `organizationId` is still accepted and counts as one more organization; at most 1000 organizations may be targeted by one call. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
 
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
+
+
+Task writes. The responsible contact, its organization and the store are stamped **server-side** from the caller
+(the store is the rep's own account store) — none of the three is an input field, so a client-supplied owner is
+never honoured, and `updateSalesRepTask` / `changeSalesRepTaskStatus` / `deleteSalesRepTask` re-check ownership
+against the stored `ResponsibleId` on every call:
+
+```graphql
+mutation {
+  createSalesRepTask(command: {
+    name: "Renew Cabin Co. contract"
+    dueDate: "2026-09-04T09:00:00Z"     # required on CREATE (by validation, not by the type)
+    priority: "High"                     # Lowest | Low | Normal | High | Highest; defaults to Normal.
+                                         # An unknown value is an error, never a silent default - numeric
+                                         # strings included, so "999" is rejected rather than stored.
+    type: "Customer Support"             # free text; salesRepTaskTypes is the suggested vocabulary, not a constraint
+    description: "Escalate to regional manager."
+  }) { id name priority dueDate isActive completed }
+
+  # REPLACES the task, so send the whole record back - an omitted field is cleared, like null or "".
+  # Accepts exactly what the read returns, nulls included, so a dateless task can be written back unchanged.
+  updateSalesRepTask(command: {
+    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…"
+  }) { id name description type priority dueDate }
+
+  # completed: true finishes the task, false reopens it.
+  changeSalesRepTaskStatus(command: { id: "…", completed: true }) { id isActive completed }
+
+  deleteSalesRepTask(command: { id: "…" })
+}
+```
+
+`name` is required and capped at **256** characters; `type` at **128** (both mirror the storage columns, and both
+are rejected with an error rather than truncated). `description` has no limit — that column is unbounded. Nothing is
+required at the database level, so every one of these is a *validation* rule, stated where it can say so.
+
+⚠️ `updateSalesRepTask` **replaces, it does not patch** — an omitted field is *cleared*, exactly like an explicit
+`null` or `""`. So send the whole record back, which is what the shared shape is for: **create, read and update
+carry the same five editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
+accept. Every column behind them is nullable, so the read is the reference; a non-null input would be an invention
+that made a task with no description — or no due date — impossible to write back.
+
+`name` is the one exception, required on both inputs because the read never returns it null. And `dueDate` is
+**required on create only**, enforced in validation rather than by the type: a task with no due date lands in no tab
+and on no calendar day, so a rep must not create one — but one that arrives from the admin UI still has to be
+editable.
+
+⚠️ The task's **store is stamped from the rep's own account**, never from input — `createSalesRepTask` has no
+`storeId` field and `updateSalesRepTask` never changes it. A rep whose account is **not** store-bound
+(`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
+read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
+
+⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
+`WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
+two transitions stay symmetric.
 
 ## How it works
 
@@ -615,12 +751,13 @@ The dashboard numbers are **aggregated in the database**: the module reads the O
 
 A sales rep can **publish a shopping list to a customer organization**: the list becomes visible to that organization's members, read-only, so they can review it and add its items to their own cart. This adds a `Customer` sharing scope to the platform's existing wishlist sharing (the Cart Experience API) **without forking it** — the module extends the X-Cart sharing pipeline (`ICartSharingService`) rather than replacing it.
 
-* **One target organization per list.** Sharing goes through the standard X-Cart `createWishlist` / `changeWishlist` mutation with `scope: "Customer"` and `sharedWithId` set to the customer organization id — there is no separate "share" mutation, so saving a list and its sharing is one call. The `/shared-list/{sharingKey}` link is the platform's existing one, and the key is stable across edits.
-* **Read access (data isolation).** The list's owner (the rep) always sees it; a customer member sees it only when their **active organization** matches the target (`sharedWithId`) — a member of any other organization, or an anonymous visitor, is denied. Customers get read-only access (add to cart, not edit); the rep keeps write.
-* **Write authorization.** Setting the `Customer` scope is gated server-side: the caller must be a **Sales Rep who actually serves the target organization** — the same *serves-organization* check `sendCustomerCommunication` uses, so *"can share with an org" == "can message it"*. A non-rep, or a rep targeting an organization they don't serve, is rejected (`Access denied.`); this is not a frontend-only gate.
+* **Any number of target organizations per list, one link.** Sharing goes through the standard X-Cart `createWishlist` / `changeWishlist` mutation with `scope: "Customer"` plus `addSharedWithIds` / `removeSharedWithIds` (customer organization ids — deltas, so adding a second customer never revokes the first) and an optional `message`, saved with the share and returned as `sharingSetting.message`. There is no separate "share" mutation, so saving a list and its sharing is one call. The `/shared-list/{sharingKey}` link is the platform's existing one and the key is stable across edits; `sharingSetting.targets` lists every organization with its resolved `name` / `subtitle` / `imageUrl`, whether or not the rep still serves it. The legacy single `sharedWithId` keeps its single-target meaning for the storefront that has only one picker: it replaces the organization the list is shared with, changes nothing when it already names it, and is refused when the list has several recipients - a client that cannot see the set is never allowed to silently revoke it.
+* **Read access (data isolation).** The list's owner (the rep) always sees it; a customer member sees it only when their **active organization** is one of the targets, and never sees the other recipients (`sharingSetting.targets` / `sharedWithId` resolve for the owning rep only; the `message` is visible to recipients) — a member of any other organization, or an anonymous visitor, is denied. Customers get read-only access (add to cart, not edit); the rep keeps write.
+* **Owner-only sharing.** Changing a list's scope or its recipients, and removing the list, are refused for anyone but the list's owner — the rep who created it. This is X-Cart's rule for every scope, not a Sales Rep one; a targeted customer holds read access and could never reach these paths anyway.
+* **Write authorization.** Adding organizations to the `Customer` scope is gated server-side: the caller must be a **Sales Rep who actually serves every organization being added** — the same *serves-organization* check `sendCustomerCommunication` uses, so *"can share with an org" == "can message it"*. A non-rep, or a rep targeting an organization they don't serve, is rejected (`Access denied.`); this is not a frontend-only gate. Removing an organization needs no such check — the list owner can always revoke, even after being unassigned from that organization. A `Customer` list must keep at least one target; "stop sharing" is the `Private` scope.
 * **Notification.** Telling the customer their list is ready reuses the `sendCustomerCommunication` mutation above (the rep's message plus the shared-list link) — no new notification surface.
 
-Implementation-wise the module registers a `SalesRepCartSharingService` (a subclass of X-Cart's `CartSharingService`, last-registration-wins) that teaches the pipeline the `Customer` scope's visibility and write-authorization rules, and a `SalesRepWishlistScopeType` that exposes the new value on the core wishlist schema. The serves-organization gate is a single shared service (`ISalesRepOrganizationAccessService`) used by both the sharing authorization and the query/communication handlers, so *"which organizations does this rep serve"* has one implementation.
+Implementation-wise the module registers a `SalesRepCustomerCartSharingScopePolicy` (an `ICartSharingScopePolicy` in X-Cart's additive sharing-scope registry) that teaches the pipeline the `Customer` scope's visibility, write-authorization and target-resolution rules; the enum value appears on the core wishlist schema automatically. The serves-organization gate is a single shared service (`ISalesRepOrganizationAccessService`) used by both the sharing authorization and the query/communication handlers, so *"which organizations does this rep serve"* has one implementation.
 
 ### Documents library
 
@@ -661,21 +798,38 @@ A shared library of sales materials: a back-office manager uploads categorized f
 
 ## Administration
 
-The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name, salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
+The module ships an embedded VC-Shell application (menu title **Sales Reps**) with a Sales Reps list plus supporting views (**Blocked**, **Not assigned**, **Organizations**, **Not assigned organizations**) and a details blade covering the whole aggregate: **Account** (login email, password, store, role), **Profile** (name — **first and last name are required** — salutation, birth date, time zone, language, currency, about), **Contact methods** (emails, phones, addresses), and **Served organizations** (multi-select), with **Block / Unblock** actions.
 
 It is backed by a REST API under `/api/sales-rep`. Managing a rep is a customer-management action, so endpoints reuse existing permissions — the Customer module's member permissions for the profile and platform security permissions for the account (exactly as the customer member-detail *Accounts* widget does):
 
 | Method & route | Purpose | Permissions |
 |----------------|---------|-------------|
 | `POST /api/sales-rep/search` | Search sales reps (global ∪ per-org). | `customer:read` |
-| `GET /api/sales-rep/roles` | Roles granting `sales-rep:access` (seeds a default if none). | `customer:read` |
+| `GET /api/sales-rep/roles` | Roles granting `sales-rep:access`. Read-only — the default role is seeded at module startup, never by this call. | `customer:read` |
 | `GET /api/sales-rep/{id}` | Get a rep aggregate by contact id. | `customer:read` |
-| `POST /api/sales-rep` | Create a rep (contact + account + memberships). | `customer:create` + `platform:security:create` |
-| `PUT /api/sales-rep` | Update a rep (profile + account + inline password). | `customer:update` + `platform:security:update` |
+| `POST /api/sales-rep` | Create a rep (contact + account + memberships). Refused saves return **400** (see Profile validation). | `customer:create` + `platform:security:create` |
+| `PUT /api/sales-rep` | Update a rep (profile + account + inline password). Refused saves return **400** (see Profile validation). | `customer:update` + `platform:security:update` |
 | `DELETE /api/sales-rep?ids=` | Delete reps; cascades to the account. | `customer:delete` + `platform:security:delete` |
 | `POST /api/sales-rep/{id}/block` | Lock the rep's account. | `platform:security:update` |
 | `POST /api/sales-rep/{id}/unblock` | Unlock the rep's account. | `platform:security:update` |
 | `POST /api/sales-rep/{id}/password` | Set a new account password. | `platform:security:update` |
+
+### Profile validation
+
+`POST` / `PUT /api/sales-rep` validate the submitted aggregate before anything is persisted, and refuse it with **400** and the failing rule's message (a rejected save writes nothing — no half-built contact, no account):
+
+| Rule | Applies to |
+|------|------------|
+| First name and last name are **required**, max 128 characters each | always |
+| Middle name max 128 characters, salutation max 256 | always |
+| A login email (or user name) is **required** | create only — on edit the account already has one |
+| Every supplied address needs country, city, address line 1 and postal code | always |
+
+Free-text fields are trimmed before validation, so a whitespace-only value is rejected rather than stored, and a padded login email cannot become the account's user name.
+
+**Why first and last name are required.** The storefront X-API publishes `contact.firstName`, `.lastName` and `.fullName` as **non-null** GraphQL fields. A contact with no name therefore fails to resolve in every query that reads the current user — including the sign-in page context — which locks that user out of the storefront entirely (VCST-5759). `fullName` is derived from the name parts, so requiring them covers all three.
+
+**Scope of the enforcement.** These rules are enforced on the Sales Rep aggregate save path — the one place where the contact, the login account, the role and the organization memberships are written together. A sales rep is an ordinary `Contact`, so the other contact writers in the platform (the Contacts blade, `POST /api/members`, customer import, and the storefront's own `updatePersonalData` mutation) can still clear a name; the underlying non-null-over-nullable mismatch lives in the Experience API schema and is deliberately **not** addressed here.
 
 The app also carries a **Documents library** section (list, upload, edit, pin, delete), backed by `/api/sales-rep/documents` with one permission per endpoint (read means read, write means write — see Permissions):
 
@@ -717,7 +871,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
 | `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics and Top Sellers. |
-| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics; persists the shared-list target (`CartSharingSetting.SharedWithId`). |
+| `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics; persists the shared-list targets and message (`CartSharingSetting` + `CartSharingSettingTarget`). |
 | `VirtoCommerce.XCart` | Wishlist-sharing pipeline (`ICartSharingService`) extended with the `Customer` scope for publishing a list to a customer organization. |
 | `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
 | `VirtoCommerce.PushMessages` | Storefront push notifications for customer communications. |
@@ -726,6 +880,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 | `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
+| `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |
 
 ## Documentation
 

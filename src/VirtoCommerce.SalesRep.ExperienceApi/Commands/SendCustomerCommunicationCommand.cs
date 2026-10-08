@@ -1,11 +1,14 @@
+using System.Collections.Generic;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Commands;
 
-public class SendCustomerCommunicationCommand : ICommand<SalesRepCommunicationResult>
+public class SendCustomerCommunicationCommand : ICommand<SalesRepCommunicationResult>, ISalesRepUserCommand
 {
     public string OrganizationId { get; set; }
+
+    public IList<string> OrganizationIds { get; set; }
 
     public bool SendPush { get; set; }
 

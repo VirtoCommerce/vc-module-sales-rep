@@ -44,10 +44,8 @@ public static class ModuleConstants
 
     public static class Sharing
     {
-        // Wishlist sharing scope used when a Sales Rep publishes a list to specific customer organizations
-        // (VCST-5332). Not a member of CartModule's CartSharingScope: the sharing pipeline accepts any scope
-        // string, and SalesRepCartSharingService teaches the platform this value's visibility rules. The scope also
-        // defines the id space of CartSharingSetting.SharedWithId (here: a customer organization id).
+        // Wishlist scope for a list a Sales Rep publishes to specific customer organizations (VCST-5332). Not a
+        // CartSharingScope member; SalesRepCustomerCartSharingScopePolicy owns its rules and SharedWithId space.
         public const string CustomerScope = "Customer";
     }
 
@@ -62,6 +60,8 @@ public static class ModuleConstants
 
         public const int MaxMessageLength = 1000;
 
+        public const int MaxOrganizations = 1000;
+
         public static class Warnings
         {
             public const string NoRecipients = "NoRecipients";
@@ -71,6 +71,24 @@ public static class ModuleConstants
             public const string EmailSendFailed = "EmailSendFailed";
             public const string PushSendFailed = "PushSendFailed";
         }
+    }
+
+    public static class Profile
+    {
+        // The ContactEntity column lengths these values are persisted into.
+        public const int NameMaxLength = 128;
+        public const int SalutationMaxLength = 256;
+    }
+
+    public static class Tasks
+    {
+        // Mirrors TaskManagement's WorkTaskEntity column widths. Description is deliberately absent: that column
+        // has no [StringLength], so capping it here would invent a limit the storage does not have.
+        public const int MaxNameLength = 256;
+
+        public const int MaxTypeLength = 128;
+
+        public const int MaxResponsibleNameLength = 256;
     }
 
     public static class Settings
