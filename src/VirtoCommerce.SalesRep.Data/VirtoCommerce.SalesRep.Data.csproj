@@ -13,13 +13,10 @@
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1009.0" />
     <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1026.0" />
     <PackageReference Include="VirtoCommerce.XCart.Core" Version="3.1039.0" />
+    <PackageReference Include="VirtoCommerce.XFrontend.Core" Version="3.1008.0-alpha.57-vcst-6078-user-dashboard" />
     <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1014.0" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- LOCAL DEV SHIM (VCST-6078): replace with <PackageReference Include="VirtoCommerce.XFrontend.Core" Version="(alpha)" /> before the PR. -->
-    <ProjectReference Include="..\..\..\vc-module-x-frontend\src\VirtoCommerce.XFrontend.Core\VirtoCommerce.XFrontend.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -5,7 +5,7 @@
     <SonarQubeTestProject>true</SonarQubeTestProject>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="10.0.1">
+    <PackageReference Include="coverlet.collector" Version="10.1.0">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
@@ -32,6 +32,8 @@
     <PackageReference Include="VirtoCommerce.TaskManagement.Data" Version="3.1005.0" />
     <PackageReference Include="VirtoCommerce.Xapi.Data" Version="3.1026.0" />
     <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1039.0" />
+    <!-- Test-only: the component tests run the real x-frontend order statistics service behind the adapter. -->
+    <PackageReference Include="VirtoCommerce.XFrontend.Data" Version="3.1008.0-alpha.57-vcst-6078-user-dashboard" />
     <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1014.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -50,10 +52,5 @@
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.Data\VirtoCommerce.SalesRep.Data.csproj" />
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.ExperienceApi\VirtoCommerce.SalesRep.ExperienceApi.csproj" />
     <ProjectReference Include="..\..\src\VirtoCommerce.SalesRep.Web\VirtoCommerce.SalesRep.Web.csproj" />
-  </ItemGroup>
-  <ItemGroup>
-    <!-- LOCAL DEV SHIM (VCST-6078): replace with <PackageReference Include="VirtoCommerce.XFrontend.Data" Version="(alpha)" /> before the PR.
-         Test-only: the component tests run the real x-frontend order statistics service behind the adapter. -->
-    <ProjectReference Include="..\..\..\vc-module-x-frontend\src\VirtoCommerce.XFrontend.Data\VirtoCommerce.XFrontend.Data.csproj" />
   </ItemGroup>
 </Project>
