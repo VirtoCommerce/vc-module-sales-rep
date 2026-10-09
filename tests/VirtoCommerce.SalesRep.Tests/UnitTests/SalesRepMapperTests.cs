@@ -4,9 +4,15 @@ using System.Linq;
 using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.OrdersModule.Core.Model.Search;
+using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SearchModule.Core.Model;
+using VirtoCommerce.Xapi.Core.Models.Facets;
+using VirtoCommerce.XOrder.Core.Models;
+using VirtoCommerce.XOrder.Core.Services;
 using Xunit;
 using File = VirtoCommerce.FileExperienceApi.Core.Models.File;
 using Module = VirtoCommerce.SalesRep.Web.Module;
@@ -157,6 +163,54 @@ public class SalesRepMapperTests
         descriptor.Should().NotBeNull();
         descriptor.ImplementationType.Should().Be<SalesRepMapper>();
         descriptor.Lifetime.Should().Be(ServiceLifetime.Singleton);
+    }
+
+    // The contract FacetMappingContext documents: a consumer substitutes the type through the factory, so ToFacets
+    // must build it that way. Constructed with `new`, a project's override is honoured on X-Order's own
+    // SearchOrderQuery and silently ignored here — the one thing this mapper's comment promises cannot happen.
+    [Fact]
+    public void ToFacets_BuildsTheContextThroughTheFactory_SoAnOverrideIsHonoured()
+    {
+        AbstractTypeFactory<OrderFacetMappingContext>.OverrideType<OrderFacetMappingContext, TestFacetMappingContext>();
+
+        try
+        {
+            var orderMapper = new CapturingOrderMapper();
+            var mapper = new SalesRepMapper(orderMapper);
+
+            mapper.ToFacets([new OrderAggregation()], "de-DE");
+
+            orderMapper.Context.Should().BeOfType<TestFacetMappingContext>(
+                "a project registering an override against OrderFacetMappingContext must reach this mapper too");
+            orderMapper.Context.CultureName.Should().Be("de-DE");
+        }
+        finally
+        {
+            // The factory is process-wide static state; leaving the override registered would leak into every
+            // later test in the run.
+            AbstractTypeFactory<OrderFacetMappingContext>.OverrideType<OrderFacetMappingContext, OrderFacetMappingContext>();
+        }
+    }
+
+    private sealed class TestFacetMappingContext : OrderFacetMappingContext
+    {
+    }
+
+    private sealed class CapturingOrderMapper : IXOrderMapper
+    {
+        public FacetMappingContext Context { get; private set; }
+
+        public FacetResult ToFacetResult(OrderAggregation aggregation, FacetMappingContext context)
+        {
+            Context = context;
+            return null;
+        }
+
+        // Not part of what this test observes; the interface carries it.
+        public void MapTo(IList<IFilter> filters, PaymentSearchCriteria criteria)
+        {
+            throw new NotSupportedException();
+        }
     }
 
     private static File CreateFile(string id, string scope = ModuleConstants.DocumentsScope, string name = "list.pdf", string contentType = "application/pdf", long size = 1)

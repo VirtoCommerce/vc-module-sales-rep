@@ -24,6 +24,9 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Send a push notification and/or email to the members of a customer organization
 * Publish a shopping list (wishlist) to a customer organization the rep serves — its members open it read-only ("Recommended by your Sales Rep") and add items to their cart, with an optional email/push notification
 * Share a curated **documents library** with sales reps — a back-office manager uploads categorized sales materials (price lists, catalogs, guides), optionally pinning one and annotating summary / page count / preview; reps browse, search and download them from the storefront
+* Show a rep an **activity feed** of their customers — orders placed, customers assigned, and (from Google Analytics 4) searches, product views and sign-ins — merged newest-first with per-category counters
+* Show **customer insights** per customer or across all of them: top/recent search phrases, browsed products, last sign-in and visit count, sourced from tracked storefront activity
+* Diagnose the Google Analytics connection from the back office — a staged checklist ending in a probe that runs the real feature query
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -38,6 +41,8 @@ The Sales Rep module turns selected users into sales representatives who serve a
 ## XAPI Specification
 
 The storefront queries are exposed on a dedicated scoped schema at `POST /graphql/sales-rep` (with a GraphiQL UI at `/ui/graphiql/sales-rep`). Every query requires an authenticated caller and is store- and membership-scoped, so a rep only sees the customers they serve and a buyer only sees their own reps.
+
+Dashboard layouts are not part of this schema: the storefront stores them through the x-frontend module's `layout` query and `saveLayout` mutation on `/graphql`.
 
 > **Authentication.** Every query needs a bearer token. When the rep's login account is **store-bound**, the `POST /connect/token` password grant must include the `storeId` form parameter (e.g. `storeId=B2B-store`) — otherwise the grant fails with `400 invalid_grant`.
 
@@ -324,7 +329,7 @@ Four rule domains, each with its own discovery query:
 
 Both default rule sets are derived from the data, so a rule is offered only when selecting it can return something:
 
-- **Order statuses** are the statuses the caller's own orders **actually use** (a `DISTINCT` over `CustomerOrder`, cached for `SalesRep.Statistics.OrderCacheExpirationMinutes`, the order-statistics TTL), not the configured `Order.Status` dictionary. A status that arrives with an order from outside the platform — an ERP/3rd-party sync — is therefore filterable immediately; a status none of those orders carry is not offered at all. The dictionary still supplies the curated ordering and the localized labels; statuses missing from it follow, alphabetically, labeled with the raw status. Override `ISalesRepOrderStatusService` to change what counts as the in-use vocabulary.
+- **Order statuses** are the statuses the caller's own orders **actually use** (a `DISTINCT` over `CustomerOrder`, cached for `SalesRep.Statistics.OrderCacheExpirationMinutes`), not the configured `Order.Status` dictionary. A status that arrives with an order from outside the platform — an ERP/3rd-party sync — is therefore filterable immediately; a status none of those orders carry is not offered at all. The dictionary still supplies the curated ordering and the localized labels; statuses missing from it follow, alphabetically, labeled with the raw status. Override `ISalesRepOrderStatusService` to change what counts as the in-use vocabulary.
 - **Top-seller category badges** are the top-level active categories the caller **actually sold into**, resolved *category-first*: `DISTINCT OrderLineItem.CategoryId` over the sales in scope (`ISalesRepTopSellerService.GetSoldCategoryIdsAsync`, cached), then each of those categories mapped to its top-level ancestor via its **outline for the store's catalog** (`ICategoryService` with `WithOutlines`) — which is what makes it work for a *virtual* store catalog, where a linked physical category carries an outline like `store-catalog/top-level/category`. Selecting a badge sets `CategoryIds` on the ranking criteria, so the filter is a plain database predicate.
   - This is deliberately keyed on **categories, not products**: cardinality is bounded by the catalog structure (tens to hundreds), never by how many products have ever been sold, and no product-id list is carried into a search. A line item with no category (a product filed directly under a catalog root) belongs to no top-level category and is simply not represented — the same outcome either way.
   - The category comes from the **line item's own snapshot**, taken when the order was placed — the same value `SalesRepTopSeller.categoryId` exposes per row — so the filter agrees with what the list displays even if a product is re-categorized later.
@@ -370,6 +375,8 @@ Every `sort` argument accepts an optional X-Order-style **direction suffix** —
 ---
 
 #### Order statistics
+
+The figures come from the x-frontend module's shared order statistics service (`IOrderStatisticsService`), which this module calls with the rep's scope: the orders the rep placed (`CustomerId` = the rep's user id) in the organizations the rep serves.
 
 Aggregated order purchases for the rep — omit `organizationId` for the cross-customer dashboard, or pass it to scope to one customer. Request any number of **aliased** `period(from, to)` blocks and `comparison(current, previous)` blocks in one query; a per-request loader coalesces them, so a range used by both a period and a comparison is aggregated once. Money fields expose `amount` + `formattedAmount`; each block takes an optional `filter` (see above). Both `period` bounds are **inclusive** and compared as UTC instants — the caller sends the time component (and any local→UTC conversion, exactly as the storefront's own orders date filter does); there is no server-side date truncation. Because both bounds are inclusive, the caller defines the exact window — windows may be disjoint, adjacent, or intentionally overlapping (e.g. a sub-period compared against the period that contains it). The examples use inclusive end-of-period bounds (`…T23:59:59Z`) so a `comparison`'s current/previous windows never share an endpoint.
 
@@ -524,6 +531,63 @@ The shared documents library (gated by `sales-rep-documents:read`). `after` is t
 
 The keyword matches the **display name** (the raw file name is internal), and `url` is the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL. The listing is **metadata-authoritative**: `totalCount` always matches the returned rows. A document whose file record is missing (out-of-band corruption — raw SQL, a mid-cascade failure) still lists with its metadata fields; the file-derived fields (`name`, `contentType`, `size`) degrade to null, while `url` stays resolvable (it is deterministic) — attempting the download yields the server's 404, uniformly with every other corruption class, and the document stays visible and deletable.
 
+#### Activity feed
+
+A merged, categorized feed of what the rep's customers did. `organizationId` omitted covers every customer they serve ("my activity"); `categories` filters the **rows** while `categoryCounts` keeps reporting every category, so selecting a tab never blanks the others' badges.
+
+```graphql
+{
+  salesRepActivities(
+    storeId: "B2B-store"
+    # optional: organizationId (one customer), categories: ["searches"], period: { from, to }
+    take: 20
+    skip: 0
+    cultureName: "en-US"
+  ) {
+    totalCount                                 # rows in the requested categories — drives the pager
+    categoryCounts { category count }          # every category; only fetched when selected
+    items {
+      category                                 # orders | customers | searches | productViews | logins
+      type                                     # orderPlaced | customerAssigned | search | productView | login
+      occurredAt precision                     # precision: exact | hour (hour = UTC bucket start)
+      count                                    # >1 when an analytics hour-bucket aggregates repeats
+      organizationId organizationName
+      orderId orderNumber orderStatus orderStatusDisplayValue
+      orderTotal { amount formattedAmount }
+      searchTerm
+      productId productCode productName productImageUrl
+    }
+  }
+}
+```
+
+`take` defaults to 20 and caps at 50; `take: 0` returns counters only. The feed **pages 500 rows deep**: a merged page can only be sliced from the top (`skip + take`) rows of every requested category, so `MaxSkip` caps what one request can cost (worst case ~3,000 rows for the five-category "All" view at a full page). Past the window the query returns **no rows** rather than repeating the window's last page, while the counters keep describing the whole set. Within the window a single fetched category pages natively and costs the same at any depth; the `MaxSkip` cap itself is checked before that distinction, so it applies to a single-category request too.
+
+#### Customer insights
+
+Ranked lists over tracked activity, for one customer or aggregated across all of them:
+
+```graphql
+{
+  salesRepCustomerInsights(storeId: "B2B-store" /*, organizationId, period */) {
+    dataAsOf                                   # newest bucket in THIS payload — never "now"
+    searchTerms(take: 5, sort: "count") { term count lastSearchedDate }
+    browsedProducts(take: 5, sort: "count") { productId name sku imageUrl viewCount lastViewedDate }
+  }
+
+  # Compact per-customer card: platform facts + analytics facts in one payload.
+  salesRepCustomerActivitySummary(organizationId: "…", storeId: "B2B-store" /*, period */) {
+    createdOn                                  # from the database, not GA
+    lastWebLogin visitsCount
+    lastSearchTerm lastSearchedDate
+    lastViewedProduct { code productId name imageUrl } lastViewedDate
+    isAnalyticsAvailable                       # the availability signal for the UI
+  }
+}
+```
+
+`sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. On the summary, `lastSearchedDate` and `lastViewedDate` date the row the term and the product come from: the newest one that carries the dimension. When analytics is unavailable these fields return `null` / zero rather than an error, and `isAnalyticsAvailable` is how a UI renders that state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
+
 #### Tasks
 
 The rep's own tasks, stored by **`VirtoCommerce.TaskManagement`** — an **optional** dependency. With that module
@@ -653,7 +717,6 @@ Recipients are resolved **once** across all `organizationIds` — a member of se
 
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
-
 Task writes. The responsible contact, its organization and the store are stamped **server-side** from the caller
 (the store is the rep's own account store) — none of the three is an input field, so a client-supplied owner is
 never honoured, and `updateSalesRepTask` / `changeSalesRepTaskStatus` / `deleteSalesRepTask` re-check ownership
@@ -708,6 +771,54 @@ read cannot return. Supported configuration rather than a fault — the storefro
 `WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
 two transitions stay symmetric.
 
+## Google Analytics-based metrics
+
+Some metrics are **not** computed from platform data — they are read from **Google Analytics 4** (Data API `runReport`) through the `IAnalyticsService` abstraction of the optional [VirtoCommerce.GoogleEcommerceAnalytics](https://github.com/VirtoCommerce/vc-module-google-ecommerce-analytics) module. When analytics is unavailable — the module absent, the store unconfigured, or a read that failed — these fields return `null` / zero / empty and **`isAnalyticsAvailable` is `false`**, never an error. One flag covers all three on purpose: a rep can do nothing different about any of them, and the cause belongs in the server log and the diagnostics endpoint, not on a rep's screen. A null `salesRepCustomerInsights` means something else entirely — the caller may not see that customer.
+
+> **Why `lastWebLogin` comes from GA and not from the platform.** `ApplicationUser.LastLoginDate` carries the exact instant, and this module already loads `ApplicationUser` for the store claim — so reading the login date from GA costs precision (an hour bucket) and freshness (GA's 24–48 hour processing lag). It is deliberate: this wave is about what GA can answer, and taking `visitsCount` from GA while taking the login date from the database would split one card across two sources with two different freshness guarantees, where the stale half is invisible. If the exactness matters more than the consistency, moving this one field to `LastLoginDate` is a small, self-contained change.
+
+| Metric (GraphQL field) | GA4 source | Notes |
+|---|---|---|
+| `salesRepActivities` → category `searches` rows | event `search`; dimension `searchTerm`; metric `eventCount` | one row per search term per hour bucket. Only `search` is counted, as in the insights list below — the storefront also fires `view_search_results` for the same journey, and GA returns a row per event name, so asking for both would show one search twice |
+| `salesRepActivities` → category `productViews` rows | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | `itemId` holds the product **code**, resolved server-side to a catalog product |
+| `salesRepActivities` → category `logins` rows | event `login`; metric `eventCount` | |
+| `salesRepCustomerActivitySummary.visitsCount` | event `login`; metric `eventCount` over the period | a proxy for "number of visits"; only tracked sign-ins count |
+| `salesRepCustomerActivitySummary.lastWebLogin` | event `login`; latest `dateHour` bucket | hour precision |
+| `salesRepCustomerActivitySummary.lastSearchTerm`, `lastSearchedDate` | events `search`, `view_search_results`; latest `dateHour` bucket with a `searchTerm` | the date is that bucket's start; either event names the term, and only the latest is kept, so nothing double-counts |
+| `salesRepCustomerActivitySummary.lastViewedProduct`, `lastViewedDate` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/image; the date is that bucket's start |
+| `salesRepCustomerInsights.searchTerms` (term, count, lastSearchedDate) | event `search`; dimension `searchTerm`; metric `eventCount` | `sort: "count"` = GA-aggregated top; `sort: "date"` = per-hour rows aggregated per term. Only `search` is counted — `view_search_results` describes the same user action and would double-count |
+| `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; an unresolvable code keeps its `sku` and reports a null `productId` |
+| `salesRepCustomerInsights.dataAsOf` | latest `dateHour` bucket observed in the returned payload | **not** "now" — see latency below |
+
+(`salesRepCustomerActivitySummary.createdOn` and the `orders`/`customers` activity categories come from platform data, not GA.)
+
+Every rep-facing GA query is constrained by two **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too), and `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own.
+
+> The **diagnostics** endpoint below is the deliberate exception: it is an operator probe of a store's wiring, so its reads are store-wide and not narrowed to any rep's organizations. It returns row *counts* only, never row content, and it is gated on `sales-rep:diagnostics` — a back-office permission that no rep-facing screen requires.
+
+What the module adds on top of the raw source:
+
+* **Product codes are resolved within the store's catalog.** Analytics carries a product *code*; a code is unique
+  inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` there
+  is no catalog to narrow by and the search spans all of them: a code carried by **more than one catalog resolves
+  to nothing** rather than to whichever product came back first — but a code carried by exactly one *other* catalog
+  does resolve to that catalog's product, so pass a `storeId` whenever the caller knows one. An unresolved code —
+  unknown or ambiguous — keeps the name analytics tracked and reports a null `productId`.
+* **Activity counts count rows, not raw events.** One analytics row is one (hour bucket x dimension tuple), and its
+  `count` field says how many events it aggregates. A row GA returns without a usable hour bucket cannot be placed
+  on a time-ordered feed, so it leaves the page — but not the category count, which keeps describing the whole set.
+  A badge can therefore exceed the list beneath it; correcting it instead made a badge change value when its own
+  tab was selected.
+* **The merged feed is bounded.** See [Activity feed](#activity-feed) for the paging window and what it costs.
+
+Caveats inherent to the source, by design:
+
+* **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity. `dataAsOf` reports how fresh the data actually is.
+* **Hour precision** — GA reports are aggregates; all `last*Date` values are UTC hour-bucket starts, not event timestamps. The storefront renders them as approximate.
+* **Sample, not record** — ad blockers, consent and untracked channels mean GA sees a subset of real activity; the UI carries a "based on tracked activity" caveat.
+* **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and a misconfigured property cannot burn it on a hot page. The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.
+* **When reporting is unavailable** — a failed read **throws** in the analytics module (unconfigured store, refused credential, Google outage alike) rather than answering with an empty list, so this module can tell "reporting is broken" from "this customer did nothing". The activity feed catches it per category and logs: the analytics tabs come back empty while orders and customers keep working, because one outage must not empty a rep's whole feed.
+
 ## How it works
 
 A sales rep is not a new entity — the module composes three pieces of existing platform data, so it owns **no database tables** and adds **no EF migrations**:
@@ -736,12 +847,12 @@ graph LR
 
 ### Statistics, filter rules and sort rules
 
-The dashboard numbers are **aggregated in the database**: the module reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`) instead of loading rows into memory, then converts every order/cart currency to the requested one at current rates. The requested currency is resolved once per query by a shared policy (`ISalesRepCurrencyResolver`, used by every money-bearing query): an explicit `currencyCode` argument if given, else the store's default currency, else the platform primary. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows.
+The dashboard numbers are **aggregated in the database** instead of loaded into memory: the order figures by the x-frontend module's order statistics service (`IOrderStatisticsService`, behind this module's `CustomerOrderStatisticsService`), the cart figures, customer counts and top sellers by this module, which reads the Orders and Cart stores directly (grouped `SUM` / `COUNT` / `MAX`). Every order/cart currency is converted to the requested one at current rates. The requested currency is resolved once per query by a shared policy (`ISalesRepCurrencyResolver`, used by every money-bearing query): an explicit `currencyCode` argument if given, else the store's default currency, else the platform primary. Every statistics query is scoped two ways — to the organizations the rep serves (membership) **and** to the data the rep *created* (their own orders/carts) — the same data-isolation rule the rest of the module follows. The order figures also enforce that scope in the service, failing closed: they refuse a criteria without `CustomerId` and read an empty organization or status list as "match nothing", while the cart statistics and customer counts still read a missing or empty scope as "no filter" (aligning them is a separate change).
 
 **Filter rules** are the single, server-owned vocabulary for "which records count". A rule has a stable `name` and resolves to the underlying filter — order statuses, a cart type/status set, or a customer segment — as an overridable mapping (`IFilterRuleResolver`), applied as one optional `filter` argument (omit → the baseline set; unknown name → fail closed). The two data-derived rule sets only offer rules with data behind them, read **in the caller's scope** — served organizations, own created orders, plus the `organizationId` and `period` the storefront's list is using: order statuses come from a `DISTINCT` over those orders (`ISalesRepOrderStatusService`, cached), so an ERP-introduced status shows up and an unused one doesn't; the top-seller badges are the categories that scope's sales actually fall into. Resolvers get the scope as a `SalesRepFilterRuleContext` (built from the query on the discovery path and from the reader's criteria on the apply path), so discovery and resolution always agree and a selectable rule never yields an empty list. Within a domain the **same resolver drives every reader** — the orders list and the order statistics; the customers list and the "my customers" counts — so a filtered list and its matching statistic always reconcile (a component test asserts `salesRepOrders.totalCount == statistics.count` for a given rule). Extensibility:
 
 * **Add/recompose rules** — register a replacement resolver (`ISalesRepOrderFilterRuleResolver` / `ISalesRepCartFilterRuleResolver` / `ISalesRepCustomerFilterRuleResolver` / `ISalesRepTopSellerFilterRuleResolver`); the last registration wins. Customer segments ship with a single **All** baseline (passthrough); the seam is there for projects to add real segments.
-* **A rule the standard criteria can't express** (e.g. *"stale, or item-less"* orders, or an *"active"* customer segment) — the resolver applies onto the reader's criteria, and each reader exposes a seam to add the predicate: a `BuildQuery` override on the statistics/counts services, or narrowing the members search (`ObjectIds`) for the customers list. Wire it for every reader in the domain so they stay consistent.
+* **A rule the standard criteria can't express** (e.g. *"stale, or item-less"* orders, or an *"active"* customer segment) — the resolver applies onto the reader's criteria, and each reader exposes a seam to add the predicate: a `BuildQuery` override on the cart statistics/counts services (for the order figures: on x-frontend's `OrderStatisticsService`, which every consumer of those figures shares, plus a `CustomerOrderStatisticsService.ToOrderStatisticsCriteria` override that carries the extra criteria across), or narrowing the members search (`ObjectIds`) for the customers list. Wire it for every reader in the domain so they stay consistent.
 
 **Sort rules** are the parallel axis for *ordering* (`ISortRuleResolver` — `ISalesRepOrderSortRuleResolver` maps a rule to the order search's sort expression, e.g. *recent* / *total*; `ISalesRepCustomerSortRuleResolver` maps it to a spec; `ISalesRepTopSellerSortRuleResolver` maps it to the Top Sellers ranking metric). The rule `name` carries an optional X-Order-style `:asc`/`:desc` **direction suffix**, parsed once in `SortRuleResolverBase`: each rule declares its `DefaultDirection` and whether it `SupportsDirection`, so the base applies the default when no (or a garbage) suffix is given, applies a supported suffix, and **throws** on a valid-but-unsupported direction on a recognized rule (e.g. `recent:asc`) — while an unknown *rule name* still falls back to the default. Kept a *separate* input from filter rules, so a domain's *N* filters and its handful of orderings never multiply into one combinatorial list. A sort only reorders, so an unknown/empty selection resolves to the domain **default** — it never fails closed on the name. The customers list's order-derived orderings (*my last orders*, *ytd purchases*) can't be a member column, so the handler ranks the served organizations by the rep's per-organization order aggregate — one grouped query (`GetStatisticsByOrganizationAsync`), the same aggregate that backs the inline per-row purchase columns.
 
@@ -843,6 +954,14 @@ The app also carries a **Documents library** section (list, upload, edit, pin, d
 | `POST /api/sales-rep/documents/{id}/pin`, `.../unpin` | Single-pin toggle (at most one pinned document). | `sales-rep-documents:write` |
 | `DELETE /api/sales-rep/documents?ids=` | Remove documents (converging cleanup — see Delete behavior). | `sales-rep-documents:write` |
 
+It also carries an **Analytics diagnostics** blade — pick a store, run the checklist, read one row per stage with an expandable detail:
+
+| Method & route | Purpose | Permission |
+|----------------|---------|------------|
+| `POST /api/sales-rep/analytics-diagnostics?storeId={id}&includeLiveData=true` | Runs the analytics module's seven connection stages with this module's expectations, then appends a `featureQuery` stage that executes the real insight queries through the production path and reports row counts. | `sales-rep:diagnostics` |
+
+Each row is `{ stage, status, message, detail }` with `status` one of `Passed | Warning | Failed | Skipped`. Empty results are a `Warning`, not a failure — "no data yet" is the expected state until GA has processed traffic (24-48 h). `includeLiveData=false` skips the data stages to save Data API quota. Without the analytics module installed the response is a single `configuration` / `Failed` row saying so.
+
 Full REST documentation is browsable through Swagger on any running platform instance at `https://{platform-host}/docs/index.html?urls.primaryName=VirtoCommerce.SalesRep`.
 
 ## Permissions
@@ -850,27 +969,52 @@ Full REST documentation is browsable through Swagger on any running platform ins
 | Permission | Meaning |
 |------------|---------|
 | `sales-rep:access` | **Defines** a sales rep. Held by the rep via a role — globally and/or per organization. It is *not* an admin permission and does not gate the management API. |
+| `sales-rep:diagnostics` | Run the analytics diagnostics endpoint and open its back-office blade. Back-office only; it gates no storefront data. |
 | `sales-rep-documents:read` | Browse, search and download documents library files (storefront queries + admin read endpoints). |
 | `sales-rep-documents:write` | Manage the documents library (upload/register, edit metadata, pin, delete). |
 
 Permissions are granular and composed by **roles** — neither documents permission implies the other (a write-only holder cannot list or download; grant both to managers). Administrators pass every permission check.
 
-The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two documents-library roles: **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) and **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write`). Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may freely rename, edit or delete them (reps are identified by the permission, never by a role's id).
+The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two more roles. **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) is a *membership* role, assigned on an `OrganizationMembership` like **Sales Representative**. **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write` + `sales-rep:diagnostics`) is the single *back-office* role for whoever administers the feature: it deliberately does **not** carry `sales-rep:access`, because that permission is what turns a membership into a rep. Managing rep accounts themselves is not part of it — `SalesRepController` requires the Customer module's member permissions and the platform's security permissions, which are far broader than this feature and are not seeded here. Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may edit or delete them, and may rename them as long as the permission list stays the same (reps are identified by the permission, never by a role's id). When a release **adds** a permission to a seeded role, a role renamed under an earlier release matches neither rule and a fresh role is seeded beside it; this release adds `sales-rep:diagnostics` to **Sales Rep Documents Manager**.
 
 ## Settings
 
 | Setting | Scope | Type | Default | Purpose |
 |---------|-------|------|---------|---------|
 | `SalesRep.Enabled` | Per store (public) | Boolean | `true` | Toggles visibility of the Sales Rep UI on a store's storefront. |
+| `SalesRep.Statistics.CartCacheExpirationMinutes` | Module | Integer | `5` | Lifetime of the cached cart aggregates. `0` stops the family caching anything new. |
+| `SalesRep.Statistics.OrderCacheExpirationMinutes` | Module | Integer | `5` | Same, for the used-status vocabulary. The order figures follow x-frontend's `XFrontend.Statistics.Order.CacheExpirationMinutes`. |
+| `SalesRep.Statistics.CustomerCountsCacheExpirationMinutes` | Module | Integer | `5` | Same, for the customer counts. |
+| `SalesRep.Statistics.TopSellerCacheExpirationMinutes` | Module | Integer | `5` | Same, for the top-seller ranking and the sold-category vocabulary. |
+| `SalesRep.Statistics.CartInvalidateOnChange` | Module | Boolean | `true` | Whether a cart change evicts that organization's cached cart aggregates. |
+| `SalesRep.Statistics.OrderInvalidateOnChange` | Module | Boolean | `true` | Whether an order change evicts that organization's cached status vocabulary. |
+| `SalesRep.Statistics.CustomerCountsInvalidateOnChange` | Module | Boolean | `true` | Whether an order change evicts that organization's cached customer counts. |
+| `SalesRep.Statistics.TopSellerInvalidateOnChange` | Module | Boolean | `false` | Whether an order change evicts that organization's cached top-seller ranking. Off by default: the heaviest query, and nothing on the hub needs it fresh to the second. |
 
 `SalesRep.Enabled` is a presentation switch only — it does *not* gate the backend X-API or the data it returns (those stay secured by rep-membership scoping). It is registered for the `Store` type and marked public, so the storefront reads it from `store.settings.modules`.
+
+**Statistics cache behavior** is the product of the two axes above, per family, and both are read at runtime (no redeploy to change one). A flag governs entries created from then on: one cached while the flag was `false` carries no invalidation token, so it cannot be evicted until it expires.
+
+| Expiration | `InvalidateOnChange` | Behavior |
+|---|---|---|
+| `0` | ignored | Nothing new is cached, so every read recomputes. An entry cached under a previous setting keeps serving until it expires — dropping the expiration to `0` does not flush what is already there. |
+| `> 0` | `false` | Pure TTL cache: an entry can be up to its expiration old. |
+| `> 0` | `true` | Cart/order changes evict the affected organization's entries; the expiration is only a ceiling. |
+
+Invalidation is keyed by **(family, organization)**, so all of an organization's cached variants — periods, filters, currencies, reps — expire together, and a rep gets their own edit back immediately: the domain events are published after the commit and the in-process bus awaits its handlers, so the entries are already gone before the mutation answers.
+
+Two limits are worth knowing. A write that runs inside an `EventSuppressor` scope — bulk imports and other batch jobs do this — publishes no domain event, so its changes surface only when the expiration elapses. And these entries deliberately carry **no sliding window**: the expiration above is the whole lifetime, where every other platform cache entry would also die after `Caching:CacheSlidingExpiration` of inactivity.
+
+**The order figures are not one of these families.** `salesRepCustomerOrderStatistics`, the customers list's inline `orderStatistics` and its order-derived sorts read x-frontend's order statistics service, which caches them per customer (the rep) for `XFrontend.Statistics.Order.CacheExpirationMinutes`. Saving or deleting one of the rep's own orders through the Orders module refreshes them through the platform's per-customer order cache token, which the Orders service expires itself, so `EventSuppressor` batch writes refresh them too. The hub totals and every customer's figures carry that same token, so the rep's own save expires them together and the hub totals keep agreeing with the customer cards. A buyer's order in a served organization is not the rep's: it neither counts in nor evicts the rep's figures. An order whose `CustomerId` changes away from the rep keeps counting in the rep's figures until they expire, because the token fires for the new customer only. The x-frontend README describes that cache and its limits.
+
+> ⚠️ **Multi-instance deployments must configure `ConnectionStrings:RedisConnectionString`.** Cached values are never shared between instances; only *invalidations* are, over the platform's Redis backplane. Without it an eviction reaches only the instance that handled the mutation, and the others keep answering from their own entries until they expire — for every token-based platform cache, not just this one. Verify with `GET /health` (the "Redis health" check reports **Degraded** when unset) and the startup line `Successfully subscribed to Redis backplane channel VirtoCommerceChannel`.
 
 ## Dependencies
 
 | Module | Why |
 |--------|-----|
 | `VirtoCommerce.Customer` | Contacts, organizations, `OrganizationMembership`, member permissions. |
-| `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for order statistics and Top Sellers. |
+| `VirtoCommerce.Orders` | Customer orders — search + hydration, and direct repository aggregation for Top Sellers, the customer counts and the order-status vocabulary. |
 | `VirtoCommerce.Cart` | Shopping carts / wishlists — direct repository aggregation for cart (project) statistics; persists the shared-list targets and message (`CartSharingSetting` + `CartSharingSettingTarget`). |
 | `VirtoCommerce.XCart` | Wishlist-sharing pipeline (`ICartSharingService`) extended with the `Customer` scope for publishing a list to a customer organization. |
 | `VirtoCommerce.Notifications` | Email delivery and templates for customer communications (`SalesRepMessageEmailNotification`). |
@@ -878,6 +1022,7 @@ The first time a rep is saved and no role yet grants `sales-rep:access`, the mod
 | `VirtoCommerce.Store` | Store scoping for accounts and X-API queries; per-store settings. |
 | `VirtoCommerce.Catalog` | Top Sellers category badges — lists the store catalog's top-level categories (`ICategorySearchService`) and maps the categories the rep sold in to their top-level ancestor through the categories' outlines (`ICategoryService`, `WithOutlines`), which also covers a virtual store catalog. |
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
+| `VirtoCommerce.XFrontend` | The order figures — its shared order statistics service (`IOrderStatisticsService`) backs `salesRepCustomerOrderStatistics` and the customers list's inline purchase figures and order-derived sorts. |
 | `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
 | `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |

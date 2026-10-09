@@ -9,7 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using GraphQL;
-using GraphQL.Types;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.Sqlite;
@@ -19,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.AssetsModule.Data.Repositories;
+using VirtoCommerce.CartModule.Core.Events;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.CatalogModule.Data.Repositories;
@@ -30,6 +30,7 @@ using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
+using VirtoCommerce.OrdersModule.Core.Events;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.OrdersModule.Data.Search.Indexed;
 using VirtoCommerce.Platform.Caching;
@@ -39,6 +40,7 @@ using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Events;
+using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Modules;
 using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
@@ -77,7 +79,6 @@ internal sealed class SalesRepTestContext : IDisposable
     private readonly SqliteConnection _catalogConnection;
     private readonly SqliteConnection _assetsConnection;
     private readonly SqliteConnection _salesRepConnection;
-    // Null when the context is built without the task-management slice.
     private readonly SqliteConnection _taskConnection;
     private readonly ServiceProvider _provider;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
@@ -188,6 +189,13 @@ internal sealed class SalesRepTestContext : IDisposable
         provider.GetRequiredService<IEventHandlerRegistrar>()
             .RegisterEventHandler<AssetEntryChangedEvent>(provider.GetRequiredService<DeleteDocumentMetadataAssetEntryChangedEventHandler>());
 
+        // Subscribe the statistics cache invalidation handlers — mirrors the module's
+        // appBuilder.RegisterEventHandler<CartChangedEvent, ...> / <OrderChangedEvent, ...> (VCST-5755).
+        provider.GetRequiredService<IEventHandlerRegistrar>()
+            .RegisterEventHandler<CartChangedEvent>(provider.GetRequiredService<SalesRepStatisticsCartChangedEventHandler>());
+        provider.GetRequiredService<IEventHandlerRegistrar>()
+            .RegisterEventHandler<OrderChangedEvent>(provider.GetRequiredService<SalesRepStatisticsOrderChangedEventHandler>());
+
         // Register the Member search-request builder (done in the customer module's PostInitialize) so keyword
         // member searches — which route to the index and resolve a builder by document type — work in tests.
         provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
@@ -216,6 +224,11 @@ internal sealed class SalesRepTestContext : IDisposable
     /// every test threading it through.
     /// </summary>
     public string LastCreatedRepUserId { get; private set; }
+
+    /// <summary>Overrides one module setting for this context; left unset, a setting reports its descriptor default.</summary>
+    public void SetSetting(SettingDescriptor descriptor, object value)
+        => _provider.GetRequiredService<TestServicesConfiguration.TestSettingsManager>()
+            .Values[descriptor.Name] = value;
 
     /// <summary>
     /// Configure the <c>Customer.ContactDefaultStatus</c> setting the harness's <see cref="IStoreService"/> double
@@ -371,6 +384,25 @@ internal sealed class SalesRepTestContext : IDisposable
         }
     }
 
+    /// <summary>
+    /// Mark an account as a platform administrator. An administrator is not bound to a store, which is the only
+    /// way a caller carrying no StoreId passes <c>ISalesRepStoreAccessService</c>.
+    /// </summary>
+    public async Task MakeAdministratorAsync(string userId)
+    {
+        using var userManager = _provider.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+
+        // A detached clone, never the FindByIdAsync instance: that one is the cached (and possibly tracked) user.
+        var user = (await userManager.FindByIdAsync(userId)).CloneTyped();
+        user.IsAdministrator = true;
+
+        var result = await userManager.UpdateAsync(user);
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+    }
+
     /// <summary>Delete the login account, leaving any member and membership rows behind.</summary>
     public async Task DeleteAccountAsync(string userId)
     {
@@ -431,7 +463,10 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <see cref="SalesRepController"/>, and return the created details.
     /// </summary>
     public Task<SalesRepDetails> CreateRepAsync(string firstName, string lastName, string email, params string[] organizationIds)
-        => CreateRepInStoreAsync(firstName, lastName, email, storeId: null, organizationIds);
+        => CreateRepInStoreAsync(firstName, lastName, email, DefaultStoreId, organizationIds);
+
+    // A real rep account carries a store; CreateRepInStoreAsync(storeId: null) asks for one that does not.
+    public const string DefaultStoreId = "B2B-store";
 
     /// <summary>As <see cref="CreateRepAsync"/>, but binds the rep's account to a specific store.</summary>
     public async Task<SalesRepDetails> CreateRepInStoreAsync(string firstName, string lastName, string email, string storeId, params string[] organizationIds)

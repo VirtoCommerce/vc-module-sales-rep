@@ -8,7 +8,7 @@ namespace VirtoCommerce.SalesRep.Core.Models;
 /// The records a rep may read: organizations served, own created records, one store, one period. Carries no ranking
 /// input (take, sort, currency) — those would split a cached vocabulary across keys holding the same answer.
 /// </summary>
-public class SalesRepScopeCriteria : ValueObject
+public class SalesRepScopeCriteria : ValueObject, IStatisticsCacheCriteria
 {
     public IList<string> OrganizationIds { get; set; }
 

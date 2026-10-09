@@ -7,9 +7,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.AssetsModule.Core.Events;
+using VirtoCommerce.CartModule.Core.Events;
 using VirtoCommerce.FileExperienceApi.Core.Authorization;
 using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.NotificationsModule.TemplateLoader.FileSystem;
+using VirtoCommerce.OrdersModule.Core.Events;
 using VirtoCommerce.Platform.Core.Events;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
@@ -27,6 +29,7 @@ using VirtoCommerce.SalesRep.Data.MySql;
 using VirtoCommerce.SalesRep.Data.PostgreSql;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.SqlServer;
 using VirtoCommerce.SalesRep.Data.Validation;
@@ -80,6 +83,8 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddSingleton<IFileAuthorizationRequirementFactory, SalesRepDocumentAuthorizationRequirementFactory>();
         serviceCollection.AddSingleton<IAuthorizationHandler, SalesRepDocumentAuthorizationHandler>();
         serviceCollection.AddSingleton<DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+        serviceCollection.AddSingleton<SalesRepStatisticsCartChangedEventHandler>();
+        serviceCollection.AddSingleton<SalesRepStatisticsOrderChangedEventHandler>();
 
         // Scoped so the resolver's memoized granting roles are shared across a request.
         serviceCollection.AddScoped<ISalesRepRoleResolver, SalesRepRoleResolver>();
@@ -103,9 +108,20 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
 
-        serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepStoreAccessService, SalesRepStoreAccessService>();
+        serviceCollection.AddTransient<ISalesRepAnalyticsAvailability, SalesRepAnalyticsAvailability>();
+        serviceCollection.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
 
-        serviceCollection.AddTransient<ILayoutService, LayoutService>();
+        serviceCollection.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
+
+        serviceCollection.AddTransient<ISalesRepAnalyticsDiagnosticsService, SalesRepAnalyticsDiagnosticsService>();
+
+        serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 
         serviceCollection.AddTransient<ISalesRepRecipientResolver, AllMembersRecipientResolver>();
 
@@ -141,6 +157,8 @@ public class Module : IModule, IHasConfiguration
         appBuilder.UseScopedSchema<XapiAssemblyMarker>("sales-rep");
 
         appBuilder.RegisterEventHandler<AssetEntryChangedEvent, DeleteDocumentMetadataAssetEntryChangedEventHandler>();
+        appBuilder.RegisterEventHandler<CartChangedEvent, SalesRepStatisticsCartChangedEventHandler>();
+        appBuilder.RegisterEventHandler<OrderChangedEvent, SalesRepStatisticsOrderChangedEventHandler>();
 
         // Seed the default roles once (create-if-none, matched by permission set). No distributed lock is needed:
         // PostInitialize runs inside the platform's startup critical section (ExecuteSynchronized(nameof(Startup))),

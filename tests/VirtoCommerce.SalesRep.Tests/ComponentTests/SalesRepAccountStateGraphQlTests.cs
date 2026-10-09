@@ -16,7 +16,7 @@ public class SalesRepAccountStateGraphQlTests
     private const string RepQuery = "query { salesRepCustomer(organizationId:\"org-1\") { organizationId } }";
     private const string SearchQuery = "query { salesRepCustomers { totalCount items { organizationId } } }";
     private const string Mutation =
-        "mutation { saveSalesRepLayout(command: { scope: \"dashboard\", storeId: \"B2B-store\", schemaVersion: 1, regions: [] }) { schemaVersion } }";
+        "mutation { sendCustomerCommunication(command: { organizationId: \"org-1\", sendPush: true, sendEmail: false, title: \"Update\", message: \"Hello\", storeId: \"B2B-store\" }) { succeeded } }";
 
     private static readonly DateTime _june = new(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc);
 

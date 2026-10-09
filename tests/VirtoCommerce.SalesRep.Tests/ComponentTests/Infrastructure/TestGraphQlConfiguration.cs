@@ -51,6 +51,7 @@ using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
@@ -65,6 +66,8 @@ using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.Xapi.Core.Schemas;
 using VirtoCommerce.Xapi.Core.Services;
 using VirtoCommerce.Xapi.Data.Services;
+using VirtoCommerce.XFrontend.Core.Statistics.Services;
+using VirtoCommerce.XFrontend.Data.Statistics.Services;
 using VirtoCommerce.XOrder.Core;
 using VirtoCommerce.XOrder.Core.Schemas;
 using VirtoCommerce.XOrder.Core.Services;
@@ -104,12 +107,13 @@ internal static class TestGraphQlConfiguration
         // Post-load order scoping, shared by both order surfaces.
         services.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
 
-        // Sales statistics service under test (VCST-5309): the REAL CustomerOrderStatisticsService aggregating
-        // over the same order repository. Its currency data source is a fixed double (USD primary; EUR at 1.25);
-        // the store lookup is the shared TestServicesConfiguration.TestStoreService (every store's default = EUR),
-        // so the conversion/fold math is deterministic and asserted directly.
-        services.AddSingleton<ILogger<CustomerOrderStatisticsService>>(NullLogger<CustomerOrderStatisticsService>.Instance);
+        // Order statistics under test (VCST-5309, VCST-6078): the sales-rep adapter over x-frontend's REAL
+        // OrderStatisticsService, aggregating over the same order repository and caching in the real platform cache.
+        // Its currency data source is a fixed double (USD primary; EUR at 1.25); the store lookup is the shared
+        // TestServicesConfiguration.TestStoreService (every store's default = EUR), so the conversion/fold math is
+        // deterministic and asserted directly.
         services.AddSingleton<ICurrencyService, TestCurrencyService>();
+        services.AddTransient<IOrderStatisticsService, OrderStatisticsService>();
 
         // Recomputes the derived money for the exactly-Full group, as the real read path does.
         services.AddTransient<ICustomerOrderTotalsCalculator, DefaultCustomerOrderTotalsCalculator>();
@@ -196,6 +200,16 @@ internal static class TestGraphQlConfiguration
         services.AddTransient<ICategoryService, RepositoryBackedCategoryService>();
         services.AddTransient<ICategorySearchService, CategorySearchService>();
 
+        // The REAL product-by-code search (the activity feed's productView resolution reads codes GA tracked and
+        // resolves them through IProductSearchService). Product hydration goes through a thin repo-backed
+        // IItemService double — the real ItemService needs ~10 cross-module deps and is not the code under test.
+        services.AddTransient<IItemService, RepositoryBackedItemService>();
+        services.AddTransient<IProductSearchService, ProductSearchService>();
+
+        // The product resolver asks whether the store's catalog is VIRTUAL: a virtual catalog holds links, so it
+        // cannot narrow a product search, and narrowing by one would leave every code unresolved.
+        services.AddTransient<ICatalogService, RepositoryBackedCatalogService>();
+
         return services;
     }
 
@@ -227,6 +241,10 @@ internal static class TestGraphQlConfiguration
         services.AddSingleton<IFacetMapper, FacetMapper>();
         services.AddSingleton<IXOrderMapper, XOrderMapper>();
         services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
+
+        // X-Order's graph types take IXapiMapper since X-Order 3.1014 (the X-Order version x-frontend's packages
+        // bring in); registered by Xapi.Data's AddXCore in production.
+        services.AddSingleton<IXapiMapper, XapiMapper>();
 
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.
         services.AddSingleton<ISalesRepOrderResponseGroupParser, SalesRepOrderResponseGroupParser>();
@@ -267,6 +285,20 @@ internal static class TestGraphQlConfiguration
 
         services.AddSingleton<ISalesRepTaskFilterRuleResolver, SalesRepTaskFilterRuleResolver>();
         services.AddSingleton<ISalesRepTaskSortRuleResolver, SalesRepTaskSortRuleResolver>();
+
+        // Activity feed (VCST-5337): the real aggregation service over the real sources. The analytics module is
+        // OPTIONAL — the IOptionalDependency<> registration below reports it present only when a test override
+        // registers IAnalyticsService (TestAnalytics), so the default harness models the module being absent.
+        services.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
+        services.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
+        services.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
+        // Real services: the availability answer and the store claim are part of what these tests assert.
+        services.AddTransient<ISalesRepAnalyticsAvailability, SalesRepAnalyticsAvailability>();
+        services.AddTransient<ISalesRepStoreAccessService, SalesRepStoreAccessService>();
+        services.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
+        services.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
+        services.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
+        services.AddTransient<ISalesRepProductResolver, SalesRepProductResolver>();
 
         // Constructor dependencies of the X-Order graph types the sales-rep schema exposes (CustomerOrderType,
         // OrderLineItemType). Dynamic properties and available payment methods are outside what these tests assert.
@@ -517,6 +549,36 @@ internal static class TestGraphQlConfiguration
     /// test). Only the read path is exercised — by the real <see cref="CategorySearchService"/> under test and by the
     /// Top Sellers category filter, which reads <c>Outlines</c>; the write / code / outer-id methods are not used.
     /// </summary>
+    private sealed class RepositoryBackedCatalogService : ICatalogService
+    {
+        private readonly Func<ICatalogRepository> _repositoryFactory;
+
+        public RepositoryBackedCatalogService(Func<ICatalogRepository> repositoryFactory)
+        {
+            _repositoryFactory = repositoryFactory;
+        }
+
+        public async Task<IList<Catalog>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            if (ids.IsNullOrEmpty())
+            {
+                return [];
+            }
+
+            using var repository = _repositoryFactory();
+            var entities = await repository.GetCatalogsByIdsAsync(ids);
+
+            return entities.Select(x => x.ToModel(AbstractTypeFactory<Catalog>.TryCreateInstance())).ToList();
+        }
+
+        public Task<IList<Catalog>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true)
+            => Task.FromResult<IList<Catalog>>([]);
+
+        public Task SaveChangesAsync(IList<Catalog> models) => throw new NotSupportedException();
+
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
+    }
+
     private sealed class RepositoryBackedCategoryService : ICategoryService
     {
         private readonly Func<ICatalogRepository> _repositoryFactory;
@@ -646,6 +708,42 @@ internal static class TestGraphQlConfiguration
     {
         public Task<PaymentMethodsSearchResult> SearchAsync(PaymentMethodsSearchCriteria criteria, bool clone = true)
             => Task.FromResult(AbstractTypeFactory<PaymentMethodsSearchResult>.TryCreateInstance());
+    }
+
+    /// <summary>
+    /// Thin repo-backed <see cref="IItemService"/> for the harness: hydrates products straight from the catalog
+    /// repository (the real ItemService needs ~10 cross-module deps and is not the code under test). Only the read
+    /// path is exercised — by the real <see cref="ProductSearchService"/> behind the activity feed's product-by-code
+    /// resolution; write / code / outer-id methods are not used.
+    /// </summary>
+    private sealed class RepositoryBackedItemService : IItemService
+    {
+        private readonly Func<ICatalogRepository> _repositoryFactory;
+
+        public RepositoryBackedItemService(Func<ICatalogRepository> repositoryFactory)
+        {
+            _repositoryFactory = repositoryFactory;
+        }
+
+        public async Task<IList<CatalogProduct>> GetAsync(IList<string> ids, string responseGroup = null, bool clone = true)
+        {
+            if (ids == null || ids.Count == 0)
+            {
+                return [];
+            }
+
+            using var repository = _repositoryFactory();
+            var entities = await repository.GetItemByIdsAsync(ids, responseGroup);
+            return entities.Select(x => x.ToModel(AbstractTypeFactory<CatalogProduct>.TryCreateInstance())).ToList();
+        }
+
+        public Task<IList<CatalogProduct>> GetByIdsAsync(IList<string> ids, string responseGroup, string catalogId) => GetAsync(ids, responseGroup);
+        public async Task<CatalogProduct> GetByIdAsync(string itemId, string responseGroup, string catalogId) => (await GetAsync([itemId], responseGroup)).FirstOrDefault();
+        public Task<IList<CatalogProduct>> GetByCodes(string catalogId, IList<string> codes, string responseGroup) => throw new NotSupportedException();
+        public Task<IDictionary<string, string>> GetIdsByCodes(string catalogId, IList<string> codes) => throw new NotSupportedException();
+        public Task<IList<CatalogProduct>> GetByOuterIdsAsync(IList<string> outerIds, string responseGroup = null, bool clone = true) => throw new NotSupportedException();
+        public Task SaveChangesAsync(IList<CatalogProduct> models) => throw new NotSupportedException();
+        public Task DeleteAsync(IList<string> ids, bool softDelete = false) => throw new NotSupportedException();
     }
 
     /// <summary>
