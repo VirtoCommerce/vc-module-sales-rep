@@ -795,11 +795,13 @@ Every rep-facing GA query is constrained by three **user-scoped custom dimension
 What the module adds on top of the raw source:
 
 * **Product codes are resolved within the store's catalog.** Analytics carries a product *code*; a code is unique
-  inside a catalog but not across them, so the lookup is narrowed by the store's catalog. Without a `storeId` there
-  is no catalog to narrow by and the search spans all of them: a code carried by **more than one catalog resolves
-  to nothing** rather than to whichever product came back first — but a code carried by exactly one *other* catalog
-  does resolve to that catalog's product, so pass a `storeId` whenever the caller knows one. An unresolved code —
-  unknown or ambiguous — keeps the name analytics tracked and reports a null `productId`.
+  inside a catalog but not across them. A store on a physical catalog narrows the lookup to it. A store on a
+  **virtual** catalog (the usual B2B setup) cannot — a virtual catalog links products in rather than holding them —
+  so the lookup spans every catalog, and a code matched in several is settled by what the store shows: the one
+  product linked into the store's catalog wins. Without a `storeId` there is nothing to narrow or settle by: a code
+  carried by **more than one catalog resolves to nothing** rather than to whichever product came back first — but a
+  code carried by exactly one catalog resolves to it, so pass a `storeId` whenever the caller knows one. An
+  unresolved code — unknown, or still ambiguous — keeps the name analytics tracked and reports a null `productId`.
 * **Activity counts count rows, not raw events.** One analytics row is one (hour bucket x dimension tuple), and its
   `count` field says how many events it aggregates. A row GA returns without a usable hour bucket cannot be placed
   on a time-ordered feed, so it leaves the page — but not the category count, which keeps describing the whole set.
