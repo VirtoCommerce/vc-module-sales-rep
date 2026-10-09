@@ -14,6 +14,7 @@ import {
   DOCUMENTS_ROUTE_NAME,
   DOCUMENTS_ROUTE_SEGMENT,
   ENABLED_KEY,
+  MODULE_ID,
   MY_CUSTOMERS_ROUTE_NAME,
   MY_CUSTOMERS_ROUTE_SEGMENT,
   NAV_LINK_ID,
@@ -34,7 +35,7 @@ const hubRoute = (path: string, name: string) => ({ path, parent: "Company" as c
 // The hub's left-rail section is not declared: a declared entry renders its title key before this plugin's
 // locales have merged, so the rail would show `sales_rep.hub.title` until they arrive.
 export default definePluginManifest({
-  when: settingEnabled(ENABLED_KEY),
+  when: settingEnabled(MODULE_ID, ENABLED_KEY),
   routes: [
     { path: ROUTE_SEGMENT, parent: "Company", name: ROUTE_NAME },
     hubRoute(DASHBOARD_ROUTE_SEGMENT, DASHBOARD_ROUTE_NAME),
