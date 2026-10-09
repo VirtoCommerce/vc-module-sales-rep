@@ -81,6 +81,8 @@ internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsRe
         };
         analyticsEvent.Dimensions[AnalyticsConstants.UserDimensions.OrganizationId] = organizationId;
         analyticsEvent.Dimensions[AnalyticsConstants.UserDimensions.SessionKind] = sessionKind;
+        // A customer's by default; a rep's own browsing is seeded by passing the dimension, which overrides this.
+        analyticsEvent.Dimensions[AnalyticsConstants.UserDimensions.IsSalesRep] = SalesRepConstants.Analytics.IsSalesRepValues.Customer;
 
         foreach (var (name, value) in dimensions)
         {

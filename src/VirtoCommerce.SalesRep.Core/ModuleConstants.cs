@@ -104,6 +104,14 @@ public static class ModuleConstants
             public const string Self = "self";
             public const string Impersonated = "impersonated";
         }
+
+        // Values of the storefront's 'is_sales_rep' user dimension. Reads pin Customer: a rep is a member of every
+        // organization they serve, so the rep's own storefront sessions carry that organization like a customer's.
+        public static class IsSalesRepValues
+        {
+            public const string Customer = "false";
+            public const string SalesRep = "true";
+        }
     }
 
     public static class Insights

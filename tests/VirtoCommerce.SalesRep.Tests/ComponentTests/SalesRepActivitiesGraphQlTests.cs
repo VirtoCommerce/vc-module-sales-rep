@@ -137,10 +137,16 @@ public class SalesRepActivitiesGraphQlTests
         analytics.AddEvent(AnalyticsConstants.EventNames.ViewItem, _mar, count: 3, "org-1",
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 1, "org-2");
-        // Foreign-org and impersonated events sit in the pool but MUST stay invisible (server-side GA filters).
+        // Foreign-org, impersonated and a rep's own events sit in the pool but MUST stay invisible (server-side GA
+        // filters). A rep is a member of every organization they serve, so their own browsing carries org-1 too.
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 5, "org-foreign",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "leak"));
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 5, "org-1", sessionKind: SalesRepConstants.Analytics.SessionKinds.Impersonated);
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 6, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.SearchTerm, "rep-own-term"),
+                (AnalyticsConstants.UserDimensions.IsSalesRep, SalesRepConstants.Analytics.IsSalesRepValues.SalesRep)]);
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 4, "org-1",
+            dimensions: (AnalyticsConstants.UserDimensions.IsSalesRep, SalesRepConstants.Analytics.IsSalesRepValues.SalesRep));
 
         var json = await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepActivities(categories: [\"searches\", \"productViews\", \"logins\"], storeId: \"B2B-store\", cultureName:\"en-US\") {{ {AllFields} }} }}",
@@ -169,16 +175,19 @@ public class SalesRepActivitiesGraphQlTests
         search.GetProperty("count").GetInt32().Should().Be(2);
 
         json.Should().NotContain("leak");
+        json.Should().NotContain("rep-own-term");
 
         // One GA read per fetched category — its count reuses the fetch's TotalCount, no extra Take=0 read.
         analytics.ReceivedQueries.Should().HaveCount(3);
         analytics.ReceivedQueries.Should().OnlyContain(x => x.Take > 0);
 
-        // Every analytics read carries the mandatory scope: own sessions only, and only the rep's organizations.
+        // Every analytics read carries the mandatory scope: customers' own sessions only, and only the rep's
+        // organizations.
         foreach (var criteria in analytics.ReceivedQueries)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
             filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
+            filters[AnalyticsConstants.UserDimensions.IsSalesRep].Should().Equal(SalesRepConstants.Analytics.IsSalesRepValues.Customer);
             filters[AnalyticsConstants.UserDimensions.OrganizationId].Should().BeEquivalentTo("org-1", "org-2");
         }
     }

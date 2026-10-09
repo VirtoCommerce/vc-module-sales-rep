@@ -135,9 +135,11 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
             // hand-written IAnalyticsService double stood in for the module that does the rounding.
             criteria.From.Should().Be(criteria.From!.Value.Date);
             criteria.From.Should().BeCloseTo(DateTime.UtcNow.AddDays(-30), TimeSpan.FromDays(1));
-            var filter = criteria.DimensionFilters.Should().ContainSingle().Subject;
-            filter.DimensionName.Should().Be(AnalyticsConstants.UserDimensions.SessionKind);
-            filter.Values.Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
+            // The production scope minus the organizations: an operator's check serves no rep.
+            var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
+            filters.Keys.Should().BeEquivalentTo(AnalyticsConstants.UserDimensions.SessionKind, AnalyticsConstants.UserDimensions.IsSalesRep);
+            filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
+            filters[AnalyticsConstants.UserDimensions.IsSalesRep].Should().Equal(SalesRepConstants.Analytics.IsSalesRepValues.Customer);
         }
     }
 

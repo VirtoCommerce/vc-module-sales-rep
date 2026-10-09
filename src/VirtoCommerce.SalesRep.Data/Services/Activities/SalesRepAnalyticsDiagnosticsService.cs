@@ -19,10 +19,10 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
     private const int FeatureQueryTake = 5;
     private const int FeatureQueryDays = 30;
 
-    // Store-wide, unlike the widgets it mirrors: session_kind=self but no organization filter, so it answers
-    // "does the production read path return rows for this store at all".
+    // Store-wide, unlike the widgets it mirrors: session_kind=self and is_sales_rep=false but no organization filter,
+    // so it answers "does the production read path return rows for this store at all".
     private static readonly string _probeScopeNote =
-        $"store-wide probe: session_kind=self, no organization filter, last {FeatureQueryDays} days, top {FeatureQueryTake}";
+        $"store-wide probe: session_kind=self, is_sales_rep=false, no organization filter, last {FeatureQueryDays} days, top {FeatureQueryTake}";
 
     private readonly IOptionalDependency<IAnalyticsDiagnosticsService> _diagnosticsService;
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
@@ -136,7 +136,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         criteria.StoreId = storeId;
         criteria.EventNames = eventNames;
         criteria.DimensionNames = dimensionNames;
-        criteria.DimensionFilters = [SalesRepAnalyticsScope.CreateSelfSessionFilter()];
+        criteria.DimensionFilters = [SalesRepAnalyticsScope.CreateSelfSessionFilter(), SalesRepAnalyticsScope.CreateCustomerFilter()];
         criteria.From = DateTime.UtcNow.AddDays(-FeatureQueryDays);
         // Reports what Google answers now, not the cached answer the widgets get.
         criteria.BypassCache = true;

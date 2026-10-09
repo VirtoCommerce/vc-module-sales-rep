@@ -277,6 +277,10 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "LEAK-CODE"), (AnalyticsConstants.Dimensions.ItemName, "Leak Product")]);
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-1", sessionKind: SalesRepConstants.Analytics.SessionKinds.Impersonated,
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "impersonated-term"));
+        // A rep's own browsing carries org-1 too: the rep is a member of every organization they serve.
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 9, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.SearchTerm, "rep-own-term"),
+                (AnalyticsConstants.UserDimensions.IsSalesRep, SalesRepConstants.Analytics.IsSalesRepValues.SalesRep)]);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepCustomerInsights(organizationId: \"org-1\") {{ dataAsOf searchTerms(sort: \"date\") {{ {TermFields} }} browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
@@ -284,18 +288,21 @@ public class SalesRepCustomerInsightsGraphQlTests
 
         json.Should().NotContain("leak");
         json.Should().NotContain("impersonated-term");
+        json.Should().NotContain("rep-own-term");
 
         var insights = Insights(json);
         insights.GetProperty("searchTerms").EnumerateArray().Select(x => x.GetProperty("term").GetString()).Should().Equal("own-term");
         insights.GetProperty("browsedProducts").GetArrayLength().Should().Be(0);
         insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar); // the foreign april events never count
 
-        // Every analytics read carries the mandatory scope: own sessions only, and only the requested organization.
+        // Every analytics read carries the mandatory scope: customers' own sessions only, and only the requested
+        // organization.
         analytics.ReceivedQueries.Should().NotBeEmpty();
         foreach (var criteria in analytics.ReceivedQueries)
         {
             var filters = criteria.DimensionFilters.ToDictionary(x => x.DimensionName, x => x.Values);
             filters[AnalyticsConstants.UserDimensions.SessionKind].Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
+            filters[AnalyticsConstants.UserDimensions.IsSalesRep].Should().Equal(SalesRepConstants.Analytics.IsSalesRepValues.Customer);
             filters[AnalyticsConstants.UserDimensions.OrganizationId].Should().Equal("org-1");
         }
     }

@@ -47,6 +47,12 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-1"), (AnalyticsConstants.Dimensions.ItemName, "GA Pump")]);
         // Foreign-org noise that must not affect org-1's figures.
         analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 100, "org-other");
+        // Nor a rep's own sign-ins and searches, newer than every customer's: the rep belongs to org-1 too.
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _apr, count: 4, "org-1",
+            dimensions: (AnalyticsConstants.UserDimensions.IsSalesRep, SalesRepConstants.Analytics.IsSalesRepValues.SalesRep));
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _apr, count: 1, "org-1",
+            dimensions: [(AnalyticsConstants.Dimensions.SearchTerm, "rep-own-term"),
+                (AnalyticsConstants.UserDimensions.IsSalesRep, SalesRepConstants.Analytics.IsSalesRepValues.SalesRep)]);
 
         var json = await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepCustomerActivitySummary(organizationId: \"org-1\", storeId: \"B2B-store\", cultureName: \"en-US\") {{ {AllFields} }} }}",
@@ -76,6 +82,7 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
                      .Concat(analytics.ReceivedQueries.Select(x => x.DimensionFilters)))
         {
             filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.SessionKind).Values.Should().Equal(SalesRepConstants.Analytics.SessionKinds.Self);
+            filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.IsSalesRep).Values.Should().Equal(SalesRepConstants.Analytics.IsSalesRepValues.Customer);
             filters.Single(x => x.DimensionName == AnalyticsConstants.UserDimensions.OrganizationId).Values.Should().Equal("org-1");
         }
     }

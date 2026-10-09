@@ -31,10 +31,11 @@ public static class SalesRepAnalyticsScope
         return result;
     }
 
-    // Only the customer's own sessions (never impersonated ones) and only the organizations the rep serves.
+    // Only customers' own sessions — never impersonated ones, never a rep's own — and only the organizations the rep
+    // serves.
     public static IList<AnalyticsDimensionFilter> CreateScopeFilters(IList<string> organizationIds)
     {
-        return [CreateSelfSessionFilter(), CreateOrganizationFilter(organizationIds)];
+        return [CreateSelfSessionFilter(), CreateCustomerFilter(), CreateOrganizationFilter(organizationIds)];
     }
 
     public static AnalyticsDimensionFilter CreateSelfSessionFilter()
@@ -43,6 +44,16 @@ public static class SalesRepAnalyticsScope
 
         result.DimensionName = AnalyticsConstants.UserDimensions.SessionKind;
         result.Values = [ModuleConstants.Analytics.SessionKinds.Self];
+
+        return result;
+    }
+
+    public static AnalyticsDimensionFilter CreateCustomerFilter()
+    {
+        var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
+
+        result.DimensionName = AnalyticsConstants.UserDimensions.IsSalesRep;
+        result.Values = [ModuleConstants.Analytics.IsSalesRepValues.Customer];
 
         return result;
     }

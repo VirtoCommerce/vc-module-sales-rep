@@ -788,7 +788,7 @@ Some metrics are **not** computed from platform data — they are read from **Go
 
 (`salesRepCustomerActivitySummary.createdOn` and the `orders`/`customers` activity categories come from platform data, not GA.)
 
-Every rep-facing GA query is constrained by two **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too), and `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own.
+Every rep-facing GA query is constrained by three **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too); `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own; and `customUser:is_sales_rep = "false"`, because a rep is a member of every organization they serve, so the rep's own storefront browsing — searches, product views, sign-ins — carries that organization just like a customer's and would otherwise be reported as the customer's activity.
 
 > The **diagnostics** endpoint below is the deliberate exception: it is an operator probe of a store's wiring, so its reads are store-wide and not narrowed to any rep's organizations. It returns row *counts* only, never row content, and it is gated on `sales-rep:diagnostics` — a back-office permission that no rep-facing screen requires.
 
