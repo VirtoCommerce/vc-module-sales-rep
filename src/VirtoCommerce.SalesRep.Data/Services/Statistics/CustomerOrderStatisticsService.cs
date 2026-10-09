@@ -43,8 +43,8 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         ArgumentNullException.ThrowIfNull(criteria);
 
         return StatisticsCache.GetOrCreateAsync(
-            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration,
-            GetType(), nameof(GetStatisticsAsync), criteria.GetCacheKey(),
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.Families.Order,
+            GetType(), nameof(GetStatisticsAsync), criteria,
             () => ComputeStatisticsAsync(criteria));
     }
 
@@ -60,8 +60,8 @@ public class CustomerOrderStatisticsService : ICustomerOrderStatisticsService
         ArgumentNullException.ThrowIfNull(criteria);
 
         return StatisticsCache.GetOrCreateAsync(
-            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.OrderStatisticsCacheExpiration,
-            GetType(), nameof(GetStatisticsByOrganizationAsync), criteria.GetCacheKey(),
+            _platformMemoryCache, _settingsManager, ModuleConstants.Settings.Caching.Families.Order,
+            GetType(), nameof(GetStatisticsByOrganizationAsync), criteria,
             () => ComputeStatisticsByOrganizationAsync(criteria));
     }
 
