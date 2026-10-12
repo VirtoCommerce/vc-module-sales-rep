@@ -101,7 +101,9 @@ export function toEndDateFilterValue(dateOnly?: string): string | undefined {
 }
 
 export function toLocalDateOnly(date: Date): string {
-  return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}-${`${date.getDate()}`.padStart(2, "0")}`;
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 /** The host's file-size split (ui-kit/utilities/file-size.ts). */
@@ -121,18 +123,20 @@ export function getOrdersFilterExpression(
   keyword: string,
   filterData: { statuses: string[]; customerNames?: string[]; startDate?: string; endDate?: string },
 ): string {
-  const escape = (value: string) => value.replaceAll("\\", "\\\\").replaceAll('"', String.raw`\"`);
+  const quote = (value: string) => '"' + value.replaceAll("\\", "\\\\").replaceAll('"', String.raw`\"`) + '"';
   let expression = keyword ? `${keyword} ` : "";
   if (filterData.statuses.length) {
-    expression += `status:${filterData.statuses.map((status) => `"${escape(status)}"`).join(",")} `;
+    expression += `status:${filterData.statuses.map(quote).join(",")} `;
   }
   if (filterData.customerNames?.length) {
-    expression += `customername:${filterData.customerNames.map((name) => `"${escape(name)}"`).join(",")} `;
+    expression += `customername:${filterData.customerNames.map(quote).join(",")} `;
   }
   const start = toStartDateFilterValue(filterData.startDate);
   const end = toEndDateFilterValue(filterData.endDate);
   if (start || end) {
-    expression += `createddate:[${start ? `"${start}" ` : ""}TO${end ? ` "${end}"` : ""}]`;
+    const from = start ? quote(start) + " " : "";
+    const to = end ? " " + quote(end) : "";
+    expression += `createddate:[${from}TO${to}]`;
   }
   return expression.trim();
 }
