@@ -278,6 +278,28 @@ public class SalesRepActivitiesGraphQlTests
         analytics.ReceivedQueries.Should().BeEmpty(); // rejected before any analytics read
     }
 
+    // The rep-wide feed for a caller who serves no organization: null, with nothing read. An empty rep scope must
+    // never reach a source — not even one that would narrow it again.
+    [Fact]
+    public async Task Activities_OmittedOrganizationId_NonRepCaller_ReturnsNull()
+    {
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        // A real account: the caller must clear the account-state gate to reach the rep-scope answer under test.
+        await ctx.EnsureAccountAsync("not-a-rep");
+        SeedOrder(ctx, "own-order", "org-1", _feb, createdByUserId: "not-a-rep");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _feb, count: 1, "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            $"query {{ salesRepActivities {{ {AllFields} }} }}",
+            userId: "not-a-rep");
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"salesRepActivities\":null");
+        analytics.ReceivedQueries.Should().BeEmpty();
+    }
+
     [Fact]
     public async Task Activities_Anonymous_ReturnsAuthorizationError()
     {

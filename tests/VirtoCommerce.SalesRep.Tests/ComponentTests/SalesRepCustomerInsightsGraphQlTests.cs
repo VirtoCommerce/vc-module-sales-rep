@@ -445,6 +445,61 @@ public class SalesRepCustomerInsightsGraphQlTests
         analytics.ReceivedQueries.Should().BeEmpty(); // rejected before any analytics read
     }
 
+    // The store guard, as on the feed: a store names the analytics property read, so it is a claim to check. Each
+    // refusal has a control, so the null is the guard and not an empty fixture.
+    [Fact]
+    public async Task Insights_StoreBoundRep_CannotAskAboutAnotherStore()
+    {
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
+
+        var foreign = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"Other-store\") { searchTerms { term } } }",
+            userId: rep.UserId);
+
+        foreign.Should().NotContain("\"errors\"");
+        foreign.Should().Contain("\"salesRepCustomerInsights\":null");
+        analytics.ReceivedQueries.Should().BeEmpty();
+
+        var own = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") { searchTerms { term } } }",
+            userId: rep.UserId);
+
+        Insights(own).GetProperty("searchTerms").EnumerateArray().Select(x => x.GetProperty("term").GetString())
+            .Should().Equal("pumps");
+    }
+
+    [Fact]
+    public async Task Insights_StorelessRep_CannotNameAStore()
+    {
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", storeId: null, "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 1, "org-1",
+            dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
+
+        var named = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") { searchTerms { term } } }",
+            userId: rep.UserId);
+
+        named.Should().NotContain("\"errors\"");
+        named.Should().Contain("\"salesRepCustomerInsights\":null");
+        analytics.ReceivedQueries.Should().BeEmpty();
+
+        // The control: naming no store claims nothing.
+        var unnamed = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerInsights(organizationId: \"org-1\") { searchTerms { term } } }",
+            userId: rep.UserId);
+
+        Insights(unnamed).GetProperty("searchTerms").EnumerateArray().Select(x => x.GetProperty("term").GetString())
+            .Should().Equal("pumps");
+    }
+
     [Fact]
     public async Task Insights_Anonymous_ReturnsAuthorizationError()
     {

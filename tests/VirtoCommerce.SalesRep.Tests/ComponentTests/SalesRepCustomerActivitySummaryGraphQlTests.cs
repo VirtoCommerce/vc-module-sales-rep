@@ -198,6 +198,57 @@ public class SalesRepCustomerActivitySummaryGraphQlTests
         analytics.ReceivedQueries.Should().BeEmpty(); // rejected before any analytics read
     }
 
+    // The store guard, as on the feed: a store names the analytics property read, so it is a claim to check. Each
+    // refusal has a control, so the null is the guard and not an empty fixture.
+    [Fact]
+    public async Task Summary_StoreBoundRep_CannotAskAboutAnotherStore()
+    {
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "B2B-store", "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 3, "org-1");
+
+        var foreign = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerActivitySummary(organizationId: \"org-1\", storeId: \"Other-store\") { visitsCount } }",
+            userId: rep.UserId);
+
+        foreign.Should().NotContain("\"errors\"");
+        foreign.Should().Contain("\"salesRepCustomerActivitySummary\":null");
+        analytics.ReceivedQueries.Should().BeEmpty();
+
+        var own = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerActivitySummary(organizationId: \"org-1\", storeId: \"B2B-store\") { visitsCount } }",
+            userId: rep.UserId);
+
+        Summary(own).GetProperty("visitsCount").GetInt32().Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public async Task Summary_StorelessRep_CannotNameAStore()
+    {
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", storeId: null, "org-1");
+        analytics.AddEvent(AnalyticsConstants.EventNames.Login, _mar, count: 3, "org-1");
+
+        var named = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerActivitySummary(organizationId: \"org-1\", storeId: \"B2B-store\") { visitsCount } }",
+            userId: rep.UserId);
+
+        named.Should().NotContain("\"errors\"");
+        named.Should().Contain("\"salesRepCustomerActivitySummary\":null");
+        analytics.ReceivedQueries.Should().BeEmpty();
+
+        // The control: naming no store claims nothing.
+        var unnamed = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomerActivitySummary(organizationId: \"org-1\") { visitsCount } }",
+            userId: rep.UserId);
+
+        Summary(unnamed).GetProperty("visitsCount").GetInt32().Should().BeGreaterThan(0);
+    }
+
     [Fact]
     public async Task Summary_Anonymous_ReturnsAuthorizationError()
     {
