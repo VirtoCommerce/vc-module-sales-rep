@@ -96,7 +96,7 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
         // fetched page, so subtracting it made a badge change value when its own tab was selected.
         result.TotalCount = searchResult.TotalCount;
         result.EventCount = searchResult.TotalEventCount;
-        result.Results = rows.Select(x => ToEvent(category, x)).ToList();
+        result.Results = rows.Take(criteria.Take).Select(x => ToEvent(category, x)).ToList();
 
         return result;
     }
@@ -111,7 +111,9 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
             criteria.From,
             criteria.To);
 
-        result.Take = criteria.Take;
+        // Take is part of the read's cache key, so a first page reads at least a default page: the badges (Take 0),
+        // the dashboard card and the Activities page's first page then share one read instead of making one each.
+        result.Take = criteria.Skip == 0 ? Math.Max(criteria.Take, SalesRepActivitySearchCriteria.DefaultTake) : criteria.Take;
         result.Skip = criteria.Skip;
 
         return result;

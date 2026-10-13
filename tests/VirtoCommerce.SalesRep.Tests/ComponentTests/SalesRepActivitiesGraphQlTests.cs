@@ -9,6 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
@@ -311,8 +312,8 @@ public class SalesRepActivitiesGraphQlTests
         CategoryCounts(connection).Single(x => x.Category == "logins").Count.Should().Be(3);
         connection.GetProperty("totalCount").GetInt32().Should().Be(1);
 
-        // And the read is a counting pass, not a page-sized fetch of everything up to the skip.
-        analytics.ReceivedQueries.Should().OnlyContain(x => x.Take == 0);
+        // And the read is the first page's, which the badges share, not a fetch of everything up to the skip.
+        analytics.ReceivedQueries.Should().OnlyContain(x => x.Take == SalesRepActivitySearchCriteria.DefaultTake && x.Skip == 0);
     }
 
     [Fact]
@@ -351,9 +352,37 @@ public class SalesRepActivitiesGraphQlTests
             "query { salesRepActivities(categories: [\"orders\"]) { totalCount categoryCounts { category count } } }",
             userId: rep.UserId);
 
-        // Selecting the badges is what buys the unrequested categories their counting pass.
+        // Selecting the badges is what buys the unrequested categories their counting pass — the first page's read.
         CategoryCounts(Connection(json)).Should().Equal(("orders", 1), ("customers", 1), ("searches", 0), ("productViews", 0), ("logins", 1));
-        analytics.ReceivedQueries.Should().OnlyContain(x => x.Take == 0);
+        analytics.ReceivedQueries.Should().OnlyContain(x => x.Take == SalesRepActivitySearchCriteria.DefaultTake && x.Skip == 0);
+    }
+
+    // The storefront asks for the badges (take 0) and the first page in separate requests, and the dashboard card
+    // asks for five rows: each reads the first page's rows, so the three cost one analytics read per category.
+    [Fact]
+    public async Task Activities_BadgesCardAndFirstPage_ShareOneAnalyticsReadPerCategory()
+    {
+        var analytics = new TestAnalytics();
+        using var ctx = SalesRepTestContext.Create(analytics.Register);
+        await ctx.SeedOrganizationsAsync("org-1");
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        for (var hour = 0; hour < 8; hour++)
+        {
+            analytics.AddEvent(AnalyticsConstants.EventNames.Login, _feb.AddHours(hour), count: 1, "org-1");
+        }
+
+        var badges = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepActivities(take: 0) { categoryCounts { category count } } }", userId: rep.UserId);
+        var card = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepActivities(take: 5) { items { type } } }", userId: rep.UserId);
+        var page = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepActivities(take: 20) { items { type } } }", userId: rep.UserId);
+
+        CategoryCounts(Connection(badges)).Single(x => x.Category == "logins").Count.Should().Be(8);
+        Connection(card).GetProperty("items").GetArrayLength().Should().Be(5);
+        Connection(page).GetProperty("items").EnumerateArray().Count(x => x.GetProperty("type").GetString() == "login").Should().Be(8);
+
+        analytics.ReceivedQueries.Should().HaveCount(3, "one read per analytics category serves all three requests");
     }
 
     // One search journey fires two GA events — 'search' from the header dropdown, 'view_search_results' when
