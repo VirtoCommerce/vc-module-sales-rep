@@ -55,16 +55,18 @@ public class SalesRepActivityService : ISalesRepActivityService
         }));
 
         // A fetched category counts from its own row fetch, not a separate Take=0 pass that could hit another cache
-        // vintage. Grouped, not one row per plan: a category two sources claim would otherwise appear twice.
+        // vintage. A badge counts events, which an hour-bucket row can hold several of: "Total visits" counts sign-ins,
+        // so a Logins badge counting rows disagreed with it. Grouped, not one row per plan: a category two sources
+        // claim would otherwise appear twice.
         result.CategoryCounts = searches
             .GroupBy(x => x.Category, StringComparer.OrdinalIgnoreCase)
-            .Select(x => CreateCategoryCount(x.Key, x.Sum(plan => plan.Result.TotalCount)))
+            .Select(x => CreateCategoryCount(x.Key, x.Sum(plan => plan.Result.EventCount ?? plan.Result.TotalCount)))
             .ToList();
         // One unavailable source makes the whole feed's flag false: the counts behind it are then incomplete.
         result.IsAnalyticsAvailable = searches.All(x => x.Result.IsAnalyticsAvailable);
         result.Results = GetPage(criteria, [.. searches.Where(x => x.Fetched).Select(x => x.Result)], pagesNatively ? 0 : criteria.Skip);
-        // The pager is per-tab: only the requested categories add up to the total.
-        result.TotalCount = result.CategoryCounts.Where(x => criteria.IsCategoryRequested(x.Category)).Sum(x => x.Count);
+        // The pager is per-tab and pages rows: only the requested categories' rows add up to the total.
+        result.TotalCount = searches.Where(x => criteria.IsCategoryRequested(x.Category)).Sum(x => x.Result.TotalCount);
 
         return result;
     }

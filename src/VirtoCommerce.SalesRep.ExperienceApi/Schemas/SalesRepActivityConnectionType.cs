@@ -10,7 +10,7 @@ public class SalesRepActivityConnectionType : ExtendableGraphType<SalesRepActivi
     {
         Name = "SalesRepActivityConnection";
 
-        Field(x => x.TotalCount, nullable: false).Description("Total number of activity rows matching the filters (across all requested categories).");
+        Field(x => x.TotalCount, nullable: false).Description("Activity rows matching the filters across all requested categories: what a pager pages. categoryCounts count events instead.");
 
         Field(x => x.IsAnalyticsAvailable, nullable: false)
             .Description(

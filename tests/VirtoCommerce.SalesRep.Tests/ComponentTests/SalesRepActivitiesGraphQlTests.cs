@@ -154,7 +154,8 @@ public class SalesRepActivitiesGraphQlTests
 
         var connection = Connection(json);
         connection.GetProperty("totalCount").GetInt32().Should().Be(3);
-        CategoryCounts(connection).Should().Equal(("orders", 0), ("customers", 2), ("searches", 1), ("productViews", 1), ("logins", 1));
+        // Badges count events (2 searches, 3 views, 1 sign-in); totalCount counts the 3 rows.
+        CategoryCounts(connection).Should().Equal(("orders", 0), ("customers", 2), ("searches", 2), ("productViews", 3), ("logins", 1));
 
         var items = connection.GetProperty("items").EnumerateArray().ToList();
         items.Select(x => x.GetProperty("type").GetString()).Should().Equal("login", "productView", "search");
@@ -306,8 +307,9 @@ public class SalesRepActivitiesGraphQlTests
         var connection = Connection(json);
         // No rows rather than the window's last page relabelled: a caller cannot tell a repeated page from data.
         connection.GetProperty("items").EnumerateArray().Should().BeEmpty();
-        // The counters still describe the whole set, so a client can see the feed is longer than it can page.
-        CategoryCounts(connection).Single(x => x.Category == "logins").Count.Should().Be(1);
+        // The counters still describe the whole set, so a client can see the feed is longer than it can page — the
+        // badge in events (one hour bucket of 3 sign-ins), the pager's total in rows.
+        CategoryCounts(connection).Single(x => x.Category == "logins").Count.Should().Be(3);
         connection.GetProperty("totalCount").GetInt32().Should().Be(1);
 
         // And the read is a counting pass, not a page-sized fetch of everything up to the skip.
@@ -380,8 +382,8 @@ public class SalesRepActivitiesGraphQlTests
         row.GetProperty("searchTerm").GetString().Should().Be("coffee");
         row.GetProperty("count").GetInt32().Should().Be(3);
 
-        // The badge counts what the list shows.
-        CategoryCounts(connection).Single(x => x.Category == "searches").Count.Should().Be(1);
+        // The badge counts the 'search' events alone: 3, not the 6 both event names would add up to.
+        CategoryCounts(connection).Single(x => x.Category == "searches").Count.Should().Be(3);
         analytics.ReceivedQueries.Should().OnlyContain(x => x.EventNames.Count == 1);
     }
 
@@ -686,7 +688,8 @@ public class SalesRepActivitiesGraphQlTests
         var unselectedBadge = CategoryCounts(unselected).Single(x => x.Category == "searches").Count;
 
         selectedBadge.Should().Be(unselectedBadge, "a badge that changes when its tab is clicked is a defect");
-        selectedBadge.Should().Be(2);
+        // Every event Google matched, the unplaceable row's 7 included.
+        selectedBadge.Should().Be(9);
     }
 
     // The usual B2B store points at a VIRTUAL catalog, which holds links rather than products: narrowing a

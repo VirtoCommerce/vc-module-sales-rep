@@ -10,6 +10,6 @@ public class SalesRepActivityCategoryCountType : ExtendableGraphType<SalesRepAct
         Name = "SalesRepActivityCategoryCount";
 
         Field(x => x.Category, nullable: false).Description("Activity category (orders, customers, searches, productViews, logins).");
-        Field(x => x.Count, nullable: false).Description("Total number of activity rows in this category for the applied filters.");
+        Field(x => x.Count, nullable: false).Description("Events in this category for the applied filters. An analytics row stands for every event in its hour bucket, so this can exceed the rows the category lists; totalCount counts rows.");
     }
 }

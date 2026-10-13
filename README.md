@@ -541,7 +541,7 @@ A merged, categorized feed of what the rep's customers did. `organizationId` omi
     cultureName: "en-US"
   ) {
     totalCount                                 # rows in the requested categories — drives the pager
-    categoryCounts { category count }          # every category; only fetched when selected
+    categoryCounts { category count }          # every category, in events; only fetched when selected
     items {
       category                                 # orders | customers | searches | productViews | logins
       type                                     # orderPlaced | customerAssigned | search | productView | login
@@ -802,11 +802,12 @@ What the module adds on top of the raw source:
   carried by **more than one catalog resolves to nothing** rather than to whichever product came back first — but a
   code carried by exactly one catalog resolves to it, so pass a `storeId` whenever the caller knows one. An
   unresolved code — unknown, or still ambiguous — keeps the name analytics tracked and reports a null `productId`.
-* **Activity counts count rows, not raw events.** One analytics row is one (hour bucket x dimension tuple), and its
-  `count` field says how many events it aggregates. A row GA returns without a usable hour bucket cannot be placed
-  on a time-ordered feed, so it leaves the page — but not the category count, which keeps describing the whole set.
-  A badge can therefore exceed the list beneath it; correcting it instead made a badge change value when its own
-  tab was selected.
+* **Badges count events; the pager counts rows.** One analytics row is one (hour bucket x dimension tuple), and its
+  `count` field says how many events it aggregates. `categoryCounts` report events — three sign-ins in one hour are
+  three, as `visitsCount` counts them — while `totalCount` reports rows, which is what a page holds. A row GA returns
+  without a usable hour bucket cannot be placed on a time-ordered feed, so it leaves the page — but not the counts,
+  which keep describing the whole set; correcting them instead made a badge change value when its own tab was
+  selected. An `ISalesRepActivitySource` that leaves `EventCount` null is counted one event per row.
 * **The merged feed is bounded.** See [Activity feed](#activity-feed) for the paging window and what it costs.
 
 Caveats inherent to the source, by design:

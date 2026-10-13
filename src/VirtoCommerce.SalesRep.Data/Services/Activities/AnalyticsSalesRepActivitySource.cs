@@ -88,6 +88,7 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
         // Uncorrected on purpose: TotalCount describes the whole set while the drop is only visible on the
         // fetched page, so subtracting it made a badge change value when its own tab was selected.
         result.TotalCount = searchResult.TotalCount;
+        result.EventCount = searchResult.TotalEventCount;
         result.Results = rows.Select(x => ToEvent(category, x)).ToList();
 
         return result;
