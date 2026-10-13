@@ -11,4 +11,7 @@ public interface ISalesRepProductResolver
     // storeId, a code carried by several catalogs resolves to NOTHING, not to whichever came first. Rows whose code
     // is empty, unknown or ambiguous are left untouched, so their tracked values survive.
     Task ResolveAsync<T>(IList<T> rows, string storeId, Func<T, string> getCode, Action<T, SalesRepActivityProduct> setProduct);
+
+    // The name a resolved row shows: the catalog's, else the name tracked with the event.
+    string GetProductName(SalesRepActivityProduct product, string trackedName);
 }

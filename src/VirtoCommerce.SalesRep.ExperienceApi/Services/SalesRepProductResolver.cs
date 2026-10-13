@@ -57,6 +57,11 @@ public class SalesRepProductResolver : ISalesRepProductResolver
         }
     }
 
+    public virtual string GetProductName(SalesRepActivityProduct product, string trackedName)
+    {
+        return product?.Name.EmptyToNull() ?? trackedName;
+    }
+
     protected virtual async Task<IDictionary<string, SalesRepActivityProduct>> ResolveByCodesAsync(IList<string> codes, string storeId)
     {
         var result = new Dictionary<string, SalesRepActivityProduct>(StringComparer.OrdinalIgnoreCase);

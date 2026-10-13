@@ -77,7 +77,7 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
         {
             row.ProductId = product.ProductId;
             row.ImageUrl = product.ImageUrl;
-            row.Name = product.Name.EmptyToNull() ?? row.Name;
+            row.Name = _productResolver.GetProductName(product, row.Name);
         });
     }
 }

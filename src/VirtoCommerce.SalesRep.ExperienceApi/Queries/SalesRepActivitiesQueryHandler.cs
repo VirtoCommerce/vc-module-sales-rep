@@ -88,7 +88,7 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
         {
             row.ProductId = product.ProductId;
             row.ProductImageUrl = product.ImageUrl;
-            row.ProductName = product.Name.EmptyToNull() ?? row.ProductName;
+            row.ProductName = _productResolver.GetProductName(product, row.ProductName);
         });
     }
 }

@@ -200,6 +200,18 @@ public class SalesRepProductResolverTests
         return rows;
     }
 
+    // A resolved row shows the catalog's name; a catalog product without one keeps the name tracked with the event.
+    [Theory]
+    [InlineData("Catalog Pump", "GA Pump", "Catalog Pump")]
+    [InlineData("", "GA Pump", "GA Pump")]
+    [InlineData(null, "GA Pump", "GA Pump")]
+    public void GetProductName_CatalogNameFirst_ElseTheTrackedName(string catalogName, string trackedName, string expected)
+    {
+        var product = new SalesRepActivityProduct { Name = catalogName };
+
+        CreateResolver(new FakeProductSearchService(), PhysicalCatalog()).GetProductName(product, trackedName).Should().Be(expected);
+    }
+
     private static SalesRepProductResolver CreateResolver(IProductSearchService productSearchService, Catalog catalog, IItemService itemService = null)
     {
         return new TestableProductResolver(productSearchService, catalog, itemService ?? new FakeItemService());
