@@ -1,0 +1,71 @@
+#import "./money.graphql"
+#import "./currency.graphql"
+#import "./property.graphql"
+
+fragment orderLineItemFields on OrderLineItemType {
+  id
+  imageUrl
+  isGift
+  name
+  productId
+  productType
+  showPlacedPrice
+  currency {
+    ...currency
+  }
+  listTotal {
+    ...money
+  }
+  product {
+    id
+    brandName
+    slug
+    masterVariation {
+      id
+      slug
+    }
+    properties {
+      ...property
+    }
+  }
+  quantity
+  sku
+  extendedPrice {
+    ...money
+  }
+  price {
+    ...money
+  }
+  placedPrice {
+    ...money
+  }
+  taxTotal {
+    ...money
+  }
+  discountTotal {
+    ...money
+  }
+  discounts {
+    promotionId
+    promotionName
+  }
+  outerId
+  vendor {
+    id
+    name
+    rating {
+      value
+      reviewCount
+    }
+  }
+  configurationItems {
+    id
+    name
+    customText
+    type
+    files {
+      name
+      url
+    }
+  }
+}
