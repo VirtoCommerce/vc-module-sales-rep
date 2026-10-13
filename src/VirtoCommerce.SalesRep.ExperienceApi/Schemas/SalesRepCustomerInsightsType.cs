@@ -53,7 +53,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             .Argument<StringGraphType>(SortArgument, "'count' (top, default) or 'date' (most recent first).")
             .ResolveAsync(async context =>
             {
-                var (sortBy, take) = ReadOwnArguments(context);
+                var (sortBy, take) = ReadArguments(context.Arguments);
                 return await GetSearchTermsAsync(context.Source, sortBy, take);
             });
 
@@ -63,7 +63,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             .Argument<StringGraphType>(SortArgument, "'count' (top, default) or 'date' (most recent first).")
             .ResolveAsync(async context =>
             {
-                var (sortBy, take) = ReadOwnArguments(context);
+                var (sortBy, take) = ReadArguments(context.Arguments);
                 return await GetBrowsedProductsAsync(context.Source, sortBy, take);
             });
     }
@@ -98,34 +98,15 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
 
     private static (string SortBy, int Take) ReadSiblingArguments(IResolveFieldContext context, GraphQLField field, FieldType fieldType)
     {
-        var arguments = ExecutionHelper.GetArguments(fieldType.Arguments, field.Arguments, context.Variables, context.Document, field, null);
-
-        string sort = null;
-        int? take = null;
-
-        if (arguments != null)
-        {
-            if (arguments.TryGetValue(SortArgument, out var sortValue))
-            {
-                sort = sortValue.Value as string;
-            }
-
-            if (arguments.TryGetValue(TakeArgument, out var takeValue) && takeValue.Value is int takeNumber)
-            {
-                take = takeNumber;
-            }
-        }
-
-        return NormalizeArguments(sort, take);
+        return ReadArguments(ExecutionHelper.GetArguments(fieldType.Arguments, field.Arguments, context.Variables, context.Document, field, null));
     }
 
-    private static (string SortBy, int Take) ReadOwnArguments(IResolveFieldContext context)
+    // Own and sibling arguments are read alike, so both name the same memoized read.
+    private static (string SortBy, int Take) ReadArguments(IDictionary<string, ArgumentValue> arguments)
     {
-        return NormalizeArguments(context.GetArgument<string>(SortArgument), context.GetArgument<int?>(TakeArgument));
-    }
+        var sort = arguments?.GetValueSafe(SortArgument).Value as string;
+        var take = arguments?.GetValueSafe(TakeArgument).Value as int?;
 
-    private static (string SortBy, int Take) NormalizeArguments(string sort, int? take)
-    {
         var sortBy = ModuleConstants.Insights.Sort.Date.EqualsIgnoreCase(sort)
             ? ModuleConstants.Insights.Sort.Date
             : ModuleConstants.Insights.Sort.Count;

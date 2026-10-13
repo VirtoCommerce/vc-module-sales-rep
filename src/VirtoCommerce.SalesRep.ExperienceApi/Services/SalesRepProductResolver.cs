@@ -50,9 +50,7 @@ public class SalesRepProductResolver : ISalesRepProductResolver
 
         foreach (var row in rows)
         {
-            var code = getCode(row);
-            // Guarded rather than passed straight to TryGetValue: a null key throws on this dictionary.
-            if (!string.IsNullOrEmpty(code) && productsByCode.TryGetValue(code, out var product))
+            if (productsByCode.TryGetValueSafe(getCode(row), out var product))
             {
                 setProduct(row, product);
             }

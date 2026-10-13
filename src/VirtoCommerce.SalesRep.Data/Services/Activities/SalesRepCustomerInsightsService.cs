@@ -63,7 +63,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
             ? terms.OrderByDescending(x => x.LastSearchedDate)
             : terms.OrderByDescending(x => x.Count).ThenBy(x => x.Term, StringComparer.Ordinal);
 
-        return terms.Take(Math.Max(criteria.Take, 0)).ToList();
+        return terms.Take(criteria.Take).ToList();
     }
 
     public virtual async Task<IList<SalesRepBrowsedProduct>> GetBrowsedProductsAsync(SalesRepCustomerInsightsCriteria criteria)
@@ -100,7 +100,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
             ? products.OrderByDescending(x => x.LastViewedDate)
             : products.OrderByDescending(x => x.ViewCount).ThenBy(x => x.Code, StringComparer.OrdinalIgnoreCase);
 
-        return products.Take(Math.Max(criteria.Take, 0)).ToList();
+        return products.Take(criteria.Take).ToList();
     }
 
     protected virtual async Task<IList<AnalyticsEvent>> SearchEventsAsync(
@@ -108,12 +108,12 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
         IList<string> eventNames,
         IList<string> dimensionNames)
     {
-        if (!_analyticsService.HasValue || criteria.OrganizationIds.IsNullOrEmpty() || criteria.Take <= 0)
+        var analyticsService = _analyticsService.Value;
+        if (analyticsService == null || criteria.OrganizationIds.IsNullOrEmpty() || criteria.Take <= 0)
         {
             return [];
         }
 
-        var analyticsService = _analyticsService.Value;
         var isDateSort = IsDateSort(criteria);
 
         var searchCriteria = SalesRepAnalyticsScope.CreateCriteria(

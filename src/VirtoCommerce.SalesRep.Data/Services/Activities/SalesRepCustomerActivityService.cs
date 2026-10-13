@@ -39,12 +39,11 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
         var result = AbstractTypeFactory<SalesRepCustomerActivitySummary>.TryCreateInstance();
 
-        if (!_analyticsService.HasValue || string.IsNullOrEmpty(criteria.OrganizationId))
+        var analyticsService = _analyticsService.Value;
+        if (analyticsService == null || string.IsNullOrEmpty(criteria.OrganizationId))
         {
             return result;
         }
-
-        var analyticsService = _analyticsService.Value;
 
         result.IsAnalyticsAvailable = await _availability.IsConfiguredAsync(criteria.StoreId);
         if (!result.IsAnalyticsAvailable)
@@ -107,34 +106,22 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         return result;
     }
 
-    protected virtual async Task<AnalyticsEvent> GetLastSearchAsync(
+    protected virtual Task<AnalyticsEvent> GetLastSearchAsync(
         IAnalyticsService analyticsService,
         SalesRepCustomerActivityCriteria criteria)
     {
-        var searchCriteria = CreateEventSearchCriteria(
-            criteria,
+        return FindLatestAsync(analyticsService, criteria,
             [AnalyticsConstants.EventNames.Search, AnalyticsConstants.EventNames.ViewSearchResults],
             [AnalyticsConstants.Dimensions.SearchTerm]);
-
-        var searchResult = await analyticsService.SearchEventsAsync(searchCriteria);
-
-        return searchResult.Events
-            .FirstOrDefault(x => !string.IsNullOrEmpty(SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm)));
     }
 
-    protected virtual async Task<AnalyticsEvent> GetLastProductViewAsync(
+    protected virtual Task<AnalyticsEvent> GetLastProductViewAsync(
         IAnalyticsService analyticsService,
         SalesRepCustomerActivityCriteria criteria)
     {
-        var searchCriteria = CreateEventSearchCriteria(
-            criteria,
+        return FindLatestAsync(analyticsService, criteria,
             [AnalyticsConstants.EventNames.ViewItem],
             [AnalyticsConstants.Dimensions.ItemId, AnalyticsConstants.Dimensions.ItemName]);
-
-        var searchResult = await analyticsService.SearchEventsAsync(searchCriteria);
-
-        return searchResult.Events
-            .FirstOrDefault(x => !string.IsNullOrEmpty(SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.ItemId)));
     }
 
     protected virtual SalesRepActivityProduct CreateViewedProduct(AnalyticsEvent productView)
@@ -162,5 +149,17 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         result.Take = LastEventLookupSize;
 
         return result;
+    }
+
+    // The newest row whose first dimension, the value the caller reads, is set.
+    private async Task<AnalyticsEvent> FindLatestAsync(
+        IAnalyticsService analyticsService,
+        SalesRepCustomerActivityCriteria criteria,
+        IList<string> eventNames,
+        IList<string> dimensionNames)
+    {
+        var searchResult = await analyticsService.SearchEventsAsync(CreateEventSearchCriteria(criteria, eventNames, dimensionNames));
+
+        return searchResult.Events.FirstOrDefault(x => !string.IsNullOrEmpty(SalesRepAnalyticsScope.GetDimension(x, dimensionNames[0])));
     }
 }

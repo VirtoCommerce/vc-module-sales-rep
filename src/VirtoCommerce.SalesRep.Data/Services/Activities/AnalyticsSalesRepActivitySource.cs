@@ -57,18 +57,25 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 
         var result = AbstractTypeFactory<SalesRepActivitySearchResult>.TryCreateInstance();
 
+        var analyticsService = _analyticsService.Value;
         var category = Array.Find(_analyticsCategories, x => criteria.IsCategoryRequested(x.Category));
-        if (!_analyticsService.HasValue || category == null || criteria.OrganizationIds.IsNullOrEmpty())
+        if (analyticsService == null || category == null || criteria.OrganizationIds.IsNullOrEmpty())
         {
             return result;
         }
-
-        var analyticsService = _analyticsService.Value;
 
         AnalyticsEventSearchResult searchResult;
 
         try
         {
+            // Asked first: an unconfigured store is a state, not a failure to log with a stack trace per category.
+            if (!await analyticsService.IsConfiguredAsync(criteria.StoreId))
+            {
+                result.IsAnalyticsAvailable = false;
+
+                return result;
+            }
+
             searchResult = await analyticsService.SearchEventsAsync(CreateSearchCriteria(category, criteria));
         }
         catch (AnalyticsException ex)

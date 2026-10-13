@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
@@ -19,10 +20,10 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
     private const int FeatureQueryTake = 5;
     private const int FeatureQueryDays = 30;
 
-    // Store-wide, unlike the widgets it mirrors: session_kind=self and is_sales_rep=false but no organization filter,
-    // so it answers "does the production read path return rows for this store at all".
+    // Store-wide, unlike the widgets it mirrors: the audience filters but no organization filter, so it answers "does
+    // the production read path return rows for this store at all".
     private static readonly string _probeScopeNote =
-        $"store-wide probe: session_kind=self, is_sales_rep=false, no organization filter, last {FeatureQueryDays} days, top {FeatureQueryTake}";
+        $"store-wide probe: {DescribeFilters(SalesRepAnalyticsScope.CreateAudienceFilters())}, no organization filter, last {FeatureQueryDays} days, top {FeatureQueryTake}";
 
     private readonly IOptionalDependency<IAnalyticsDiagnosticsService> _diagnosticsService;
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
@@ -37,7 +38,8 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
 
     public virtual async Task<AnalyticsDiagnosticsResult> RunAsync(string storeId, bool includeLiveData)
     {
-        if (!_diagnosticsService.HasValue)
+        var diagnosticsService = _diagnosticsService.Value;
+        if (diagnosticsService == null)
         {
             var result = AbstractTypeFactory<AnalyticsDiagnosticsResult>.TryCreateInstance();
             result.Checks.Add(CreateCheck(AnalyticsConstants.DiagnosticsStages.Configuration, Statuses.Failed,
@@ -45,7 +47,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
             return result;
         }
 
-        var diagnosticsResult = await _diagnosticsService.Value.RunAsync(storeId, CreateRequest(includeLiveData));
+        var diagnosticsResult = await diagnosticsService.RunAsync(storeId, CreateRequest(includeLiveData));
         diagnosticsResult.Checks.Add(await RunFeatureQueryAsync(storeId, includeLiveData));
         return diagnosticsResult;
     }
@@ -54,14 +56,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
     {
         var request = AbstractTypeFactory<AnalyticsDiagnosticsRequest>.TryCreateInstance();
 
-        request.UserDimensionNames =
-        [
-            AnalyticsConstants.UserDimensions.ContactId,
-            AnalyticsConstants.UserDimensions.OrganizationId,
-            AnalyticsConstants.UserDimensions.OrganizationName,
-            AnalyticsConstants.UserDimensions.IsSalesRep,
-            AnalyticsConstants.UserDimensions.SessionKind,
-        ];
+        request.UserDimensionNames = [.. AnalyticsConstants.UserDimensions.AllNames];
 
         request.EventNames =
         [
@@ -95,12 +90,6 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
             return CreateFeatureQueryCheck(Statuses.Skipped, "Skipped: live-data checks disabled by request.");
         }
 
-        if (!_analyticsService.HasValue)
-        {
-            return CreateFeatureQueryCheck(Statuses.Failed,
-                "IAnalyticsService is not available — the analytics module registration is incomplete.");
-        }
-
         try
         {
             if (!await _analyticsService.Value.IsConfiguredAsync(storeId))
@@ -109,12 +98,15 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
                     $"Google Analytics is not configured for store '{storeId}' — feature queries were not executed.");
             }
 
-            var searchTermRows = await CountFeatureRowsAsync(storeId, AnalyticsConstants.SortBy.Count,
-                [AnalyticsConstants.EventNames.Search],
-                [AnalyticsConstants.Dimensions.SearchTerm]);
-            var productViewRows = await CountFeatureRowsAsync(storeId, AnalyticsConstants.SortBy.Date,
-                [AnalyticsConstants.EventNames.ViewItem],
-                [AnalyticsConstants.Dimensions.ItemId, AnalyticsConstants.Dimensions.ItemName]);
+            var rowCounts = await Task.WhenAll(
+                CountFeatureRowsAsync(storeId, AnalyticsConstants.SortBy.Count,
+                    [AnalyticsConstants.EventNames.Search],
+                    [AnalyticsConstants.Dimensions.SearchTerm]),
+                CountFeatureRowsAsync(storeId, AnalyticsConstants.SortBy.Date,
+                    [AnalyticsConstants.EventNames.ViewItem],
+                    [AnalyticsConstants.Dimensions.ItemId, AnalyticsConstants.Dimensions.ItemName]));
+            var searchTermRows = rowCounts[0];
+            var productViewRows = rowCounts[1];
 
             var counts = $"{SearchTermsReportName}={searchTermRows} rows, {BrowsedProductsReportName}={productViewRows} rows ({_probeScopeNote})";
 
@@ -136,7 +128,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         criteria.StoreId = storeId;
         criteria.EventNames = eventNames;
         criteria.DimensionNames = dimensionNames;
-        criteria.DimensionFilters = [SalesRepAnalyticsScope.CreateSelfSessionFilter(), SalesRepAnalyticsScope.CreateCustomerFilter()];
+        criteria.DimensionFilters = SalesRepAnalyticsScope.CreateAudienceFilters();
         criteria.From = DateTime.UtcNow.AddDays(-FeatureQueryDays);
         // Reports what Google answers now, not the cached answer the widgets get.
         criteria.BypassCache = true;
@@ -170,5 +162,10 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         check.Message = message;
         check.Detail = detail;
         return check;
+    }
+
+    private static string DescribeFilters(IList<AnalyticsDimensionFilter> filters)
+    {
+        return string.Join(", ", filters.Select(x => $"{x.DimensionName}={string.Join("|", x.Values)}"));
     }
 }

@@ -8,7 +8,6 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
-using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -788,23 +787,7 @@ public class SalesRepActivitiesGraphQlTests
         SalesRepTestContext ctx, string id, string org, DateTime createdDate, string createdByUserId = null,
         string storeId = "B2B-store")
     {
-        using var db = ctx.NewOrderDbContext();
-        db.Add(new CustomerOrderEntity
-        {
-            Id = id,
-            Number = id,
-            OrganizationId = org,
-            CustomerId = createdByUserId ?? ctx.LastCreatedRepUserId ?? "customer-1",
-            CustomerName = "Customer 1",
-            StoreId = storeId,
-            Status = "New",
-            Currency = "USD",
-            Total = 100m,
-            IsPrototype = false,
-            CreatedDate = createdDate,
-            ModifiedDate = createdDate,
-        });
-        db.SaveChanges();
+        OrderSeeder.Seed(ctx, id, org, number: id, createdDate, storeId, createdByUserId: createdByUserId, total: 100m);
     }
 
     // Makes the seeded catalog virtual, the way a storefront catalog usually is.

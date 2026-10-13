@@ -46,7 +46,7 @@ public class CustomersSalesRepActivitySource : ISalesRepActivitySource
         result.TotalCount = assignments.Count;
         result.Results = assignments
             .Skip(criteria.Skip)
-            .Take(Math.Max(criteria.Take, 0))
+            .Take(criteria.Take)
             .Select(x => ToEvent(x.OrganizationId, x.AssignedDate))
             .ToList();
 

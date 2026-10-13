@@ -23,14 +23,15 @@ public class SalesRepAnalyticsAvailability : ISalesRepAnalyticsAvailability
     // Absent, unconfigured and "could not find out" are one answer on purpose: a caller can do nothing different.
     public virtual async Task<bool> IsConfiguredAsync(string storeId)
     {
-        if (!_analyticsService.HasValue)
+        var analyticsService = _analyticsService.Value;
+        if (analyticsService == null)
         {
             return false;
         }
 
         try
         {
-            return await _analyticsService.Value.IsConfiguredAsync(storeId);
+            return await analyticsService.IsConfiguredAsync(storeId);
         }
         catch (AnalyticsException ex)
         {

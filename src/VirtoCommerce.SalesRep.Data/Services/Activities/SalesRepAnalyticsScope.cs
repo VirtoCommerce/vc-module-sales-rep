@@ -10,7 +10,8 @@ namespace VirtoCommerce.SalesRep.Data.Services.Activities;
 
 public static class SalesRepAnalyticsScope
 {
-    // The single construction site for scoped analytics reads, so a new reader cannot forget the scope filters.
+    // Scoped event reads are built here, so a new reader cannot forget the scope filters; the summary read has its own
+    // criteria type and takes CreateScopeFilters.
     public static AnalyticsEventSearchCriteria CreateCriteria(
         string storeId,
         IList<string> organizationIds,
@@ -31,31 +32,20 @@ public static class SalesRepAnalyticsScope
         return result;
     }
 
-    // Only customers' own sessions — never impersonated ones, never a rep's own — and only the organizations the rep
-    // serves.
+    // Only the organizations the rep serves, on top of the audience filters.
     public static IList<AnalyticsDimensionFilter> CreateScopeFilters(IList<string> organizationIds)
     {
-        return [CreateSelfSessionFilter(), CreateCustomerFilter(), CreateOrganizationFilter(organizationIds)];
+        return [.. CreateAudienceFilters(), CreateOrganizationFilter(organizationIds)];
     }
 
-    public static AnalyticsDimensionFilter CreateSelfSessionFilter()
+    // Only customers' own sessions — never impersonated ones, never a rep's own.
+    public static IList<AnalyticsDimensionFilter> CreateAudienceFilters()
     {
-        var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
-
-        result.DimensionName = AnalyticsConstants.UserDimensions.SessionKind;
-        result.Values = [ModuleConstants.Analytics.SessionKinds.Self];
-
-        return result;
-    }
-
-    public static AnalyticsDimensionFilter CreateCustomerFilter()
-    {
-        var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
-
-        result.DimensionName = AnalyticsConstants.UserDimensions.IsSalesRep;
-        result.Values = [ModuleConstants.Analytics.IsSalesRepValues.Customer];
-
-        return result;
+        return
+        [
+            CreateFilter(AnalyticsConstants.UserDimensions.SessionKind, [ModuleConstants.Analytics.SessionKinds.Self]),
+            CreateFilter(AnalyticsConstants.UserDimensions.IsSalesRep, [ModuleConstants.Analytics.IsSalesRepValues.Customer]),
+        ];
     }
 
     public static AnalyticsDimensionFilter CreateOrganizationFilter(IList<string> organizationIds)
@@ -67,16 +57,21 @@ public static class SalesRepAnalyticsScope
             throw new ArgumentException("An analytics read must name at least one organization.", nameof(organizationIds));
         }
 
-        var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
-
-        result.DimensionName = AnalyticsConstants.UserDimensions.OrganizationId;
-        result.Values = organizationIds.ToList();
-
-        return result;
+        return CreateFilter(AnalyticsConstants.UserDimensions.OrganizationId, organizationIds.ToList());
     }
 
     public static string GetDimension(AnalyticsEvent analyticsEvent, string dimensionName)
     {
-        return analyticsEvent.Dimensions?.TryGetValue(dimensionName, out var value) == true ? value : null;
+        return analyticsEvent.Dimensions?.GetValueSafe(dimensionName);
+    }
+
+    private static AnalyticsDimensionFilter CreateFilter(string dimensionName, IList<string> values)
+    {
+        var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
+
+        result.DimensionName = dimensionName;
+        result.Values = values;
+
+        return result;
     }
 }

@@ -125,44 +125,22 @@ const expanded = ref<Record<number, boolean>>({});
 const neutralStatusClasses =
   "tw-border-[color:var(--neutrals-300)] tw-bg-[color:var(--neutrals-50)] tw-text-[color:var(--neutrals-600)]";
 
-const statuses: Record<string, { key: string; classes: string }> = {
-  Passed: {
-    key: "PASSED",
-    classes: "tw-border-[color:var(--success-300)] tw-bg-[color:var(--success-50)] tw-text-[color:var(--success-700)]",
-  },
-  Warning: {
-    key: "WARNING",
-    classes: "tw-border-[color:var(--warning-300)] tw-bg-[color:var(--warning-50)] tw-text-[color:var(--warning-700)]",
-  },
-  Failed: {
-    key: "FAILED",
-    classes: "tw-border-[color:var(--danger-300)] tw-bg-[color:var(--danger-50)] tw-text-[color:var(--danger-700)]",
-  },
-  Skipped: { key: "SKIPPED", classes: neutralStatusClasses },
+const statusClassesByStatus: Record<string, string> = {
+  Passed: "tw-border-[color:var(--success-300)] tw-bg-[color:var(--success-50)] tw-text-[color:var(--success-700)]",
+  Warning: "tw-border-[color:var(--warning-300)] tw-bg-[color:var(--warning-50)] tw-text-[color:var(--warning-700)]",
+  Failed: "tw-border-[color:var(--danger-300)] tw-bg-[color:var(--danger-50)] tw-text-[color:var(--danger-700)]",
 };
 
-const statusClasses = (status?: string) => statuses[status ?? ""]?.classes ?? neutralStatusClasses;
+const statusClasses = (status?: string) => statusClassesByStatus[status ?? ""] ?? neutralStatusClasses;
 
-const stageKeys: Record<string, string> = {
-  configuration: "CONFIGURATION",
-  credentials: "CREDENTIALS",
-  apiAccess: "API_ACCESS",
-  customDimensions: "CUSTOM_DIMENSIONS",
-  reportCompatibility: "REPORT_COMPATIBILITY",
-  realtime: "REALTIME",
-  processedData: "PROCESSED_DATA",
-  featureQuery: "FEATURE_QUERY",
+// A token's locale key is the token in UPPER_SNAKE_CASE: "apiAccess" -> API_ACCESS, "Passed" -> PASSED.
+const localized = (prefix: string, token?: string) => {
+  const key = `${prefix}.${(token ?? "").replace(/([a-z])([A-Z])/g, "$1_$2").toUpperCase()}`;
+  return token && te(key) ? t(key) : (token ?? "");
 };
 
-const localized = (prefix: string, key: string | undefined, token?: string) => {
-  const fullKey = `${prefix}.${key ?? ""}`;
-  return key && te(fullKey) ? t(fullKey) : (token ?? "");
-};
-
-const statusLabel = (status?: string) =>
-  localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STATUSES", statuses[status ?? ""]?.key, status);
-const stageLabel = (stage?: string) =>
-  localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STAGES", stageKeys[stage ?? ""], stage);
+const statusLabel = (status?: string) => localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STATUSES", status);
+const stageLabel = (stage?: string) => localized("VC_SALES_REP.PAGES.ANALYTICS_DIAGNOSTICS.STAGES", stage);
 
 const toggleDetail = (index: number) => {
   expanded.value[index] = !expanded.value[index];

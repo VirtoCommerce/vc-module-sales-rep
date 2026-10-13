@@ -1,14 +1,13 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
 
 public class SalesRepCustomerInsightsContext
 {
-    private readonly ConcurrentDictionary<string, Lazy<Task<object>>> _slices = new();
+    private readonly ConcurrentDictionary<string, object> _slices = new();
 
     public IList<string> OrganizationIds { get; set; }
 
@@ -22,9 +21,8 @@ public class SalesRepCustomerInsightsContext
     public bool IsAnalyticsAvailable { get; set; } = true;
 
     // One fetch per (collection, sort, take): aliased selections and isAnalyticsAvailable share the same read.
-    public virtual async Task<T> GetOrAddSliceAsync<T>(string key, Func<Task<T>> factory) where T : class
+    public virtual Task<T> GetOrAddSliceAsync<T>(string key, Func<Task<T>> factory) where T : class
     {
-        var slice = _slices.GetOrAdd(key, _ => new Lazy<Task<object>>(async () => await factory(), LazyThreadSafetyMode.ExecutionAndPublication));
-        return (T)await slice.Value;
+        return ((Lazy<Task<T>>)_slices.GetOrAdd(key, _ => new Lazy<Task<T>>(factory))).Value;
     }
 }

@@ -6,7 +6,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
-using VirtoCommerce.Platform.Core.Modularity;
+using VirtoCommerce.Platform.Modules;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -111,18 +111,19 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         var check = result.Checks[^1];
         check.Stage.Should().Be(ModuleConstants.DiagnosticsStages.FeatureQuery);
         check.Status.Should().Be(Statuses.Passed);
-        check.Message.Should().Contain("searchTerms=1 rows").And.Contain("browsedProducts=2 rows").And.Contain("no organization filter");
+        check.Message.Should().Contain("searchTerms=1 rows").And.Contain("browsedProducts=2 rows")
+            .And.Contain("session_kind=self, is_sales_rep=false, no organization filter");
 
         analytics.ReceivedQueries.Should().HaveCount(2);
 
-        var queries = analytics.ReceivedQueries.ToList();
-        var searchTermsCriteria = queries[0];
+        // The two probes run concurrently: told apart by event, not by arrival order.
+        var searchTermsCriteria = analytics.ReceivedQueries.Single(x => x.EventNames.Contains("search"));
         analytics.ReceivedStoreIds.Should().OnlyContain(x => x == StoreId);
         searchTermsCriteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Count);
         searchTermsCriteria.EventNames.Should().Equal("search");
         searchTermsCriteria.DimensionNames.Should().Equal("searchTerm");
 
-        var productViewsCriteria = queries[1];
+        var productViewsCriteria = analytics.ReceivedQueries.Single(x => x.EventNames.Contains("view_item"));
         productViewsCriteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Date);
         productViewsCriteria.EventNames.Should().Equal("view_item");
         productViewsCriteria.DimensionNames.Should().Equal("itemId", "itemName");
@@ -184,7 +185,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         return new SalesRepAnalyticsDiagnosticsService(Optional(diagnostics), Optional(analytics));
     }
 
-    private static TestOptionalDependency<T> Optional<T>(T instance) where T : class
+    private static OptionalDependencyManager<T> Optional<T>(T instance) where T : class
     {
         var services = new ServiceCollection();
         if (instance != null)
@@ -192,7 +193,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
             services.AddSingleton(instance);
         }
 
-        return new TestOptionalDependency<T>(services.BuildServiceProvider());
+        return new OptionalDependencyManager<T>(services.BuildServiceProvider());
     }
 
     private sealed class FakeAnalyticsDiagnosticsService : IAnalyticsDiagnosticsService

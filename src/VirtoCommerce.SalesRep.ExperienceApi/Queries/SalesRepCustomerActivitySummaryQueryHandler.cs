@@ -49,17 +49,20 @@ public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerB
             return null;
         }
 
-
         var criteria = AbstractTypeFactory<SalesRepCustomerActivityCriteria>.TryCreateInstance();
         criteria.OrganizationId = request.OrganizationId;
         criteria.StoreId = request.StoreId;
         criteria.From = request.Period?.From;
         criteria.To = request.Period?.To;
 
-        var result = await _customerActivityService.GetSummaryAsync(criteria);
+        // The organization is database data: it loads while Google answers.
+        var summaryTask = _customerActivityService.GetSummaryAsync(criteria);
+        var organizationTask = _memberService.GetByIdsAsync([request.OrganizationId], nameof(MemberResponseGroup.Default), [nameof(Organization)]);
 
-        var organization = (await _memberService.GetByIdsAsync([request.OrganizationId], nameof(MemberResponseGroup.Default), [nameof(Organization)])).FirstOrDefault();
-        result.CreatedOn = organization?.CreatedDate;
+        await Task.WhenAll(summaryTask, organizationTask);
+
+        var result = await summaryTask;
+        result.CreatedOn = (await organizationTask).FirstOrDefault()?.CreatedDate;
 
         await ResolveLastViewedProductAsync(result, request);
 

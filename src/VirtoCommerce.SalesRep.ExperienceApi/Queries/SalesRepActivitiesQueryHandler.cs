@@ -51,7 +51,6 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
             return null;
         }
 
-
         var criteria = AbstractTypeFactory<SalesRepActivitySearchCriteria>.TryCreateInstance();
         criteria.SalesRepUserId = request.UserId;
         criteria.OrganizationIds = organizationIds;
