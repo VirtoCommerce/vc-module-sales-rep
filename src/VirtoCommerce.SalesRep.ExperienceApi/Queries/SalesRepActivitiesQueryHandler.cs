@@ -81,7 +81,7 @@ public class SalesRepActivitiesQueryHandler : SalesRepQueryHandlerBase, IQueryHa
     protected virtual Task ResolveProductsAsync(SalesRepActivitySearchResult result, SalesRepActivitiesQuery request)
     {
         var productViewRows = result.Results
-            .Where(x => x.Category == ModuleConstants.Activities.Categories.ProductViews)
+            .Where(x => x.Category.EqualsIgnoreCase(ModuleConstants.Activities.Categories.ProductViews))
             .ToList();
 
         return _productResolver.ResolveAsync(productViewRows, request.StoreId, x => x.ProductCode, (row, product) =>
