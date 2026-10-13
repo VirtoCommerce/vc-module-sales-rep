@@ -40,12 +40,9 @@
   <ItemGroup>
     <NotificationTemplates Include="NotificationTemplates\**" />
   </ItemGroup>
-  <!-- Not an <app> in module.manifest, so vc-build BuildCustomApp skips it. -p:SkipStorefrontPlugin=true builds without node. -->
   <Target Name="BuildStorefrontPlugin" BeforeTargets="Publish" Condition="'$(SkipStorefrontPlugin)' != 'true' AND Exists('$(MSBuildProjectDirectory)\StorefrontApp\package.json')">
-    <!-- The runner's global yarn is 1.x; package.json pins yarn 4. -->
     <Exec Command="corepack enable" ContinueOnError="true" />
     <Exec Command="yarn install --immutable" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
-    <!-- vite build does not type-check. -->
     <Exec Command="yarn type-check" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
     <Exec Command="yarn build" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
   </Target>
