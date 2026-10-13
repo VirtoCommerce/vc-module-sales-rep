@@ -34,7 +34,6 @@ using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
-using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.XCart.Core.Services;
 

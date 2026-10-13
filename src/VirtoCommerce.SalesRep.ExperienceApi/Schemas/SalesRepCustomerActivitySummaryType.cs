@@ -1,4 +1,3 @@
-using GraphQL.Types;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.Xapi.Core.Schemas;
 
