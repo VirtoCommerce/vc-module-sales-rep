@@ -21,7 +21,7 @@ public class SalesRepCustomerInsightsContext
     // Turned off by the collection resolvers when a read fails — an empty list cannot say why it is empty.
     public bool IsAnalyticsAvailable { get; set; } = true;
 
-    // One fetch per (collection, sort, take): aliased selections and the dataAsOf resolver share the same read.
+    // One fetch per (collection, sort, take): aliased selections and isAnalyticsAvailable share the same read.
     public virtual async Task<T> GetOrAddSliceAsync<T>(string key, Func<Task<T>> factory) where T : class
     {
         var slice = _slices.GetOrAdd(key, _ => new Lazy<Task<object>>(async () => await factory(), LazyThreadSafetyMode.ExecutionAndPublication));

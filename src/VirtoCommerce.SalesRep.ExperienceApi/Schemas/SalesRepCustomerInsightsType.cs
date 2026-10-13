@@ -47,10 +47,6 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
                 + "selected, it reports configuration only — no read is made merely to test one.")
             .ResolveAsync(GetIsAnalyticsAvailableAsync);
 
-        Field<DateTimeGraphType>("dataAsOf")
-            .Description("Latest event hour (UTC) observed across the selected collections; null when they carry no data or only 'count'-sorted collections are selected (their aggregate rows carry no dates).")
-            .ResolveAsync(GetDataAsOfAsync);
-
         Field<NonNullGraphType<ListGraphType<NonNullGraphType<SalesRepSearchTermType>>>>(SearchTermsField)
             .Description("Search phrases the customer's users looked for. Counts only the 'search' event ('view_search_results' describes the same action and would double-count it). Sort 'date' aggregates a bounded page of the newest 200 hour buckets — older activity is not counted.")
             .Argument<IntGraphType>(TakeArgument, "Rows to return: default 5, clamped to 1..20.")
@@ -72,8 +68,8 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             });
     }
 
-    // May resolve before the collections, so it awaits the same memoized reads dataAsOf does. Only the SELECTED
-    // collections: a read is never issued merely to answer this field.
+    // May resolve before the collections, so it awaits their memoized reads. Only the SELECTED collections: a read is
+    // never issued merely to answer this field.
     private async Task<object> GetIsAnalyticsAvailableAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
     {
         foreach (var (field, fieldType) in GetSelectedCollections(context))
@@ -91,31 +87,6 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         }
 
         return context.Source.IsAnalyticsAvailable;
-    }
-
-    // Covers exactly the sibling collection selections; the memoized fetches make the shared reads free.
-    private async Task<object> GetDataAsOfAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
-    {
-        DateTime? result = null;
-
-        foreach (var (field, fieldType) in GetSelectedCollections(context))
-        {
-            var (sortBy, take) = ReadSiblingArguments(context, field, fieldType);
-
-            var dates = fieldType.Name == SearchTermsField
-                ? (await GetSearchTermsAsync(context.Source, sortBy, take)).Select(x => x.LastSearchedDate)
-                : (await GetBrowsedProductsAsync(context.Source, sortBy, take)).Select(x => x.LastViewedDate);
-
-            foreach (var date in dates)
-            {
-                if (date != null && (result == null || date > result))
-                {
-                    result = date;
-                }
-            }
-        }
-
-        return result;
     }
 
     private static IEnumerable<(GraphQLField Field, FieldType FieldType)> GetSelectedCollections(IResolveFieldContext context)
@@ -179,7 +150,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
             }));
     }
 
-    // Both collections and dataAsOf come through here, so one catch covers the query.
+    // Both collections come through here, so one catch covers the query.
     private async Task<IList<T>> ReadAsync<T>(SalesRepCustomerInsightsContext insights, Func<Task<IList<T>>> read)
     {
         try

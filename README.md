@@ -566,7 +566,6 @@ Ranked lists over tracked activity, for one customer or aggregated across all of
 ```graphql
 {
   salesRepCustomerInsights(storeId: "B2B-store" /*, organizationId, period */) {
-    dataAsOf                                   # newest bucket in THIS payload — never "now"
     searchTerms(take: 5, sort: "count") { term count lastSearchedDate }
     browsedProducts(take: 5, sort: "count") { productId name sku imageUrl viewCount lastViewedDate }
   }
@@ -784,7 +783,6 @@ Some metrics are **not** computed from platform data — they are read from **Go
 | `salesRepCustomerActivitySummary.lastViewedProduct`, `lastViewedDate` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/image; the date is that bucket's start |
 | `salesRepCustomerInsights.searchTerms` (term, count, lastSearchedDate) | event `search`; dimension `searchTerm`; metric `eventCount` | `sort: "count"` = GA-aggregated top; `sort: "date"` = per-hour rows aggregated per term. Only `search` is counted — `view_search_results` describes the same user action and would double-count |
 | `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; an unresolvable code keeps its `sku` and reports a null `productId` |
-| `salesRepCustomerInsights.dataAsOf` | latest `dateHour` bucket observed in the returned payload | **not** "now" — see latency below |
 
 (`salesRepCustomerActivitySummary.createdOn` and the `orders`/`customers` activity categories come from platform data, not GA.)
 
@@ -812,7 +810,7 @@ What the module adds on top of the raw source:
 
 Caveats inherent to the source, by design:
 
-* **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity. `dataAsOf` reports how fresh the data actually is.
+* **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity.
 * **Hour precision** — GA reports are aggregates; all `last*Date` values are UTC hour-bucket starts, not event timestamps. The storefront renders them as approximate.
 * **Sample, not record** — ad blockers, consent and untracked channels mean GA sees a subset of real activity; the UI carries a "based on tracked activity" caveat.
 * **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and a misconfigured property cannot burn it on a hot page. The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.

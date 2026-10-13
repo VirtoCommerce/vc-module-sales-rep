@@ -15,7 +15,7 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// <summary>
 /// End-to-end component tests for the <c>salesRepCustomerInsights</c> X-API query (VCST-5337 customer insights):
 /// top/recent search terms and browsed products from the (fake) analytics service, product resolution from the
-/// catalog, lazy per-collection fetches shared with dataAsOf, and the same organization authorization and
+/// catalog, lazy per-collection fetches shared with isAnalyticsAvailable, and the same organization authorization and
 /// isAnalyticsAvailable semantics as the activity summary. The organizationId argument is optional: omitted, the
 /// scope is all the rep's assigned organizations (same resolution as salesRepActivities).
 /// </summary>
@@ -48,12 +48,10 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") {{ dataAsOf searchTerms {{ {TermFields} }} }} }}",
+            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") {{ searchTerms {{ {TermFields} }} }} }}",
             userId: rep.UserId);
 
         var insights = Insights(json);
-        insights.GetProperty("dataAsOf").ValueKind.Should().Be(JsonValueKind.Null); // count-mode aggregate rows carry no dates
-
         var terms = insights.GetProperty("searchTerms").EnumerateArray().ToList();
         terms.Select(x => (x.GetProperty("term").GetString(), x.GetProperty("count").GetInt32()))
             .Should().Equal(("pumps", 5), ("valves", 4));
@@ -66,7 +64,7 @@ public class SalesRepCustomerInsightsGraphQlTests
     }
 
     [Fact]
-    public async Task Insights_SearchTerms_SortDate_AggregatesBucketsNewestFirst_AndDataAsOf()
+    public async Task Insights_SearchTerms_SortDate_AggregatesBucketsNewestFirst()
     {
         var analytics = new TestAnalytics();
         using var ctx = SalesRepTestContext.Create(analytics.Register);
@@ -81,12 +79,10 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "valves"));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\") {{ dataAsOf searchTerms(sort: \"date\") {{ {TermFields} }} }} }}",
+            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\") {{ searchTerms(sort: \"date\") {{ {TermFields} }} }} }}",
             userId: rep.UserId);
 
         var insights = Insights(json);
-        insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_apr);
-
         var terms = insights.GetProperty("searchTerms").EnumerateArray().ToList();
         terms.Select(x => x.GetProperty("term").GetString()).Should().Equal("valves", "pumps"); // most recent first
         terms[0].GetProperty("count").GetInt32().Should().Be(4);
@@ -94,7 +90,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         terms[1].GetProperty("count").GetInt32().Should().Be(5); // summed across the pumped hour buckets
         terms[1].GetProperty("lastSearchedDate").GetDateTime().ToUniversalTime().Should().Be(_mar);
 
-        var criteria = analytics.ReceivedQueries.Should().ContainSingle().Subject; // dataAsOf shares the fetch
+        var criteria = analytics.ReceivedQueries.Should().ContainSingle().Subject;
         criteria.SortBy.Should().Be(AnalyticsConstants.SortBy.Date);
         criteria.Take.Should().Be(200); // bounded page of the newest hour buckets
     }
@@ -139,7 +135,7 @@ public class SalesRepCustomerInsightsGraphQlTests
     }
 
     [Fact]
-    public async Task Insights_BrowsedProducts_SortDate_OrdersByRecency_AndDataAsOf()
+    public async Task Insights_BrowsedProducts_SortDate_OrdersByRecency()
     {
         var analytics = new TestAnalytics();
         using var ctx = SalesRepTestContext.Create(analytics.Register);
@@ -154,12 +150,10 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: [(AnalyticsConstants.Dimensions.ItemId, "CODE-2"), (AnalyticsConstants.Dimensions.ItemName, "Valve")]);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\") {{ dataAsOf browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
+            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\") {{ browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
             userId: rep.UserId);
 
         var insights = Insights(json);
-        insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_apr);
-
         var products = insights.GetProperty("browsedProducts").EnumerateArray().ToList();
         products.Select(x => x.GetProperty("sku").GetString()).Should().Equal("CODE-1", "CODE-2"); // most recent first
         products[1].GetProperty("viewCount").GetInt32().Should().Be(5); // summed across hour buckets
@@ -220,7 +214,7 @@ public class SalesRepCustomerInsightsGraphQlTests
     }
 
     [Fact]
-    public async Task Insights_DataAsOfListedFirst_SharesTheCollectionFetch()
+    public async Task Insights_FlagListedFirst_SharesTheCollectionFetch()
     {
         var analytics = new TestAnalytics();
         using var ctx = SalesRepTestContext.Create(analytics.Register);
@@ -229,13 +223,13 @@ public class SalesRepCustomerInsightsGraphQlTests
         analytics.AddEvent(AnalyticsConstants.EventNames.Search, _mar, count: 2, "org-1",
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "pumps"));
 
-        // dataAsOf listed BEFORE the collection: the memoized per-arguments fetch keeps this a single analytics read.
+        // The flag listed BEFORE the collection: the memoized per-arguments fetch keeps this a single analytics read.
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerInsights(organizationId: \"org-1\") { dataAsOf searchTerms(sort: \"date\", take: 3) { term } } }",
+            "query { salesRepCustomerInsights(organizationId: \"org-1\") { isAnalyticsAvailable searchTerms(sort: \"date\", take: 3) { term } } }",
             userId: rep.UserId);
 
         var insights = Insights(json);
-        insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar);
+        insights.GetProperty("isAnalyticsAvailable").GetBoolean().Should().BeTrue();
         insights.GetProperty("searchTerms").GetArrayLength().Should().Be(1);
         analytics.ReceivedQueries.Should().ContainSingle();
     }
@@ -283,7 +277,7 @@ public class SalesRepCustomerInsightsGraphQlTests
                 (AnalyticsConstants.UserDimensions.IsSalesRep, SalesRepConstants.Analytics.IsSalesRepValues.SalesRep)]);
 
         var json = await ctx.ExecuteGraphQlAsync(
-            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\") {{ dataAsOf searchTerms(sort: \"date\") {{ {TermFields} }} browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
+            $"query {{ salesRepCustomerInsights(organizationId: \"org-1\") {{ searchTerms(sort: \"date\") {{ {TermFields} }} browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
             userId: rep.UserId);
 
         json.Should().NotContain("leak");
@@ -293,7 +287,6 @@ public class SalesRepCustomerInsightsGraphQlTests
         var insights = Insights(json);
         insights.GetProperty("searchTerms").EnumerateArray().Select(x => x.GetProperty("term").GetString()).Should().Equal("own-term");
         insights.GetProperty("browsedProducts").GetArrayLength().Should().Be(0);
-        insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar); // the foreign april events never count
 
         // Every analytics read carries the mandatory scope: customers' own sessions only, and only the requested
         // organization.
@@ -354,7 +347,7 @@ public class SalesRepCustomerInsightsGraphQlTests
             dimensions: (AnalyticsConstants.Dimensions.SearchTerm, "impersonated-term"));
 
         var json = await ctx.ExecuteGraphQlAsync(
-            $"query {{ salesRepCustomerInsights {{ dataAsOf searchTerms(sort: \"date\") {{ {TermFields} }} browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
+            $"query {{ salesRepCustomerInsights {{ searchTerms(sort: \"date\") {{ {TermFields} }} browsedProducts(sort: \"date\") {{ {ProductFields} }} }} }}",
             userId: rep.UserId);
 
         json.Should().NotContain("leak");
@@ -363,7 +356,6 @@ public class SalesRepCustomerInsightsGraphQlTests
         var insights = Insights(json);
         insights.GetProperty("searchTerms").EnumerateArray().Select(x => x.GetProperty("term").GetString()).Should().Equal("own-term");
         insights.GetProperty("browsedProducts").GetArrayLength().Should().Be(0);
-        insights.GetProperty("dataAsOf").GetDateTime().ToUniversalTime().Should().Be(_mar); // the foreign april events never count
 
         // Every analytics read carries the mandatory scope: own sessions only, and only the rep's assigned organizations.
         analytics.ReceivedQueries.Should().NotBeEmpty();
@@ -403,7 +395,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(
-            "query { salesRepCustomerInsights(organizationId: \"org-1\") { isAnalyticsAvailable dataAsOf searchTerms { term } } }",
+            "query { salesRepCustomerInsights(organizationId: \"org-1\") { isAnalyticsAvailable searchTerms { term } } }",
             userId: rep.UserId);
 
         // Not a null field: null means the caller may not see this customer.
@@ -459,7 +451,7 @@ public class SalesRepCustomerInsightsGraphQlTests
         using var ctx = SalesRepTestContext.Create();
 
         var json = await ctx.ExecuteGraphQlAnonymousAsync(
-            "query { salesRepCustomerInsights { dataAsOf } }");
+            "query { salesRepCustomerInsights { isAnalyticsAvailable } }");
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
@@ -476,7 +468,7 @@ public class SalesRepCustomerInsightsGraphQlTests
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomerInsights(organizationId: \"org-1\", storeId: \"B2B-store\") " +
-            "{ isAnalyticsAvailable dataAsOf searchTerms { term } browsedProducts { sku } } }",
+            "{ isAnalyticsAvailable searchTerms { term } browsedProducts { sku } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
