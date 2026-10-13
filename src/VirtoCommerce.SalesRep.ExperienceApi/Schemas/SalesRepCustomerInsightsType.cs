@@ -70,7 +70,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
 
     // May resolve before the collections, so it awaits their memoized reads. Only the SELECTED collections: a read is
     // never issued merely to answer this field.
-    private async Task<object> GetIsAnalyticsAvailableAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
+    protected virtual async Task<object> GetIsAnalyticsAvailableAsync(IResolveFieldContext<SalesRepCustomerInsightsContext> context)
     {
         foreach (var (field, fieldType) in GetSelectedCollections(context))
         {
@@ -114,13 +114,13 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         return (sortBy, Math.Clamp(take ?? ModuleConstants.Insights.DefaultTake, ModuleConstants.Insights.MinTake, ModuleConstants.Insights.MaxTake));
     }
 
-    private Task<IList<SalesRepSearchTerm>> GetSearchTermsAsync(SalesRepCustomerInsightsContext insights, string sortBy, int take)
+    protected virtual Task<IList<SalesRepSearchTerm>> GetSearchTermsAsync(SalesRepCustomerInsightsContext insights, string sortBy, int take)
     {
         return insights.GetOrAddSliceAsync($"{SearchTermsField}:{sortBy}:{take}",
             () => ReadAsync(insights, () => _insightsService.GetSearchTermsAsync(CreateCriteria(insights, sortBy, take))));
     }
 
-    private Task<IList<SalesRepBrowsedProduct>> GetBrowsedProductsAsync(SalesRepCustomerInsightsContext insights, string sortBy, int take)
+    protected virtual Task<IList<SalesRepBrowsedProduct>> GetBrowsedProductsAsync(SalesRepCustomerInsightsContext insights, string sortBy, int take)
     {
         return insights.GetOrAddSliceAsync($"{BrowsedProductsField}:{sortBy}:{take}",
             () => ReadAsync(insights, async () =>
@@ -132,7 +132,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
     }
 
     // Both collections come through here, so one catch covers the query.
-    private async Task<IList<T>> ReadAsync<T>(SalesRepCustomerInsightsContext insights, Func<Task<IList<T>>> read)
+    protected virtual async Task<IList<T>> ReadAsync<T>(SalesRepCustomerInsightsContext insights, Func<Task<IList<T>>> read)
     {
         try
         {
@@ -148,7 +148,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         }
     }
 
-    private static SalesRepCustomerInsightsCriteria CreateCriteria(SalesRepCustomerInsightsContext insights, string sortBy, int take)
+    protected virtual SalesRepCustomerInsightsCriteria CreateCriteria(SalesRepCustomerInsightsContext insights, string sortBy, int take)
     {
         var criteria = AbstractTypeFactory<SalesRepCustomerInsightsCriteria>.TryCreateInstance();
 
@@ -162,7 +162,7 @@ public class SalesRepCustomerInsightsType : ExtendableGraphType<SalesRepCustomer
         return criteria;
     }
 
-    private Task ResolveProductsAsync(SalesRepCustomerInsightsContext insights, IList<SalesRepBrowsedProduct> products)
+    protected virtual Task ResolveProductsAsync(SalesRepCustomerInsightsContext insights, IList<SalesRepBrowsedProduct> products)
     {
         return _productResolver.ResolveAsync(products, insights.StoreId, x => x.Code, (row, product) =>
         {
