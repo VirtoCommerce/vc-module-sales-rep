@@ -38,8 +38,8 @@ internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsRe
     public List<AnalyticsEvent> Events { get; } = [];
 
     /// <summary>
-    /// Every query that reached the provider: one per search, and 1 + N per summary read. Concurrent because the
-    /// probes are — the real service runs them through Parallel.ForEachAsync.
+    /// Every query that reached the provider: one per search, and one per named event of a summary read. Concurrent
+    /// because those are — the real service runs them through Parallel.ForEachAsync.
     /// </summary>
     public ConcurrentQueue<AnalyticsDataQuery> ReceivedQueries { get; } = new();
 
@@ -123,6 +123,8 @@ internal sealed class TestAnalytics : IAnalyticsDataSource, IAnalyticsSettingsRe
         var result = new AnalyticsEventSearchResult
         {
             TotalCount = matches.Count,
+            // What Google's metric total is: every matching row's count, whatever page was asked for.
+            TotalEventCount = matches.Sum(x => x.Count),
             Events = query.Take > 0
                 ? matches.Skip(query.Skip).Take(query.Take).Select(x => x.CloneTyped()).ToList()
                 : [],
