@@ -8,6 +8,7 @@ using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
+using VirtoCommerce.SalesRep.Core.Extensions;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
@@ -21,15 +22,18 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
     private readonly ISalesRepAnalyticsAvailability _availability;
+    private readonly ISalesRepAnalyticsScope _scope;
     private readonly ILogger<SalesRepCustomerActivityService> _logger;
 
     public SalesRepCustomerActivityService(
         IOptionalDependency<IAnalyticsService> analyticsService,
         ISalesRepAnalyticsAvailability availability,
+        ISalesRepAnalyticsScope scope,
         ILogger<SalesRepCustomerActivityService> logger)
     {
         _analyticsService = analyticsService;
         _availability = availability;
+        _scope = scope;
         _logger = logger;
     }
 
@@ -65,7 +69,7 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
             // Each date comes from the row its value came from, which need not be the newest row.
             var lastSearch = await lastSearchTask;
-            result.LastSearchTerm = lastSearch == null ? null : SalesRepAnalyticsScope.GetDimension(lastSearch, AnalyticsConstants.Dimensions.SearchTerm);
+            result.LastSearchTerm = lastSearch == null ? null : lastSearch.GetDimension(AnalyticsConstants.Dimensions.SearchTerm);
             result.LastSearchedDate = lastSearch?.OccurredAt;
 
             var lastProductView = await lastProductViewTask;
@@ -99,7 +103,7 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
 
         result.StoreId = criteria.StoreId;
         result.EventNames = [AnalyticsConstants.EventNames.Login];
-        result.DimensionFilters = SalesRepAnalyticsScope.CreateScopeFilters([criteria.OrganizationId]);
+        result.DimensionFilters = _scope.CreateScopeFilters([criteria.OrganizationId]);
         result.From = criteria.From;
         result.To = criteria.To;
 
@@ -127,8 +131,8 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
     protected virtual SalesRepActivityProduct CreateViewedProduct(AnalyticsEvent productView)
     {
         var result = AbstractTypeFactory<SalesRepActivityProduct>.TryCreateInstance();
-        result.Code = SalesRepAnalyticsScope.GetDimension(productView, AnalyticsConstants.Dimensions.ItemId);
-        result.Name = SalesRepAnalyticsScope.GetDimension(productView, AnalyticsConstants.Dimensions.ItemName);
+        result.Code = productView.GetDimension(AnalyticsConstants.Dimensions.ItemId);
+        result.Name = productView.GetDimension(AnalyticsConstants.Dimensions.ItemName);
 
         return result;
     }
@@ -138,7 +142,7 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
         IList<string> eventNames,
         IList<string> dimensionNames)
     {
-        var result = SalesRepAnalyticsScope.CreateCriteria(
+        var result = _scope.CreateCriteria(
             criteria.StoreId,
             [criteria.OrganizationId],
             eventNames,
@@ -160,6 +164,6 @@ public class SalesRepCustomerActivityService : ISalesRepCustomerActivityService
     {
         var searchResult = await analyticsService.SearchEventsAsync(CreateEventSearchCriteria(criteria, eventNames, dimensionNames));
 
-        return searchResult.Events.FirstOrDefault(x => !string.IsNullOrEmpty(SalesRepAnalyticsScope.GetDimension(x, dimensionNames[0])));
+        return searchResult.Events.FirstOrDefault(x => !string.IsNullOrEmpty(x.GetDimension(dimensionNames[0])));
     }
 }

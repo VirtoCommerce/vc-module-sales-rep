@@ -20,20 +20,18 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
     private const int FeatureQueryTake = 5;
     private const int FeatureQueryDays = 30;
 
-    // Store-wide, unlike the widgets it mirrors: the audience filters but no organization filter, so it answers "does
-    // the production read path return rows for this store at all".
-    private static readonly string _probeScopeNote =
-        $"store-wide probe: {DescribeFilters(SalesRepAnalyticsScope.CreateAudienceFilters())}, no organization filter, last {FeatureQueryDays} days, top {FeatureQueryTake}";
-
     private readonly IOptionalDependency<IAnalyticsDiagnosticsService> _diagnosticsService;
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
+    private readonly ISalesRepAnalyticsScope _scope;
 
     public SalesRepAnalyticsDiagnosticsService(
         IOptionalDependency<IAnalyticsDiagnosticsService> diagnosticsService,
-        IOptionalDependency<IAnalyticsService> analyticsService)
+        IOptionalDependency<IAnalyticsService> analyticsService,
+        ISalesRepAnalyticsScope scope)
     {
         _diagnosticsService = diagnosticsService;
         _analyticsService = analyticsService;
+        _scope = scope;
     }
 
     public virtual async Task<AnalyticsDiagnosticsResult> RunAsync(string storeId, bool includeLiveData)
@@ -108,7 +106,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
             var searchTermRows = rowCounts[0];
             var productViewRows = rowCounts[1];
 
-            var counts = $"{SearchTermsReportName}={searchTermRows} rows, {BrowsedProductsReportName}={productViewRows} rows ({_probeScopeNote})";
+            var counts = $"{SearchTermsReportName}={searchTermRows} rows, {BrowsedProductsReportName}={productViewRows} rows ({DescribeProbeScope()})";
 
             return searchTermRows == 0 && productViewRows == 0
                 ? CreateFeatureQueryCheck(Statuses.Warning,
@@ -128,7 +126,7 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         criteria.StoreId = storeId;
         criteria.EventNames = eventNames;
         criteria.DimensionNames = dimensionNames;
-        criteria.DimensionFilters = SalesRepAnalyticsScope.CreateAudienceFilters();
+        criteria.DimensionFilters = _scope.CreateAudienceFilters();
         criteria.From = DateTime.UtcNow.AddDays(-FeatureQueryDays);
         // Reports what Google answers now, not the cached answer the widgets get.
         criteria.BypassCache = true;
@@ -162,6 +160,13 @@ public class SalesRepAnalyticsDiagnosticsService : ISalesRepAnalyticsDiagnostics
         check.Message = message;
         check.Detail = detail;
         return check;
+    }
+
+    // Store-wide, unlike the widgets it mirrors: the audience filters but no organization filter, so it answers "does
+    // the production read path return rows for this store at all".
+    private string DescribeProbeScope()
+    {
+        return $"store-wide probe: {DescribeFilters(_scope.CreateAudienceFilters())}, no organization filter, last {FeatureQueryDays} days, top {FeatureQueryTake}";
     }
 
     private static string DescribeFilters(IList<AnalyticsDimensionFilter> filters)

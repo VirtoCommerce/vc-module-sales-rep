@@ -108,6 +108,7 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
         serviceCollection.AddTransient<ISalesRepStoreAccessService, SalesRepStoreAccessService>();
         serviceCollection.AddTransient<ISalesRepAnalyticsAvailability, SalesRepAnalyticsAvailability>();
+        serviceCollection.AddTransient<ISalesRepAnalyticsScope, SalesRepAnalyticsScope>();
         serviceCollection.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
 
         serviceCollection.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();

@@ -4,15 +4,15 @@ using System.Linq;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Services;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Data.Services.Activities;
 
-public static class SalesRepAnalyticsScope
+public class SalesRepAnalyticsScope : ISalesRepAnalyticsScope
 {
-    // Scoped event reads are built here, so a new reader cannot forget the scope filters; the summary read has its own
-    // criteria type and takes CreateScopeFilters.
-    public static AnalyticsEventSearchCriteria CreateCriteria(
+    // The summary read has its own criteria type and takes CreateScopeFilters.
+    public virtual AnalyticsEventSearchCriteria CreateCriteria(
         string storeId,
         IList<string> organizationIds,
         IList<string> eventNames,
@@ -32,14 +32,12 @@ public static class SalesRepAnalyticsScope
         return result;
     }
 
-    // Only the organizations the rep serves, on top of the audience filters.
-    public static IList<AnalyticsDimensionFilter> CreateScopeFilters(IList<string> organizationIds)
+    public virtual IList<AnalyticsDimensionFilter> CreateScopeFilters(IList<string> organizationIds)
     {
         return [.. CreateAudienceFilters(), CreateOrganizationFilter(organizationIds)];
     }
 
-    // Only customers' own sessions — never impersonated ones, never a rep's own.
-    public static IList<AnalyticsDimensionFilter> CreateAudienceFilters()
+    public virtual IList<AnalyticsDimensionFilter> CreateAudienceFilters()
     {
         return
         [
@@ -48,7 +46,7 @@ public static class SalesRepAnalyticsScope
         ];
     }
 
-    public static AnalyticsDimensionFilter CreateOrganizationFilter(IList<string> organizationIds)
+    protected virtual AnalyticsDimensionFilter CreateOrganizationFilter(IList<string> organizationIds)
     {
         // Refused here, not only downstream: an organization-less read is scoped by session kind alone — every
         // organization.
@@ -60,12 +58,7 @@ public static class SalesRepAnalyticsScope
         return CreateFilter(AnalyticsConstants.UserDimensions.OrganizationId, organizationIds.ToList());
     }
 
-    public static string GetDimension(AnalyticsEvent analyticsEvent, string dimensionName)
-    {
-        return analyticsEvent.Dimensions?.GetValueSafe(dimensionName);
-    }
-
-    private static AnalyticsDimensionFilter CreateFilter(string dimensionName, IList<string> values)
+    protected static AnalyticsDimensionFilter CreateFilter(string dimensionName, IList<string> values)
     {
         var result = AbstractTypeFactory<AnalyticsDimensionFilter>.TryCreateInstance();
 

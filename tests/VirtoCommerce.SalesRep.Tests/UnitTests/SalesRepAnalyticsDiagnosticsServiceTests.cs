@@ -8,6 +8,7 @@ using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Modules;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
@@ -33,7 +34,8 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
     {
         var service = new SalesRepAnalyticsDiagnosticsService(
             Optional<IAnalyticsDiagnosticsService>(null),
-            Optional<IAnalyticsService>(null));
+            Optional<IAnalyticsService>(null),
+            new SalesRepAnalyticsScope());
 
         var result = await service.RunAsync(StoreId, includeLiveData: true);
 
@@ -144,6 +146,20 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         }
     }
 
+    // The probe reads with the widgets' audience, a project's override of it included, and names that audience.
+    [Fact]
+    public async Task Run_FeatureQuery_ReadsWithTheScopeServicesAudience()
+    {
+        var analytics = new TestAnalytics();
+
+        var result = await CreateService(new FakeAnalyticsDiagnosticsService(), analytics.CreateService(), new ChannelAnalyticsScope())
+            .RunAsync(StoreId, includeLiveData: true);
+
+        analytics.ReceivedQueries.Should().HaveCount(2).And.OnlyContain(x =>
+            x.DimensionFilters.Any(filter => filter.DimensionName == ChannelAnalyticsScope.ChannelDimension));
+        result.Checks[^1].Message.Should().Contain($"{ChannelAnalyticsScope.ChannelDimension}={ChannelAnalyticsScope.WebChannel}");
+    }
+
     [Fact]
     public async Task Run_FeatureQuery_NoRows_ReturnsWarning()
     {
@@ -180,9 +196,12 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         check.Detail.Should().Contain("GA exploded");
     }
 
-    private static SalesRepAnalyticsDiagnosticsService CreateService(IAnalyticsDiagnosticsService diagnostics, IAnalyticsService analytics)
+    private static SalesRepAnalyticsDiagnosticsService CreateService(
+        IAnalyticsDiagnosticsService diagnostics,
+        IAnalyticsService analytics,
+        ISalesRepAnalyticsScope scope = null)
     {
-        return new SalesRepAnalyticsDiagnosticsService(Optional(diagnostics), Optional(analytics));
+        return new SalesRepAnalyticsDiagnosticsService(Optional(diagnostics), Optional(analytics), scope ?? new SalesRepAnalyticsScope());
     }
 
     private static OptionalDependencyManager<T> Optional<T>(T instance) where T : class

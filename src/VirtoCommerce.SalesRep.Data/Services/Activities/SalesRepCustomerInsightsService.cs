@@ -7,6 +7,7 @@ using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Extensions;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
@@ -22,13 +23,16 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
 
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
     private readonly ISalesRepAnalyticsAvailability _availability;
+    private readonly ISalesRepAnalyticsScope _scope;
 
     public SalesRepCustomerInsightsService(
         IOptionalDependency<IAnalyticsService> analyticsService,
-        ISalesRepAnalyticsAvailability availability)
+        ISalesRepAnalyticsAvailability availability,
+        ISalesRepAnalyticsScope scope)
     {
         _analyticsService = analyticsService;
         _availability = availability;
+        _scope = scope;
     }
 
     public virtual Task<bool> IsAvailableAsync(string storeId)
@@ -47,7 +51,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
             [AnalyticsConstants.Dimensions.SearchTerm]);
 
         var terms = events
-            .Select(x => (Term: SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.SearchTerm), x.Count, Date: x.OccurredAt))
+            .Select(x => (Term: x.GetDimension(AnalyticsConstants.Dimensions.SearchTerm), x.Count, Date: x.OccurredAt))
             .Where(x => !string.IsNullOrEmpty(x.Term))
             .GroupBy(x => x.Term, StringComparer.Ordinal)
             .Select(group =>
@@ -77,8 +81,8 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
 
         var products = events
             .Select(x => (
-                Code: SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.ItemId),
-                Name: SalesRepAnalyticsScope.GetDimension(x, AnalyticsConstants.Dimensions.ItemName),
+                Code: x.GetDimension(AnalyticsConstants.Dimensions.ItemId),
+                Name: x.GetDimension(AnalyticsConstants.Dimensions.ItemName),
                 x.Count,
                 Date: x.OccurredAt))
             .Where(x => !string.IsNullOrEmpty(x.Code))
@@ -116,7 +120,7 @@ public class SalesRepCustomerInsightsService : ISalesRepCustomerInsightsService
 
         var isDateSort = IsDateSort(criteria);
 
-        var searchCriteria = SalesRepAnalyticsScope.CreateCriteria(
+        var searchCriteria = _scope.CreateCriteria(
             criteria.StoreId,
             criteria.OrganizationIds,
             eventNames,

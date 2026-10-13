@@ -58,6 +58,7 @@ public class AnalyticsSalesRepActivitySourceTests
 
         return new AnalyticsSalesRepActivitySource(
             new OptionalDependencyManager<IAnalyticsService>(services),
+            new SalesRepAnalyticsScope(),
             NullLogger<AnalyticsSalesRepActivitySource>.Instance);
     }
 

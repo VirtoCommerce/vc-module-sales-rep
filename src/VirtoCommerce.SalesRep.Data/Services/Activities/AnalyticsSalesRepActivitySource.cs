@@ -8,6 +8,7 @@ using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Models;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
+using VirtoCommerce.SalesRep.Core.Extensions;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using ActivityConstants = VirtoCommerce.SalesRep.Core.ModuleConstants.Activities;
@@ -39,13 +40,16 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
     ];
 
     private readonly IOptionalDependency<IAnalyticsService> _analyticsService;
+    private readonly ISalesRepAnalyticsScope _scope;
     private readonly ILogger<AnalyticsSalesRepActivitySource> _logger;
 
     public AnalyticsSalesRepActivitySource(
         IOptionalDependency<IAnalyticsService> analyticsService,
+        ISalesRepAnalyticsScope scope,
         ILogger<AnalyticsSalesRepActivitySource> logger)
     {
         _analyticsService = analyticsService;
+        _scope = scope;
         _logger = logger;
     }
 
@@ -103,7 +107,7 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
 
     protected virtual AnalyticsEventSearchCriteria CreateSearchCriteria(SalesRepAnalyticsCategory category, SalesRepActivitySearchCriteria criteria)
     {
-        var result = SalesRepAnalyticsScope.CreateCriteria(
+        var result = _scope.CreateCriteria(
             criteria.StoreId,
             criteria.OrganizationIds,
             [.. category.EventNames],
@@ -128,10 +132,10 @@ public class AnalyticsSalesRepActivitySource : ISalesRepActivitySource
         result.OccurredAt = analyticsEvent.OccurredAt.Value;
         result.Precision = ActivityConstants.Precision.Hour;
         result.Count = analyticsEvent.Count;
-        result.OrganizationId = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.UserDimensions.OrganizationId);
-        result.SearchTerm = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.SearchTerm);
-        result.ProductCode = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.ItemId);
-        result.ProductName = SalesRepAnalyticsScope.GetDimension(analyticsEvent, AnalyticsConstants.Dimensions.ItemName);
+        result.OrganizationId = analyticsEvent.GetDimension(AnalyticsConstants.UserDimensions.OrganizationId);
+        result.SearchTerm = analyticsEvent.GetDimension(AnalyticsConstants.Dimensions.SearchTerm);
+        result.ProductCode = analyticsEvent.GetDimension(AnalyticsConstants.Dimensions.ItemId);
+        result.ProductName = analyticsEvent.GetDimension(AnalyticsConstants.Dimensions.ItemName);
 
         return result;
     }

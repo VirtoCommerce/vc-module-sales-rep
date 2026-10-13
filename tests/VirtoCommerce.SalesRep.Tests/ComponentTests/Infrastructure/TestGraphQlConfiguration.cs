@@ -279,6 +279,7 @@ internal static class TestGraphQlConfiguration
         services.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
         // Real services: the availability answer and the store claim are part of what these tests assert.
         services.AddTransient<ISalesRepAnalyticsAvailability, SalesRepAnalyticsAvailability>();
+        services.AddTransient<ISalesRepAnalyticsScope, SalesRepAnalyticsScope>();
         services.AddTransient<ISalesRepStoreAccessService, SalesRepStoreAccessService>();
         services.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
         services.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
