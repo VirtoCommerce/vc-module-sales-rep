@@ -40,7 +40,7 @@ const ECHOED_SETTINGS: Record<string, { key: string; value: unknown }[]> = {
 const echoedBlock = (id: string) => ({ id, type: id, hidden: false, settings: ECHOED_SETTINGS[id] ?? [] });
 
 beforeEach(() => {
-  apolloMock.result.value = { salesRepLayout: null };
+  apolloMock.result.value = { layout: null };
   apolloMock.error.value = undefined;
   apolloMock.saving.value = false;
   apolloMock.mutate.mockReset();
@@ -97,7 +97,7 @@ describe("useLayoutPage", () => {
     // A faithful echo: a short one is a refused save, which keeps edit mode and Save's focus.
     apolloMock.mutate.mockResolvedValue({
       data: {
-        saveSalesRepLayout: {
+        saveLayout: {
           regions: [
             { id: "statistics", blocks: ["new_orders", "active_cart", "mtd", "orders_ytd", "aov"].map(echoedBlock) },
             { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
@@ -165,7 +165,7 @@ describe("useLayoutPage with every block hidden", () => {
   });
 
   beforeEach(() => {
-    apolloMock.result.value = { salesRepLayout: documentOf(hiddenBlock) };
+    apolloMock.result.value = { layout: documentOf(hiddenBlock) };
   });
 
   // Where the empty state's actions send focus; `tabIndex` so jsdom lets a div take it, as the template does.
@@ -191,7 +191,7 @@ describe("useLayoutPage with every block hidden", () => {
     ["a rail widget", "info"],
   ])("does not report a surface that still shows %s", (_label, visibleId) => {
     apolloMock.result.value = {
-      salesRepLayout: documentOf((id) => (id === visibleId ? echoedBlock(id) : hiddenBlock(id))),
+      layout: documentOf((id) => (id === visibleId ? echoedBlock(id) : hiddenBlock(id))),
     };
 
     const { allHidden } = withPage("customerProfile");
@@ -199,7 +199,7 @@ describe("useLayoutPage with every block hidden", () => {
   });
 
   it("announces a restore that saved and hands focus to the start of the surface", async () => {
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: documentOf(echoedBlock) } });
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: documentOf(echoedBlock) } });
     renderChrome();
     renderSurface();
 
@@ -231,7 +231,7 @@ describe("useLayoutPage with every block hidden", () => {
     owner.stop();
     elsewhere.focus();
 
-    land({ data: { saveSalesRepLayout: documentOf(echoedBlock) } });
+    land({ data: { saveLayout: documentOf(echoedBlock) } });
     await restoring;
     await nextTick();
     await nextTick();
@@ -273,7 +273,7 @@ describe("useLayoutPage with every block hidden", () => {
   // Saving with every block hidden swaps the toggle for the empty state, so its Edit layout button is the
   // only control left to take focus — without it focus drops to <body>.
   it("hands focus to the empty state's Edit layout when edit mode ends on an empty surface", async () => {
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: documentOf(hiddenBlock) } });
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: documentOf(hiddenBlock) } });
     const emptyEdit = document.createElement("button");
     emptyEdit.dataset.layoutEmptyEdit = "";
     document.body.append(emptyEdit);

@@ -3,3 +3,4 @@ node_modules/
 .yalc/
 yarn.lock
 src/api/graphql/types.ts
+src/api/graphql/core-types.ts

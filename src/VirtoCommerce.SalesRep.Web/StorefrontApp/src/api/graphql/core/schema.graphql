@@ -1,0 +1,117 @@
+# The saved dashboard layout as VirtoCommerce.XFrontend 3.1008.0 serves it on the platform's core schema (`/graphql`):
+# an excerpt, not the whole schema. `codegen.ts` generates `core-types.ts` from this file rather than by introspecting
+# the backend, so only these types reach the plugin and a change in the contract is a reviewable edit here.
+# To refresh: print the core schema of a backend that runs the X-Frontend version you target (for example with
+# `printSchema(buildClientSchema(introspection))` from the `graphql` package) and copy these definitions verbatim.
+
+schema {
+  query: Query
+  mutation: Mutations
+}
+
+type Query {
+  layout(
+    """Dashboard the layout belongs to ("accountDashboard")."""
+    scope: String!
+
+    """Store the layout was saved for."""
+    storeId: String
+  ): Layout
+}
+
+type Mutations {
+  saveLayout(command: InputLayout!): Layout
+}
+
+type Layout {
+  """
+  Document schema version, for the storefront to migrate older saved layouts.
+  """
+  schemaVersion: Int!
+
+  """Fixed regions of the dashboard."""
+  regions: [LayoutRegion!]!
+
+  """When the layout was last saved (UTC)."""
+  modifiedDate: DateTime
+}
+
+type LayoutRegion {
+  """Region id ("statistics", "mainLeft")."""
+  id: String!
+
+  """Blocks in render order."""
+  blocks: [LayoutBlock!]!
+}
+
+type LayoutBlock {
+  """Block id, unique within the layout."""
+  id: String!
+
+  """Block type, from the storefront vocabulary."""
+  type: String!
+
+  """Whether the user hid the block."""
+  hidden: Boolean!
+
+  """Block settings; may be empty."""
+  settings: [LayoutSetting!]!
+}
+
+type LayoutSetting {
+  """Setting key, from the block type vocabulary."""
+  key: String!
+
+  """Scalar setting value: string, number or boolean."""
+  value: AnyValue
+}
+
+input InputLayout {
+  """Dashboard the layout belongs to ("accountDashboard")."""
+  scope: String!
+
+  """Store the layout is saved for."""
+  storeId: String
+
+  """Document schema version."""
+  schemaVersion: Int!
+
+  """
+  Fixed regions of the dashboard with their blocks; replaces the saved layout as a whole.
+  """
+  regions: [InputLayoutRegion!]!
+}
+
+input InputLayoutRegion {
+  """Region id ("statistics", "mainLeft")."""
+  id: String!
+
+  """Blocks in render order."""
+  blocks: [InputLayoutBlock!]!
+}
+
+input InputLayoutBlock {
+  """Block id, unique within the layout."""
+  id: String!
+
+  """Block type, from the storefront vocabulary."""
+  type: String!
+
+  """Whether the user hid the block."""
+  hidden: Boolean!
+
+  """Block settings; send an empty list for none."""
+  settings: [InputLayoutSetting!]!
+}
+
+input InputLayoutSetting {
+  """Setting key, from the block type vocabulary."""
+  key: String!
+
+  """Scalar setting value: string, number or boolean."""
+  value: AnyValue
+}
+
+scalar AnyValue
+
+scalar DateTime

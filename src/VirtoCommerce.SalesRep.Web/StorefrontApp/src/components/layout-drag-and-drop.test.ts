@@ -76,7 +76,7 @@ enableAutoUnmount(afterEach);
 
 beforeEach(() => {
   zones.length = 0;
-  apolloMock.result.value = { salesRepLayout: null };
+  apolloMock.result.value = { layout: null };
 });
 
 function setup() {

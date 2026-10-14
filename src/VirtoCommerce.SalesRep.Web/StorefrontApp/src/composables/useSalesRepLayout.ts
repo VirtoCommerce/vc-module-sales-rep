@@ -1,7 +1,7 @@
 import { useMutation } from "@vue/apollo-composable";
 import { computed, onScopeDispose, readonly, ref, watchEffect } from "vue";
 import { globals, Logger } from "@vc-frontend/core";
-import { SalesRepLayoutDocument, SaveSalesRepLayoutDocument } from "../api/graphql/types";
+import { LayoutDocument, SaveLayoutDocument } from "../api/graphql/core-types";
 import { echoMatchesSentBlocks, reconcileLayout, serializeLayout } from "../layout/document";
 import { getBlockRegistry } from "../layout/registry";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
@@ -37,10 +37,10 @@ function cloneState(state: SalesRepLayoutStateType): SalesRepLayoutStateType {
 export function useSalesRepLayout(scope: SalesRepLayoutScopeType) {
   const registry = getBlockRegistry(scope);
 
-  // `no-cache` even with layout/cache-policies.ts in place: a save echoes `saveSalesRepLayout`, a
-  // different root field, so it never refreshes a cached `salesRepLayout`.
+  // `no-cache` even with layout/cache-policies.ts in place: a save echoes `saveLayout`, a
+  // different root field, so it never refreshes a cached `layout`.
   const { result, loading, error, onError, refetch } = useSalesRepHubQuery(
-    SalesRepLayoutDocument,
+    LayoutDocument,
     () => ({
       scope,
       storeId: globals.storeId,
@@ -49,12 +49,12 @@ export function useSalesRepLayout(scope: SalesRepLayoutScopeType) {
   );
 
   onError((queryError) => {
-    Logger.error("[sales-rep] salesRepLayout failed:", queryError);
+    Logger.error("[sales-rep] layout failed:", queryError);
   });
 
   // A mutation writes its result to the cache too, so it needs the same policy. No suppress context: a failed
   // save is a user action, so it keeps the toast (VCST-5682).
-  const { mutate, loading: saving } = useMutation(SaveSalesRepLayoutDocument, { fetchPolicy: "no-cache" });
+  const { mutate, loading: saving } = useMutation(SaveLayoutDocument, { fetchPolicy: "no-cache" });
 
   // Layout as last persisted (or registry defaults when the rep has never saved this surface).
   const savedState = ref<SalesRepLayoutStateType | undefined>();
@@ -62,7 +62,7 @@ export function useSalesRepLayout(scope: SalesRepLayoutScopeType) {
   const editing = computed(() => draft.value !== undefined);
   const saveFailed = ref(false);
 
-  const persisted = computed(() => savedState.value ?? reconcileLayout(result.value?.salesRepLayout, registry));
+  const persisted = computed(() => savedState.value ?? reconcileLayout(result.value?.layout, registry));
   const state = computed(() => draft.value ?? persisted.value);
 
   // Only a read with nothing to show yet blanks the surface. `refetch` sets `loading` true too
@@ -198,12 +198,12 @@ export function useSalesRepLayout(scope: SalesRepLayoutScopeType) {
     const command = serializeLayout(pending, scope, registry, globals.storeId);
     try {
       const response = await mutate({ command });
-      const saved = response?.data?.saveSalesRepLayout;
+      const saved = response?.data?.saveLayout;
 
       // Without a document there is nothing to trust: reconciling `undefined` yields registry
       // defaults, which would silently replace the rep's arrangement and report success.
       if (!saved) {
-        Logger.error("[sales-rep] saveSalesRepLayout returned no document");
+        Logger.error("[sales-rep] saveLayout returned no document");
         return false;
       }
 
@@ -211,11 +211,11 @@ export function useSalesRepLayout(scope: SalesRepLayoutScopeType) {
       // hides, and adopting the draft would make a document the backend never stored look canonical
       // with no later read to correct it. So refetch, and report a failure the rep can retry.
       if (!echoMatchesSentBlocks(saved, command)) {
-        Logger.error("[sales-rep] saveSalesRepLayout echoed a document that disagrees with what was sent");
+        Logger.error("[sales-rep] saveLayout echoed a document that disagrees with what was sent");
         // Cleared so `persisted` reads the refetch rather than a stale echo.
         savedState.value = undefined;
         refetch()?.catch((refetchError: unknown) => {
-          Logger.error("[sales-rep] salesRepLayout refetch after a disagreeing echo failed:", refetchError);
+          Logger.error("[sales-rep] layout refetch after a disagreeing echo failed:", refetchError);
         });
         return false;
       }
@@ -224,7 +224,7 @@ export function useSalesRepLayout(scope: SalesRepLayoutScopeType) {
       draft.value = undefined;
       return true;
     } catch (mutationError) {
-      Logger.error("[sales-rep] saveSalesRepLayout failed:", mutationError);
+      Logger.error("[sales-rep] saveLayout failed:", mutationError);
       return false;
     }
   }

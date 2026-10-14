@@ -76,7 +76,7 @@ beforeEach(() => {
   apolloMock.loading.value = false;
   apolloMock.saving.value = false;
   // Never saved: the surface reconciles registry defaults, so every block starts visible.
-  apolloMock.result.value = { salesRepLayout: null };
+  apolloMock.result.value = { layout: null };
 });
 
 function mountSurface(props: Record<string, unknown> = {}) {
@@ -158,7 +158,7 @@ describe("LayoutSurface with an emptied rail", () => {
   // needs none of the shipped widgets' async imports.
   async function mountWithHiddenRail() {
     const railBlocks = ["actions", "info", PROBE_ID].map((type) => ({ type, hidden: true }));
-    apolloMock.result.value = { salesRepLayout: { regions: [{ blocks: railBlocks }] } };
+    apolloMock.result.value = { layout: { regions: [{ blocks: railBlocks }] } };
 
     const wrapper = mountSurface();
     await flushPromises();
@@ -189,7 +189,7 @@ describe("LayoutSurface with an emptied rail", () => {
 describe("LayoutSurface with every block hidden", () => {
   async function mountAllHidden(props: Record<string, unknown> = {}) {
     const blocks = getBlockRegistry("customerProfile").map((block) => ({ type: block.id, hidden: true }));
-    apolloMock.result.value = { salesRepLayout: { regions: [{ blocks }] } };
+    apolloMock.result.value = { layout: { regions: [{ blocks }] } };
 
     const wrapper = mountSurface(props);
     await flushPromises();
@@ -261,7 +261,7 @@ describe("LayoutSurface with every block hidden", () => {
     apolloMock.mutate.mockReset();
     // Echo exactly what was sent: a disagreeing echo is a refused save.
     apolloMock.mutate.mockImplementation(({ command }: { command: unknown }) =>
-      Promise.resolve({ data: { saveSalesRepLayout: command } }),
+      Promise.resolve({ data: { saveLayout: command } }),
     );
 
     await wrapper.find("[data-layout-restore]").trigger("click");

@@ -126,7 +126,7 @@ beforeEach(() => {
     error: state.error,
   }));
   apolloMock.loading.value = false;
-  apolloMock.result.value = { salesRepLayout: null };
+  apolloMock.result.value = { layout: null };
 });
 
 describe("SalesRepDocuments states", () => {
@@ -297,7 +297,7 @@ describe("hidden documents widget", () => {
 
     // Every dashboard block hidden — no widget mounts, so no widget query can fire.
     apolloMock.result.value = {
-      salesRepLayout: {
+      layout: {
         regions: [{ blocks: getBlockRegistry("dashboard").map(({ id }) => ({ type: id, hidden: true })) }],
       },
     };

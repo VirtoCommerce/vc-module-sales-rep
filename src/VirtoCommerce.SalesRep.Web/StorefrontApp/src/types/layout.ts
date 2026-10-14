@@ -83,7 +83,7 @@ export type KeyboardSortSignalType =
   | { kind: "moved" | "dropped" | "edge"; id: string; index: number; total: number }
   | { kind: "cancelled" | "parked" | "restored"; id: string };
 
-// Minimal shape of a persisted document. The generated `SalesRepLayoutQuery` result is structurally
+// Minimal shape of a persisted document. The generated `LayoutQuery` result is structurally
 // assignable to these, which keeps the pure functions independent of codegen.
 export type SavedLayoutSettingType = { key: string; value?: unknown };
 export type SavedLayoutBlockType = { type: string; hidden: boolean; settings?: readonly SavedLayoutSettingType[] };

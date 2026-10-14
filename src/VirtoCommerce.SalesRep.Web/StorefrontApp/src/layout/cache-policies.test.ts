@@ -6,7 +6,7 @@ import { layoutTypePolicies } from "./cache-policies";
 // The real query's shape, trimmed to the ids that collide.
 const QUERY = gql`
   query SalesRepLayout($scope: String!, $storeId: String) {
-    salesRepLayout(scope: $scope, storeId: $storeId) {
+    layout(scope: $scope, storeId: $storeId) {
       schemaVersion
       regions {
         id
@@ -20,25 +20,25 @@ const QUERY = gql`
   }
 `;
 
-const block = (id: string, hidden = false) => ({ __typename: "SalesRepLayoutBlock", id, type: id, hidden });
+const block = (id: string, hidden = false) => ({ __typename: "LayoutBlock", id, type: id, hidden });
 
 function document(...blockIds: string[]) {
   return {
-    salesRepLayout: {
+    layout: {
       __typename: "SalesRepLayout",
       schemaVersion: 1,
-      regions: [{ __typename: "SalesRepLayoutRegion", id: "statistics", blocks: blockIds.map((id) => block(id)) }],
+      regions: [{ __typename: "LayoutRegion", id: "statistics", blocks: blockIds.map((id) => block(id)) }],
     },
   };
 }
 
 const read = (cache: InMemoryCache, scope: string) =>
-  cache.readQuery<{ salesRepLayout: { regions: { blocks: { type: string }[] }[] } }>({
+  cache.readQuery<{ layout: { regions: { blocks: { type: string }[] }[] } }>({
     query: QUERY,
     variables: { scope, storeId: "B2B-store" },
   });
 
-const typesIn = (result: ReturnType<typeof read>) => result?.salesRepLayout.regions[0].blocks.map((b) => b.type);
+const typesIn = (result: ReturnType<typeof read>) => result?.layout.regions[0].blocks.map((b) => b.type);
 
 describe("layout cache policies", () => {
   // Region ids are fixed across surfaces, so the second surface to load overwrites the first.
@@ -86,10 +86,10 @@ describe("layout cache policies", () => {
       query: QUERY,
       variables: { scope: "dashboard", storeId: "B2B-store" },
       data: {
-        salesRepLayout: {
+        layout: {
           __typename: "SalesRepLayout",
           schemaVersion: 1,
-          regions: [{ __typename: "SalesRepLayoutRegion", id: "mainLeft", blocks: [block("orders", false)] }],
+          regions: [{ __typename: "LayoutRegion", id: "mainLeft", blocks: [block("orders", false)] }],
         },
       },
     });
@@ -97,15 +97,15 @@ describe("layout cache policies", () => {
       query: QUERY,
       variables: { scope: "customerProfile", storeId: "B2B-store" },
       data: {
-        salesRepLayout: {
+        layout: {
           __typename: "SalesRepLayout",
           schemaVersion: 1,
-          regions: [{ __typename: "SalesRepLayoutRegion", id: "mainLeft", blocks: [block("orders", true)] }],
+          regions: [{ __typename: "LayoutRegion", id: "mainLeft", blocks: [block("orders", true)] }],
         },
       },
     });
 
-    expect(read(cache, "dashboard")?.salesRepLayout.regions[0].blocks[0]).toMatchObject({ hidden: false });
-    expect(read(cache, "customerProfile")?.salesRepLayout.regions[0].blocks[0]).toMatchObject({ hidden: true });
+    expect(read(cache, "dashboard")?.layout.regions[0].blocks[0]).toMatchObject({ hidden: false });
+    expect(read(cache, "customerProfile")?.layout.regions[0].blocks[0]).toMatchObject({ hidden: true });
   });
 });

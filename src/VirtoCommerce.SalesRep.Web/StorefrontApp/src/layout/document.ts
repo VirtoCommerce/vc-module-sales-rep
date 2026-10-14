@@ -2,7 +2,7 @@
 // reconciliation rules are the part most worth testing, so they live apart from the composable.
 import { LAYOUT_REGION_IDS, LAYOUT_SCHEMA_VERSION } from "../constants";
 import { reconcileSettings, serializeSettings } from "./settings";
-import type { InputSalesRepLayout } from "../api/graphql/types";
+import type { InputLayout } from "../api/graphql/core-types";
 import type {
   SalesRepBlockType,
   SalesRepLayoutRegionIdType,
@@ -108,7 +108,7 @@ function settingsFingerprint(settings: readonly { key: string; value?: unknown }
  * A type echoed twice is rejected: reconciliation keeps the first copy, so agreeing with one could
  * leave the rep looking at another.
  */
-export function echoMatchesSentBlocks(saved: SavedLayoutType | null | undefined, sent: InputSalesRepLayout): boolean {
+export function echoMatchesSentBlocks(saved: SavedLayoutType | null | undefined, sent: InputLayout): boolean {
   const echoed = new Map<string, SavedLayoutBlockType>();
 
   for (const region of saved?.regions ?? []) {
@@ -139,7 +139,7 @@ export function serializeLayout(
   scope: SalesRepLayoutScopeType,
   registry: readonly SalesRepBlockType[],
   storeId?: string,
-): InputSalesRepLayout {
+): InputLayout {
   const blockOf = (id: string) => registry.find((block) => block.id === id);
   const serialize = (id: string, hidden: boolean) => ({
     id,

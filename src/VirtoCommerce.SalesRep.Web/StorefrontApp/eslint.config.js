@@ -5,7 +5,7 @@ import globals from "globals";
 
 // Trimmed, host-aligned flat config for a standalone MF plugin.
 export default defineConfigWithVueTs(
-  { ignores: ["dist/", "node_modules/", ".yalc/", "src/api/graphql/types.ts"] },
+  { ignores: ["dist/", "node_modules/", ".yalc/", "src/api/graphql/types.ts", "src/api/graphql/core-types.ts"] },
   pluginVue.configs["flat/recommended"],
   vueTsConfigs.recommended,
   { languageOptions: { globals: { ...globals.browser } } },

@@ -106,7 +106,7 @@ const sentBlock = (id: string) => {
 
 describe("useSalesRepLayout", () => {
   it("falls back to registry defaults when the rep has never saved this surface", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { state } = withLayout(scope);
 
@@ -116,7 +116,7 @@ describe("useSalesRepLayout", () => {
 
   it("applies a saved arrangement over the defaults", () => {
     apolloMock.result.value = {
-      salesRepLayout: {
+      layout: {
         regions: [
           {
             id: "mainRight",
@@ -156,13 +156,13 @@ describe("useSalesRepLayout", () => {
   });
 
   it("does not report a failed read for the ordinary never-saved case", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     expect(withLayout(scope).loadFailed.value).toBe(false);
   });
 
   it("allows editing when the query simply returned null", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { canEdit, startEdit, editing } = withLayout(scope);
 
@@ -172,7 +172,7 @@ describe("useSalesRepLayout", () => {
   });
 
   it("keeps draft edits out of the live layout until saved", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { state, startEdit, setHidden, cancel } = withLayout(scope);
     startEdit();
@@ -185,8 +185,8 @@ describe("useSalesRepLayout", () => {
   });
 
   it("sends the complete document — every region, hidden blocks included", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: [] } } });
+    apolloMock.result.value = { layout: null };
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: [] } } });
 
     const { startEdit, setHidden, save } = withLayout(scope);
     startEdit();
@@ -202,9 +202,9 @@ describe("useSalesRepLayout", () => {
   });
 
   it("leaves edit mode after a successful save", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     // A faithful echo: an empty one is a mismatch now, which is a refused save rather than a clean one.
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: DEFAULT_ECHO } } });
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: DEFAULT_ECHO } } });
 
     const { startEdit, save, editing, saveFailed } = withLayout(scope);
     startEdit();
@@ -215,7 +215,7 @@ describe("useSalesRepLayout", () => {
   });
 
   it("keeps the draft and stays in edit mode when the save fails", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     apolloMock.mutate.mockRejectedValue(new Error("network"));
 
     const { startEdit, setHidden, save, editing, state, saveFailed } = withLayout(scope);
@@ -231,8 +231,8 @@ describe("useSalesRepLayout", () => {
   // Reconciling a missing document yields registry defaults, so trusting the echo blindly would
   // replace the arrangement with defaults and still report success.
   it("treats a response without a document as a failed save", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: null } });
+    apolloMock.result.value = { layout: null };
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: null } });
 
     const { startEdit, setHidden, save, editing, saveFailed, state } = withLayout(scope);
     startEdit();
@@ -248,10 +248,10 @@ describe("useSalesRepLayout", () => {
   // It has to agree on every `hidden` flag to be trusted, so ORDER is what proves it drives state:
   // `info` before `actions` inverts the order that went out.
   it("reconciles the post-save layout from the echoed document", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     apolloMock.mutate.mockResolvedValue({
       data: {
-        saveSalesRepLayout: {
+        saveLayout: {
           regions: [
             { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(echoedBlock) },
             { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
@@ -273,8 +273,8 @@ describe("useSalesRepLayout", () => {
   // A document is not enough to trust — reconciling a partial one fills the gaps from registry
   // defaults, which silently replaces the rep's arrangement while reporting success.
   it("refuses the save and refetches when the echoed document is missing blocks that were sent", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: [] } } });
+    apolloMock.result.value = { layout: null };
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: [] } } });
 
     const { startEdit, setHidden, save, state, saveFailed, editing } = withLayout(scope);
     startEdit();
@@ -292,10 +292,10 @@ describe("useSalesRepLayout", () => {
 
   // Every type comes back, so a presence-only check passes, but one `hidden` is inverted.
   it("refuses the save when the echo contradicts a hidden flag", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     apolloMock.mutate.mockResolvedValue({
       data: {
-        saveSalesRepLayout: {
+        saveLayout: {
           regions: [
             { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(echoedBlock) },
             { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
@@ -320,7 +320,7 @@ describe("useSalesRepLayout", () => {
   // `save` snapshots the payload synchronously and clears the draft when it resolves, so an edit made
   // mid-flight would be written to a document nobody sends and then discarded.
   it("refuses draft edits while a save is in flight", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     let release: (value: unknown) => void = () => {};
     apolloMock.mutate.mockImplementation(() => {
       apolloMock.saving.value = true;
@@ -349,7 +349,7 @@ describe("useSalesRepLayout", () => {
 
     release({
       data: {
-        saveSalesRepLayout: {
+        saveLayout: {
           regions: [
             { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(echoedBlock) },
             { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
@@ -371,7 +371,7 @@ describe("useSalesRepLayout", () => {
   // Settings ride the same draft as the arrangement, so Cancel / Reset / Save cover them with no
   // second state machine. These pin that they actually do.
   it("keeps a settings edit in the draft only, so cancel discards it", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, updateSettings, cancel, settingsOf } = withLayout(scope);
     startEdit();
@@ -385,7 +385,7 @@ describe("useSalesRepLayout", () => {
 
   // A row cap is a query variable, so widgets fetch with the saved value and it applies on save.
   it("keeps the saved row cap visible to widgets while the draft holds a different one", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, updateSettings, settingsOf, persistedSettingsOf } = withLayout(scope);
     startEdit();
@@ -397,7 +397,7 @@ describe("useSalesRepLayout", () => {
 
   it("restores the registry default row cap on reset", () => {
     apolloMock.result.value = {
-      salesRepLayout: {
+      layout: {
         regions: [
           {
             id: "mainLeft",
@@ -416,13 +416,13 @@ describe("useSalesRepLayout", () => {
   });
 
   it("sends the drafted settings, not the defaults the document was read with", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     const settings = [
       { key: "maxRows", value: 3 },
       { key: "tab.New", value: false },
     ];
     apolloMock.mutate.mockResolvedValue({
-      data: { saveSalesRepLayout: { regions: echoWithSettings("orders", settings) } },
+      data: { saveLayout: { regions: echoWithSettings("orders", settings) } },
     });
 
     const { startEdit, updateSettings, save, settingsOf } = withLayout(scope);
@@ -436,7 +436,7 @@ describe("useSalesRepLayout", () => {
   });
 
   it("refuses a settings edit while a save is in flight", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     let release: (value: unknown) => void = () => {};
     apolloMock.mutate.mockImplementation(() => {
       apolloMock.saving.value = true;
@@ -455,7 +455,7 @@ describe("useSalesRepLayout", () => {
     updateSettings("orders", { maxRows: 17 });
     expect(settingsOf("orders").maxRows).toBe(5);
 
-    release({ data: { saveSalesRepLayout: { regions: DEFAULT_ECHO } } });
+    release({ data: { saveLayout: { regions: DEFAULT_ECHO } } });
     await expect(pending).resolves.toBe(true);
     expect(settingsOf("orders").maxRows).toBe(5);
   });
@@ -463,7 +463,7 @@ describe("useSalesRepLayout", () => {
   // The breadcrumbs sit outside the pages' `inert` wrapper, so the route guard can call `save` again
   // while the first one is still in flight — a second full-document replace of the same document.
   it("refuses a second save while one is in flight", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     apolloMock.mutate.mockImplementation(() => {
       apolloMock.saving.value = true;
       return new Promise(() => {});
@@ -480,7 +480,7 @@ describe("useSalesRepLayout", () => {
 
   // Otherwise a previous failure's alert sits over a freshly rebuilt draft.
   it("clears a failed-save alert when the draft is reset", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
     apolloMock.mutate.mockRejectedValue(new Error("network"));
 
     const { startEdit, save, reset, saveFailed } = withLayout(scope);
@@ -495,7 +495,7 @@ describe("useSalesRepLayout", () => {
 
   // Reordering one half must not disturb the other.
   it("keeps the visible half intact when the hidden half is reordered", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, setHidden, reorderHidden, visibleIn, hiddenIn } = withLayout(scope);
     startEdit();
@@ -511,7 +511,7 @@ describe("useSalesRepLayout", () => {
 
   it("reset restores defaults into the draft but does not persist on its own", () => {
     apolloMock.result.value = {
-      salesRepLayout: {
+      layout: {
         regions: [
           {
             id: "mainRight",
@@ -541,7 +541,7 @@ describe("useSalesRepLayout", () => {
   // hidden widget therefore never mounts, so it never issues its query — hiding Recent Orders has to
   // mean no salesRepOrders request, not a hidden component quietly fetching.
   it("drops a hidden widget out of the rendered set entirely", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, setHidden, visibleIn, hiddenIn } = withLayout(scope);
     startEdit();
@@ -554,7 +554,7 @@ describe("useSalesRepLayout", () => {
   // A cross-zone drag reports where it was dropped; without it the block lands wherever its old
   // position fell among the other entries.
   it("places a hidden block at the dropped position rather than its old slot", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, setHidden, hiddenIn } = withLayout(scope);
     startEdit();
@@ -566,7 +566,7 @@ describe("useSalesRepLayout", () => {
   });
 
   it("appends to the destination half when no position is given", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, setHidden, hiddenIn } = withLayout(scope);
     startEdit();
@@ -578,7 +578,7 @@ describe("useSalesRepLayout", () => {
   });
 
   it("splits a region into visible and hidden entries", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, setHidden, visibleIn, hiddenIn } = withLayout(scope);
     startEdit();
@@ -592,7 +592,7 @@ describe("useSalesRepLayout", () => {
   // "move" from a keypress the rep reads as doing nothing. Two arrays make it unreachable: the block
   // is not in the source half, so there is nothing to move.
   it("ignores a toggle to the state a block is already in", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, setHidden, visibleIn } = withLayout(scope);
     startEdit();
@@ -604,7 +604,7 @@ describe("useSalesRepLayout", () => {
   });
 
   it("lets a parked block come back after the visible half has been reordered", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     const { startEdit, setHidden, reorderVisible, visibleIn, hiddenIn } = withLayout(scope);
     startEdit();
@@ -620,7 +620,7 @@ describe("useSalesRepLayout", () => {
 
   // Nothing else observes the collision, so the fetch policy itself is the assertion.
   it("skips the Apollo cache, which would share region entities between the two surfaces", () => {
-    apolloMock.result.value = { salesRepLayout: null };
+    apolloMock.result.value = { layout: null };
 
     withLayout(scope);
 
@@ -631,8 +631,8 @@ describe("useSalesRepLayout", () => {
   // `refetch` flips the query's loading flag, and the pages swap the whole surface for the skeleton
   // while it is true — which mid-edit would unmount the edit bar and the draft's focus with it.
   it("does not blank the surface while it refetches after a disagreeing echo", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: [] } } });
+    apolloMock.result.value = { layout: null };
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: [] } } });
     apolloMock.refetch.mockImplementation(() => {
       apolloMock.loading.value = true;
       return Promise.resolve();
@@ -649,8 +649,8 @@ describe("useSalesRepLayout", () => {
 
   // The refetch is fire-and-forget, so a rejection has to be caught or it surfaces as an unhandled one.
   it("survives a refetch that fails", async () => {
-    apolloMock.result.value = { salesRepLayout: null };
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: [] } } });
+    apolloMock.result.value = { layout: null };
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: [] } } });
     apolloMock.refetch.mockRejectedValue(new Error("offline"));
 
     const { startEdit, save, saveFailed } = withLayout(scope);
@@ -665,7 +665,7 @@ describe("useSalesRepLayout restoreDefaults", () => {
   const hiddenBlock = (id: string) => ({ ...echoedBlock(id), hidden: true });
 
   const ALL_HIDDEN = {
-    salesRepLayout: {
+    layout: {
       regions: [
         { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(hiddenBlock) },
         { id: "mainLeft", blocks: ["orders", "top_sellers"].map(hiddenBlock) },
@@ -676,7 +676,7 @@ describe("useSalesRepLayout restoreDefaults", () => {
 
   it("writes the registry defaults straight away, without entering edit mode", async () => {
     apolloMock.result.value = ALL_HIDDEN;
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: DEFAULT_ECHO } } });
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: DEFAULT_ECHO } } });
 
     const { restoreDefaults, editing, saveFailed, visibleIn } = withLayout(scope);
 
@@ -696,14 +696,14 @@ describe("useSalesRepLayout restoreDefaults", () => {
       { key: "tab.New", value: false },
     ];
     apolloMock.result.value = {
-      salesRepLayout: {
-        regions: ALL_HIDDEN.salesRepLayout.regions.map((region) => ({
+      layout: {
+        regions: ALL_HIDDEN.layout.regions.map((region) => ({
           ...region,
           blocks: region.blocks.map((block) => (block.type === "orders" ? { ...block, settings: customised } : block)),
         })),
       },
     };
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: DEFAULT_ECHO } } });
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: DEFAULT_ECHO } } });
 
     const { restoreDefaults, settingsOf } = withLayout(scope);
     expect(settingsOf("orders")).toMatchObject({ maxRows: 12, hiddenTabs: ["New"] });
@@ -725,7 +725,7 @@ describe("useSalesRepLayout restoreDefaults", () => {
     expect(saveFailed.value).toBe(true);
     expect(visibleIn("mainLeft")).toEqual(["orders", "top_sellers"]);
 
-    apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: DEFAULT_ECHO } } });
+    apolloMock.mutate.mockResolvedValue({ data: { saveLayout: { regions: DEFAULT_ECHO } } });
 
     await expect(save()).resolves.toBe(true);
     expect(editing.value).toBe(false);

@@ -56,7 +56,11 @@ error). When you adopt an export added in a newer facade version, bump
 
 GraphQL documents live in `src/api/graphql/**/*.graphql`; `yarn generate:graphql-types`
 introspects the sales-rep backend module's scoped schema at `/graphql/sales-rep` (see
-`codegen.ts`) and regenerates `src/api/graphql/types.ts` (committed). Set
+`codegen.ts`) and regenerates `src/api/graphql/types.ts` (committed). The documents under
+`src/api/graphql/core/` are the exception: they call the platform's core schema at `/graphql`
+(the saved dashboard layout, served by `VirtoCommerce.XFrontend`) and are generated into
+`src/api/graphql/core-types.ts` from the committed excerpt `src/api/graphql/core/schema.graphql`,
+not from the backend, so only those types reach the plugin. Set
 `APP_BACKEND_URL` in `.env` first (copy `.env.example`; `.env` is gitignored and must
 stay that way). The `customerSalesReps` query is authenticated and resolves the
 organization from the caller's claims — anonymous calls are rejected by the backend.
