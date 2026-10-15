@@ -34,7 +34,7 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Contract | `StorefrontBootContractTests.cs` | Browser-less: the backend answers the storefront's boot documents for a signed-in rep (≈4 s). |
 | Group 1 | `Customers/` | Rep with two organizations and one order: list + profile. |
 | Group 2 | `Calendar/` | Rep with one task: complete it on the tasks page, create one from the form; both asserted on `WorkTask` rows. |
-| Group 3 | `Calls/` | Rep with calls and plain tasks due tomorrow, browser in New York time. Schedule a call from a customer's page, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. Each is asserted on the page and on `WorkTask` rows. |
+| Group 3 | `Calls/` | Rep with calls and plain tasks due tomorrow, browser in New York time. Schedule a call from a customer's page, also adding it to Google and Apple Calendar, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. Each is asserted on the page and on `WorkTask` rows. |
 
 Groups are xunit collections with `DisableParallelization = true`: each runs alone, so one backend, one Vite and
 one browser exist at a time. Tests inside a group share the environment and its seed; each test gets its own
@@ -97,6 +97,10 @@ group), `vite-<port>.log` (dev server output), `<TestName>.png` (full-page scree
   shows an "outdated backend" error on every page, which covers the page's top-right buttons ("New task" among them)
   for fifteen seconds. The module under test reports its real manifest version; the stand-ins report the versions the
   storefront expects. So the error shows only when the module under test really is older than the storefront expects.
+- Adding a call to the calendars opens a tab and downloads a file. Playwright starts Chromium with pop-up blocking off,
+  so the scenario proves the Google link and the `.ics`, not a browser's pop-up policy. The tab opens blank and gets
+  Google's page after the save, so the test waits on its URL (`ToHaveURLAsync`), not on a load, and routes Google to a
+  stand-in page. `VcCheckbox` draws its box over the real input, so a test ticks it by its label, as a rep does.
 
 ## Known gaps (draft)
 
