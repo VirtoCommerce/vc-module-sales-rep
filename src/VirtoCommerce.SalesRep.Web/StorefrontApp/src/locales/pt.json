@@ -277,12 +277,16 @@
         "priority_label": "Prioridade",
         "type_label": "Tipo",
         "description_label": "Notas",
+        "calendars_label": "Adicionar à agenda",
+        "google_calendar": "Google Agenda",
+        "apple_calendar": "Calendário da Apple",
         "save_button": "Salvar",
         "cancel_button": "Cancelar",
         "delete_button": "Excluir",
         "delete_title": "Excluir tarefa",
         "delete_confirm": "Esta tarefa será excluída permanentemente. Continuar?",
         "saved": "Tarefa salva",
+        "calendar_failed": "Tarefa salva, mas não foi possível adicioná-la à agenda",
         "deleted": "Tarefa excluída"
       }
     },

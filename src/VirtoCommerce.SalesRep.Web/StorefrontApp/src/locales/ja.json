@@ -277,12 +277,16 @@
         "priority_label": "優先度",
         "type_label": "種類",
         "description_label": "メモ",
+        "calendars_label": "カレンダーに追加",
+        "google_calendar": "Google カレンダー",
+        "apple_calendar": "Apple カレンダー",
         "save_button": "保存",
         "cancel_button": "キャンセル",
         "delete_button": "削除",
         "delete_title": "タスクを削除",
         "delete_confirm": "このタスクは完全に削除されます。続行しますか？",
         "saved": "タスクを保存しました",
+        "calendar_failed": "タスクを保存しましたが、カレンダーに追加できませんでした",
         "deleted": "タスクを削除しました"
       }
     },

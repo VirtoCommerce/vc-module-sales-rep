@@ -277,12 +277,16 @@
         "priority_label": "Priorität",
         "type_label": "Typ",
         "description_label": "Notizen",
+        "calendars_label": "Zum Kalender hinzufügen",
+        "google_calendar": "Google Kalender",
+        "apple_calendar": "Apple Kalender",
         "save_button": "Speichern",
         "cancel_button": "Abbrechen",
         "delete_button": "Löschen",
         "delete_title": "Aufgabe löschen",
         "delete_confirm": "Diese Aufgabe wird endgültig gelöscht. Fortfahren?",
         "saved": "Aufgabe gespeichert",
+        "calendar_failed": "Aufgabe gespeichert, konnte aber nicht zum Kalender hinzugefügt werden",
         "deleted": "Aufgabe gelöscht"
       }
     },

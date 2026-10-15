@@ -83,6 +83,24 @@
         rows="4"
         counter
       />
+
+      <!-- A new call only: the storefront cannot update an event it handed to a calendar, so editing offers none.
+           VcLabel renders a <div> here, so the group takes its name through aria-labelledby. -->
+      <fieldset v-if="offersCalendars" :aria-labelledby="calendarsLabelId">
+        <VcLabel :id="calendarsLabelId" class="sales-rep-task-modal__calendars-label">
+          {{ t("sales_rep.tasks.form.calendars_label") }}
+        </VcLabel>
+
+        <div class="sales-rep-task-modal__calendars">
+          <VcCheckbox v-model="addToGoogleCalendar" :disabled="loading">
+            {{ t("sales_rep.tasks.form.google_calendar") }}
+          </VcCheckbox>
+
+          <VcCheckbox v-model="addToAppleCalendar" :disabled="loading">
+            {{ t("sales_rep.tasks.form.apple_calendar") }}
+          </VcCheckbox>
+        </div>
+      </fieldset>
     </form>
 
     <template #actions="{ close }">
@@ -104,7 +122,7 @@
       <!-- Disabled while the form is invalid, by product decision. That is QA A-18 (advisory, not an AA
            failure): a disabled control leaves the tab order and cannot say why it is unavailable. The
            requirement itself is still conveyed - Title carries `required` and `aria-required`. -->
-      <VcButton :disabled="!meta.valid" :loading="loading" @click="save">
+      <VcButton :disabled="!meta.valid" :loading="loading" @click="submit">
         {{ t("sales_rep.tasks.form.save_button") }}
       </VcButton>
     </template>
@@ -114,16 +132,19 @@
 <script setup lang="ts">
 import { toTypedSchema } from "@vee-validate/yup";
 import { useField, useForm } from "vee-validate";
-import { computed, useTemplateRef } from "vue";
+import { computed, ref, useId, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { string } from "yup";
-import { useModal, useNotifications, VcModal } from "@vc-frontend/core";
+import { Logger, useModal, useNotifications, VcModal } from "@vc-frontend/core";
+import { callEvent, googleCalendarUrl, ICS_FILE_NAME, ICS_FILE_TYPE, icsFile } from "../calendar";
 import { useSalesRepTaskMutations } from "../composables/useSalesRepTaskMutations";
 import { useSalesRepTaskTypes } from "../composables/useSalesRepTaskTypes";
 import { CALL_DEFAULT_TIME, CALL_TIME_STEP_MINUTES } from "../constants";
+import { openBlankTab, saveFile } from "../files";
 import { dueDateForDay, dueDateForDayAndTime, isCallTask, localDayKey, localTimeKey } from "../tasks";
 import SalesRepTaskCustomerSelect from "./sales-rep-task-customer-select.vue";
 import TimeSelect from "./time-select.vue";
+import type { SalesRepTaskFieldsFragment } from "../api/graphql/types";
 import type { SalesRepTaskType } from "../types/tasks";
 
 interface IProps {
@@ -233,6 +254,60 @@ const { value: description } = useField<string>("description");
 // The type decides the fields: a call adds the time of day and the customer.
 const isCall = computed(() => isCallTask(type.value));
 
+// A new call can go to the rep's calendars; asked every time, never remembered.
+const offersCalendars = computed(() => !props.task && isCall.value);
+const addToGoogleCalendar = ref(false);
+const addToAppleCalendar = ref(false);
+const calendarsLabelId = useId();
+
+// Google's page goes into a tab the Save click opened (see openBlankTab). It stays blank until the call is saved.
+let googleTab: Window | null = null;
+
+async function submit(): Promise<void> {
+  googleTab = offersCalendars.value && addToGoogleCalendar.value ? openBlankTab() : null;
+
+  try {
+    await save();
+  } finally {
+    // Still blank: the call was not saved.
+    googleTab?.close();
+    googleTab = null;
+  }
+}
+
+/**
+ * Hands the saved call to the calendars the rep ticked, and says whether that went through. Never throws: the call is
+ * saved either way, and the popup has to close rather than invite a second save.
+ */
+function addToCalendars(task: SalesRepTaskFieldsFragment): boolean {
+  if (!offersCalendars.value) {
+    return true;
+  }
+
+  try {
+    const event = callEvent(task);
+
+    if (addToAppleCalendar.value) {
+      saveFile(icsFile(event), ICS_FILE_NAME, ICS_FILE_TYPE);
+    }
+
+    if (addToGoogleCalendar.value) {
+      if (!googleTab) {
+        // The browser blocked even the tab opened by the click.
+        return false;
+      }
+
+      googleTab.location.href = googleCalendarUrl(event);
+      googleTab = null;
+    }
+
+    return true;
+  } catch (error) {
+    Logger.error("[sales-rep] Adding the call to a calendar failed:", error);
+    return false;
+  }
+}
+
 const save = handleSubmit(async (data) => {
   const input = {
     name: data.name.trim(),
@@ -248,13 +323,19 @@ const save = handleSubmit(async (data) => {
     description: data.description?.trim() || undefined,
   };
 
-  const succeeded = props.task ? await update(props.task.id, input) : await create(input);
-  if (!succeeded) {
+  const saved = props.task ? await update(props.task.id, input) : await create(input);
+  if (!saved) {
     // useMutation keeps the global error toast for a failed write, so nothing extra to say here.
     return;
   }
 
-  notifications.success({ text: t("sales_rep.tasks.form.saved"), duration: 5000, single: true });
+  // A create returns the task as saved; an edit offers no calendars.
+  if (saved === true || addToCalendars(saved)) {
+    notifications.success({ text: t("sales_rep.tasks.form.saved"), duration: 5000, single: true });
+  } else {
+    notifications.warning({ text: t("sales_rep.tasks.form.calendar_failed"), duration: 5000, single: true });
+  }
+
   props.onSaved?.(data.dueDate);
   modalComponent.value?.close();
 });
@@ -294,6 +375,14 @@ function remove(): void {
 
   &__when--timed {
     @apply grid gap-4 sm:grid-cols-2;
+  }
+
+  &__calendars-label {
+    @apply mb-2;
+  }
+
+  &__calendars {
+    @apply flex flex-col gap-2;
   }
 
   // Pushed away from the confirm pair so Delete is not a neighbour of Save.

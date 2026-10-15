@@ -277,12 +277,16 @@
         "priority_label": "Приоритет",
         "type_label": "Тип",
         "description_label": "Заметки",
+        "calendars_label": "Добавить в календарь",
+        "google_calendar": "Google Календарь",
+        "apple_calendar": "Календарь Apple",
         "save_button": "Сохранить",
         "cancel_button": "Отмена",
         "delete_button": "Удалить",
         "delete_title": "Удалить задачу",
         "delete_confirm": "Задача будет удалена безвозвратно. Продолжить?",
         "saved": "Задача сохранена",
+        "calendar_failed": "Задача сохранена, но добавить её в календарь не удалось",
         "deleted": "Задача удалена"
       }
     },

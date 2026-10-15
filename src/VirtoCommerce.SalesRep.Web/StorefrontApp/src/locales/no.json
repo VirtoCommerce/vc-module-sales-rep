@@ -277,12 +277,16 @@
         "priority_label": "Prioritet",
         "type_label": "Type",
         "description_label": "Notater",
+        "calendars_label": "Legg til i kalender",
+        "google_calendar": "Google Kalender",
+        "apple_calendar": "Apple Kalender",
         "save_button": "Lagre",
         "cancel_button": "Avbryt",
         "delete_button": "Slett",
         "delete_title": "Slett oppgave",
         "delete_confirm": "Denne oppgaven blir slettet permanent. Vil du fortsette?",
         "saved": "Oppgaven er lagret",
+        "calendar_failed": "Oppgaven er lagret, men kunne ikke legges til i kalenderen",
         "deleted": "Oppgaven er slettet"
       }
     },

@@ -277,12 +277,16 @@
         "priority_label": "Priority",
         "type_label": "Type",
         "description_label": "Notes",
+        "calendars_label": "Add to calendar",
+        "google_calendar": "Google Calendar",
+        "apple_calendar": "Apple Calendar",
         "save_button": "Save",
         "cancel_button": "Cancel",
         "delete_button": "Delete",
         "delete_title": "Delete task",
         "delete_confirm": "This task will be deleted permanently. Continue?",
         "saved": "Task saved",
+        "calendar_failed": "Task saved, but it could not be added to the calendar",
         "deleted": "Task deleted"
       }
     },

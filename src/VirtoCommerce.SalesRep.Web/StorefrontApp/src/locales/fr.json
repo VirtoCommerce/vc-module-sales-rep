@@ -277,12 +277,16 @@
         "priority_label": "Priorité",
         "type_label": "Type",
         "description_label": "Notes",
+        "calendars_label": "Ajouter à l'agenda",
+        "google_calendar": "Google Agenda",
+        "apple_calendar": "Calendrier Apple",
         "save_button": "Enregistrer",
         "cancel_button": "Annuler",
         "delete_button": "Supprimer",
         "delete_title": "Supprimer la tâche",
         "delete_confirm": "Cette tâche sera supprimée définitivement. Continuer ?",
         "saved": "Tâche enregistrée",
+        "calendar_failed": "Tâche enregistrée, mais elle n'a pas pu être ajoutée à l'agenda",
         "deleted": "Tâche supprimée"
       }
     },

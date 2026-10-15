@@ -277,12 +277,16 @@
         "priority_label": "Priorità",
         "type_label": "Tipo",
         "description_label": "Note",
+        "calendars_label": "Aggiungi al calendario",
+        "google_calendar": "Google Calendar",
+        "apple_calendar": "Calendario di Apple",
         "save_button": "Salva",
         "cancel_button": "Annulla",
         "delete_button": "Elimina",
         "delete_title": "Elimina attività",
         "delete_confirm": "Questa attività verrà eliminata definitivamente. Continuare?",
         "saved": "Attività salvata",
+        "calendar_failed": "Attività salvata, ma non è stato possibile aggiungerla al calendario",
         "deleted": "Attività eliminata"
       }
     },

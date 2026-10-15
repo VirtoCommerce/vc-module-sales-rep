@@ -277,12 +277,16 @@
         "priority_label": "优先级",
         "type_label": "类型",
         "description_label": "备注",
+        "calendars_label": "添加到日历",
+        "google_calendar": "Google 日历",
+        "apple_calendar": "Apple 日历",
         "save_button": "保存",
         "cancel_button": "取消",
         "delete_button": "删除",
         "delete_title": "删除任务",
         "delete_confirm": "此任务将被永久删除。是否继续？",
         "saved": "任务已保存",
+        "calendar_failed": "任务已保存，但无法添加到日历",
         "deleted": "任务已删除"
       }
     },

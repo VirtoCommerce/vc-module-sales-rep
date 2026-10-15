@@ -277,12 +277,16 @@
         "priority_label": "Prioriteetti",
         "type_label": "Tyyppi",
         "description_label": "Muistiinpanot",
+        "calendars_label": "Lisää kalenteriin",
+        "google_calendar": "Google Kalenteri",
+        "apple_calendar": "Apple Kalenteri",
         "save_button": "Tallenna",
         "cancel_button": "Peruuta",
         "delete_button": "Poista",
         "delete_title": "Poista tehtävä",
         "delete_confirm": "Tämä tehtävä poistetaan pysyvästi. Jatketaanko?",
         "saved": "Tehtävä tallennettu",
+        "calendar_failed": "Tehtävä tallennettu, mutta sitä ei voitu lisätä kalenteriin",
         "deleted": "Tehtävä poistettu"
       }
     },

@@ -103,6 +103,8 @@ export const CALL_TASK_TYPE = "Call";
 // A new call starts at 9:00 on the rep's clock, picked in quarter hours.
 export const CALL_DEFAULT_TIME = "09:00";
 export const CALL_TIME_STEP_MINUTES = 15;
+// The form picks a call's start only; a calendar event needs an end, so a call goes there as half an hour.
+export const CALL_DURATION_MINUTES = 30;
 
 // Backs the "New orders" card; order filter rules are raw order statuses, so this uses the "New"
 // status (an unrecognized name fails closed — keep it aligned with a real status). The card's label

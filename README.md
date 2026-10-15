@@ -722,6 +722,12 @@ and, if a saved list exists without it, to the saved list — it never saves the
 freeze it. A list forced through configuration is left alone (with a warning in the log). An admin who removes `Call`
 gets it back on the next restart; existing calls keep their type either way.
 
+A new call can also go to the rep's own calendar, as the rep ticks it in the popup: Google Calendar opens its
+new-event page filled in, and Apple Calendar gets an `.ics` file, which Outlook opens too. The event is titled with the
+call and its customer, lasts 30 minutes, and carries the notes. Both are copies made once, on creation, entirely in the
+browser: the storefront cannot reach them afterwards, so editing a call offers neither, and a later change is made in
+the calendar by hand.
+
 ⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
 `WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
 two transitions stay symmetric.

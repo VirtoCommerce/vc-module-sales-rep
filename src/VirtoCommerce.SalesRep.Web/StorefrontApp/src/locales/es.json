@@ -277,12 +277,16 @@
         "priority_label": "Prioridad",
         "type_label": "Tipo",
         "description_label": "Notas",
+        "calendars_label": "Añadir al calendario",
+        "google_calendar": "Google Calendar",
+        "apple_calendar": "Calendario de Apple",
         "save_button": "Guardar",
         "cancel_button": "Cancelar",
         "delete_button": "Eliminar",
         "delete_title": "Eliminar tarea",
         "delete_confirm": "Esta tarea se eliminará de forma permanente. ¿Continuar?",
         "saved": "Tarea guardada",
+        "calendar_failed": "Tarea guardada, pero no se pudo añadir al calendario",
         "deleted": "Tarea eliminada"
       }
     },

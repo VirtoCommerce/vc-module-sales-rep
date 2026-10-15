@@ -277,12 +277,16 @@
         "priority_label": "Prioritet",
         "type_label": "Typ",
         "description_label": "Anteckningar",
+        "calendars_label": "Lägg till i kalender",
+        "google_calendar": "Google Kalender",
+        "apple_calendar": "Apple Kalender",
         "save_button": "Spara",
         "cancel_button": "Avbryt",
         "delete_button": "Radera",
         "delete_title": "Ta bort uppgift",
         "delete_confirm": "Den här uppgiften tas bort permanent. Vill du fortsätta?",
         "saved": "Uppgiften har sparats",
+        "calendar_failed": "Uppgiften har sparats, men kunde inte läggas till i kalendern",
         "deleted": "Uppgiften har raderats"
       }
     },
