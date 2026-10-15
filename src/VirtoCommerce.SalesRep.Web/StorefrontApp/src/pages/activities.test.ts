@@ -106,6 +106,10 @@ vi.mock("../composables/useSalesRepCustomersCount", () => ({
   useSharedSalesRepCustomersCount: () => ({ hasNoCustomers: customersCount.hasNoCustomers }),
 }));
 
+// Whether the analytics module is installed and enabled; the page reads it once, when it sets up.
+const analytics = vi.hoisted(() => ({ enabled: true }));
+vi.mock("../composables/useSalesRepsConfig", () => ({ isSalesRepAnalyticsEnabled: () => analytics.enabled }));
+
 vi.mock("../composables/useSalesRepActivities", () => ({
   useSalesRepActivities: (options: ActivityOptionsType = {}) => {
     activityCalls.options.push(options);
@@ -299,6 +303,7 @@ async function switchToTop(wrapper: ReturnType<typeof createWrapper>): Promise<v
 }
 
 beforeEach(() => {
+  analytics.enabled = true;
   customersCount.hasNoCustomers.value = false;
   viewport.width.value = 1280;
   customerState.organizationName.value = undefined;
@@ -1039,6 +1044,56 @@ describe("Activities page — Top|Recent mode", () => {
     expect(toValue(insights.browseOptions!.enabled)).toBe(false);
     expect(topRows(wrapper)).toHaveLength(0);
     expect(findRows(wrapper)).toHaveLength(1);
+  });
+});
+
+// Not installed, or disabled from the admin UI: the page is an orders-and-customers feed and says nothing about
+// tracking, rather than showing tracked activity as unavailable.
+describe("Activities page without the analytics module", () => {
+  beforeEach(() => {
+    analytics.enabled = false;
+  });
+
+  it("offers only the platform categories, with no tracked marks", () => {
+    const wrapper = createWrapper();
+
+    expect((findChips(wrapper)[0].props("rules") as SalesRepRuleType[]).map((rule) => rule.name)).toEqual([
+      "orders",
+      "customers",
+    ]);
+    expect(wrapper.findAllComponents(TrackedMetricHint)).toHaveLength(0);
+  });
+
+  it("adds All up from the tabs it shows, and does not dash it for the missing module", () => {
+    counts.categoryCounts.value = [
+      { category: "orders", count: 2 },
+      { category: "customers", count: 3 },
+      { category: "logins", count: 4 },
+    ];
+    counts.analyticsUnavailable.value = true;
+
+    const wrapper = createWrapper();
+
+    expect(findChips(wrapper)[0].props("allLabel")).toBe("sales_rep.activity.tabs.all (5)");
+  });
+
+  it("shows no caveat and no notice about tracked activity", () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.analyticsUnavailable.value = true;
+    counts.analyticsUnavailable.value = true;
+
+    const wrapper = createWrapper();
+
+    expect(caveat(wrapper).exists()).toBe(false);
+    expect(notice(wrapper).text()).toBe("");
+  });
+
+  it("words an empty period without tracking", () => {
+    state.analyticsUnavailable.value = true;
+
+    const wrapper = createWrapper();
+
+    expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.activity.empty_period_untracked");
   });
 });
 

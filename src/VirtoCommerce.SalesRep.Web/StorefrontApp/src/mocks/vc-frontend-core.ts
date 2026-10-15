@@ -33,7 +33,11 @@ export const globals = {
 };
 
 export const useUser = () => ({ checkPermissions: () => true });
-export const useModuleSettings = () => ({ isEnabled: () => true, getModuleSettings: () => undefined });
+export const useModuleSettings = () => ({
+  isEnabled: () => true,
+  getModuleSettings: () => undefined,
+  hasModuleSettings: computed(() => true),
+});
 export const useModal = () => ({ openModal: () => {}, closeModal: () => {} });
 export const useNotifications = () => ({ success: () => {}, error: () => {}, warning: () => {}, info: () => {} });
 export const useBreadcrumbs = (sources: unknown) =>

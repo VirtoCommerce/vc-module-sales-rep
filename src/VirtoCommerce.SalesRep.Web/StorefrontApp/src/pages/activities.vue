@@ -26,7 +26,7 @@
           <SalesRepRuleChips v-model="category" :rules="categoryRules" :all-label="allTabLabel">
             <!-- No name = the All tab, which merges tracked rows in and so carries the mark too. -->
             <template #suffix="{ tab }">
-              <TrackedMetricHint v-if="!tab.name || TRACKED_ACTIVITY_CATEGORIES.has(tab.name)" />
+              <TrackedMetricHint v-if="hasTrackedMark(tab.name)" />
             </template>
           </SalesRepRuleChips>
 
@@ -128,6 +128,7 @@ import { useSalesRepBrowseHistory } from "../composables/useSalesRepBrowseHistor
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import { useSharedSalesRepCustomersCount } from "../composables/useSalesRepCustomersCount";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
+import { isSalesRepAnalyticsEnabled } from "../composables/useSalesRepsConfig";
 import { useSalesRepSearchHistory } from "../composables/useSalesRepSearchHistory";
 import {
   ACTIVITY_CATEGORIES,
@@ -179,6 +180,13 @@ const FIRST_LOAD_SKELETON_ROWS = 5;
 const MAX_PAGES = Math.floor(ACTIVITY_MAX_SKIP / ACTIVITY_PAGE_SIZE) + 1;
 
 const { t } = useI18n();
+
+// Without the analytics module the tracked categories are left out altogether — tabs, marks, caveat and notice —
+// rather than shown unavailable. The module set does not change while the page is open.
+const isAnalyticsEnabled = isSalesRepAnalyticsEnabled();
+const visibleCategories = isAnalyticsEnabled
+  ? ACTIVITY_CATEGORIES
+  : ACTIVITY_CATEGORIES.filter((name) => !TRACKED_ACTIVITY_CATEGORIES.has(name));
 
 // Selected category tab; undefined = the "All" baseline (no categories filter).
 const category = ref<string | undefined>(undefined);
@@ -287,8 +295,12 @@ const isCustomerPending = computed(
 );
 
 // The badges count events and the counts request's totalCount counts rows (an analytics row is an hour bucket of
-// several events), so "All" adds up the tabs — the figure it has to agree with.
-const allCount = computed(() => categoryCounts.value.reduce((sum, entry) => sum + entry.count, 0));
+// several events), so "All" adds up the tabs it sits beside — the figure it has to agree with.
+const allCount = computed(() =>
+  categoryCounts.value
+    .filter((entry) => visibleCategories.some((name) => name === entry.category))
+    .reduce((sum, entry) => sum + entry.count, 0),
+);
 
 // The tabs show no figures until the counts for this customer and window land.
 const countsPending = computed(() => isCustomerPending.value || (countsLoading.value && !categoryCounts.value.length));
@@ -296,7 +308,7 @@ const countsFailed = computed(() => Boolean(countsError.value));
 
 // Zero-count categories keep their tab: a rep must see that a category exists and is quiet.
 const categoryRules = computed<SalesRepRuleType[]>(() =>
-  ACTIVITY_CATEGORIES.map((name) => {
+  visibleCategories.map((name) => {
     const label = t(CATEGORY_TAB_KEYS[name]);
     return { name, label: countsPending.value ? label : `${label} (${badgeFor(name)})` };
   }),
@@ -304,7 +316,9 @@ const categoryRules = computed<SalesRepRuleType[]>(() =>
 
 // All adds every tab up, so a dashed tab dashes it too: a partial sum beside "–" tabs reads as the whole feed.
 const allBadge = computed(() =>
-  countsFailed.value || countsAnalyticsUnavailable.value ? UNMEASURED_BADGE : formatStatCount(allCount.value),
+  countsFailed.value || (isAnalyticsEnabled && countsAnalyticsUnavailable.value)
+    ? UNMEASURED_BADGE
+    : formatStatCount(allCount.value),
 );
 
 const allTabLabel = computed(() =>
@@ -377,7 +391,9 @@ const viewEmpty = computed(() => (topMode.value ? topUnavailable.value || !topRo
 // Only beside rows: an empty view already says why it is empty. The feed's flag counts only while the feed is
 // shown: paused in Top mode, its query keeps the last answer, which says nothing about the ranked list.
 const figuresIncomplete = computed(
-  () => countsFailed.value || countsAnalyticsUnavailable.value || (!topMode.value && analyticsUnavailable.value),
+  () =>
+    isAnalyticsEnabled &&
+    (countsFailed.value || countsAnalyticsUnavailable.value || (!topMode.value && analyticsUnavailable.value)),
 );
 const showIncompleteNotice = computed(
   () => figuresIncomplete.value && !viewLoading.value && !viewFailed.value && !viewEmpty.value,
@@ -397,7 +413,9 @@ const failedText = computed(() => {
 });
 
 // The caveat concerns tracked (GA-sourced) rows, so it shows for those tabs and for the mixed "All" view.
-const showCaveat = computed(() => !category.value || TRACKED_ACTIVITY_CATEGORIES.has(category.value));
+const showCaveat = computed(
+  () => isAnalyticsEnabled && (!category.value || TRACKED_ACTIVITY_CATEGORIES.has(category.value)),
+);
 
 const { hasNoCustomers } = useSharedSalesRepCustomersCount();
 
@@ -417,7 +435,10 @@ const emptyText = computed(() => {
   if (category.value) {
     return t("sales_rep.activity.no_results");
   }
-  return periodRule.value ? t("sales_rep.activity.empty_period") : t("sales_rep.activity.empty");
+  if (!periodRule.value) {
+    return t("sales_rep.activity.empty");
+  }
+  return isAnalyticsEnabled ? t("sales_rep.activity.empty_period") : t("sales_rep.activity.empty_period_untracked");
 });
 
 const emptyIcon = computed(() => {
@@ -480,6 +501,11 @@ const breadcrumbs = useBreadcrumbs(() => {
     { title: t("sales_rep.activity.breadcrumb") },
   ];
 });
+
+// No name = the All tab, which merges tracked rows in and so carries the mark too.
+function hasTrackedMark(name?: string): boolean {
+  return isAnalyticsEnabled && (!name || TRACKED_ACTIVITY_CATEGORIES.has(name));
+}
 
 // Every badge reads the counts request, the selected tab included: one figure, one source.
 function countOf(name: string): number {

@@ -29,6 +29,10 @@ vi.mock("../composables/useSalesRepCustomersCount", () => ({
   useSharedSalesRepCustomersCount: () => ({ hasNoCustomers: customersCount.hasNoCustomers }),
 }));
 
+// Whether the analytics module is installed and enabled; the card reads it once, when it sets up.
+const analytics = vi.hoisted(() => ({ enabled: true }));
+vi.mock("../composables/useSalesRepsConfig", () => ({ isSalesRepAnalyticsEnabled: () => analytics.enabled }));
+
 const createWrapper = createWrapperFactory(mount, MyActivity, {
   global: {
     renderStubDefaultSlot: false,
@@ -48,6 +52,7 @@ const incompleteNotice = (wrapper: ReturnType<typeof createWrapper>) =>
   wrapper.find('[data-test-id="my-activity-incomplete-label"]');
 
 beforeEach(() => {
+  analytics.enabled = true;
   customersCount.hasNoCustomers.value = false;
   state.items.value = [];
   state.analyticsUnavailable.value = false;
@@ -143,6 +148,27 @@ describe("MyActivity states", () => {
 
     expect(wrapper.findAll("activity-row-stub")).toHaveLength(1);
     expect(incompleteNotice(wrapper).text()).toBe("sales_rep.activity.incomplete");
+  });
+});
+
+// Not installed, or disabled from the admin UI: the card lists orders and customers and says nothing about tracking.
+describe("MyActivity without the analytics module", () => {
+  beforeEach(() => {
+    analytics.enabled = false;
+    state.analyticsUnavailable.value = true;
+  });
+
+  it("keeps its own empty wording", () => {
+    expect(emptyViews(createWrapper())[0].attributes("text")).toBe("sales_rep.activity.my_activity.empty");
+  });
+
+  it("shows no notice under the rows", () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+
+    const wrapper = createWrapper();
+
+    expect(wrapper.findAll("activity-row-stub")).toHaveLength(1);
+    expect(incompleteNotice(wrapper).exists()).toBe(false);
   });
 });
 

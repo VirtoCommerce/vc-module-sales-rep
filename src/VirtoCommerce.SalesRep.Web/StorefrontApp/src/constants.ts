@@ -118,6 +118,10 @@ export const DOCUMENTS_PAGE_SIZE = 15;
 // Tasks (VCST-5732). Backed by vc-module-task-management, an OPTIONAL backend dependency:
 // the feature is gated on that module being installed, not on a setting of ours (see useSalesRepsConfig).
 export const TASK_MANAGEMENT_MODULE_ID = "VirtoCommerce.TaskManagement";
+
+// Tracked activity (VCST-5337). Read from Google Analytics by vc-module-google-ecommerce-analytics, an OPTIONAL
+// backend dependency: the hub's GA-based parts show only while that module is installed and enabled.
+export const GOOGLE_ANALYTICS_MODULE_ID = "VirtoCommerce.GoogleEcommerceAnalytics";
 export const TASKS_ROUTE_NAME = "SalesRepTasks";
 export const TASKS_ROUTE_SEGMENT = "tasks";
 export const TASKS_NAV_LINK_ID = "sales-rep-tasks";

@@ -32,7 +32,7 @@
           </div>
 
           <!-- Orders and customers still list when analytics did not answer, so say what is missing from them. -->
-          <p v-if="analyticsUnavailable" class="my-activity__notice" data-test-id="my-activity-incomplete-label">
+          <p v-if="isTrackingMissing" class="my-activity__notice" data-test-id="my-activity-incomplete-label">
             <VcIcon class="my-activity__notice-icon" name="circle-alert" :size="15" />
             {{ t("sales_rep.activity.incomplete") }}
           </p>
@@ -48,6 +48,7 @@ import { useI18n } from "vue-i18n";
 import { useSalesRepActivities } from "../composables/useSalesRepActivities";
 import { useSharedSalesRepCustomersCount } from "../composables/useSalesRepCustomersCount";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
+import { isSalesRepAnalyticsEnabled } from "../composables/useSalesRepsConfig";
 import { ACTIVITIES_ROUTE_NAME, HUB_ACTIVITY_PERIOD, MY_ACTIVITY_TAKE } from "../constants";
 import { activityKey } from "../utils";
 import ActivityRow from "./activity-row.vue";
@@ -67,12 +68,16 @@ const { items, loading, error, analyticsUnavailable } = useSalesRepActivities({
 
 const { hasNoCustomers } = useSharedSalesRepCustomersCount();
 
+// Without the analytics module the card is an orders-and-customers feed and says nothing about tracking.
+const isAnalyticsEnabled = isSalesRepAnalyticsEnabled();
+const isTrackingMissing = computed(() => isAnalyticsEnabled && analyticsUnavailable.value);
+
 const emptyText = computed(() => {
   // "No activity this year" read as quiet customers when there are none.
   if (hasNoCustomers.value) {
     return t("sales_rep.activity.no_customers");
   }
-  return analyticsUnavailable.value
+  return isTrackingMissing.value
     ? t("sales_rep.customer_insights.analytics_unavailable")
     : t("sales_rep.activity.my_activity.empty");
 });

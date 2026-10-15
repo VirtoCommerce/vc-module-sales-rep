@@ -13,12 +13,18 @@ import {
 } from "@vc-frontend/core";
 import { computed, defineAsyncComponent } from "vue";
 import { useSharedSalesRepCustomersCount } from "./composables/useSalesRepCustomersCount";
-import { isSalesRepsEnabled, isSalesRepTasksEnabled, isSalesRepUser } from "./composables/useSalesRepsConfig";
+import {
+  isSalesRepAnalyticsEnabled,
+  isSalesRepsEnabled,
+  isSalesRepTasksEnabled,
+  isSalesRepUser,
+} from "./composables/useSalesRepsConfig";
 import {
   ACTIVITIES_NAV_LINK_ID,
   ACTIVITIES_ROUTE_NAME,
   TASKS_NAV_LINK_ID,
   TASKS_ROUTE_NAME,
+  CUSTOMER_PROFILE_LAYOUT_SCOPE,
   CUSTOMER_SHARING_SCOPE,
   DASHBOARD_LAYOUT_SCOPE,
   DASHBOARD_NAV_LINK_ID,
@@ -33,6 +39,7 @@ import {
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
 import { layoutTypePolicies } from "./layout/cache-policies";
+import { customerActivityBlock } from "./layout/customer-activity-block";
 import { documentsBlock } from "./layout/documents-block";
 import { registerBlock } from "./layout/registry";
 import { tasksBlock } from "./layout/tasks-block";
@@ -150,6 +157,12 @@ export function init(): void {
   // position/settings and the widget returns at its defaults once the module is back.
   if (tasksEnabled) {
     registerBlock(DASHBOARD_LAYOUT_SCOPE, tasksBlock);
+  }
+
+  // Same seam and caveat for the customer activity widget, which shows tracked behaviour and so exists only while
+  // the analytics module does.
+  if (isSalesRepAnalyticsEnabled()) {
+    registerBlock(CUSTOMER_PROFILE_LAYOUT_SCOPE, customerActivityBlock);
   }
 
   if (canReadDocuments) {

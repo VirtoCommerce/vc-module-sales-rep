@@ -6,8 +6,9 @@ the activity feed with the customer insights (Activities), tasks, the document l
 sharing to customers, and the buyer-facing "My Sales Reps" page (`/company/sales-reps`). Data
 comes from this module's Experience API; tasks also need `VirtoCommerce.TaskManagement`, and the
 tracked half of Activities (searches, product views, sign-ins) `VirtoCommerce.GoogleEcommerceAnalytics`
-— both optional dependencies: without the first the tasks surfaces stay hidden, without the second
-tracked activity reads as unavailable.
+— both optional dependencies. Without the first the tasks surfaces stay hidden; without the second —
+absent, or disabled in the admin UI — the hub leaves its tracked parts out: the tracked tabs and their
+marks, and the customer activity widget.
 
 The code started as a copy of the host's in-repo `client-app/modules/sales-rep` (vc-frontend
 `dev` at `1ae6a0318`). Hub features land here only since: the in-repo module no longer boots
