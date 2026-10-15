@@ -38,9 +38,9 @@
 
       <!-- Below xl the page is one column, so the edit button moves to the very end instead. -->
       <LayoutSurface
-        :scope="SCOPE"
+        :layout="layout"
         :cards="cards"
-        :organization-id="organizationId"
+        :block-props="{ organizationId }"
         :edit-button-placement="isCompact ? 'end' : 'mainColumn'"
       />
     </template>
@@ -51,8 +51,7 @@
 import { breakpointsTailwind, useBreakpoints } from "@vueuse/core";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { ROUTES, useBreadcrumbs, usePageHead } from "@vc-frontend/core";
-import LayoutSurface from "../components/layout-surface.vue";
+import { LayoutSurface, ROUTES, useBreadcrumbs, useLayout, usePageHead } from "@vc-frontend/core";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import { useSalesRepCustomerWidgets } from "../composables/useSalesRepCustomerWidgets";
 import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_ROUTE_NAME, MY_CUSTOMERS_ROUTE_NAME } from "../constants";
@@ -63,14 +62,15 @@ interface IProps {
 
 const props = defineProps<IProps>();
 
-const SCOPE = CUSTOMER_PROFILE_LAYOUT_SCOPE;
+// The page owns the layout: the host's surface renders it and the cards' queries are shaped from the same object.
+const layout = useLayout(CUSTOMER_PROFILE_LAYOUT_SCOPE);
 
 // The aside splits off at xl; below that the page is a single column and the button belongs at its end.
 const isCompact = useBreakpoints(breakpointsTailwind).smaller("xl");
 
 const { t } = useI18n();
 const { customer, loading, failed, notFound } = useSalesRepCustomer(() => props.organizationId);
-const { cards } = useSalesRepCustomerWidgets(() => props.organizationId);
+const { cards } = useSalesRepCustomerWidgets(layout, () => props.organizationId);
 
 const myCustomersRouteName = MY_CUSTOMERS_ROUTE_NAME;
 

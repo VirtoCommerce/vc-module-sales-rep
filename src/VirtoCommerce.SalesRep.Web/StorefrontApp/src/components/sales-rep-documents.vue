@@ -71,12 +71,12 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { downloadFile } from "@vc-frontend/core";
-import { useBlockChrome } from "../composables/useBlockChrome";
+import { useBlockChrome } from "@vc-frontend/core";
 import { useSalesRepDocuments } from "../composables/useSalesRepDocuments";
 import { DOCUMENTS_DEFAULT_ROWS, DOCUMENTS_ROUTE_NAME } from "../constants";
 import { isInlineRenderable, openAuthorizedFile } from "../files";
 import { documentIcon, documentMeta } from "../utils";
-import LayoutWidget from "./layout-widget.vue";
+import { LayoutWidget } from "@vc-frontend/core";
 
 interface IProps {
   // Omit inside a layout; LayoutWidget then falls back to the block's titleKey.

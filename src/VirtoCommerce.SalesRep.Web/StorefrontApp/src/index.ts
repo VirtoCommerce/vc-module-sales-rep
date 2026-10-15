@@ -3,7 +3,7 @@ import {
   EXTENSION_NAMES,
   globals,
   Logger,
-  registerCacheTypePolicies,
+  registerBlock,
   registerLocaleLoader,
   ROUTES,
   useExtensionRegistry,
@@ -30,9 +30,8 @@ import {
   SALES_REP_ACCESS_PERMISSION,
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
-import { layoutTypePolicies } from "./layout/cache-policies";
+import { registerHubBlocks } from "./layout/blocks";
 import { documentsBlock } from "./layout/documents-block";
-import { registerBlock } from "./layout/registry";
 import { tasksBlock } from "./layout/tasks-block";
 import { salesRepMenuSchema } from "./menu";
 import {
@@ -138,6 +137,9 @@ export function init(): void {
   const canReadDocuments = checkPermissions(SALES_REP_ACCESS_PERMISSION, SALES_REP_DOCUMENTS_READ_PERMISSION);
   const tasksEnabled = isSalesRepTasksEnabled();
 
+  // The hub's own blocks go into the host's layout engine first; the two below join only when their feature does.
+  registerHubBlocks();
+
   // Same one-shot registration seam as the documents widget, and the same caveat: while the tasks module is
   // absent the block is unknown to the layout registry, so a layout SAVED in that state drops its persisted
   // position/settings and the widget returns at its defaults once the module is back.
@@ -237,10 +239,6 @@ export function init(): void {
     ],
     isVisible: computed(() => isSalesRepsEnabled() && checkPermissions(SALES_REP_ACCESS_PERMISSION)),
   });
-
-  // Layout regions and blocks carry ids that repeat across surfaces, so Apollo would normalize them
-  // into entities shared by every scope. See layout/cache-policies.ts.
-  registerCacheTypePolicies(layoutTypePolicies, { owner: "sales-rep" });
 
   loadLocale();
 }

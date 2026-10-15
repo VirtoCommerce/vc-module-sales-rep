@@ -1,8 +1,8 @@
 import { ApolloClient, ApolloLink, InMemoryCache, Observable } from "@apollo/client/core";
 import { provideApolloClient } from "@vue/apollo-composable";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { effectScope, nextTick, ref } from "vue";
-import { layoutTypePolicies } from "../layout/cache-policies";
+import { useStatDataNeeds } from "@vc-frontend/core";
 import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_LAYOUT_SCOPE } from "../constants";
 import { STAT_CARDS } from "../layout/stat-cards";
 import { useSalesRepCartStatistics } from "./useSalesRepCartStatistics";
@@ -15,16 +15,15 @@ import { useSalesRepOrderStatistics } from "./useSalesRepOrderStatistics";
 import { useSalesRepOrders } from "./useSalesRepOrders";
 import { useSalesRepTopSellers } from "./useSalesRepTopSellers";
 import { useSalesReps } from "./useSalesReps";
-import { clearStatVisibility, publishStatVisibility } from "./useStatDataNeeds";
+import type { SalesRepLayoutScopeType } from "../types/layout";
 
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   globals: { storeId: "test-store", currencyCode: "USD", cultureName: "en-US" },
 }));
 
-// The spec needs *an* Apollo cache, not the host's instance — the policies it exercises are the
-// module's own, and a plugin has no access to the host's cache object anyway.
-const cache = new InMemoryCache({ typePolicies: layoutTypePolicies });
+// The spec needs *an* Apollo cache, not the host's instance: a plugin has no access to the host's cache object.
+const cache = new InMemoryCache();
 
 let requestCount = 0;
 let metric = 1;
@@ -257,34 +256,21 @@ async function waitFor(condition: () => boolean, description: string): Promise<v
 }
 
 /**
- * Stands in for a mounted <LayoutSurface> whose layout has been read and shows every card, which is
- * what the statistics composables wait for: they shape their queries from the visible cards, so with
- * nothing published they would (correctly) never fetch at all.
+ * Stands in for a page whose layout has been read and shows every card, which is what the statistics
+ * composables wait for: they shape their queries from the visible cards, so before the layout settles they
+ * would (correctly) never fetch at all.
  */
-function showEveryCard(): void {
-  for (const scope of [DASHBOARD_LAYOUT_SCOPE, CUSTOMER_PROFILE_LAYOUT_SCOPE] as const) {
-    publishStatVisibility(scope, {
-      settled: true,
-      visible: STAT_CARDS[scope].map((card) => card.key),
-      editing: false,
-    });
-  }
+function everyCardNeeds(scope: SalesRepLayoutScopeType) {
+  const cards = STAT_CARDS[scope];
+  const layout = { settled: ref(true), editing: ref(false), visibleIn: () => cards.map((card) => card.key) };
+  return useStatDataNeeds(layout, cards);
 }
 
 beforeEach(async () => {
   requestCount = 0;
   metric = 1;
-  showEveryCard();
   await cache.reset({ discardWatches: true });
   provideApolloClient(new ApolloClient({ link, cache }));
-});
-
-// Published visibility is module state, so it has to be torn down: otherwise it survives every test here
-// and a "must not fetch before the layout is read" case would pass without exercising the gate at all.
-afterEach(() => {
-  for (const scope of [DASHBOARD_LAYOUT_SCOPE, CUSTOMER_PROFILE_LAYOUT_SCOPE] as const) {
-    clearStatVisibility(scope);
-  }
 });
 
 // Every hub read, paired with a probe on the field carrying `metric`. Waiting on the probe rather than on
@@ -293,21 +279,21 @@ const widgetSources: [string, () => () => number | undefined][] = [
   [
     "order statistics",
     () => {
-      const { statistics } = useSalesRepOrderStatistics({ scope: DASHBOARD_LAYOUT_SCOPE });
+      const { statistics } = useSalesRepOrderStatistics({ needs: everyCardNeeds(DASHBOARD_LAYOUT_SCOPE) });
       return () => statistics.value?.newOrders?.count;
     },
   ],
   [
     "cart statistics",
     () => {
-      const { statistics } = useSalesRepCartStatistics({ scope: DASHBOARD_LAYOUT_SCOPE });
+      const { statistics } = useSalesRepCartStatistics({ needs: everyCardNeeds(DASHBOARD_LAYOUT_SCOPE) });
       return () => statistics.value?.activeCarts?.selectedItemQuantity;
     },
   ],
   [
     "customer counts",
     () => {
-      const { counts } = useSalesRepCustomerCounts({ scope: DASHBOARD_LAYOUT_SCOPE });
+      const { counts } = useSalesRepCustomerCounts({ needs: everyCardNeeds(DASHBOARD_LAYOUT_SCOPE) });
       return () => counts.value?.assignedCustomers;
     },
   ],
@@ -394,7 +380,7 @@ describe("customer-scoped statistics", () => {
   it("keys the cache per customer rather than collapsing both into one entry", async () => {
     const organizationId = ref("org-a");
     const widget = mountWidget(() =>
-      useSalesRepOrderStatistics({ scope: CUSTOMER_PROFILE_LAYOUT_SCOPE, organizationId }),
+      useSalesRepOrderStatistics({ needs: everyCardNeeds(CUSTOMER_PROFILE_LAYOUT_SCOPE), organizationId }),
     );
     await waitFor(() => widget.api.statistics.value != null, "org-a's figures");
 
