@@ -16,7 +16,7 @@
     </VcEmptyView>
 
     <template v-else>
-      <!-- ?organizationId= narrows the feed to one customer, and the heading names them (as customer-orders does). -->
+      <!-- A customer's page narrows the feed to them, and the heading names them (as customer-orders does). -->
       <VcTypography class="activities__title" tag="h1">
         {{ heading }}
       </VcTypography>
@@ -157,7 +157,8 @@ import type { SalesRepRuleType } from "../types";
 import type { SalesRepRankedRowType } from "../types/insights";
 
 interface IProps {
-  // Optional narrowing to one customer (from the customer-activity widget's "All activity" link).
+  // One customer's activity page passes their id (the customer activity widget's "All activity" link leads there);
+  // the rep's own feed has none.
   organizationId?: string;
 }
 
@@ -234,8 +235,9 @@ watch(category, () => {
   modeChip.value = undefined;
 });
 
-// A customer switch reuses this instance (same route, new query), so it starts over like a fresh open — the
-// window included: All time carried into the rep's whole feed would read every customer's history from 2015.
+// Another customer, or the rep's own feed, reuses this instance (one page on two routes), so it starts over like a
+// fresh open — the window included: All time carried into the rep's whole feed would read every customer's history
+// from 2015.
 watch(
   () => props.organizationId,
   () => {
@@ -276,7 +278,7 @@ const {
   keepPreviousResult: false,
 });
 
-// The scoped customer's name — resolved only when the query param narrows the feed.
+// The customer's name, on a customer's page.
 const {
   customer,
   failed: customerFailed,

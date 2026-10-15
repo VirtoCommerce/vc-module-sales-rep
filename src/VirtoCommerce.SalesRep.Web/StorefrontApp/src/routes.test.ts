@@ -3,13 +3,12 @@ import { DASHBOARD_ROUTE_NAME } from "./constants";
 import {
   activitiesRoute,
   allCustomerOrdersRoute,
+  customerActivitiesRoute,
   customerOrderRoute,
   customerOrdersRoute,
   customerProfileRoute,
   dashboardRoute,
   documentsRoute,
-  isCustomerScopedActivity,
-  isMyActivity,
   isMyCustomersArea,
   myCustomersRoute,
   salesRepsRoute,
@@ -46,8 +45,7 @@ afterEach(() => {
   access.tasksEnabled = true;
 });
 
-const at = (name: string, query: Record<string, string | string[]> = {}) =>
-  ({ name, query }) as unknown as RouteLocationNormalizedLoaded;
+const at = (name: string) => ({ name, query: {} }) as unknown as RouteLocationNormalizedLoaded;
 
 // The rep-facing hub pages mount under the org-gated "/company" parent but must stay reachable for a
 // sales rep with zero org memberships (their access is `sales-rep:access`, not org membership). They
@@ -62,19 +60,18 @@ describe("sales-rep routes", () => {
     ["all customer orders", allCustomerOrdersRoute],
     ["documents", documentsRoute],
     ["activities", activitiesRoute],
+    ["customer activities", customerActivitiesRoute],
   ])("clears requiresOrganization on the rep-facing %s route", (_name, route) => {
     expect(route.meta?.requiresOrganization).toBe(false);
   });
 
-  // The per-customer variant arrives as ?organizationId=; anything else must not reach the page prop.
-  it("maps only a string organizationId query param into the activities page prop", () => {
-    const props = activitiesRoute.props as (route: { query: Record<string, unknown> }) => {
-      organizationId?: string;
-    };
-
-    expect(props({ query: { organizationId: "org1" } })).toEqual({ organizationId: "org1" });
-    expect(props({ query: {} })).toEqual({ organizationId: undefined });
-    expect(props({ query: { organizationId: ["a", "b"] } })).toEqual({ organizationId: undefined });
+  // One page, two routes: the rep's own feed takes no customer, and a customer's sits under their profile, as their
+  // orders do, with the id from the path.
+  it("serves the rep's feed and one customer's from the same page", () => {
+    expect(customerActivitiesRoute.component).toBe(activitiesRoute.component);
+    expect(activitiesRoute.props).toBeUndefined();
+    expect(customerActivitiesRoute.path).toBe("my-customers/:organizationId/activities");
+    expect(customerActivitiesRoute.props).toBe(true);
   });
 
   it("nests the customer orders list under the customer", () => {
@@ -102,6 +99,7 @@ describe("sales-rep routes", () => {
     ["documents", documentsRoute],
     ["tasks", tasksRoute],
     ["activities", activitiesRoute],
+    ["customer activities", customerActivitiesRoute],
   ])("lets a sales rep through the %s route", (_name, route: RouteRecordRaw) => {
     const next = runGuard(route);
 
@@ -119,6 +117,7 @@ describe("sales-rep routes", () => {
     ["documents", documentsRoute],
     ["tasks", tasksRoute],
     ["activities", activitiesRoute],
+    ["customer activities", customerActivitiesRoute],
   ])("resolves the %s route exactly once, to the account Dashboard, for a non-rep", (_name, route: RouteRecordRaw) => {
     access.isRep = false;
 
@@ -143,31 +142,19 @@ describe("sales-rep routes", () => {
   });
 });
 
-// The rail marks a link active by route record, so an area spanning sibling records has to say so.
-// One route serves both feeds here: ?organizationId= makes it a page about a customer.
+// The rail marks a link active by route record, so an area spanning sibling records has to say so. My activity
+// needs no rule: a customer's feed is a route record of its own.
 describe("sales-rep account rail areas", () => {
   it.each([
-    ["the customer list", true, false, at("SalesRepMyCustomers")],
-    ["a customer profile", true, false, at("SalesRepCustomerProfile")],
-    ["a customer's orders", true, false, at("SalesRepCustomerOrders")],
-    ["one of a customer's orders", true, false, at("SalesRepCustomerOrder")],
-    ["a customer's activity", true, false, at("SalesRepActivities", { organizationId: "org-1" })],
-    ["the rep's own activity", false, true, at("SalesRepActivities")],
-    ["the all-customers order list", false, false, at("SalesRepAllCustomerOrders")],
-    ["the dashboard", false, false, at("SalesRepDashboard")],
-  ])("on %s, lights My customers: %s, My activity: %s", (_name, inCustomers, inActivity, route) => {
+    ["the customer list", true, at("SalesRepMyCustomers")],
+    ["a customer profile", true, at("SalesRepCustomerProfile")],
+    ["a customer's orders", true, at("SalesRepCustomerOrders")],
+    ["one of a customer's orders", true, at("SalesRepCustomerOrder")],
+    ["a customer's activity", true, at("SalesRepCustomerActivities")],
+    ["the rep's own activity", false, at("SalesRepActivities")],
+    ["the all-customers order list", false, at("SalesRepAllCustomerOrders")],
+    ["the dashboard", false, at("SalesRepDashboard")],
+  ])("on %s, lights My customers: %s", (_name, inCustomers, route) => {
     expect(isMyCustomersArea(route)).toBe(inCustomers);
-    expect(isMyActivity(route)).toBe(inActivity);
-  });
-
-  it("treats an empty organizationId as the rep's own feed", () => {
-    expect(isCustomerScopedActivity(at("SalesRepActivities", { organizationId: "" }))).toBe(false);
-    expect(isMyActivity(at("SalesRepActivities", { organizationId: "" }))).toBe(true);
-  });
-
-  // The page prop takes no repeated value (above), so the navigation must not light My customers for one either.
-  it("treats a repeated organizationId as the rep's own feed, as the page does", () => {
-    expect(isCustomerScopedActivity(at("SalesRepActivities", { organizationId: ["a", "b"] }))).toBe(false);
-    expect(isMyActivity(at("SalesRepActivities", { organizationId: ["a", "b"] }))).toBe(true);
   });
 });

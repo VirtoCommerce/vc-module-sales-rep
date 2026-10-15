@@ -37,6 +37,10 @@ export const CUSTOMER_ORDERS_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/
 export const CUSTOMER_ORDER_ROUTE_NAME = "SalesRepCustomerOrder";
 export const CUSTOMER_ORDER_ROUTE_SEGMENT = `${CUSTOMER_ORDERS_ROUTE_SEGMENT}/:orderId`;
 
+// One customer's activity: the Activities page narrowed to them, under their profile like their orders.
+export const CUSTOMER_ACTIVITIES_ROUTE_NAME = "SalesRepCustomerActivities";
+export const CUSTOMER_ACTIVITIES_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/activities`;
+
 // The storefront's own order page: an order the rep placed opens there, where their buyer actions still
 // work. The hub's page is read-only for everyone.
 export const BUYER_ORDER_ROUTE_NAME = "OrderDetails" satisfies HostRouteNameType;
@@ -60,7 +64,7 @@ export const DASHBOARD_ROUTE_NAME = "SalesRepDashboard";
 export const DASHBOARD_ROUTE_SEGMENT = "dashboard";
 export const DASHBOARD_NAV_LINK_ID = "sales-rep-dashboard";
 
-// All-activity page (VCST-5337); a sibling of the hub pages under "Company".
+// The rep's own activity page (VCST-5337); a sibling of the hub pages under "Company".
 export const ACTIVITIES_ROUTE_NAME = "SalesRepActivities";
 export const ACTIVITIES_ROUTE_SEGMENT = "activities";
 export const ACTIVITIES_NAV_LINK_ID = "sales-rep-activities";

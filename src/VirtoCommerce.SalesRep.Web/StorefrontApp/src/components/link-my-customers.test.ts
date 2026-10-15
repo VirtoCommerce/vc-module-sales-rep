@@ -2,7 +2,12 @@ import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
-import { ACTIVITIES_ROUTE_NAME, CUSTOMER_PROFILE_ROUTE_NAME, MY_CUSTOMERS_ROUTE_NAME } from "../constants";
+import {
+  ACTIVITIES_ROUTE_NAME,
+  CUSTOMER_ACTIVITIES_ROUTE_NAME,
+  CUSTOMER_PROFILE_ROUTE_NAME,
+  MY_CUSTOMERS_ROUTE_NAME,
+} from "../constants";
 import { isMyCustomersArea } from "../routes";
 import LinkMyCustomers from "./link-my-customers.vue";
 import type { ExtendedMenuLinkType } from "@vc-frontend/core";
@@ -63,13 +68,13 @@ beforeEach(() => {
 });
 
 // The module renders this link itself (for the count badge), so it has to resolve the active state the
-// way AccountNavigationItem does. Reading only `useLink` left every page the rule claims unlit — and
-// on a customer's activity feed nothing in the rail was lit at all, since My activity disowns it.
+// way AccountNavigationItem does. Reading only `useLink` left every page the rule claims unlit — a
+// customer's profile, orders and activity among them.
 describe("LinkMyCustomers highlight", () => {
   it.each([
     ["the customer list", { name: MY_CUSTOMERS_ROUTE_NAME }],
     ["a customer's profile", { name: CUSTOMER_PROFILE_ROUTE_NAME }],
-    ["a customer's activity", { name: ACTIVITIES_ROUTE_NAME, query: { organizationId: "org-1" } }],
+    ["a customer's activity", { name: CUSTOMER_ACTIVITIES_ROUTE_NAME }],
   ])("lights on %s", (_label, route) => {
     expect(mountAt(route).props("active")).toBe(true);
   });
@@ -90,11 +95,11 @@ describe("LinkMyCustomers highlight", () => {
 
     expect(link()).toBe(false);
 
-    navigate({ name: ACTIVITIES_ROUTE_NAME, query: { organizationId: "org-1" } });
+    navigate({ name: CUSTOMER_ACTIVITIES_ROUTE_NAME });
     await nextTick();
     expect(link()).toBe(true);
 
-    // Same route record, no customer — the query is the only thing that changed.
+    // The same page, the rep's own feed: My activity's.
     navigate({ name: ACTIVITIES_ROUTE_NAME });
     await nextTick();
     expect(link()).toBe(false);

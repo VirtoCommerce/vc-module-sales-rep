@@ -1,7 +1,10 @@
 <template>
   <LayoutWidget :title="t('sales_rep.activity.customer.title')" size="md" class="customer-activity">
     <template #append>
-      <VcLink :to="{ name: ACTIVITIES_ROUTE_NAME, query: { organizationId } }" class="customer-activity__all-link">
+      <VcLink
+        :to="{ name: CUSTOMER_ACTIVITIES_ROUTE_NAME, params: { organizationId } }"
+        class="customer-activity__all-link"
+      >
         {{ t("sales_rep.activity.view_all") }}
 
         <VcIcon name="arrow-right" size="xs" />
@@ -175,7 +178,7 @@ import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { getProductRoute } from "@vc-frontend/core";
 import { useSalesRepCustomerActivitySummary } from "../composables/useSalesRepCustomerActivitySummary";
-import { ACTIVITIES_ROUTE_NAME } from "../constants";
+import { CUSTOMER_ACTIVITIES_ROUTE_NAME } from "../constants";
 import { formatStatCount, searchResultsRoute } from "../utils";
 import CustomerBrowseHistory from "./customer-browse-history.vue";
 import CustomerSearchHistory from "./customer-search-history.vue";

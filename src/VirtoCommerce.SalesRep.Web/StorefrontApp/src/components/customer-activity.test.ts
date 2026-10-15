@@ -226,6 +226,17 @@ describe("CustomerActivity summary states", () => {
   });
 });
 
+// A customer's feed is a page of theirs, under their profile like their orders.
+describe("CustomerActivity header", () => {
+  it("links All activity to the customer's activity page", () => {
+    const link = createWrapper()
+      .findAllComponents({ name: "VcLinkStub" })
+      .find((candidate) => candidate.classes("customer-activity__all-link"));
+
+    expect(link?.props("to")).toEqual({ name: "SalesRepCustomerActivities", params: { organizationId: "org1" } });
+  });
+});
+
 describe("CustomerActivity sub-views", () => {
   // Opening the profile must fire only the summary query — the panels' GA-backed queries wait for
   // their chip, which means the panels must not even mount (a mounted panel fetches).
