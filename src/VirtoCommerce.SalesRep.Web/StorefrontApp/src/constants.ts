@@ -97,6 +97,12 @@ export const TASKS_OVERDUE_RULE = "overdue";
 // Upper bound on the month query behind the calendar dots. A rep's month is tens of tasks; the cap only
 // stops a pathological book of business from pulling an unbounded page for three dots a day.
 export const TASKS_CALENDAR_MAX = 200;
+// Calls (VCST-6314): a task of this type gets a time of day and a customer. The backend keeps the value in the
+// TaskManagement.TaskTypes dictionary, so it reaches the type select through salesRepTaskTypes like any other.
+export const CALL_TASK_TYPE = "Call";
+// A new call starts at 9:00 on the rep's clock, picked in quarter hours.
+export const CALL_DEFAULT_TIME = "09:00";
+export const CALL_TIME_STEP_MINUTES = 15;
 
 // Backs the "New orders" card; order filter rules are raw order statuses, so this uses the "New"
 // status (an unrecognized name fails closed — keep it aligned with a real status). The card's label

@@ -27,5 +27,7 @@ public class InputUpdateSalesRepTaskType : ExtendableInputObjectGraphType<Update
             .Description("Lowest, Low, Normal, High or Highest. Null or empty means Normal.");
         Field<DateTimeGraphType>(nameof(UpdateSalesRepTaskCommand.DueDate))
             .Description("When the task is due. Required on create; null on update clears it.");
+        Field<StringGraphType>(nameof(UpdateSalesRepTaskCommand.CustomerId))
+            .Description("Organization id of a customer the caller serves - the customer the task is about. Null or empty removes the link.");
     }
 }

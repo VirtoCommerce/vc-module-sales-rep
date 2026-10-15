@@ -1,6 +1,6 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { localDayKey, localDayKeyToIso } from "../tasks";
+import { dueDateForDayAndTime, localDayKey, localDayKeyToIso } from "../tasks";
 import SalesRepTaskModal from "./sales-rep-task-modal.vue";
 import type { SalesRepTaskType } from "../types/tasks";
 import { VcButton } from "@vc-frontend/core";
@@ -27,6 +27,18 @@ vi.mock("../composables/useSalesRepTaskMutations", () => ({
 vi.mock("../composables/useSalesRepTaskTypes", async () => {
   const { ref } = await import("vue");
   return { useSalesRepTaskTypes: () => ({ types: state.types, loading: ref(false), error: ref(null) }) };
+});
+// Behind the call's Customer field, which renders only for a call.
+vi.mock("../composables/useSalesRepCustomerOptions", async () => {
+  const { ref } = await import("vue");
+  return {
+    useSalesRepCustomerOptions: () => ({
+      options: ref([{ organizationId: "org-1", organizationName: "Lakeview Outfitters", location: "", imageUrl: "" }]),
+      loading: ref(false),
+      failed: ref(false),
+      findOption: vi.fn(),
+    }),
+  };
 });
 const modal = vi.hoisted(() => ({ openModal: vi.fn(), closeModal: vi.fn(), closeConfirmation: vi.fn() }));
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
@@ -388,5 +400,144 @@ describe("SalesRepTaskModal type vocabulary", () => {
     const wrapper = createWrapper({ task: makeTask() });
 
     expect(field(wrapper, "type_label").attributes("data-clearable")).toBe("true");
+  });
+});
+
+// VCST-6314: a task of the Call type gets a time of day and a customer; "Schedule call" opens it prefilled.
+describe("SalesRepTaskModal calls", () => {
+  const CALL = { customerId: "org-1", customerName: "Lakeview Outfitters" };
+
+  const exists = (wrapper: WrapperType, label: string) => wrapper.find(`[data-label$="${label}"]`).exists();
+
+  it("opens Schedule call as a call for that customer: titled, at 9:00, on a day still to pick", () => {
+    const wrapper = createWrapper({ call: CALL });
+
+    expect(wrapper.get(".modal").attributes("data-title")).toBe("sales_rep.tasks.form.create_call_title");
+    expect(field(wrapper, "name_label").attributes("value")).toBe("sales_rep.tasks.form.call_name");
+    expect(field(wrapper, "customer_label").attributes("value")).toBe("org-1");
+    expect(field(wrapper, "due_date_label").attributes("value")).toBe("");
+    expect(field(wrapper, "time_label").attributes("value")).toBe("09:00");
+    expect(field(wrapper, "priority_label").attributes("value")).toBe("Normal");
+  });
+
+  it("will not save a call before its day is picked", async () => {
+    const wrapper = createWrapper({ call: CALL });
+    await flushPromises();
+
+    expect(button(wrapper, "form.save_button").attributes("disabled")).toBeDefined();
+
+    await field(wrapper, "due_date_label").setValue("2026-10-20");
+    await flushPromises();
+
+    expect(button(wrapper, "form.save_button").attributes("disabled")).toBeUndefined();
+  });
+
+  it("writes the picked day at the picked time, as a call linked to the customer", async () => {
+    const wrapper = createWrapper({ call: CALL });
+    await field(wrapper, "due_date_label").setValue("2026-10-20");
+    await field(wrapper, "time_label").setValue("14:45");
+
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "sales_rep.tasks.form.call_name",
+        type: "Call",
+        customerId: "org-1",
+        dueDate: dueDateForDayAndTime("2026-10-20", "14:45"),
+      }),
+    );
+  });
+
+  it("reopens a call at its own time, and moves it when the rep picks another", async () => {
+    const wrapper = createWrapper({
+      task: makeTask({
+        type: "Call",
+        dueDate: TIMED_DUE_DATE,
+        customerId: "org-1",
+        customerName: "Lakeview Outfitters",
+      }),
+    });
+
+    expect(wrapper.get(".modal").attributes("data-title")).toBe("sales_rep.tasks.form.edit_call_title");
+    expect(field(wrapper, "time_label").attributes("value")).toBe("09:30");
+    expect(field(wrapper, "customer_label").attributes("value")).toBe("org-1");
+
+    await field(wrapper, "time_label").setValue("11:00");
+    await save(wrapper);
+
+    const sent = new Date(mutations.update.mock.calls[0][1].dueDate as string);
+    expect(localDayKey(sent)).toBe("2026-10-15");
+    expect([sent.getHours(), sent.getMinutes()]).toEqual([11, 0]);
+  });
+
+  // Schedule call must not turn into some other task, and a call opened from the list stays one: the type is not
+  // offered for change in either.
+  it("offers no Type in call mode", () => {
+    state.types.value = ["Other", "Call"];
+
+    expect(exists(createWrapper({ call: CALL }), "type_label")).toBe(false);
+    expect(exists(createWrapper({ task: makeTask({ type: "Call", customerId: "org-1" }) }), "type_label")).toBe(false);
+  });
+
+  // The type decides which fields follow, so it sits right under the title instead of at the bottom.
+  it("puts Type right under Title, above the fields it controls", () => {
+    state.types.value = ["Other", "Call"];
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+
+    const labels = wrapper.findAll("[data-label]").map((input) => input.attributes("data-label"));
+    expect(labels.slice(0, 3)).toEqual([
+      "sales_rep.tasks.form.name_label",
+      "sales_rep.tasks.form.type_label",
+      "sales_rep.tasks.form.due_date_label",
+    ]);
+  });
+
+  it("asks a task for a time and a customer only once it is a call", async () => {
+    state.types.value = ["Other", "Call"];
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+
+    expect(exists(wrapper, "time_label")).toBe(false);
+    expect(exists(wrapper, "customer_label")).toBe(false);
+
+    await field(wrapper, "type_label").setValue("Call");
+
+    expect(exists(wrapper, "time_label")).toBe(true);
+    expect(exists(wrapper, "customer_label")).toBe(true);
+  });
+
+  // A non-call task is date-only, so its midnight is no time anybody picked; becoming a call starts at 9:00.
+  it("starts a task that becomes a call at 9:00", async () => {
+    state.types.value = ["Other", "Call"];
+    const wrapper = createWrapper({ task: makeTask({ type: "Other" }) });
+
+    await field(wrapper, "type_label").setValue("Call");
+
+    expect(field(wrapper, "time_label").attributes("value")).toBe("09:00");
+  });
+
+  it("drops the customer picked for a call when the task stops being one", async () => {
+    state.types.value = ["Other", "Call"];
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+    await field(wrapper, "name_label").setValue("Follow up");
+    await field(wrapper, "type_label").setValue("Call");
+    await field(wrapper, "customer_label").setValue("org-1");
+
+    await field(wrapper, "type_label").setValue("Other");
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalledWith(expect.objectContaining({ type: "Other", customerId: undefined }));
+  });
+
+  // Customer is a call's field, but the API can link one to any task. Such a link is not shown, and is still sent
+  // back as it came, because updateSalesRepTask replaces the task.
+  it("keeps the unshown customer of a task that is not a call", async () => {
+    const wrapper = createWrapper({ task: makeTask({ customerId: "org-1", customerName: "Lakeview Outfitters" }) });
+
+    expect(exists(wrapper, "customer_label")).toBe(false);
+
+    await save(wrapper);
+
+    expect(mutations.update).toHaveBeenCalledWith("task-1", expect.objectContaining({ customerId: "org-1" }));
   });
 });

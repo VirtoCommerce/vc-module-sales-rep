@@ -1,5 +1,6 @@
 using System;
 using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.TaskManagement.Core.Models;
 
 namespace VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -26,6 +27,8 @@ public class SalesRepTask
 
     public DateTime? ModifiedDate { get; set; }
 
+    public string CustomerId { get; set; }
+
     public static SalesRepTask FromWorkTask(WorkTask task)
     {
         var result = AbstractTypeFactory<SalesRepTask>.TryCreateInstance();
@@ -45,5 +48,6 @@ public class SalesRepTask
         Completed = task.Completed;
         CreatedDate = task.CreatedDate;
         ModifiedDate = task.ModifiedDate;
+        CustomerId = task.ObjectType.EqualsIgnoreCase(ModuleConstants.Tasks.CustomerObjectType) ? task.ObjectId : null;
     }
 }

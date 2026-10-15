@@ -86,6 +86,31 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         task.DueDate = input.DueDate;
     }
 
+    protected virtual async Task ApplyCustomerAsync(WorkTask task, string userId, string customerId)
+    {
+        customerId = customerId?.Trim().EmptyToNull();
+
+        // ObjectType/ObjectId may hold another feature's link (a workflow task about an order); never clear or replace it.
+        if (!string.IsNullOrEmpty(task.ObjectType) && !task.ObjectType.EqualsIgnoreCase(ModuleConstants.Tasks.CustomerObjectType))
+        {
+            if (customerId != null)
+            {
+                throw new ExecutionError("This task is linked to another record, so it cannot take a customer.");
+            }
+
+            return;
+        }
+
+        // One answer for an unknown organization and one the rep does not serve, so a write cannot probe ids.
+        if (customerId != null && !await OrganizationAccessService.ServesOrganizationAsync(userId, customerId))
+        {
+            throw new ExecutionError("Customer not found.");
+        }
+
+        task.ObjectType = customerId == null ? null : ModuleConstants.Tasks.CustomerObjectType;
+        task.ObjectId = customerId;
+    }
+
     // Here rather than in each handler: both mutations enter through ApplyInput, so a third cannot forget it.
     // The storage columns are capped and nothing between this boundary and SaveChangesAsync checks them, so an
     // over-long name would surface as a DbUpdateException. The harness is SQLite, which does not enforce VARCHAR

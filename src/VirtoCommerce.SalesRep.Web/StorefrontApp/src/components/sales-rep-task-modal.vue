@@ -1,7 +1,7 @@
 <template>
   <VcModal
     ref="modalComponent"
-    :title="t(task ? 'sales_rep.tasks.form.edit_title' : 'sales_rep.tasks.form.create_title')"
+    :title="title"
     class="sales-rep-task-modal"
     :is-persistent="loading"
     is-mobile-fullscreen
@@ -20,17 +20,49 @@
         required
       />
 
-      <!-- enable-teleport: inside a modal the popover would otherwise clip against the dialog's overflow. -->
-      <VcDatePicker
-        v-model="dueDate"
-        :label="t('sales_rep.tasks.form.due_date_label')"
+      <!-- Right under Title: it decides the fields below (a call adds Customer and Time). Absent in call mode, where
+           the type is Call by definition, and when nobody has configured the TaskManagement.TaskTypes dictionary.
+           `clearable` is bound rather than bare: VcSelect counts "" as a selection, so it would offer a Clear
+           on an empty Type (QA M-2), and "" is this form's own convention for an unset field. -->
+      <VcSelect
+        v-if="!callMode && types.length"
+        v-model="type"
+        :label="t('sales_rep.tasks.form.type_label')"
+        :items="types"
         :disabled="loading"
-        :message="meta.dirty ? errors.dueDate : undefined"
-        :error="!!errors.dueDate && meta.dirty"
-        :aria="REQUIRED_ARIA"
+        :clearable="!!type"
         enable-teleport
-        required
       />
+
+      <SalesRepTaskCustomerSelect
+        v-if="isCall"
+        v-model="customerId"
+        :name="task?.customerName ?? call?.customerName"
+        :disabled="loading"
+      />
+
+      <div :class="['sales-rep-task-modal__when', { 'sales-rep-task-modal__when--timed': isCall }]">
+        <!-- enable-teleport: inside a modal the popover would otherwise clip against the dialog's overflow. -->
+        <VcDatePicker
+          v-model="dueDate"
+          :label="t('sales_rep.tasks.form.due_date_label')"
+          :disabled="loading"
+          :message="meta.dirty ? errors.dueDate : undefined"
+          :error="!!errors.dueDate && meta.dirty"
+          :aria="REQUIRED_ARIA"
+          enable-teleport
+          required
+        />
+
+        <TimeSelect
+          v-if="isCall"
+          v-model="time"
+          :label="t('sales_rep.tasks.form.time_label')"
+          :step-minutes="CALL_TIME_STEP_MINUTES"
+          :disabled="loading"
+          required
+        />
+      </div>
 
       <VcSelect
         v-model="priority"
@@ -39,19 +71,6 @@
         text-field="label"
         value-field="value"
         :disabled="loading"
-        enable-teleport
-      />
-
-      <!-- Absent when nobody has configured the TaskManagement.TaskTypes dictionary; the field is optional.
-           `clearable` is bound rather than bare: VcSelect counts "" as a selection, so it would offer a Clear
-           on an empty Type (QA M-2), and "" is this form's own convention for an unset field. -->
-      <VcSelect
-        v-if="types.length"
-        v-model="type"
-        :label="t('sales_rep.tasks.form.type_label')"
-        :items="types"
-        :disabled="loading"
-        :clearable="!!type"
         enable-teleport
       />
 
@@ -101,7 +120,10 @@ import { string } from "yup";
 import { useModal, useNotifications, VcModal } from "@vc-frontend/core";
 import { useSalesRepTaskMutations } from "../composables/useSalesRepTaskMutations";
 import { useSalesRepTaskTypes } from "../composables/useSalesRepTaskTypes";
-import { dueDateForDay, localDayKey } from "../tasks";
+import { CALL_DEFAULT_TIME, CALL_TASK_TYPE, CALL_TIME_STEP_MINUTES } from "../constants";
+import { dueDateForDay, dueDateForDayAndTime, isCallTask, localDayKey, localTimeKey } from "../tasks";
+import SalesRepTaskCustomerSelect from "./sales-rep-task-customer-select.vue";
+import TimeSelect from "./time-select.vue";
 import type { SalesRepTaskType } from "../types/tasks";
 
 interface IProps {
@@ -109,6 +131,8 @@ interface IProps {
   task?: SalesRepTaskType;
   /** Pre-selects the due date when creating from a calendar cell ("YYYY-MM-DD"). */
   defaultDay?: string;
+  /** Creates a call with this customer ("Schedule call"): titled and typed Call, at 9:00, on a day still to pick. */
+  call?: { customerId: string; customerName?: string };
   /**
    * Lets the caller refetch; the modal owns no list. A save reports the day it wrote ("YYYY-MM-DD") so the
    * caller can follow a task that moved to another date; a delete reports nothing.
@@ -148,6 +172,18 @@ const priorityItems = computed(() =>
   PRIORITIES.map((value) => ({ value, label: t(`sales_rep.tasks.priority.${value.toLowerCase()}`) })),
 );
 
+// Call mode is fixed when the popup opens (Schedule call, or editing a call): the type is Call and not offered for
+// change, so a call stays a call. A task popup can still become a call by picking that type.
+const callMode = !!props.call || isCallTask(props.task?.type);
+
+const title = computed(() => {
+  if (callMode) {
+    return t(props.task ? "sales_rep.tasks.form.edit_call_title" : "sales_rep.tasks.form.create_call_title");
+  }
+
+  return t(props.task ? "sales_rep.tasks.form.edit_title" : "sales_rep.tasks.form.create_title");
+});
+
 /**
  * A deliberate snapshot, read inside a function rather than at root scope: useForm seeds the fields once, and a
  * modal instance is constructed per open with fixed props, so there is no later prop change to track.
@@ -162,15 +198,22 @@ function initialDueDate(): string {
     return props.task.dueDate ? localDayKey(props.task.dueDate) : "";
   }
 
+  if (props.call) {
+    return "";
+  }
+
   return props.defaultDay ?? localDayKey(new Date());
 }
 
 function buildInitialValues() {
   return {
-    name: props.task?.name ?? "",
+    name: props.task?.name ?? (props.call ? t("sales_rep.tasks.form.call_name") : ""),
     dueDate: initialDueDate(),
+    // Only a call has a time of day worth showing; any other task is date-only, so becoming a call starts at 9:00.
+    time: callMode && props.task?.dueDate ? localTimeKey(props.task.dueDate) : CALL_DEFAULT_TIME,
     priority: props.task?.priority || "Normal",
-    type: props.task?.type ?? "",
+    type: props.task?.type ?? (props.call ? CALL_TASK_TYPE : ""),
+    customerId: props.task?.customerId ?? props.call?.customerId ?? "",
     description: props.task?.description ?? "",
   };
 }
@@ -185,17 +228,27 @@ const { errors, meta, handleSubmit } = useForm({
 
 const { value: name } = useField<string>("name", toTypedSchema(string().trim().required().max(MAX_NAME_LENGTH)));
 const { value: dueDate } = useField<string>("dueDate", toTypedSchema(string().required()));
+const { value: time } = useField<string>("time");
 const { value: priority } = useField<string>("priority");
 const { value: type } = useField<string>("type");
+const { value: customerId } = useField<string>("customerId");
 const { value: description } = useField<string>("description");
+
+// The type decides the fields: a call adds the time of day and the customer.
+const isCall = computed(() => callMode || isCallTask(type.value));
 
 const save = handleSubmit(async (data) => {
   const input = {
     name: data.name.trim(),
-    // The picked day, but not at midnight unless it already was: see dueDateForDay.
-    dueDate: dueDateForDay(data.dueDate, props.task?.dueDate),
+    // A call is due at the picked time; any other task keeps its time of day, see dueDateForDay.
+    dueDate: isCall.value
+      ? dueDateForDayAndTime(data.dueDate, data.time)
+      : dueDateForDay(data.dueDate, props.task?.dueDate),
     priority: data.priority || undefined,
     type: data.type || undefined,
+    // Customer is a call's field. Any other task sends back the link it came with (only the API sets one there),
+    // because updateSalesRepTask replaces the task.
+    customerId: isCall.value ? data.customerId || undefined : props.task?.customerId,
     description: data.description?.trim() || undefined,
   };
 
@@ -241,6 +294,10 @@ function remove(): void {
 .sales-rep-task-modal {
   &__form {
     @apply space-y-4;
+  }
+
+  &__when--timed {
+    @apply grid gap-4 sm:grid-cols-2;
   }
 
   // Pushed away from the confirm pair so Delete is not a neighbour of Save.

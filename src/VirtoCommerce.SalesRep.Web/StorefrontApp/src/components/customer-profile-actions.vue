@@ -45,7 +45,8 @@
           type="button"
           class="customer-profile-actions__tile customer-profile-actions__tile--secondary"
           :title="t('sales_rep.communication.quick_actions.schedule_call')"
-          disabled
+          :disabled="!customer || !tasksEnabled"
+          @click="scheduleCall"
         >
           <VcIcon class="customer-profile-actions__icon" name="calendar" :size="24" />
 
@@ -62,8 +63,10 @@
 import { useI18n } from "vue-i18n";
 import { useModal } from "@vc-frontend/core";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
+import { isSalesRepTasksEnabled } from "../composables/useSalesRepsConfig";
 import CustomerCommunicationModal from "./customer-communication-modal.vue";
 import LayoutWidget from "./layout-widget.vue";
+import SalesRepTaskModal from "./sales-rep-task-modal.vue";
 
 interface IProps {
   organizationId: string;
@@ -75,6 +78,8 @@ const { t } = useI18n();
 const { openModal } = useModal();
 // Apollo dedupes this query by id, so it shares the page header's request (no extra fetch).
 const { customer } = useSalesRepCustomer(() => props.organizationId);
+// Calls are tasks, so they need the optional task-management module like every other task surface.
+const tasksEnabled = isSalesRepTasksEnabled();
 
 function openCommunication(): void {
   openModal({
@@ -82,6 +87,15 @@ function openCommunication(): void {
     props: {
       organizationId: props.organizationId,
       organizationName: customer.value?.organizationName ?? "",
+    },
+  });
+}
+
+function scheduleCall(): void {
+  openModal({
+    component: SalesRepTaskModal,
+    props: {
+      call: { customerId: props.organizationId, customerName: customer.value?.organizationName ?? "" },
     },
   });
 }

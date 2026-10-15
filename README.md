@@ -550,14 +550,14 @@ not to a customer — and no dedicated permission beyond being a sales rep.
   ) {
     totalCount
     pageInfo { hasNextPage endCursor }
-    items { id name description type priority dueDate isActive completed createdDate modifiedDate }
+    items { id name description type priority dueDate isActive completed createdDate modifiedDate customerId customerName }
   }
 
   salesRepTask(id: "…") { id name dueDate }   # null when missing OR not the caller's — existence never leaks
 
   salesRepTaskFilterRules { name localizedName }                                  # upcoming / overdue / completed
   salesRepTaskSortRules { name localizedName defaultDirection supportsDirection } # due-date / recent / name
-  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text)
+  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text); includes "Call"
 }
 ```
 
@@ -669,13 +669,14 @@ mutation {
                                          # strings included, so "999" is rejected rather than stored.
     type: "Customer Support"             # free text; salesRepTaskTypes is the suggested vocabulary, not a constraint
     description: "Escalate to regional manager."
-  }) { id name priority dueDate isActive completed }
+    customerId: "7b8c..."                # optional: one of the caller's customers (an organization id)
+  }) { id name priority dueDate isActive completed customerId customerName }
 
   # REPLACES the task, so send the whole record back - an omitted field is cleared, like null or "".
   # Accepts exactly what the read returns, nulls included, so a dateless task can be written back unchanged.
   updateSalesRepTask(command: {
-    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…"
-  }) { id name description type priority dueDate }
+    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…", customerId: "…"
+  }) { id name description type priority dueDate customerId }
 
   # completed: true finishes the task, false reopens it.
   changeSalesRepTaskStatus(command: { id: "…", completed: true }) { id isActive completed }
@@ -690,7 +691,7 @@ required at the database level, so every one of these is a *validation* rule, st
 
 ⚠️ `updateSalesRepTask` **replaces, it does not patch** — an omitted field is *cleared*, exactly like an explicit
 `null` or `""`. So send the whole record back, which is what the shared shape is for: **create, read and update
-carry the same five editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
+carry the same six editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
 accept. Every column behind them is nullable, so the read is the reference; a non-null input would be an invention
 that made a task with no description — or no due date — impossible to write back.
 
@@ -703,6 +704,22 @@ editable.
 `storeId` field and `updateSalesRepTask` never changes it. A rep whose account is **not** store-bound
 (`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
 read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
+
+**Calls and the customer link.** `customerId` links a task to one of the caller's customers. It is checked against
+the organizations they serve — one they do not serve fails with `Customer not found.`, exactly like an unknown id —
+and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the
+organization id), so there is no new column. `customerId` and `customerName` read back only while the caller still
+serves that customer; a task outlives the membership that let the rep link it. A task linked to something else (any
+other `ObjectType`, e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit leaves
+the link alone, and setting a customer on it is refused.
+
+A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the
+call editor (time and customer). So that admins can pick and filter it, the module keeps `Call` in the
+`TaskManagement.TaskTypes` dictionary, which the platform serves from ONE of two lists: the built-in one until an
+admin first saves the dictionary, the saved one after that. At startup the module adds `Call` to the built-in list
+and, if a saved list exists without it, to the saved list — it never saves the built-in list itself, which would
+freeze it. A list forced through configuration is left alone (with a warning in the log). An admin who removes `Call`
+gets it back on the next restart; existing calls keep their type either way.
 
 ⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
 `WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
