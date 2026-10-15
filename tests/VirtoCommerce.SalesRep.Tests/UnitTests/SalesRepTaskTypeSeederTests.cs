@@ -111,7 +111,7 @@ public class SalesRepTaskTypeSeederTests
         public int Reads { get; private set; }
         public List<ObjectSettingEntry> Writes { get; } = [];
 
-        private SettingDescriptor Descriptor => new()
+        private static SettingDescriptor Descriptor => new()
         {
             Name = TaskManagementSettings.TaskTypes.Name,
             IsDictionary = true,
