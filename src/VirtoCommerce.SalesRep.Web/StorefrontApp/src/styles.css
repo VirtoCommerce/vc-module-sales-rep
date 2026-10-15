@@ -1,0 +1,11 @@
+/*
+ * Plugin-global CSS. This file is injected into the host document, so anything here is
+ * GLOBAL and can affect host pages. Do NOT add `@tailwind utilities` here: a re-emitted
+ * flat utility (e.g. .flex-col) would win by source order and clobber host elements that
+ * rely on a later variant like lg:flex-row.
+ *
+ * Style components with Tailwind via <style scoped> + @apply instead (see src/pages/*.vue):
+ * Vue stamps a data-v-* attribute onto the component's elements and rewrites the selectors
+ * to match, so those styles apply only to the component and never leak. Add a rule here
+ * only for a genuinely global, plugin-owned selector you fully control.
+ */

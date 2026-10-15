@@ -1,0 +1,59 @@
+#import "./money.graphql"
+#import "./orderLineItemFields.graphql"
+
+fragment shortOrderFields on CustomerOrderType {
+  id
+  number
+  createdDate
+  status
+  statusDisplayValue
+  items {
+    ...orderLineItemFields
+  }
+  discounts {
+    amount {
+      amount
+      formattedAmount
+      currency {
+        code
+      }
+    }
+    coupon
+    description
+    promotionId
+    promotionName
+  }
+  discountTotal {
+    ...money
+  }
+  shippingSubTotal {
+    ...money
+  }
+  shippingTotal {
+    ...money
+  }
+  taxTotal {
+    ...money
+  }
+  subTotal {
+    ...money
+  }
+  total {
+    ...money
+  }
+  orderTotals {
+    isDefaultTotalCurrency
+    total {
+      ...money
+    }
+    subTotal {
+      ...money
+    }
+    discountTotal {
+      ...money
+    }
+    taxTotal {
+      ...money
+    }
+  }
+}

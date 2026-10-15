@@ -16,6 +16,10 @@
     <Content Remove="App\**" />
     <EmbeddedResource Remove="App\**" />
     <None Remove="App\**" />
+    <Compile Remove="StorefrontApp\**" />
+    <Content Remove="StorefrontApp\**" />
+    <EmbeddedResource Remove="StorefrontApp\**" />
+    <None Remove="StorefrontApp\**" />
   </ItemGroup>
   <ItemGroup>
     <Content Update="Localizations\**">
@@ -36,6 +40,19 @@
   <ItemGroup>
     <NotificationTemplates Include="NotificationTemplates\**" />
   </ItemGroup>
+  <Target Name="BuildStorefrontPlugin" BeforeTargets="Publish" Condition="'$(SkipStorefrontPlugin)' != 'true' AND Exists('$(MSBuildProjectDirectory)\StorefrontApp\package.json')">
+    <Exec Command="corepack enable" ContinueOnError="true" />
+    <Exec Command="yarn install --immutable" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
+    <Exec Command="yarn type-check" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
+    <Exec Command="yarn build" WorkingDirectory="$(MSBuildProjectDirectory)\StorefrontApp" />
+  </Target>
+  <!-- The platform probes {moduleRoot}/plugins/, but publish goes to {moduleRoot}/bin. -->
+  <Target Name="PublishStorefrontPlugin" AfterTargets="Publish" DependsOnTargets="BuildStorefrontPlugin" Condition="'$(SkipStorefrontPlugin)' != 'true'">
+    <ItemGroup>
+      <StorefrontPluginFile Include="$(MSBuildProjectDirectory)\plugins\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(StorefrontPluginFile)" DestinationFiles="$(PublishDir)\..\plugins\%(RecursiveDir)%(Filename)%(Extension)" />
+  </Target>
   <Target Name="CopyCustomContentOnPublish" AfterTargets="Publish">
     <Copy SourceFiles="@(NotificationTemplates)" DestinationFiles="$(PublishDir)\..\%(Identity)" />
   </Target>
