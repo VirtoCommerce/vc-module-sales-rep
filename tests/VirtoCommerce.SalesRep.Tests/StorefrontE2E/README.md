@@ -23,7 +23,7 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Backend host | `Infrastructure/InProcessBackend.cs` | Copies the harness registrations into a `WebApplication`, starts Kestrel on port 0, builds the schema eagerly, self-checks the `store` query; `RunExclusiveAsync` gives test-side reads a turn between requests. |
 | Shell services | `Infrastructure/StorefrontServices.cs` | Real X-API `store` handler, real profile handlers and graph types, real claim producers, the platform's `AppManifestService` for `store.plugins`; JWT bearer auth; pipeline (plugin files, one request at a time). |
 | Shell schema | `Infrastructure/StorefrontShellSchema.cs` | `pageContext`, `childCategories`, `cart`, `organization`, `menu`, `searchHistory`: real response types, empty data. |
-| Doubles | `Infrastructure/StorefrontDoubles.cs` | Store search/currency/auth schemes, module list (the module's own `module.manifest` plus two dependencies at the versions it names), settings (`ReturnModuleVersion`, task types), cart methods. |
+| Doubles | `Infrastructure/StorefrontDoubles.cs` | Store search/currency/auth schemes, module list (the module's own `module.manifest` plus two dependencies at the versions the storefront checkout expects, from its `backend-packages.json`), settings (`ReturnModuleVersion`, task types), cart methods. |
 | Hub plugin | `Infrastructure/StorefrontPlugin.cs` | The module's plugin build (`plugins/vc-frontend`) and its route; a missing build, or one older than its sources, fails the group. |
 | Package skew | `Infrastructure/StorefrontOrganizationType.cs` | The storefront selects `isLockedForCurrentUser`; the pinned profile package predates it. |
 | Tokens | `Infrastructure/TestTokenService.cs` | Production-shaped JWTs via `IUserClaimsPrincipalFactory` + `ITokenClaimProvider`s; `/connect/token`, `/revoke/token`. |
@@ -40,7 +40,7 @@ Groups are xunit collections with `DisableParallelization = true`: each runs alo
 one browser exist at a time. Tests inside a group share the environment and its seed; each test gets its own
 browser context (fresh localStorage, fresh Apollo cache). Each test carries a 5-minute timeout.
 
-Measured on the workstation that produced this draft: the contract test and the three groups run in about three
+Measured on the workstation that produced this draft: the contract test and the three groups run in about two
 minutes; a group's environment is up in about 7 seconds; the first page load of a group costs ≈20 seconds (Vite
 compiles on demand, then the storefront loads the hub plugin), later loads ≈2 seconds.
 
@@ -94,7 +94,9 @@ group), `vite-<port>.log` (dev server output), `<TestName>.png` (full-page scree
   not thread-safe. The symptoms were "database is locked" and index errors inside the connection's command list. So the
   host answers one request at a time, and a test's own reads take the same turn (`RunExclusiveAsync`).
 - The storefront compares the module versions it is told with its own `backend-packages.json`. When one is lower, it
-  shows an "outdated backend" error on every page. The module under test reports its real manifest version.
+  shows an "outdated backend" error on every page, which covers the page's top-right buttons ("New task" among them)
+  for fifteen seconds. The module under test reports its real manifest version; the stand-ins report the versions the
+  storefront expects. So the error shows only when the module under test really is older than the storefront expects.
 
 ## Known gaps (draft)
 
@@ -103,5 +105,3 @@ group), `vite-<port>.log` (dev server output), `<TestName>.png` (full-page scree
 - No WebSocket transport: push messages are not in the module list, so the storefront never opens the subscription.
 - The sign-in page is reachable through the password grant, but no test uses it yet.
 - `isLockedForCurrentUser` always answers `false` (the pinned customer package has no membership lock).
-- X-Frontend stands in at the version the module's manifest depends on. When the storefront expects a newer one, its
-  "outdated backend" notice shows on every page; the tests are not affected.

@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.PaymentModule.Core.Model;
@@ -58,10 +60,10 @@ internal sealed class PasswordOnlyStoreAuthenticationService : IStoreAuthenticat
 /// <summary>
 /// The module list the store query reports to the storefront, and the one the platform's AppManifestService walks for
 /// store.plugins. The module under test comes from its own module.manifest, the file the platform reads, so its id,
-/// version and apps are the real ones; two dependencies stand in at the versions that manifest names. Task management
-/// opens the storefront's tasks pages (a presence check on the module id, the way the real module list reaches it with
-/// ReturnModuleVersion on); X-Frontend declares the storefront app whose plugins store.plugins lists. White labeling is
-/// absent so the storefront drops its @gate'd field client-side.
+/// version and apps are the real ones; two of its dependencies stand in. Task management opens the storefront's tasks
+/// pages (a presence check on the module id, the way the real module list reaches it with ReturnModuleVersion on);
+/// X-Frontend declares the storefront app whose plugins store.plugins lists. White labeling is absent so the
+/// storefront drops its @gate'd field client-side.
 /// </summary>
 internal sealed class StorefrontModuleService : IModuleService
 {
@@ -77,6 +79,7 @@ internal sealed class StorefrontModuleService : IModuleService
     private static IList<ManifestModuleInfo> CreateInstalledModules()
     {
         var manifest = ManifestReader.Read(Path.Combine(StorefrontPlugin.ModuleDirectory, "module.manifest"));
+        var expectedVersions = ReadExpectedVersions();
 
         var salesRep = new ManifestModuleInfo().LoadFromManifest(manifest);
         // Where the platform looks for the hub plugin's build (plugins/vc-frontend).
@@ -85,17 +88,50 @@ internal sealed class StorefrontModuleService : IModuleService
         return
         [
             salesRep,
-            Dependency(manifest, "VirtoCommerce.TaskManagement"),
+            StandIn(manifest, expectedVersions, "VirtoCommerce.TaskManagement"),
             // X-Frontend's own manifest ships only in its module zip, so its app declaration is restated here.
-            Dependency(manifest, "VirtoCommerce.XFrontend", new ManifestApp { Id = "vc-frontend" }),
+            StandIn(manifest, expectedVersions, "VirtoCommerce.XFrontend", new ManifestApp { Id = "vc-frontend" }),
         ];
     }
 
-    private static ManifestModuleInfo Dependency(ModuleManifest manifest, string id, params ManifestApp[] apps)
+    /// <summary>
+    /// A dependency at the version the storefront expects of it: a lower one makes the storefront show its "outdated
+    /// backend" error on every page, over the page's top-right buttons for fifteen seconds. A module the storefront
+    /// does not list is not checked, and stands in at the version the manifest depends on.
+    /// </summary>
+    private static ManifestModuleInfo StandIn(ModuleManifest manifest, Dictionary<string, string> expectedVersions, string id, params ManifestApp[] apps)
     {
-        var version = manifest.Dependencies.Single(x => x.Id.EqualsIgnoreCase(id)).Version;
+        var version = expectedVersions.TryGetValue(id, out var expected)
+            ? expected
+            : manifest.Dependencies.Single(x => x.Id.EqualsIgnoreCase(id)).Version;
 
         return new ManifestModuleInfo().LoadFromManifest(new ModuleManifest { Id = id, Version = version, PlatformVersion = manifest.PlatformVersion, Apps = apps });
+    }
+
+    /// <summary>
+    /// The module versions the storefront checkout expects of its backend (backend-packages.json), read the way the
+    /// storefront reads them: across all sources, the last listing of a module winning.
+    /// </summary>
+    private static Dictionary<string, string> ReadExpectedVersions()
+    {
+        using var stream = File.OpenRead(Path.Combine(StorefrontAvailability.FrontendDirectory, "backend-packages.json"));
+        using var document = JsonDocument.Parse(stream);
+
+        var versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var source in document.RootElement.GetProperty("Sources").EnumerateArray())
+        {
+            if (!source.TryGetProperty("Modules", out var modules))
+            {
+                continue;
+            }
+
+            foreach (var module in modules.EnumerateArray())
+            {
+                versions[module.GetProperty("Id").GetString()] = module.GetProperty("Version").GetString();
+            }
+        }
+
+        return versions;
     }
 }
 
