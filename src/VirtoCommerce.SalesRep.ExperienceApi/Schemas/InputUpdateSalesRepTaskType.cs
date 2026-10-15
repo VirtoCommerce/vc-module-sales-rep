@@ -28,6 +28,6 @@ public class InputUpdateSalesRepTaskType : ExtendableInputObjectGraphType<Update
         Field<DateTimeGraphType>(nameof(UpdateSalesRepTaskCommand.DueDate))
             .Description("When the task is due. Required on create; null on update clears it.");
         Field<StringGraphType>(nameof(UpdateSalesRepTaskCommand.CustomerId))
-            .Description("Organization id of a customer the caller serves - the customer the task is about. Null or empty removes the link.");
+            .Description("Organization id of a customer the caller serves - the customer the task is about. Null or empty removes the link, unless it is to a customer the caller no longer serves: that one reads back as null and is kept.");
     }
 }

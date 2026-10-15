@@ -256,6 +256,7 @@
         "expired": "Förföll {date}",
         "due": "Förfaller {date}"
       },
+      "customer_not_assigned": "Ingen kund tilldelad",
       "legend": {
         "upcoming": "Kommande",
         "overdue": "Försenade",

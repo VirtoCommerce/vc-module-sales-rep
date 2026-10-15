@@ -707,11 +707,12 @@ read cannot return. Supported configuration rather than a fault — the storefro
 
 **Calls and the customer link.** `customerId` links a task to one of the caller's customers. It is checked against
 the organizations they serve — one they do not serve fails with `Customer not found.`, exactly like an unknown id —
-and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the
-organization id), so there is no new column. `customerId` and `customerName` read back only while the caller still
-serves that customer; a task outlives the membership that let the rep link it. A task linked to something else (any
-other `ObjectType`, e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit leaves
-the link alone, and setting a customer on it is refused.
+and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the organization
+id), so there is no new column. `customerId` and `customerName` read back only while the caller still serves that
+customer; a task outlives the membership that let the rep link it, and so does the link: writing back the null such a
+task reads keeps it, while another customer replaces it. A task linked to something else (any other `ObjectType`,
+e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit leaves the link alone, and
+setting a customer on it is refused.
 
 A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the
 call editor (time and customer). So that admins can pick and filter it, the module keeps `Call` in the

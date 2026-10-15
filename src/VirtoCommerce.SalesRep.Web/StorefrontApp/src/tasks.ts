@@ -220,7 +220,8 @@ export function buildDayMarkers(
  *
  * The type rides along rather than replacing the date: it is the only place the form's Type field is ever read
  * back, and a rep-created task always has a due date, so a "type instead of date" fallback would never show it.
- * A call is due at a time of day, so its deadline carries the hour and minute too.
+ * A call is due at a time of day, so its deadline carries the hour and minute too. It also always names its customer,
+ * or says it has none to name: none was picked, or the rep no longer serves it and the API leaves it out.
  */
 export function taskSubline(
   task: SalesRepTaskType,
@@ -228,11 +229,13 @@ export function taskSubline(
   d: (value: number | Date | string, options: DateTimeOptions) => string,
 ): string {
   const key = task.status === "overdue" ? "expired" : "due";
-  const format: DateTimeOptions = isCallTask(task.type) ? { key: "short", ...TIME_OF_DAY_FORMAT } : { key: "short" };
+  const isCall = isCallTask(task.type);
+  const format: DateTimeOptions = isCall ? { key: "short", ...TIME_OF_DAY_FORMAT } : { key: "short" };
+  const customer = task.customerName ?? (isCall ? t("sales_rep.tasks.customer_not_assigned") : undefined);
 
   return [
     task.dueDate ? t(`sales_rep.tasks.due_relative.${key}`, { date: d(task.dueDate, format) }) : "",
-    task.customerName,
+    customer,
     task.type,
   ]
     .filter(Boolean)

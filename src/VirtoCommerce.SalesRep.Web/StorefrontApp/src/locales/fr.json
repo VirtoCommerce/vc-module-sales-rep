@@ -256,6 +256,7 @@
         "expired": "Expirée le {date}",
         "due": "Échéance le {date}"
       },
+      "customer_not_assigned": "Client non attribué",
       "legend": {
         "upcoming": "À venir",
         "overdue": "En retard",

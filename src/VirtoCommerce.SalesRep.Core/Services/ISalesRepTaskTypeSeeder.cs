@@ -1,6 +1,6 @@
 using System.Threading.Tasks;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
+namespace VirtoCommerce.SalesRep.Core.Services;
 
 public interface ISalesRepTaskTypeSeeder
 {

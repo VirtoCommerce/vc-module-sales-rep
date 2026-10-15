@@ -256,6 +256,7 @@
         "expired": "Срок истёк {date}",
         "due": "Срок {date}"
       },
+      "customer_not_assigned": "Клиент не назначен",
       "legend": {
         "upcoming": "Предстоящие",
         "overdue": "Просроченные",

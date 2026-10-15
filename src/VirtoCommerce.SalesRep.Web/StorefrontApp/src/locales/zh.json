@@ -256,6 +256,7 @@
         "expired": "已于 {date} 逾期",
         "due": "{date} 到期"
       },
+      "customer_not_assigned": "未分配客户",
       "legend": {
         "upcoming": "即将到期",
         "overdue": "已逾期",

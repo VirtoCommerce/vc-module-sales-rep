@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Extensions.Logging.Abstractions;
 using VirtoCommerce.Platform.Core.Settings;
-using VirtoCommerce.SalesRep.ExperienceApi.Services;
+using VirtoCommerce.SalesRep.Data.Services;
 using Xunit;
 using TaskManagementSettings = VirtoCommerce.TaskManagement.Core.ModuleConstants.Settings.General;
 

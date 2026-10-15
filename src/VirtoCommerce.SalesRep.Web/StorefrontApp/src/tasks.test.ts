@@ -293,7 +293,7 @@ describe("time of day", () => {
 
 describe("taskSubline", () => {
   const t = ((key: string, named?: Record<string, unknown>) =>
-    `${key}(${String(named?.date)})`) as unknown as ComposerTranslation;
+    named ? `${key}(${String(named.date)})` : key) as unknown as ComposerTranslation;
   // Tells the two formats apart: only a call asks for the hour.
   const d = (_value: number | Date | string, options: DateTimeOptions) => (options.hour ? "Oct 15, 9:00 AM" : "Oct 15");
 
@@ -316,6 +316,13 @@ describe("taskSubline", () => {
 
     expect(taskSubline(task, t, d)).toBe(
       "sales_rep.tasks.due_relative.due(Oct 15, 9:00 AM) · Lakeview Outfitters · Call",
+    );
+  });
+
+  // No customer picked, or one the rep no longer serves: the API names neither, and a call to nobody would mislead.
+  it("says a call has no customer to name", () => {
+    expect(taskSubline(makeTask({ type: "Call" }), t, d)).toBe(
+      "sales_rep.tasks.due_relative.due(Oct 15, 9:00 AM) · sales_rep.tasks.customer_not_assigned · Call",
     );
   });
 

@@ -40,7 +40,6 @@ public static class ServiceCollectionExtensions
 
         serviceCollection.AddTransient<ISalesRepTaskFilterRuleResolver, SalesRepTaskFilterRuleResolver>();
         serviceCollection.AddTransient<ISalesRepTaskSortRuleResolver, SalesRepTaskSortRuleResolver>();
-        serviceCollection.AddTransient<ISalesRepTaskTypeSeeder, SalesRepTaskTypeSeeder>();
 
         serviceCollection.AddTransient<ISalesRepTopSellerSortRuleResolver, SalesRepTopSellerSortRuleResolver>();
         serviceCollection.AddTransient<ISalesRepTopSellerFilterRuleResolver, SalesRepTopSellerFilterRuleResolver>();

@@ -256,6 +256,7 @@
         "expired": "Termin minął {date}",
         "due": "Termin {date}"
       },
+      "customer_not_assigned": "Nie przypisano klienta",
       "legend": {
         "upcoming": "Nadchodzące",
         "overdue": "Po terminie",

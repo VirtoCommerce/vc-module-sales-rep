@@ -36,7 +36,6 @@ using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
-using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.XCart.Core.Services;
 using TaskManagementSettings = VirtoCommerce.TaskManagement.Core.ModuleConstants.Settings.General;
@@ -93,6 +92,7 @@ public class Module : IModule, IHasConfiguration
         // Scoped so the resolver's memoized granting roles are shared across a request.
         serviceCollection.AddScoped<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
+        serviceCollection.AddTransient<ISalesRepTaskTypeSeeder, SalesRepTaskTypeSeeder>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         serviceCollection.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
         serviceCollection.AddSingleton<AbstractValidator<SalesRepDetails>, SalesRepDetailsValidator>();

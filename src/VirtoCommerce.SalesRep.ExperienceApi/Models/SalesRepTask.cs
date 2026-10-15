@@ -27,6 +27,7 @@ public class SalesRepTask
 
     public DateTime? ModifiedDate { get; set; }
 
+    // The stored link, served or not. The schema's customerId shows it only while the caller serves that customer.
     public string CustomerId { get; set; }
 
     public static SalesRepTask FromWorkTask(WorkTask task)

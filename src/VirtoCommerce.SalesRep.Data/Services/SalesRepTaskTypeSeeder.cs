@@ -4,9 +4,10 @@ using Microsoft.Extensions.Logging;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Core;
+using VirtoCommerce.SalesRep.Core.Services;
 using TaskManagementSettings = VirtoCommerce.TaskManagement.Core.ModuleConstants.Settings.General;
 
-namespace VirtoCommerce.SalesRep.ExperienceApi.Services;
+namespace VirtoCommerce.SalesRep.Data.Services;
 
 // The platform serves the built-in TaskManagement.TaskTypes list until an admin first saves the dictionary, and only the
 // saved list after that - never both. AddCallType keeps "Call" in the first, EnsureCallTypeAsync in the second.

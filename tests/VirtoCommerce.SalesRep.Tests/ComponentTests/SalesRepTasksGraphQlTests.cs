@@ -1049,6 +1049,46 @@ public class SalesRepTasksGraphQlTests
         (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgA);
     }
 
+    [Fact]
+    public async Task UpdateSalesRepTask_KeepsTheLinkToACustomerTheRepNoLongerServes()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+        var taskId = (await CreateTaskAsync(ctx, rep, "Call", Today, customerId: OrgA)).GetProperty("id").GetString();
+        var membership = (await ctx.GetMembershipsAsync(rep.UserId)).Single(x => x.OrganizationId == OrgA);
+        await ctx.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
+
+        // The read shows no customer, and writing that back - the call rescheduled - must not clear a link the rep
+        // cannot see: it is still there should they serve the customer again.
+        var rescheduled = SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Call", Today.AddDays(1)), "updateSalesRepTask");
+        rescheduled.GetProperty("customerId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgA);
+
+        // A customer the rep does serve replaces it, as on any task.
+        SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Call", Today, customerId: OrgB), "updateSalesRepTask");
+        (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgB);
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_RefusesACustomerTheRepDoesNotServe_ExactlyLikeAnUnknownOne()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        await ctx.SeedOrganizationsAsync(OrgB);
+        var taskId = (await CreateTaskAsync(ctx, rep, "Call", Today, customerId: OrgA)).GetProperty("id").GetString();
+
+        // The update enters through its own handler, so it is pinned on its own: an edit cannot link what a create could not.
+        var notServed = await UpdateTaskAsync(ctx, rep, taskId, "Call", Today, customerId: OrgB);
+        var unknown = await UpdateTaskAsync(ctx, rep, taskId, "Call", Today, customerId: "no-such-organization");
+
+        notServed.Should().Contain("\"errors\"");
+        notServed.Should().Contain("Customer not found.");
+        unknown.Should().Contain("Customer not found.");
+
+        // Refused before anything is written.
+        (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgA);
+    }
+
     // -- helpers -------------------------------------------------------------------------------------------------
 
     private sealed record Rep(string UserId, string MemberId);

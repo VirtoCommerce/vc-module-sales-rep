@@ -107,6 +107,13 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
             throw new ExecutionError("Customer not found.");
         }
 
+        // A customer the rep no longer serves reads back as none, so writing that back keeps the link: like a link to
+        // another record, it is not theirs to see or to clear.
+        if (customerId == null && !string.IsNullOrEmpty(task.ObjectId) && !await OrganizationAccessService.ServesOrganizationAsync(userId, task.ObjectId))
+        {
+            return;
+        }
+
         task.ObjectType = customerId == null ? null : ModuleConstants.Tasks.CustomerObjectType;
         task.ObjectId = customerId;
     }

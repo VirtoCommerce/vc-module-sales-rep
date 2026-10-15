@@ -256,6 +256,7 @@
         "expired": "Utløp {date}",
         "due": "Frist {date}"
       },
+      "customer_not_assigned": "Ingen kunde tildelt",
       "legend": {
         "upcoming": "Kommende",
         "overdue": "Forfalt",

@@ -256,6 +256,7 @@
         "expired": "期限切れ: {date}",
         "due": "期限: {date}"
       },
+      "customer_not_assigned": "顧客が割り当てられていません",
       "legend": {
         "upcoming": "予定",
         "overdue": "期限超過",

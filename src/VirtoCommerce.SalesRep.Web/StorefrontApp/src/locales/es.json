@@ -256,6 +256,7 @@
         "expired": "Venció {date}",
         "due": "Vence {date}"
       },
+      "customer_not_assigned": "Cliente no asignado",
       "legend": {
         "upcoming": "Próximas",
         "overdue": "Vencidas",
