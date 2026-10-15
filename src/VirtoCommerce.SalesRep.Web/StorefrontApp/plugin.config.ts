@@ -1,5 +1,7 @@
 import { definePluginManifest, settingEnabled, userCan } from "@vc-frontend/core/manifest";
 import {
+  ACTIVITIES_ROUTE_NAME,
+  ACTIVITIES_ROUTE_SEGMENT,
   ALL_CUSTOMER_ORDERS_ROUTE_NAME,
   ALL_CUSTOMER_ORDERS_ROUTE_SEGMENT,
   CUSTOMER_ORDER_ROUTE_NAME,
@@ -45,6 +47,7 @@ export default definePluginManifest({
     hubRoute(CUSTOMER_ORDER_ROUTE_SEGMENT, CUSTOMER_ORDER_ROUTE_NAME),
     hubRoute(ALL_CUSTOMER_ORDERS_ROUTE_SEGMENT, ALL_CUSTOMER_ORDERS_ROUTE_NAME),
     hubRoute(TASKS_ROUTE_SEGMENT, TASKS_ROUTE_NAME),
+    hubRoute(ACTIVITIES_ROUTE_SEGMENT, ACTIVITIES_ROUTE_NAME),
     {
       path: DOCUMENTS_ROUTE_SEGMENT,
       parent: "Company",

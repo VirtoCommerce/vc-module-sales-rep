@@ -44,11 +44,37 @@ export const useExtensionRegistry = () => ({ register: () => {}, registerContrib
 export const useWishlistSharingScopes = () => ({ registerSharingScope: () => {} });
 export const registerCacheTypePolicies = () => {};
 export const registerLocaleLoader = () => {};
-export const getProductRoute = () => ({ name: "Product" });
+/** The host's `getProductRoute` (core/utilities/product) without its loyalty-catalog branch: a slug becomes the
+ *  path, an id alone the "Product" route. */
+export function getProductRoute(productId?: string, productSlug?: string, basePath?: string) {
+  if (productSlug) {
+    return `${basePath?.replace(/\/$/, "") ?? ""}/${productSlug}`;
+  }
+  return productId ? { name: "Product", params: { productId } } : undefined;
+}
+/** The host's menu active-state rule (core/utilities/menu): the link's own `activeWhen`, else the record match. */
+export function isMenuLinkActive(
+  link: { activeWhen?: (route: unknown) => boolean },
+  route: unknown,
+  isRecordActive: boolean,
+): boolean {
+  return link.activeWhen?.(route) ?? isRecordActive;
+}
 export const EXTENSION_NAMES = { sharedList: { provenanceNote: "provenanceNote" } };
 export const ROUTES = {
   ACCOUNT: { NAME: "Account", PATH: "/account" },
   COMPANY: { NAME: "Company", PATH: "/company" },
+  SEARCH: { NAME: "Search", PATH: "/search" },
+};
+/** The host's `QueryParamName` enum (core/enums/query-param-name.enum.ts), as the object it compiles to. */
+export const QueryParamName = {
+  Page: "page",
+  Sort: "sort",
+  Facets: "facets",
+  ItemsPerPage: "size",
+  SearchPhrase: "q",
+  PreserveUserQuery: "preserveUserQuery",
+  Barcode: "barcode",
 };
 export const CORE_VERSION = "0.0.0-test";
 

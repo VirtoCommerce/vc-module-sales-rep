@@ -50,7 +50,7 @@ commit a `file:.yalc/...` dependency.
 version does not satisfy it refuse to load this plugin (clean skip instead of a runtime
 error). When you adopt an export added in a newer facade version, bump
 `requiredHostVersion` **and** the pinned tarball URL together. This plugin requires
-**^0.2.3**.
+**^0.2.4**.
 
 ## GraphQL codegen
 

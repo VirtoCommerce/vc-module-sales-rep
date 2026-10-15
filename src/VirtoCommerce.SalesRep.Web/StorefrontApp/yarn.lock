@@ -2703,9 +2703,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vc-frontend/core@https://github.com/VirtoCommerce/vc-frontend/releases/download/core-v0.2.3/vc-frontend-core-0.2.3.tgz":
-  version: 0.2.3
-  resolution: "@vc-frontend/core@https://github.com/VirtoCommerce/vc-frontend/releases/download/core-v0.2.3/vc-frontend-core-0.2.3.tgz"
+"@vc-frontend/core@file:.yalc/@vc-frontend/core::locator=sales-rep%40workspace%3A.":
+  version: 0.2.4
+  resolution: "@vc-frontend/core@file:.yalc/@vc-frontend/core#.yalc/@vc-frontend/core::hash=1eec30&locator=sales-rep%40workspace%3A."
   peerDependencies:
     "@apollo/client": ^3.14.0
     "@floating-ui/vue": ^2.0.1
@@ -2731,7 +2731,7 @@ __metadata:
       optional: true
     tw-elements:
       optional: true
-  checksum: 10c0/14f68d9fa238fea14876357b7acee31a88ff6e49303fda000fe51b6d55e0ba2a813ed553f52e19fa56cf0c2cbfdd94d6c739f92865b4f6d46eba9283a7607868
+  checksum: 10c0/7ebfd9b6f3f72be7e88c6e1983160d1778d706f74b6ab56670639a13290146dd238e64e9ffa0116c75310f89e5cd4085304cdc857092eb2a55b1f9c7e606f740
   languageName: node
   linkType: hard
 
@@ -7213,7 +7213,7 @@ __metadata:
     "@types/lodash-es": "npm:^4.17.12"
     "@types/sortablejs": "npm:^1.15.9"
     "@unhead/vue": "npm:^3.2.1"
-    "@vc-frontend/core": "https://github.com/VirtoCommerce/vc-frontend/releases/download/core-v0.2.3/vc-frontend-core-0.2.3.tgz"
+    "@vc-frontend/core": "file:.yalc/@vc-frontend/core"
     "@vee-validate/yup": "npm:^4.15.1"
     "@vitejs/plugin-vue": "npm:^6.0.8"
     "@vue/apollo-composable": "npm:^4.2.2"

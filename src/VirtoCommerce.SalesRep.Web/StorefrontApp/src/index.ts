@@ -15,6 +15,8 @@ import { computed, defineAsyncComponent } from "vue";
 import { useSharedSalesRepCustomersCount } from "./composables/useSalesRepCustomersCount";
 import { isSalesRepsEnabled, isSalesRepTasksEnabled, isSalesRepUser } from "./composables/useSalesRepsConfig";
 import {
+  ACTIVITIES_NAV_LINK_ID,
+  ACTIVITIES_ROUTE_NAME,
   TASKS_NAV_LINK_ID,
   TASKS_ROUTE_NAME,
   CUSTOMER_SHARING_SCOPE,
@@ -36,6 +38,7 @@ import { registerBlock } from "./layout/registry";
 import { tasksBlock } from "./layout/tasks-block";
 import { salesRepMenuSchema } from "./menu";
 import {
+  activitiesRoute,
   tasksRoute,
   allCustomerOrdersRoute,
   customerOrderRoute,
@@ -43,6 +46,8 @@ import {
   customerProfileRoute,
   dashboardRoute,
   documentsRoute,
+  isMyActivity,
+  isMyCustomersArea,
   myCustomersRoute,
   salesRepsRoute,
 } from "./routes";
@@ -127,6 +132,8 @@ export function init(): void {
   router.addRoute(ROUTES.COMPANY.NAME, documentsRoute);
   // Tasks (VCST-5732) -> /company/tasks (its own beforeEnter checks the tasks module is installed).
   router.addRoute(ROUTES.COMPANY.NAME, tasksRoute);
+  // All-activity feed (VCST-5337) -> /company/activities.
+  router.addRoute(ROUTES.COMPANY.NAME, activitiesRoute);
 
   const { mergeMenuSchema, registerAccountSection } = useNavigations();
   const { checkPermissions } = useUser();
@@ -152,9 +159,9 @@ export function init(): void {
     registerBlock(DASHBOARD_LAYOUT_SCOPE, documentsBlock);
   }
 
-  // My customers links showing the total-customer count badge. Desktop needs its own
-  // component for the sibling-route highlight; mobile only contributes the count, so the
-  // host renders its own menu link with it.
+  // My customers links showing the total-customer count badge: desktop draws its own link to carry the
+  // badge, mobile only contributes the count and the host draws the link. Both light up by the link's
+  // activeWhen below.
   const { register, registerContribution } = useExtensionRegistry();
   register("accountMenu", MY_CUSTOMERS_NAV_LINK_ID, {
     component: defineAsyncComponent(() => import("./components/link-my-customers.vue")),
@@ -231,9 +238,20 @@ export function init(): void {
         title: "sales_rep.my_customers.navigation.link",
         icon: "users",
         route: { name: MY_CUSTOMERS_ROUTE_NAME },
+        // A customer's profile and their activity are pages about a customer, so the rail keeps this
+        // item lit there — vue-router cannot tell, they are sibling route records.
+        activeWhen: isMyCustomersArea,
       },
       ...tasksNavLink,
       ...documentsNavLink,
+      {
+        id: ACTIVITIES_NAV_LINK_ID,
+        title: "sales_rep.activity.navigation.link",
+        icon: "activity",
+        route: { name: ACTIVITIES_ROUTE_NAME },
+        // The same route scoped to one customer is that customer's page, not the rep's own feed.
+        activeWhen: isMyActivity,
+      },
     ],
     isVisible: computed(() => isSalesRepsEnabled() && checkPermissions(SALES_REP_ACCESS_PERMISSION)),
   });
