@@ -941,9 +941,9 @@ The idea is to keep the component-test shape — seed through the harness, exerc
 | | `StorefrontE2E` | `VCShellAppE2E` |
 |---|---|---|
 | UI | The B2B storefront (`vc-theme-b2b-vue`), served by its Vite dev server, which the test starts and stops. | The sales-rep VC-Shell app (`src/VirtoCommerce.SalesRep.Web/App`), served by the test host as static files under `/apps/vc-sales-rep/`. |
-| Backend surface | `/graphql` (one combined X-API schema) and `/connect/token`. | `/api/sales-rep/**` (the module's controllers, hosted as they are) plus replicas of the platform endpoints the VC-Shell framework and the blades call. |
+| Backend surface | `/graphql` (one combined X-API schema) and `/connect/token`, plus the hub plugin's build on the platform's route for it, found through `store.plugins` as in production. | `/api/sales-rep/**` (the module's controllers, hosted as they are) plus replicas of the platform endpoints the VC-Shell framework and the blades call. |
 | Sign-in | A JWT minted from the real claim producers, placed in `localStorage` before the first navigation. | The platform's Identity cookie, obtained from the host before the first navigation. |
-| Needs on the machine | The storefront checkout with `node_modules` installed, at `<workspace>/front` or `VC_STOREFRONT_DIR`, and Node 22 on PATH. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
+| Needs on the machine | The storefront checkout with `node_modules` installed (`VC_STOREFRONT_DIR`, else a `vc-frontend` clone next to this repo, else `<workspace>/front`), Node 22 on PATH, and the hub plugin built: `yarn build` in `StorefrontApp/`. A missing build, or one older than its sources, fails the groups with that command. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
 | Opt-out | `VC_STOREFRONT_E2E=0` | `VC_VCSHELL_APP_E2E=0` |
 | Run | `dotnet test --filter "Category=StorefrontE2E"` | `dotnet test --filter "Category=VCShellAppE2E"` |
 | Diagnostics | `bin/Debug/net10.0/StorefrontE2E-diagnostics/` | `bin/Debug/net10.0/VCShellAppE2E-diagnostics/` |
@@ -958,7 +958,8 @@ Common prerequisites: the .NET 10 SDK and Playwright's Chromium for the referenc
 * Databases are created with `EnsureCreated`, so nothing that only migrations create exists; every account, administrators included, comes from the seed (`ApplicationUser.IsAdministrator = true` makes one).
 * Nothing indexes on its own (there are no background jobs): a read that goes through the index needs `IndexMembersAsync` / `IndexOrdersAsync` in the seed. Member searches with a type filter and keyword searches are such reads.
 * Store, settings and currency are doubles; store-level configuration is set on the store double (`TestStoreService.Customize`), not by inserting rows.
-* The storefront's first page load in a group takes about fifteen seconds (Vite compiles on demand); the VC-Shell app loads in about a second.
+* Each in-memory SQLite database lives on one connection, which is not thread-safe, so the storefront host answers one request at a time. A test that reads the database while the page may still be fetching takes the same turn: `Backend.RunExclusiveAsync`.
+* The storefront's first page load in a group takes about twenty seconds (Vite compiles on demand, then the storefront loads the hub plugin); the VC-Shell app loads in about a second.
 
 **Combining the two surfaces** in one test — create a rep in the VC-Shell app, then sign in as that rep on the storefront — is possible on one host: register both surfaces on one container, select the authentication scheme per request the way the platform does (bearer header → JWT, otherwise the cookie), and give the environment an `Open…` method per UI. The two UIs live on different origins, so a test holds one browser context per UI; the data behind them is the same database. The storefront's own sign-in page can serve the second half, because the host's `/connect/token` implements the password grant. Not built yet.
 

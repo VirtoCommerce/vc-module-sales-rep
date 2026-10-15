@@ -1,3 +1,5 @@
+using System.IO;
+using System.Threading;
 using GraphQL;
 using GraphQL.Types;
 using MediatR;
@@ -8,6 +10,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
 using VirtoCommerce.CustomerModule.Core.Services;
@@ -16,6 +19,7 @@ using VirtoCommerce.CustomerModule.Data.Services;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.Platform.Modules;
 using VirtoCommerce.Platform.Security;
 using VirtoCommerce.Platform.Security.OpenIddict;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Aggregates;
@@ -78,7 +82,9 @@ internal static class StorefrontServices
         services.AddSingleton<IStoreAuthenticationService, PasswordOnlyStoreAuthenticationService>();
         services.AddSingleton<IModuleService, StorefrontModuleService>();
         services.AddSingleton<ISettingsManager, StorefrontSettingsManager>();
-        services.AddSingleton<IAppManifestService, NullAppManifestService>();
+        // store.plugins: the platform's own discovery over the module list double, so the storefront finds the hub
+        // plugin the way it does in production.
+        services.AddSingleton<IAppManifestService, AppManifestService>();
         services.AddSingleton<ISchemaBuilder, GetStoreQueryBuilder>();
         services.AddTransient<IRequestHandler<GetStoreQuery, StoreResponse>, GetStoreQueryHandler>();
 
@@ -150,8 +156,35 @@ internal static class StorefrontServices
             .AddErrorInfoProvider(options => options.ExposeExceptionDetails = true));
     }
 
-    public static void ConfigurePipeline(WebApplication app)
+    public static void ConfigurePipeline(WebApplication app, SemaphoreSlim gate)
     {
+        // The hub plugin's build, on the platform's route for it; the storefront's dev proxy forwards that path here.
+        // Without a build there is nothing to serve, and the groups that need one say so (StorefrontPlugin).
+        if (Directory.Exists(StorefrontPlugin.BuildDirectory))
+        {
+            app.UseStaticFiles(new StaticFileOptions
+            {
+                FileProvider = new PhysicalFileProvider(StorefrontPlugin.BuildDirectory),
+                RequestPath = StorefrontPlugin.RequestPath,
+            });
+        }
+
+        // The harness keeps each in-memory SQLite database on one connection, which is not thread-safe, and the
+        // storefront sends its queries in parallel ("database is locked", races in the connection's command list).
+        // Everything past the static files takes its turn at the gate (InProcessBackend.RunExclusiveAsync).
+        app.Use(async (context, next) =>
+        {
+            await gate.WaitAsync(context.RequestAborted);
+            try
+            {
+                await next(context);
+            }
+            finally
+            {
+                gate.Release();
+            }
+        });
+
         app.UseAuthentication();
         app.UseAuthorization();
 

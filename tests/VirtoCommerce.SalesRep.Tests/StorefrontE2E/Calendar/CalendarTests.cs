@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
@@ -19,17 +18,17 @@ public sealed class CalendarTests(CalendarEnvironment env)
     [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
     public async Task Calendar_CompletingTheSeededTask_PersistsTheCompletion()
     {
-        await using var session = await env.OpenAsync(env.RepUserId, "/company/calendar");
+        await using var session = await env.OpenAsync(env.RepUserId, "/company/tasks");
 
         await session.RunAsync(nameof(Calendar_CompletingTheSeededTask_PersistsTheCompletion), async page =>
         {
-            var completion = page.GetByRole(AriaRole.Checkbox, new() { NameRegex = new Regex(Regex.Escape(CalendarEnvironment.SeededTaskName)) });
-            await Expect(completion).ToBeVisibleAsync(new() { Timeout = 60_000 });
-            await Expect(completion).Not.ToBeCheckedAsync();
+            var complete = page.GetByRole(AriaRole.Button, new() { Name = $"Mark as complete: “{CalendarEnvironment.SeededTaskName}”" });
+            await Expect(complete).ToBeVisibleAsync(new() { Timeout = 60_000 });
 
-            // The real input sits hidden behind VcCheckbox's indicator; its container owns the click.
-            await completion.Locator("xpath=..").ClickAsync();
-            await Expect(completion).ToBeCheckedAsync();
+            await complete.ClickAsync();
+
+            // The row's action turns into its opposite once the mutation has landed.
+            await Expect(page.GetByRole(AriaRole.Button, new() { Name = $"Reopen: “{CalendarEnvironment.SeededTaskName}”" })).ToBeVisibleAsync();
         });
 
         // The storefront's click went through the real mutation into the real table.
@@ -43,7 +42,7 @@ public sealed class CalendarTests(CalendarEnvironment env)
     {
         const string name = "Send the Q4 price list";
 
-        await using var session = await env.OpenAsync(env.RepUserId, "/company/calendar");
+        await using var session = await env.OpenAsync(env.RepUserId, "/company/tasks");
 
         await session.RunAsync(nameof(Calendar_CreatingATaskFromTheForm_WritesTheWorkTaskRow), async page =>
         {
@@ -69,13 +68,15 @@ public sealed class CalendarTests(CalendarEnvironment env)
 
         while (true)
         {
-            using (var db = env.Context.NewTaskManagementDbContext())
+            var task = await env.Backend.RunExclusiveAsync(async context =>
             {
-                var task = await db.Set<WorkTaskEntity>().AsNoTracking().FirstOrDefaultAsync(predicate);
-                if (task != null || DateTime.UtcNow > deadline)
-                {
-                    return task;
-                }
+                using var db = context.NewTaskManagementDbContext();
+                return await db.Set<WorkTaskEntity>().AsNoTracking().FirstOrDefaultAsync(predicate);
+            });
+
+            if (task != null || DateTime.UtcNow > deadline)
+            {
+                return task;
             }
 
             await Task.Delay(250);

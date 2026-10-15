@@ -38,6 +38,9 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
             return;
         }
 
+        // Before anything starts: every hub page comes from the plugin's build.
+        StorefrontPlugin.EnsureBuilt();
+
         Log("backend starting");
         Backend = await InProcessBackend.StartAsync();
         Log($"backend ready at {Backend.Url}");

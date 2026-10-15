@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.CoreModule.Core.Currency;
@@ -11,18 +12,14 @@ using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Settings;
+using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.StoreModule.Core.Model;
 using VirtoCommerce.StoreModule.Core.Model.Search;
 using VirtoCommerce.StoreModule.Core.Services;
+using TaskManagementSettings = VirtoCommerce.TaskManagement.Core.ModuleConstants.Settings.General;
 using XapiModuleConstants = VirtoCommerce.Xapi.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
-
-/// <summary>No module-federation plugins: the store type's app manifest field resolves to nothing.</summary>
-internal sealed class NullAppManifestService : IAppManifestService
-{
-    public AppManifestDescriptor GetManifest(string appId) => null;
-}
 
 /// <summary>The cart type's constructor dependency; the storefront's short cart never resolves these fields here.</summary>
 internal sealed class NoCartAvailMethodsService : ICartAvailMethodsService
@@ -59,17 +56,16 @@ internal sealed class PasswordOnlyStoreAuthenticationService : IStoreAuthenticat
 }
 
 /// <summary>
-/// The module list the store query reports to the storefront. Task management is listed so the storefront's calendar
-/// gate (a presence check on the module id, the way the real module list reaches it with ReturnModuleVersion on)
-/// opens; white labeling is absent so the storefront drops its @gate'd field client-side.
+/// The module list the store query reports to the storefront, and the one the platform's AppManifestService walks for
+/// store.plugins. The module under test comes from its own module.manifest, the file the platform reads, so its id,
+/// version and apps are the real ones; two dependencies stand in at the versions that manifest names. Task management
+/// opens the storefront's tasks pages (a presence check on the module id, the way the real module list reaches it with
+/// ReturnModuleVersion on); X-Frontend declares the storefront app whose plugins store.plugins lists. White labeling is
+/// absent so the storefront drops its @gate'd field client-side.
 /// </summary>
 internal sealed class StorefrontModuleService : IModuleService
 {
-    private static readonly IList<ManifestModuleInfo> _installed =
-    [
-        Module("VirtoCommerce.SalesRep", "3.1012.0"),
-        Module("VirtoCommerce.TaskManagement", "3.1005.0"),
-    ];
+    private static readonly IList<ManifestModuleInfo> _installed = CreateInstalledModules();
 
     public IList<ManifestModuleInfo> GetModules() => _installed;
     public IList<ManifestModuleInfo> GetInstalledModules() => _installed;
@@ -78,13 +74,35 @@ internal sealed class StorefrontModuleService : IModuleService
     public bool IsInstalled(string moduleId, string minVersion) => IsInstalled(moduleId);
     public ManifestModuleInfo GetModule(string moduleId) => _installed.FirstOrDefault(x => x.Id.EqualsIgnoreCase(moduleId));
 
-    private static ManifestModuleInfo Module(string id, string version)
-        => new ManifestModuleInfo().LoadFromManifest(new ModuleManifest { Id = id, Version = version, PlatformVersion = "3.1048.0" });
+    private static IList<ManifestModuleInfo> CreateInstalledModules()
+    {
+        var manifest = ManifestReader.Read(Path.Combine(StorefrontPlugin.ModuleDirectory, "module.manifest"));
+
+        var salesRep = new ManifestModuleInfo().LoadFromManifest(manifest);
+        // Where the platform looks for the hub plugin's build (plugins/vc-frontend).
+        salesRep.FullPhysicalPath = StorefrontPlugin.ModuleDirectory;
+
+        return
+        [
+            salesRep,
+            Dependency(manifest, "VirtoCommerce.TaskManagement"),
+            // X-Frontend's own manifest ships only in its module zip, so its app declaration is restated here.
+            Dependency(manifest, "VirtoCommerce.XFrontend", new ManifestApp { Id = "vc-frontend" }),
+        ];
+    }
+
+    private static ManifestModuleInfo Dependency(ModuleManifest manifest, string id, params ManifestApp[] apps)
+    {
+        var version = manifest.Dependencies.Single(x => x.Id.EqualsIgnoreCase(id)).Version;
+
+        return new ManifestModuleInfo().LoadFromManifest(new ModuleManifest { Id = id, Version = version, PlatformVersion = manifest.PlatformVersion, Apps = apps });
+    }
 }
 
 /// <summary>
-/// The harness's minimal settings double plus the one storefront-relevant value: ReturnModuleVersion on, so the store
-/// query appends the installed modules without public settings (task management) to store.settings.modules.
+/// The harness's minimal settings double plus the storefront-relevant values: ReturnModuleVersion on, so the store
+/// query appends the installed modules without public settings (task management) to store.settings.modules, and the
+/// task types the hub's task form offers.
 /// </summary>
 internal sealed class StorefrontSettingsManager : ISettingsManager
 {
@@ -107,6 +125,15 @@ internal sealed class StorefrontSettingsManager : ISettingsManager
         {
             setting.ValueType = SettingValueType.Boolean;
             setting.Value = true;
+        }
+
+        if (name == TaskManagementSettings.TaskTypes.Name)
+        {
+            // The built-in list with "Call" added, as the module's Initialize does - on a copy, since the descriptor
+            // is task management's static one.
+            var taskTypes = new SettingDescriptor { Name = name, AllowedValues = TaskManagementSettings.TaskTypes.AllowedValues.ToArray() };
+            SalesRepTaskTypeSeeder.AddCallType(taskTypes);
+            setting.AllowedValues = taskTypes.AllowedValues;
         }
 
         return Task.FromResult(setting);

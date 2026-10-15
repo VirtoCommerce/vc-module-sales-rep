@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
@@ -7,12 +8,13 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 /// Whether the storefront tests can run on this machine. They need the vc-frontend checkout (its Vite dev server
 /// and its GraphQL documents), which exists in a developer workspace but not on a CI runner, so the tests skip
 /// themselves instead of failing there: <c>[Fact(Skip = …, SkipUnless = nameof(IsAvailable), SkipType = …)]</c>.
-/// Resolution order: <c>VC_STOREFRONT_DIR</c>, else <c>&lt;workspace&gt;/front</c> next to
-/// <c>&lt;workspace&gt;/vc-sources/&lt;this repo&gt;</c>. <c>VC_STOREFRONT_E2E=0</c> opts out explicitly.
+/// Resolution order: <c>VC_STOREFRONT_DIR</c>, else a <c>vc-frontend</c> clone next to this repo (a ticket folder's
+/// <c>sources</c>), else <c>&lt;workspace&gt;/front</c> next to <c>&lt;workspace&gt;/vc-sources/&lt;this repo&gt;</c>.
+/// <c>VC_STOREFRONT_E2E=0</c> opts out explicitly.
 /// </summary>
 public static class StorefrontAvailability
 {
-    public const string SkipReason = "Storefront E2E needs the vc-frontend checkout (VC_STOREFRONT_DIR or <workspace>/front) and VC_STOREFRONT_E2E not set to 0.";
+    public const string SkipReason = "Storefront E2E needs the vc-frontend checkout (VC_STOREFRONT_DIR, ../vc-frontend or <workspace>/front) and VC_STOREFRONT_E2E not set to 0.";
 
     private static readonly Lazy<string> _frontendDirectory = new(Resolve);
 
@@ -36,11 +38,16 @@ public static class StorefrontAvailability
             return IsCheckout(configured) ? configured : null;
         }
 
-        // bin/Debug/net10.0 -> tests project -> tests -> repo -> vc-sources -> workspace
-        var workspace = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "..", ".."));
-        var candidate = Path.Combine(workspace, "front");
+        // bin/Debug/net10.0 -> tests project -> tests -> repo; then a ticket folder's sources/vc-frontend, or the
+        // workspace's front (repo -> vc-sources -> workspace).
+        var repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
+        string[] candidates =
+        [
+            Path.GetFullPath(Path.Combine(repo, "..", "vc-frontend")),
+            Path.GetFullPath(Path.Combine(repo, "..", "..", "front")),
+        ];
 
-        return IsCheckout(candidate) ? candidate : null;
+        return candidates.FirstOrDefault(IsCheckout);
     }
 
     private static bool IsCheckout(string directory)
