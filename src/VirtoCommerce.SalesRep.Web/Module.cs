@@ -6,8 +6,6 @@ using Microsoft.AspNetCore.Builder;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.CartModule.Core.Events;
 using VirtoCommerce.FileExperienceApi.Core.Authorization;
@@ -161,29 +159,14 @@ public class Module : IModule, IHasConfiguration
         using var scope = serviceProvider.CreateScope();
         var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
         var roleSeeder = scope.ServiceProvider.GetRequiredService<ISalesRepRoleSeeder>();
+        var taskTypeSeeder = scope.ServiceProvider.GetRequiredService<ISalesRepTaskTypeSeeder>();
 #pragma warning disable S4462 // one-shot startup seeding in a sync PostInitialize — the platform's standard pattern
         roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
         roleSeeder.EnsureDocumentRolesAsync().GetAwaiter().GetResult();
+        // TaskManagement registers the setting in its own PostInitialize, which runs first: modules are ordered by
+        // their dependencies, optional ones included.
+        taskTypeSeeder.EnsureCallTypeAsync().GetAwaiter().GetResult();
 #pragma warning restore S4462
-
-        // TaskManagement registers its settings in its own PostInitialize, and an optional dependency does not order modules.
-        serviceProvider.GetRequiredService<IHostApplicationLifetime>().ApplicationStarted.Register(() => EnsureCallTaskType(serviceProvider));
-    }
-
-    private static void EnsureCallTaskType(IServiceProvider serviceProvider)
-    {
-        using var scope = serviceProvider.CreateScope();
-
-        try
-        {
-#pragma warning disable S4462 // a lifetime callback is synchronous
-            scope.ServiceProvider.GetRequiredService<ISalesRepTaskTypeSeeder>().EnsureCallTypeAsync().GetAwaiter().GetResult();
-#pragma warning restore S4462
-        }
-        catch (Exception ex)
-        {
-            scope.ServiceProvider.GetRequiredService<ILogger<Module>>().LogError(ex, "Could not add the Call task type to TaskManagement.TaskTypes.");
-        }
     }
 
     public void Uninstall()

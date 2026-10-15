@@ -64,6 +64,7 @@ import { useI18n } from "vue-i18n";
 import { useModal } from "@vc-frontend/core";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import { isSalesRepTasksEnabled } from "../composables/useSalesRepsConfig";
+import { CALL_TASK_TYPE } from "../constants";
 import CustomerCommunicationModal from "./customer-communication-modal.vue";
 import LayoutWidget from "./layout-widget.vue";
 import SalesRepTaskModal from "./sales-rep-task-modal.vue";
@@ -91,11 +92,17 @@ function openCommunication(): void {
   });
 }
 
+// A call about this customer, its day left to pick.
 function scheduleCall(): void {
   openModal({
     component: SalesRepTaskModal,
     props: {
-      call: { customerId: props.organizationId, customerName: customer.value?.organizationName ?? "" },
+      draft: {
+        name: t("sales_rep.tasks.form.call_name"),
+        type: CALL_TASK_TYPE,
+        customerId: props.organizationId,
+        customerName: customer.value?.organizationName,
+      },
     },
   });
 }

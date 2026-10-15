@@ -11,17 +11,13 @@ const mocks = await vi.hoisted(async () => {
 });
 
 vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
-vi.mock("../composables/useSalesRepCustomerOptions", async () => {
-  const { ref } = await import("vue");
-  return {
-    useSalesRepCustomerOptions: () => ({
-      options: mocks.options,
-      failed: mocks.failed,
-      loading: ref(false),
-      findOption: vi.fn(),
-    }),
-  };
-});
+vi.mock("../composables/useSalesRepCustomerOptions", () => ({
+  useSalesRepCustomerOptions: () => ({
+    options: mocks.options,
+    failed: mocks.failed,
+    findOption: (id: string) => mocks.options.value.find((option) => option.organizationId === id),
+  }),
+}));
 
 const SelectStub = {
   props: ["modelValue", "items", "label", "clearable", "error", "message"],
@@ -52,17 +48,20 @@ describe("SalesRepTaskCustomerSelect", () => {
   });
 
   // The options stop at a cap, so a linked customer past it would otherwise vanish from the form on open.
-  it("keeps the linked customer selectable when the options do not list it", () => {
+  it("keeps the linked customer selectable when the options do not list it, in name order", () => {
     const wrapper = createWrapper({ modelValue: "org-9", name: "Far Away Co" });
 
-    expect(select(wrapper).props("items")[0]).toEqual({ organizationId: "org-9", organizationName: "Far Away Co" });
+    expect(select(wrapper).props("items")).toEqual([
+      { organizationId: "org-2", organizationName: "Cabin Co.", location: "", imageUrl: "" },
+      { organizationId: "org-9", organizationName: "Far Away Co", location: "", imageUrl: "" },
+      { organizationId: "org-1", organizationName: "Lakeview Outfitters", location: "", imageUrl: "" },
+    ]);
   });
 
-  // VcSelect counts "" as a selection, which would also offer a Clear with nothing to clear.
-  it("hands VcSelect no selection when there is no customer", () => {
+  // VcSelect counts "" as a selection, so a bare `clearable` would offer a Clear with nothing to clear.
+  it("offers no Clear when there is no customer", () => {
     const wrapper = createWrapper({ modelValue: "" });
 
-    expect(select(wrapper).props("modelValue")).toBeUndefined();
     expect(select(wrapper).props("clearable")).toBe(false);
   });
 

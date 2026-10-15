@@ -1,7 +1,7 @@
 <template>
-  <!-- `|| undefined`: VcSelect counts "" as a selection, and "" is the form's own convention for "none". -->
+  <!-- `clearable` is bound: VcSelect counts "", the form's "none", as a selection and would offer to clear it. -->
   <VcSelect
-    :model-value="modelValue || undefined"
+    :model-value="modelValue"
     class="sales-rep-task-customer-select"
     :items="items"
     text-field="organizationName"
@@ -23,6 +23,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
+import type { SalesRepCustomerOptionType } from "../composables/useSalesRepCustomerOptions";
 
 interface IProps {
   /** Organization id; "" for none. */
@@ -37,12 +38,22 @@ const props = defineProps<IProps>();
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
 const { t } = useI18n();
-const { options, failed } = useSalesRepCustomerOptions();
+const { options, failed, findOption } = useSalesRepCustomerOptions();
 
 // The options stop at a cap, so the linked customer may be past it: list it anyway, or the form would drop it.
-const items = computed(() =>
-  !props.modelValue || options.value.some((option) => option.organizationId === props.modelValue)
-    ? options.value
-    : [{ organizationId: props.modelValue, organizationName: props.name || props.modelValue }, ...options.value],
-);
+// Sorted in by name like the sharing picker's, rather than put above every other customer.
+const items = computed(() => {
+  if (!props.modelValue || findOption(props.modelValue)) {
+    return options.value;
+  }
+
+  const linked: SalesRepCustomerOptionType = {
+    organizationId: props.modelValue,
+    organizationName: props.name || props.modelValue,
+    location: "",
+    imageUrl: "",
+  };
+
+  return [linked, ...options.value].sort((a, b) => a.organizationName.localeCompare(b.organizationName));
+});
 </script>

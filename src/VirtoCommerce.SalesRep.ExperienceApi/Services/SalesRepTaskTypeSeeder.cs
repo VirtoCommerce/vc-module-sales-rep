@@ -43,7 +43,7 @@ public class SalesRepTaskTypeSeeder(ISettingsManager settingsManager, ILogger<Sa
             return;
         }
 
-        setting.AllowedValues = [.. setting.AllowedValues ?? [], ModuleConstants.Tasks.CallType];
+        AddCallType(setting);
         await settingsManager.SaveObjectSettingsAsync([setting]);
     }
 

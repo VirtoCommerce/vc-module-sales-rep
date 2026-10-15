@@ -1,6 +1,6 @@
 <template>
   <VcSelect
-    :model-value="modelValue"
+    v-model="model"
     class="time-select"
     :items="items"
     text-field="label"
@@ -9,38 +9,39 @@
     :disabled="disabled"
     :required="required"
     enable-teleport
-    @update:model-value="emit('update:modelValue', $event as string)"
   />
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { timeKeyToDate, timeKeysOfDay } from "../tasks";
+import { TIME_OF_DAY_FORMAT, timeKeyToDate, timeKeysOfDay } from "../tasks";
 
 interface IProps {
-  /** "HH:mm" on the user's clock. */
-  modelValue: string;
   label?: string;
   disabled?: boolean;
   required?: boolean;
-  stepMinutes?: number;
+  stepMinutes: number;
 }
 
-const props = withDefaults(defineProps<IProps>(), { stepMinutes: 15 });
+const props = defineProps<IProps>();
 
-const emit = defineEmits<{ "update:modelValue": [value: string] }>();
+/** "HH:mm" on the user's clock. */
+const model = defineModel<string>({ required: true });
 
-const { d } = useI18n();
+const { locale } = useI18n();
 
 // A time off the grid (set in the admin task UI, say) is listed too, so opening a form never moves it.
 const items = computed(() => {
   const keys = timeKeysOfDay(props.stepMinutes);
-  if (props.modelValue && !keys.includes(props.modelValue)) {
-    keys.push(props.modelValue);
+  if (model.value && !keys.includes(model.value)) {
+    keys.push(model.value);
     keys.sort();
   }
 
-  return keys.map((value) => ({ value, label: d(timeKeyToDate(value), { hour: "numeric", minute: "2-digit" }) }));
+  // One formatter for the list: vue-i18n's `d` builds a new one per call when given options without a format key.
+  const format = new Intl.DateTimeFormat(locale.value, TIME_OF_DAY_FORMAT);
+
+  return keys.map((value) => ({ value, label: format.format(timeKeyToDate(value)) }));
 });
 </script>

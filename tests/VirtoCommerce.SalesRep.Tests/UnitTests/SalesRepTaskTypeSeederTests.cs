@@ -12,9 +12,6 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 
 /// <summary>
 /// "Call" has to be a real TaskManagement.TaskTypes value, so admins can pick it and filter by it in the Tasks app.
-/// The platform serves ONE list for that dictionary: the built-in one until an admin first saves it, the saved one
-/// from then on - never a merge. The seeder adds "Call" to whichever is live, and must never save the built-in list
-/// itself: that would freeze it, and the installation would stop receiving task-management's own new types.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepTaskTypeSeederTests
@@ -68,7 +65,7 @@ public class SalesRepTaskTypeSeederTests
     {
         // Nothing saved yet: the built-in list is live, and saving it - even with "Call" missing from it - would turn
         // it into a saved one for good. Module.Initialize puts "Call" into the built-in list instead.
-        var settings = new FakeSettingsManager { BuiltIn = ["Other"] };
+        var settings = new FakeSettingsManager();
 
         await CreateSeeder(settings).EnsureCallTypeAsync();
 
@@ -102,14 +99,13 @@ public class SalesRepTaskTypeSeederTests
         new(settings, NullLogger<SalesRepTaskTypeSeeder>.Instance);
 
     /// <summary>
-    /// The one dictionary setting, the way the platform serves it: the saved list (with the row's Id) when there is
-    /// one, the built-in list (no Id) otherwise. Saves are recorded, not applied.
+    /// The one dictionary setting, the way the platform serves it: with the saved row's Id and values once an admin
+    /// has saved it, without an Id before. Saves are recorded, not applied.
     /// </summary>
     private sealed class FakeSettingsManager : ISettingsManager
     {
         public bool Registered { get; init; } = true;
         public bool ReadOnly { get; init; }
-        public object[] BuiltIn { get; init; } = [];
         public object[] Saved { get; init; }
 
         public int Reads { get; private set; }
@@ -119,7 +115,6 @@ public class SalesRepTaskTypeSeederTests
         {
             Name = TaskManagementSettings.TaskTypes.Name,
             IsDictionary = true,
-            AllowedValues = BuiltIn,
         };
 
         public IEnumerable<SettingDescriptor> AllRegisteredSettings => Registered ? [Descriptor] : [];

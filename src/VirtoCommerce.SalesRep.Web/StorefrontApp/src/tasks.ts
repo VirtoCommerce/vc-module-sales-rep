@@ -115,6 +115,9 @@ export function isCallTask(type?: string | null): boolean {
   return type?.toLowerCase() === CALL_TASK_TYPE.toLowerCase();
 }
 
+/** How a time of day is written: the hour and minute alone, the user's locale deciding 12- or 24-hour. */
+export const TIME_OF_DAY_FORMAT: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+
 /** "HH:mm" on the user's clock — the key a time select is addressed by. */
 export function localTimeKey(value: string | Date): string {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -225,9 +228,7 @@ export function taskSubline(
   d: (value: number | Date | string, options: DateTimeOptions) => string,
 ): string {
   const key = task.status === "overdue" ? "expired" : "due";
-  const format: DateTimeOptions = isCallTask(task.type)
-    ? { key: "short", hour: "numeric", minute: "2-digit" }
-    : { key: "short" };
+  const format: DateTimeOptions = isCallTask(task.type) ? { key: "short", ...TIME_OF_DAY_FORMAT } : { key: "short" };
 
   return [
     task.dueDate ? t(`sales_rep.tasks.due_relative.${key}`, { date: d(task.dueDate, format) }) : "",

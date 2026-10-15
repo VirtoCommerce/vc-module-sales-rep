@@ -37,7 +37,7 @@
       <SalesRepTaskCustomerSelect
         v-if="isCall"
         v-model="customerId"
-        :name="task?.customerName ?? call?.customerName"
+        :name="initial?.customerName"
         :disabled="loading"
       />
 
@@ -120,7 +120,7 @@ import { string } from "yup";
 import { useModal, useNotifications, VcModal } from "@vc-frontend/core";
 import { useSalesRepTaskMutations } from "../composables/useSalesRepTaskMutations";
 import { useSalesRepTaskTypes } from "../composables/useSalesRepTaskTypes";
-import { CALL_DEFAULT_TIME, CALL_TASK_TYPE, CALL_TIME_STEP_MINUTES } from "../constants";
+import { CALL_DEFAULT_TIME, CALL_TIME_STEP_MINUTES } from "../constants";
 import { dueDateForDay, dueDateForDayAndTime, isCallTask, localDayKey, localTimeKey } from "../tasks";
 import SalesRepTaskCustomerSelect from "./sales-rep-task-customer-select.vue";
 import TimeSelect from "./time-select.vue";
@@ -129,10 +129,10 @@ import type { SalesRepTaskType } from "../types/tasks";
 interface IProps {
   /** Omit to create. */
   task?: SalesRepTaskType;
+  /** Pre-fills a new task: "Schedule call" passes a call for its customer. */
+  draft?: Partial<SalesRepTaskType>;
   /** Pre-selects the due date when creating from a calendar cell ("YYYY-MM-DD"). */
   defaultDay?: string;
-  /** Creates a call with this customer ("Schedule call"): titled and typed Call, at 9:00, on a day still to pick. */
-  call?: { customerId: string; customerName?: string };
   /**
    * Lets the caller refetch; the modal owns no list. A save reports the day it wrote ("YYYY-MM-DD") so the
    * caller can follow a task that moved to another date; a delete reports nothing.
@@ -172,9 +172,13 @@ const priorityItems = computed(() =>
   PRIORITIES.map((value) => ({ value, label: t(`sales_rep.tasks.priority.${value.toLowerCase()}`) })),
 );
 
-// Call mode is fixed when the popup opens (Schedule call, or editing a call): the type is Call and not offered for
+// The task being edited, or what a new one starts from. A deliberate snapshot: useForm seeds the fields once, and a
+// modal instance is constructed per open with fixed props, so there is no later prop change to track.
+const initial = props.task ?? props.draft;
+
+// Call mode is fixed when the popup opens on a call (Schedule call, or editing a call): the type is not offered for
 // change, so a call stays a call. A task popup can still become a call by picking that type.
-const callMode = !!props.call || isCallTask(props.task?.type);
+const callMode = isCallTask(initial?.type);
 
 const title = computed(() => {
   if (callMode) {
@@ -185,21 +189,13 @@ const title = computed(() => {
 });
 
 /**
- * A deliberate snapshot, read inside a function rather than at root scope: useForm seeds the fields once, and a
- * modal instance is constructed per open with fixed props, so there is no later prop change to track.
- */
-/**
- * The picker speaks local "YYYY-MM-DD"; the API speaks instants (see tasks.ts). Editing shows the task's own date
+ * The picker speaks local "YYYY-MM-DD"; the API speaks instants (see tasks.ts). A task or draft shows its own date
  * or nothing - a task with no due date arrives from the admin UI, and seeding "today" here would hand it one it
- * never had. Only a NEW task falls back to the selected day.
+ * never had; a drafted call leaves its day to the rep. Only a blank new task falls back to the selected day.
  */
 function initialDueDate(): string {
-  if (props.task) {
-    return props.task.dueDate ? localDayKey(props.task.dueDate) : "";
-  }
-
-  if (props.call) {
-    return "";
+  if (initial) {
+    return initial.dueDate ? localDayKey(initial.dueDate) : "";
   }
 
   return props.defaultDay ?? localDayKey(new Date());
@@ -207,14 +203,14 @@ function initialDueDate(): string {
 
 function buildInitialValues() {
   return {
-    name: props.task?.name ?? (props.call ? t("sales_rep.tasks.form.call_name") : ""),
+    name: initial?.name ?? "",
     dueDate: initialDueDate(),
     // Only a call has a time of day worth showing; any other task is date-only, so becoming a call starts at 9:00.
-    time: callMode && props.task?.dueDate ? localTimeKey(props.task.dueDate) : CALL_DEFAULT_TIME,
-    priority: props.task?.priority || "Normal",
-    type: props.task?.type ?? (props.call ? CALL_TASK_TYPE : ""),
-    customerId: props.task?.customerId ?? props.call?.customerId ?? "",
-    description: props.task?.description ?? "",
+    time: callMode && initial?.dueDate ? localTimeKey(initial.dueDate) : CALL_DEFAULT_TIME,
+    priority: initial?.priority || "Normal",
+    type: initial?.type ?? "",
+    customerId: initial?.customerId ?? "",
+    description: initial?.description ?? "",
   };
 }
 
@@ -235,7 +231,7 @@ const { value: customerId } = useField<string>("customerId");
 const { value: description } = useField<string>("description");
 
 // The type decides the fields: a call adds the time of day and the customer.
-const isCall = computed(() => callMode || isCallTask(type.value));
+const isCall = computed(() => isCallTask(type.value));
 
 const save = handleSubmit(async (data) => {
   const input = {

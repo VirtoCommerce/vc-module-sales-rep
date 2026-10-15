@@ -31,12 +31,14 @@ vi.mock("../composables/useSalesRepTaskTypes", async () => {
 // Behind the call's Customer field, which renders only for a call.
 vi.mock("../composables/useSalesRepCustomerOptions", async () => {
   const { ref } = await import("vue");
+  const options = ref([
+    { organizationId: "org-1", organizationName: "Lakeview Outfitters", location: "", imageUrl: "" },
+  ]);
   return {
     useSalesRepCustomerOptions: () => ({
-      options: ref([{ organizationId: "org-1", organizationName: "Lakeview Outfitters", location: "", imageUrl: "" }]),
-      loading: ref(false),
+      options,
       failed: ref(false),
-      findOption: vi.fn(),
+      findOption: (id: string) => options.value.find((option) => option.organizationId === id),
     }),
   };
 });
@@ -46,7 +48,9 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   useNotifications: () => ({ success: state.success, error: vi.fn() }),
   useModal: () => modal,
 }));
-vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key, d: () => "Oct 15", n: String }) }));
+vi.mock("vue-i18n", () => ({
+  useI18n: () => ({ t: (key: string) => key, d: () => "Oct 15", n: String, locale: { value: "en-US" } }),
+}));
 
 const closeMock = vi.hoisted(() => vi.fn());
 
@@ -116,6 +120,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
 type WrapperType = ReturnType<typeof createWrapper>;
 
 const field = (wrapper: WrapperType, label: string) => wrapper.get(`[data-label$="${label}"]`);
+const exists = (wrapper: WrapperType, label: string) => wrapper.find(`[data-label$="${label}"]`).exists();
 
 function button(wrapper: WrapperType, key: string) {
   const found = wrapper.findAll("button").find((candidate) => candidate.text().includes(key));
@@ -367,7 +372,7 @@ describe("SalesRepTaskModal type vocabulary", () => {
   it("hides the type field when nobody has configured the dictionary", () => {
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
 
-    expect(wrapper.find('[data-label$="type_label"]').exists()).toBe(false);
+    expect(exists(wrapper, "type_label")).toBe(false);
   });
 
   it("offers the type field once the dictionary has values", async () => {
@@ -403,17 +408,20 @@ describe("SalesRepTaskModal type vocabulary", () => {
   });
 });
 
-// VCST-6314: a task of the Call type gets a time of day and a customer; "Schedule call" opens it prefilled.
+// VCST-6314: a task of the Call type gets a time of day and a customer; "Schedule call" opens a drafted one.
 describe("SalesRepTaskModal calls", () => {
-  const CALL = { customerId: "org-1", customerName: "Lakeview Outfitters" };
+  const CALL_DRAFT = { name: "Call", type: "Call", customerId: "org-1", customerName: "Lakeview Outfitters" };
 
-  const exists = (wrapper: WrapperType, label: string) => wrapper.find(`[data-label$="${label}"]`).exists();
+  // The backend keeps Call in the dictionary, so the type list always offers it.
+  beforeEach(() => {
+    state.types.value = ["Other", "Call"];
+  });
 
-  it("opens Schedule call as a call for that customer: titled, at 9:00, on a day still to pick", () => {
-    const wrapper = createWrapper({ call: CALL });
+  it("opens a drafted call as a call for that customer: titled, at 9:00, on a day still to pick", () => {
+    const wrapper = createWrapper({ draft: CALL_DRAFT });
 
     expect(wrapper.get(".modal").attributes("data-title")).toBe("sales_rep.tasks.form.create_call_title");
-    expect(field(wrapper, "name_label").attributes("value")).toBe("sales_rep.tasks.form.call_name");
+    expect(field(wrapper, "name_label").attributes("value")).toBe("Call");
     expect(field(wrapper, "customer_label").attributes("value")).toBe("org-1");
     expect(field(wrapper, "due_date_label").attributes("value")).toBe("");
     expect(field(wrapper, "time_label").attributes("value")).toBe("09:00");
@@ -421,7 +429,7 @@ describe("SalesRepTaskModal calls", () => {
   });
 
   it("will not save a call before its day is picked", async () => {
-    const wrapper = createWrapper({ call: CALL });
+    const wrapper = createWrapper({ draft: CALL_DRAFT });
     await flushPromises();
 
     expect(button(wrapper, "form.save_button").attributes("disabled")).toBeDefined();
@@ -433,7 +441,7 @@ describe("SalesRepTaskModal calls", () => {
   });
 
   it("writes the picked day at the picked time, as a call linked to the customer", async () => {
-    const wrapper = createWrapper({ call: CALL });
+    const wrapper = createWrapper({ draft: CALL_DRAFT });
     await field(wrapper, "due_date_label").setValue("2026-10-20");
     await field(wrapper, "time_label").setValue("14:45");
 
@@ -441,7 +449,7 @@ describe("SalesRepTaskModal calls", () => {
 
     expect(mutations.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: "sales_rep.tasks.form.call_name",
+        name: "Call",
         type: "Call",
         customerId: "org-1",
         dueDate: dueDateForDayAndTime("2026-10-20", "14:45"),
@@ -474,15 +482,12 @@ describe("SalesRepTaskModal calls", () => {
   // Schedule call must not turn into some other task, and a call opened from the list stays one: the type is not
   // offered for change in either.
   it("offers no Type in call mode", () => {
-    state.types.value = ["Other", "Call"];
-
-    expect(exists(createWrapper({ call: CALL }), "type_label")).toBe(false);
+    expect(exists(createWrapper({ draft: CALL_DRAFT }), "type_label")).toBe(false);
     expect(exists(createWrapper({ task: makeTask({ type: "Call", customerId: "org-1" }) }), "type_label")).toBe(false);
   });
 
   // The type decides which fields follow, so it sits right under the title instead of at the bottom.
   it("puts Type right under Title, above the fields it controls", () => {
-    state.types.value = ["Other", "Call"];
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
 
     const labels = wrapper.findAll("[data-label]").map((input) => input.attributes("data-label"));
@@ -494,7 +499,6 @@ describe("SalesRepTaskModal calls", () => {
   });
 
   it("asks a task for a time and a customer only once it is a call", async () => {
-    state.types.value = ["Other", "Call"];
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
 
     expect(exists(wrapper, "time_label")).toBe(false);
@@ -508,7 +512,6 @@ describe("SalesRepTaskModal calls", () => {
 
   // A non-call task is date-only, so its midnight is no time anybody picked; becoming a call starts at 9:00.
   it("starts a task that becomes a call at 9:00", async () => {
-    state.types.value = ["Other", "Call"];
     const wrapper = createWrapper({ task: makeTask({ type: "Other" }) });
 
     await field(wrapper, "type_label").setValue("Call");
@@ -517,7 +520,6 @@ describe("SalesRepTaskModal calls", () => {
   });
 
   it("drops the customer picked for a call when the task stops being one", async () => {
-    state.types.value = ["Other", "Call"];
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
     await field(wrapper, "name_label").setValue("Follow up");
     await field(wrapper, "type_label").setValue("Call");

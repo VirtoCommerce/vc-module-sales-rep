@@ -4,6 +4,7 @@ using System.Linq;
 using GraphQL;
 using GraphQL.DataLoader;
 using GraphQL.Types;
+using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -33,42 +34,39 @@ public class SalesRepTaskType : ExtendableGraphType<SalesRepTask>
 
         Field<StringGraphType>("customerId")
             .Description("Organization id of the customer the task is about. Null when there is none, or once the caller no longer serves that customer.")
-            .Resolve(context => LoadCustomerName(context).Then(name => name == null ? null : context.Source.CustomerId));
+            .Resolve(context => LoadCustomer(context).Then(customer => customer?.Id));
         Field<StringGraphType>("customerName")
             .Description("Name of that customer, under the same rule as customerId.")
-            .Resolve(context => LoadCustomerName(context));
+            .Resolve(context => LoadCustomer(context).Then(customer => customer?.Name));
     }
 
     // Only customers the caller still serves: a task outlives the membership that let the rep link it.
-    private static IDataLoaderResult<string> LoadCustomerName(IResolveFieldContext<SalesRepTask> context)
+    protected virtual IDataLoaderResult<Member> LoadCustomer(IResolveFieldContext<SalesRepTask> context)
     {
         var customerId = context.Source.CustomerId;
         if (string.IsNullOrEmpty(customerId))
         {
-            return new DataLoaderResult<string>((string)null);
+            return new DataLoaderResult<Member>((Member)null);
         }
 
         var userId = context.GetCurrentUserId();
-        var organizationAccessService = context.GetRequiredService<ISalesRepOrganizationAccessService>();
-        var memberService = context.GetRequiredService<IMemberService>();
+        var services = context.RequestServices;
 
-        var loader = context.GetRequiredService<IDataLoaderContextAccessor>().Context.GetOrAddBatchLoader<string, string>(
-            $"{nameof(SalesRepTaskType)}.CustomerNameById",
-            async organizationIds =>
+        var loader = context.GetRequiredService<IDataLoaderContextAccessor>().Context.GetOrAddBatchLoader<string, Member>(
+            $"{nameof(SalesRepTaskType)}.CustomerById",
+            async customerIds =>
             {
-                var servedIds = (await organizationAccessService.GetGrantingMembershipsAsync([userId], organizationIds.ToList()))
-                    .Select(x => x.OrganizationId)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .ToArray();
-
-                if (servedIds.Length == 0)
+                // All of the caller's customers rather than these ids: authorizing the request has already loaded that list.
+                var servedIds = await services.GetRequiredService<ISalesRepOrganizationAccessService>().GetServedOrganizationIdsAsync(userId);
+                var ids = customerIds.Intersect(servedIds, StringComparer.OrdinalIgnoreCase).ToArray();
+                if (ids.Length == 0)
                 {
-                    return new Dictionary<string, string>();
+                    return new Dictionary<string, Member>();
                 }
 
-                var organizations = await memberService.GetByIdsAsync(servedIds, nameof(MemberResponseGroup.Default), [nameof(Organization)]);
+                var customers = await services.GetRequiredService<IMemberService>().GetByIdsAsync(ids, nameof(MemberResponseGroup.Default), [nameof(Organization)]);
 
-                return organizations.ToDictionary(x => x.Id, x => x.Name, StringComparer.OrdinalIgnoreCase);
+                return customers.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
             });
 
         return loader.LoadAsync(customerId);

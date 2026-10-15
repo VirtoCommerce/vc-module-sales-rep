@@ -60,7 +60,14 @@ describe("CustomerProfileActions Schedule call", () => {
 
     expect(mocks.openModal).toHaveBeenCalledWith({
       component: SalesRepTaskModal,
-      props: { call: { customerId: "org-1", customerName: "Lakeview Outfitters" } },
+      props: {
+        draft: {
+          name: "sales_rep.tasks.form.call_name",
+          type: "Call",
+          customerId: "org-1",
+          customerName: "Lakeview Outfitters",
+        },
+      },
     });
   });
 

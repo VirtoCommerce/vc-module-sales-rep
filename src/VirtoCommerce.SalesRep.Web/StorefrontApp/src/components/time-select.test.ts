@@ -2,10 +2,7 @@ import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import TimeSelect from "./time-select.vue";
 
-// Writes the time the way a 24-hour locale would, so a label is easy to assert.
-vi.mock("vue-i18n", () => ({
-  useI18n: () => ({ d: (date: Date) => `${date.getHours()}h${String(date.getMinutes()).padStart(2, "0")}` }),
-}));
+vi.mock("vue-i18n", () => ({ useI18n: () => ({ locale: { value: "en-US" } }) }));
 
 const SelectStub = {
   props: ["modelValue", "items", "label", "required", "disabled"],
@@ -15,7 +12,7 @@ const SelectStub = {
 
 type ItemType = { value: string; label: string };
 
-function createWrapper(props: { modelValue: string; stepMinutes?: number }) {
+function createWrapper(props: { modelValue: string; stepMinutes: number }) {
   return mount(TimeSelect, { props, global: { stubs: { VcSelect: SelectStub } } });
 }
 
@@ -27,7 +24,9 @@ describe("TimeSelect", () => {
     const wrapper = createWrapper({ modelValue: "09:00", stepMinutes: 15 });
 
     expect(items(wrapper)).toHaveLength(96);
-    expect(items(wrapper)[36]).toEqual({ value: "09:00", label: "9h00" });
+    expect(items(wrapper)[36].value).toBe("09:00");
+    // \s: newer ICU data puts a narrow no-break space before AM.
+    expect(items(wrapper)[36].label).toMatch(/^9:00\sAM$/);
   });
 
   // A call scheduled in the admin task UI can sit between two steps; opening the form must not move it.
@@ -40,7 +39,7 @@ describe("TimeSelect", () => {
   });
 
   it("hands the picked time back", async () => {
-    const wrapper = createWrapper({ modelValue: "09:00" });
+    const wrapper = createWrapper({ modelValue: "09:00", stepMinutes: 15 });
 
     wrapper.getComponent(SelectStub).vm.$emit("update:modelValue", "10:30");
 
