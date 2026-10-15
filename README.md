@@ -529,6 +529,8 @@ The keyword matches the **display name** (the raw file name is internal), and `u
 The rep's own tasks, stored by **`VirtoCommerce.TaskManagement`** — an **optional** dependency. With that module
 absent or disabled every read below answers empty and every mutation errors cleanly, so the storefront can hide
 the feature without the API changing shape.
+Its `.Core` assembly ships in this module's package (`module.keep`), so a platform without TaskManagement still
+starts this one.
 
 Ownership is the whole security boundary: a task is the caller's when `WorkTask.ResponsibleId` equals their
 **contact id**, taken from the `memberId` claim. There is no organization scoping — a task belongs to a person,
