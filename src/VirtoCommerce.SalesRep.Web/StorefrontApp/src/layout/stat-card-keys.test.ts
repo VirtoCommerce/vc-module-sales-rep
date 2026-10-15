@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import { ref } from "vue";
 import { useSalesRepCustomerWidgets } from "../composables/useSalesRepCustomerWidgets";
 import { useSalesRepDashboardWidgets } from "../composables/useSalesRepDashboardWidgets";
-import { getBlockRegistry } from "./registry";
+import { customerProfileBlocks, dashboardBlocks } from "./blocks";
 import type { SalesRepLayoutScopeType } from "../types/layout";
+import type { BlockType } from "@vc-frontend/core";
 
 const apolloMock = await vi.hoisted(async () => {
   const { ref, shallowRef } = await import("vue");
@@ -24,8 +26,18 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
 }));
 vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
 
-const statBlocks = (scope: SalesRepLayoutScopeType) =>
-  getBlockRegistry(scope).filter((block) => block.region === "statistics");
+const BLOCKS: Record<SalesRepLayoutScopeType, readonly BlockType[]> = {
+  dashboard: dashboardBlocks,
+  customerProfile: customerProfileBlocks,
+};
+const statBlocks = (scope: SalesRepLayoutScopeType) => BLOCKS[scope].filter((block) => block.region === "statistics");
+
+// A page whose layout has been read and shows every card.
+const settledLayout = (scope: SalesRepLayoutScopeType) => ({
+  settled: ref(true),
+  editing: ref(false),
+  visibleIn: () => statBlocks(scope).map((block) => block.id),
+});
 
 const byKey = (entries: readonly { key: string; label: string }[]) =>
   [...entries].sort((a, b) => a.key.localeCompare(b.key));
@@ -38,8 +50,8 @@ const byKey = (entries: readonly { key: string; label: string }[]) =>
  */
 describe("stat cards and layout registry", () => {
   it.each([
-    ["dashboard", () => useSalesRepDashboardWidgets().cards.value],
-    ["customerProfile", () => useSalesRepCustomerWidgets(() => "org-1").cards.value],
+    ["dashboard", () => useSalesRepDashboardWidgets(settledLayout("dashboard")).cards.value],
+    ["customerProfile", () => useSalesRepCustomerWidgets(settledLayout("customerProfile"), () => "org-1").cards.value],
   ] as const)("%s: cards and blocks agree on every id and caption", (scope, getCards) => {
     const cards = byKey(getCards().map((card) => ({ key: card.key, label: card.labelKey })));
     const blocks = byKey(statBlocks(scope).map((block) => ({ key: block.id, label: block.titleKey })));
@@ -52,7 +64,11 @@ describe("stat cards and layout registry", () => {
   it("emits every card before any statistics have arrived", () => {
     apolloMock.result.value = undefined;
 
-    expect(useSalesRepDashboardWidgets().cards.value).toHaveLength(statBlocks("dashboard").length);
-    expect(useSalesRepCustomerWidgets(() => "org-1").cards.value).toHaveLength(statBlocks("customerProfile").length);
+    expect(useSalesRepDashboardWidgets(settledLayout("dashboard")).cards.value).toHaveLength(
+      statBlocks("dashboard").length,
+    );
+    expect(useSalesRepCustomerWidgets(settledLayout("customerProfile"), () => "org-1").cards.value).toHaveLength(
+      statBlocks("customerProfile").length,
+    );
   });
 });

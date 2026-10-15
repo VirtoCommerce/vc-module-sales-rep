@@ -1,16 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { statDataNeeds as needsOf } from "@vc-frontend/core";
 import { STAT_CARDS } from "./stat-cards";
 import {
-  allStatDataNeeds,
   needsCartStatistics,
   needsCustomerCounts,
   needsOrderStatistics,
   orderStatisticsFlags,
-  statDataNeeds,
 } from "./stat-data-needs";
 import type { SalesRepLayoutScopeType } from "../types/layout";
 
 const everyCard = (scope: SalesRepLayoutScopeType) => STAT_CARDS[scope].map((card) => card.key);
+// The engine derives the needs from a surface's card table; these are that derivation over the hub's tables.
+const statDataNeeds = (scope: SalesRepLayoutScopeType, cardIds: Iterable<string>) =>
+  needsOf(STAT_CARDS[scope], cardIds);
+const allStatDataNeeds = (scope: SalesRepLayoutScopeType) => statDataNeeds(scope, everyCard(scope));
 
 describe("stat data needs", () => {
   it("asks for nothing when no card is visible, so the queries do not run", () => {

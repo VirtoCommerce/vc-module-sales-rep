@@ -63,7 +63,7 @@ import { useI18n } from "vue-i18n";
 import { useModal } from "@vc-frontend/core";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import CustomerCommunicationModal from "./customer-communication-modal.vue";
-import LayoutWidget from "./layout-widget.vue";
+import { LayoutWidget } from "@vc-frontend/core";
 
 interface IProps {
   organizationId: string;

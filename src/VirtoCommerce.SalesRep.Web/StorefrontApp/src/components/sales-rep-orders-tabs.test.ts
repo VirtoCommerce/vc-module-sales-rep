@@ -1,13 +1,9 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
-import { defineComponent, h, nextTick, reactive, ref } from "vue";
-import { provideLayoutSettings } from "../composables/useLayoutSettings";
-import LayoutBlock from "./layout-block.vue";
+import { computed, defineComponent, h, nextTick, reactive, ref } from "vue";
 import SalesRepOrders from "./sales-rep-orders.vue";
-import type { ILayoutSettingsType } from "../composables/useLayoutSettings";
 import type { SalesRepRuleType } from "../types";
-import type { SalesRepBlockSettingsType } from "../types/layout";
-import type { PropType } from "vue";
+import type { BlockSettingsType, ILayoutBlockChromeType } from "@vc-frontend/core";
 
 const CATALOG: SalesRepRuleType[] = [
   { name: "New", label: "New" },
@@ -18,9 +14,17 @@ const CATALOG: SalesRepRuleType[] = [
 const mocks = vi.hoisted(() => ({
   filterRules: [] as SalesRepRuleType[],
   ordersOptions: undefined as { filter?: () => string | undefined; first?: () => number | undefined } | undefined,
+  // What `useBlockChrome()` hands the widget: the layout block's offer, built per test by `mountOrders`.
+  chrome: undefined as ILayoutBlockChromeType | undefined,
 }));
 
 vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key, te: () => false }) }));
+
+// The chrome is the host engine's provide/inject seam; the widget only ever sees what `useBlockChrome` returns.
+vi.mock("@vc-frontend/core", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useBlockChrome: () => mocks.chrome,
+}));
 
 vi.mock("../composables/useSalesRepRules", () => ({
   useSalesRepRules: (_domain: string, kind: string) => ({
@@ -64,65 +68,52 @@ const global = {
 
 const TABS = ".sales-rep-rule-chip";
 
-/** The settings seam is a provide, so a real `LayoutBlock` has to install it. */
-const Surface = defineComponent({
-  props: {
-    settings: { type: Object as PropType<ILayoutSettingsType>, required: true },
-    editing: { type: Boolean, default: false },
-  },
-
-  setup(props) {
-    provideLayoutSettings(props.settings);
-
-    return () =>
-      h(
-        LayoutBlock,
-        { blockId: "orders", title: "Recent orders", editing: props.editing },
-        {
-          default: () => h(SalesRepOrders, { title: "Recent orders", filterable: true }),
-        },
-      );
-  },
-});
-
 function mountOrders(options: { editing?: boolean; draft?: string[]; saved?: string[] } = {}) {
-  const draft = reactive<SalesRepBlockSettingsType>({ maxRows: 5, hiddenTabs: options.draft ?? [] });
-  const saved = reactive<SalesRepBlockSettingsType>({ maxRows: 5, hiddenTabs: options.saved ?? [] });
-  const update = vi.fn((_id: string, patch: Partial<SalesRepBlockSettingsType>) => Object.assign(draft, patch));
+  const editing = ref(options.editing ?? false);
+  const draft = reactive<BlockSettingsType>({ maxRows: 5, hiddenTabs: options.draft ?? [] });
+  const saved = reactive<BlockSettingsType>({ maxRows: 5, hiddenTabs: options.saved ?? [] });
+  const update = vi.fn((patch: Partial<BlockSettingsType>) => Object.assign(draft, patch));
 
-  const wrapper = mount(Surface, {
-    props: {
-      settings: {
-        valuesOf: () => draft,
-        savedValuesOf: () => saved,
-        maxRowsOf: () => ({ kind: "maxRows", default: 5, min: 1, max: 20 }) as const,
-        update,
-      },
-      editing: options.editing ?? false,
-    },
-    global,
-  });
+  // The block's offer as the host's LayoutBlock makes it: the draft and the saved settings side by side,
+  // `editing` for the mode, and `updateSettings` as the one way to write.
+  mocks.chrome = {
+    draggable: computed(() => editing.value),
+    grabbed: computed(() => false),
+    title: computed(() => "Recent orders"),
+    hide: vi.fn(),
+    handleKeydown: vi.fn(),
+    handleBlur: vi.fn(),
+    editing: computed(() => editing.value),
+    settings: computed(() => draft),
+    savedSettings: computed(() => saved),
+    maxRows: computed(() => ({ kind: "maxRows" as const, default: 5, min: 1, max: 20 })),
+    updateSettings: update,
+  };
 
-  return { wrapper, draft, saved, update, filter: () => mocks.ordersOptions?.filter?.() };
+  const wrapper = mount(SalesRepOrders, { props: { title: "Recent orders", filterable: true }, global });
+
+  return { wrapper, editing, draft, saved, update, filter: () => mocks.ordersOptions?.filter?.() };
 }
 
 describe("the order status tabs of a widget inside a layout", () => {
   it("keeps the chosen chip when the rep unchecks that tab and cancels", async () => {
     mocks.filterRules = CATALOG;
-    const { wrapper, draft, filter } = mountOrders();
+    const { wrapper, editing, draft, filter } = mountOrders();
 
     await wrapper.findAll(TABS)[2].find("button").trigger("click");
     expect(filter()).toBe("Processing");
 
     // Unchecked while editing: the draft moves, the saved document does not.
-    await wrapper.setProps({ editing: true });
+    editing.value = true;
+    await nextTick();
     draft.hiddenTabs = ["Processing"];
     await nextTick();
     expect(filter()).toBe("Processing");
 
     // Cancel.
     draft.hiddenTabs = [];
-    await wrapper.setProps({ editing: false });
+    editing.value = false;
+    await nextTick();
     expect(filter()).toBe("Processing");
     expect(wrapper.findAll(TABS)).toHaveLength(3);
   });
@@ -156,7 +147,7 @@ describe("the order status tabs of a widget inside a layout", () => {
 
     await nextTick();
 
-    expect(update).toHaveBeenCalledWith("orders", { hiddenTabs: ["Processing"] });
+    expect(update).toHaveBeenCalledWith({ hiddenTabs: ["Processing"] });
   });
 
   it("leaves the selection alone on a mount outside edit mode", async () => {

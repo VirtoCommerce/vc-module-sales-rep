@@ -50,17 +50,20 @@ commit a `file:.yalc/...` dependency.
 version does not satisfy it refuse to load this plugin (clean skip instead of a runtime
 error). When you adopt an export added in a newer facade version, bump
 `requiredHostVersion` **and** the pinned tarball URL together. This plugin requires
-**^0.2.3**.
+**^0.2.4**, the facade that exports the dashboard layout engine.
+
+The dashboard layout engine is the host's: `LayoutSurface` and `LayoutWidget`, the `useLayout`
+controller, `registerBlock`, the stat-card and widget-settings helpers all come from
+`@vc-frontend/core`. This plugin only registers its blocks and card tables into it
+(`src/layout/blocks.ts`, `src/layout/stat-cards.ts`) and bundles no copy of the engine. The
+saved-layout GraphQL operations are the host's as well, which is why `codegen.ts` covers only the
+sales-rep scoped schema.
 
 ## GraphQL codegen
 
 GraphQL documents live in `src/api/graphql/**/*.graphql`; `yarn generate:graphql-types`
 introspects the sales-rep backend module's scoped schema at `/graphql/sales-rep` (see
-`codegen.ts`) and regenerates `src/api/graphql/types.ts` (committed). The documents under
-`src/api/graphql/core/` are the exception: they call the platform's core schema at `/graphql`
-(the saved dashboard layout, served by `VirtoCommerce.XFrontend`) and are generated into
-`src/api/graphql/core-types.ts` from the committed excerpt `src/api/graphql/core/schema.graphql`,
-not from the backend, so only those types reach the plugin. Set
+`codegen.ts`) and regenerates `src/api/graphql/types.ts` (committed). Set
 `APP_BACKEND_URL` in `.env` first (copy `.env.example`; `.env` is gitignored and must
 stay that way). The `customerSalesReps` query is authenticated and resolves the
 organization from the caller's claims — anonymous calls are rejected by the backend.

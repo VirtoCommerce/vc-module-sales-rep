@@ -1,17 +1,18 @@
-// Turns "which cards is the rep looking at" into "what must the statistics queries ask for". Pure, so
-// the mapping is testable on its own; the reactive half lives in composables/useStatDataNeeds.ts.
+// Turns "which cards is the rep looking at" into "what must the statistics queries ask for". The engine
+// derives the needs from the visible cards (`useStatDataNeeds`); this module maps the hub's own need tokens
+// onto its three statistics queries: the `@include` flags that shape the order-statistics document, whether
+// each query has anything to fetch at all, and which query answers which need.
 //
 // The point of the indirection: before this, one document served both surfaces and its selection was a
 // hand-kept union of their needs, so the customer profile paid for three buckets it never renders
 // (VCST-5647). Here the selection is derived instead — declare a card's `needs` in stat-cards.ts and
 // both the document and the enabled/disabled decision follow.
-import { STAT_CARDS } from "./stat-cards";
+import type { StatNeedResultType } from "@vc-frontend/core";
 import type {
   SalesRepCustomerCartStatisticsQuery,
   SalesRepCustomerCountsQuery,
   SalesRepCustomerOrderStatisticsQuery,
 } from "../api/graphql/types";
-import type { SalesRepLayoutScopeType } from "../types/layout";
 import type { StatDataNeedType } from "../types/widgets";
 
 /** The `@include` flags of the order-statistics document, one per gated slice. */
@@ -24,35 +25,6 @@ export type OrderStatisticsFlagsType = {
   withYearOverYear: boolean;
   withAverageOrderValue: boolean;
 };
-
-/** The union over the named cards. An id no card matches is ignored — the saved layout may name a
- * widget this build no longer ships, exactly as `reconcileLayout` treats it. */
-export function statDataNeeds(
-  scope: SalesRepLayoutScopeType,
-  cardIds: Iterable<string>,
-): ReadonlySet<StatDataNeedType> {
-  const wanted = new Set(cardIds);
-  const needs = new Set<StatDataNeedType>();
-
-  for (const card of STAT_CARDS[scope]) {
-    if (wanted.has(card.key)) {
-      for (const need of card.needs) {
-        needs.add(need);
-      }
-    }
-  }
-
-  return needs;
-}
-
-/** Every card on the surface — what layout-edit mode needs, since the parked zone renders the hidden
- * cards too and they would otherwise sit at zero. */
-export function allStatDataNeeds(scope: SalesRepLayoutScopeType): ReadonlySet<StatDataNeedType> {
-  return statDataNeeds(
-    scope,
-    STAT_CARDS[scope].map((card) => card.key),
-  );
-}
 
 export function orderStatisticsFlags(needs: ReadonlySet<StatDataNeedType>): OrderStatisticsFlagsType {
   return {
@@ -93,8 +65,6 @@ export function needsCustomerCounts(needs: ReadonlySet<StatDataNeedType>): boole
 /** The three statistics queries a card can be fed by. */
 export type StatQueryKeyType = "orders" | "carts" | "counts";
 
-export type StatQueryStateType = { loading: boolean; failed: boolean };
-
 // The query fields are nullable, so `NonNullable` keeps the `?` as the only source of undefined —
 // otherwise the two say the same thing twice (Sonar S4782).
 export type StatDataSourcesType = {
@@ -104,50 +74,25 @@ export type StatDataSourcesType = {
 };
 
 /**
- * Which query answers a need, and how to tell that need's slice actually arrived — the mirror of
- * `orderStatisticsFlags`: that turns needs into a request, this reads them back out of the response.
+ * Which query answers a need, and whether that need's slice actually arrived — the mirror of
+ * `orderStatisticsFlags`: that turns needs into a request, this reads them back out of the responses.
+ * The engine's `buildStatCards` combines it with each query's state per card, so a card whose slice is
+ * in hand keeps rendering while a sibling's query is still in flight (VCST-5647).
  */
-const NEED_RESULTS: Record<
-  StatDataNeedType,
-  { query: StatQueryKeyType; arrived: (sources: StatDataSourcesType) => boolean }
-> = {
-  newOrders: { query: "orders", arrived: ({ orders }) => Boolean(orders?.newOrders && orders?.recentOrders) },
-  week: { query: "orders", arrived: ({ orders }) => Boolean(orders?.week) },
-  mtd: { query: "orders", arrived: ({ orders }) => Boolean(orders?.mtd) },
-  monthOverMonth: { query: "orders", arrived: ({ orders }) => Boolean(orders?.mtdVsPrevMonth) },
-  ytd: { query: "orders", arrived: ({ orders }) => Boolean(orders?.ytd) },
-  yearOverYear: { query: "orders", arrived: ({ orders }) => Boolean(orders?.ytdVsLastYear) },
-  averageOrderValue: { query: "orders", arrived: ({ orders }) => Boolean(orders?.ytd?.average) },
-  cartStatistics: { query: "carts", arrived: ({ carts }) => Boolean(carts?.activeCarts) },
-  customerCounts: { query: "counts", arrived: ({ counts }) => Boolean(counts) },
-};
-
-/**
- * A card is pending only while a query it reads is in flight AND that query has not delivered the slice
- * this card renders. Entering layout-edit mode widens the `@include` flags, which is a variable change,
- * which restarts the order query — so a per-query flag would blank every order-fed card for a full round
- * trip even though its figures are in hand (VCST-5647).
- */
-export function statCardState(
-  needs: readonly StatDataNeedType[],
+export function statNeedResults(
   sources: StatDataSourcesType,
-  states: Record<StatQueryKeyType, StatQueryStateType>,
-): StatQueryStateType {
-  let loading = false;
-  let failed = false;
+): Record<StatDataNeedType, StatNeedResultType<StatQueryKeyType>> {
+  const { orders, carts, counts } = sources;
 
-  for (const need of needs) {
-    const { query, arrived } = NEED_RESULTS[need];
-    const state = states[query];
-
-    if (state.failed) {
-      failed = true;
-    }
-
-    if (state.loading && !arrived(sources)) {
-      loading = true;
-    }
-  }
-
-  return { loading, failed };
+  return {
+    newOrders: { query: "orders", arrived: Boolean(orders?.newOrders && orders?.recentOrders) },
+    week: { query: "orders", arrived: Boolean(orders?.week) },
+    mtd: { query: "orders", arrived: Boolean(orders?.mtd) },
+    monthOverMonth: { query: "orders", arrived: Boolean(orders?.mtdVsPrevMonth) },
+    ytd: { query: "orders", arrived: Boolean(orders?.ytd) },
+    yearOverYear: { query: "orders", arrived: Boolean(orders?.ytdVsLastYear) },
+    averageOrderValue: { query: "orders", arrived: Boolean(orders?.ytd?.average) },
+    cartStatistics: { query: "carts", arrived: Boolean(carts?.activeCarts) },
+    customerCounts: { query: "counts", arrived: Boolean(counts) },
+  };
 }
