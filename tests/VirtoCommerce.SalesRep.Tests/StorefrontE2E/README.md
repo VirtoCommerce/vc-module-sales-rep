@@ -28,18 +28,19 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Package skew | `Infrastructure/StorefrontOrganizationType.cs` | The storefront selects `isLockedForCurrentUser`; the pinned profile package predates it. |
 | Tokens | `Infrastructure/TestTokenService.cs` | Production-shaped JWTs via `IUserClaimsPrincipalFactory` + `ITokenClaimProvider`s; `/connect/token`, `/revoke/token`. |
 | Storefront | `Infrastructure/ViteDevServer.cs` | `node node_modules/vite/bin/vite.js --port N --strictPort` with `APP_BACKEND_URL`; waits for HTTP 200; bounded kill. |
-| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + Vite + browser per xunit collection; `OpenAsync(userId, path)` = signed-in context; phase log. |
+| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + Vite + browser per xunit collection; `OpenAsync(userId, path)` = signed-in context, in the group's `BrowserTimeZone` when it pins one; `WaitForTaskAsync` reads task rows between requests; phase log. |
 | Session | `Infrastructure/StorefrontSession.cs` | Records console errors, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message. |
 | Documents | `Infrastructure/StorefrontDocuments.cs` | Loads the storefront's own `.graphql` operations (fragments inlined, `@gate` applied). |
 | Contract | `StorefrontBootContractTests.cs` | Browser-less: the backend answers the storefront's boot documents for a signed-in rep (≈4 s). |
 | Group 1 | `Customers/` | Rep with two organizations and one order: list + profile. |
 | Group 2 | `Calendar/` | Rep with one task: complete it on the tasks page, create one from the form; both asserted on `WorkTask` rows. |
+| Group 3 | `Calls/` | Rep with calls and plain tasks due tomorrow, browser in New York time. Schedule a call from a customer's page, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. Each is asserted on the page and on `WorkTask` rows. |
 
 Groups are xunit collections with `DisableParallelization = true`: each runs alone, so one backend, one Vite and
 one browser exist at a time. Tests inside a group share the environment and its seed; each test gets its own
 browser context (fresh localStorage, fresh Apollo cache). Each test carries a 5-minute timeout.
 
-Measured on the workstation that produced this draft: the contract test and both groups run in a little over two
+Measured on the workstation that produced this draft: the contract test and the three groups run in about three
 minutes; a group's environment is up in about 7 seconds; the first page load of a group costs ≈20 seconds (Vite
 compiles on demand, then the storefront loads the hub plugin), later loads ≈2 seconds.
 
@@ -61,7 +62,7 @@ Prerequisites:
   once, if `%LOCALAPPDATA%\ms-playwright\chromium-1243` is not already there.
 
 ```
-dotnet test --filter "Category=StorefrontE2E"                # contract + the four storefront tests
+dotnet test --filter "Category=StorefrontE2E"                # contract + every storefront group
 dotnet test --filter "Category!=StorefrontE2E"               # everything else, as before
 E2E_HEADED=1 dotnet test --filter "Category=StorefrontE2E"   # watch the browser
 ```

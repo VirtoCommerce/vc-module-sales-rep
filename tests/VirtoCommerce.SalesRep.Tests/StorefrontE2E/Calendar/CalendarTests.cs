@@ -1,11 +1,7 @@
-using System;
-using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
-using VirtoCommerce.TaskManagement.Data.Models;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
 
@@ -32,7 +28,7 @@ public sealed class CalendarTests(CalendarEnvironment env)
         });
 
         // The storefront's click went through the real mutation into the real table.
-        var task = await WaitForTaskAsync(x => x.Id == env.SeededTaskId && x.Completed == true);
+        var task = await env.WaitForTaskAsync(x => x.Id == env.SeededTaskId && x.Completed == true);
         task.Should().NotBeNull();
         task.Completed.Should().BeTrue();
     }
@@ -55,31 +51,9 @@ public sealed class CalendarTests(CalendarEnvironment env)
             await Expect(page.GetByText("Task saved")).ToBeVisibleAsync();
         });
 
-        var task = await WaitForTaskAsync(x => x.Name == name);
+        var task = await env.WaitForTaskAsync(x => x.Name == name);
         task.Should().NotBeNull();
         task.ResponsibleId.Should().Be(env.RepMemberId);
         task.Completed.Should().NotBe(true);
-    }
-
-    /// <summary>The row, or null after ten seconds: the UI confirms before the request's scope has always completed.</summary>
-    private async Task<WorkTaskEntity> WaitForTaskAsync(System.Linq.Expressions.Expression<Func<WorkTaskEntity, bool>> predicate)
-    {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
-
-        while (true)
-        {
-            var task = await env.Backend.RunExclusiveAsync(async context =>
-            {
-                using var db = context.NewTaskManagementDbContext();
-                return await db.Set<WorkTaskEntity>().AsNoTracking().FirstOrDefaultAsync(predicate);
-            });
-
-            if (task != null || DateTime.UtcNow > deadline)
-            {
-                return task;
-            }
-
-            await Task.Delay(250);
-        }
     }
 }

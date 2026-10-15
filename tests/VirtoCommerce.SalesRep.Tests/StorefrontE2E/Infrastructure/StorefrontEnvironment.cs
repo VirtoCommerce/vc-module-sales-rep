@@ -1,9 +1,12 @@
 using System;
 using System.IO;
+using System.Linq.Expressions;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.TaskManagement.Data.Models;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
@@ -68,6 +71,31 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
     /// <summary>The group's shared data, seeded through the harness before the storefront starts.</summary>
     private protected abstract Task SeedAsync(SalesRepTestContext context);
 
+    /// <summary>The browser's IANA time zone; null keeps the machine's. A group that checks times of day pins it.</summary>
+    private protected virtual string BrowserTimeZone => null;
+
+    /// <summary>The first matching task row, or null after ten seconds, read between requests.</summary>
+    internal async Task<WorkTaskEntity> WaitForTaskAsync(Expression<Func<WorkTaskEntity, bool>> predicate)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+
+        while (true)
+        {
+            var task = await Backend.RunExclusiveAsync(async context =>
+            {
+                using var db = context.NewTaskManagementDbContext();
+                return await db.Set<WorkTaskEntity>().AsNoTracking().FirstOrDefaultAsync(predicate);
+            });
+
+            if (task != null || DateTime.UtcNow > deadline)
+            {
+                return task;
+            }
+
+            await Task.Delay(250);
+        }
+    }
+
     /// <summary>
     /// A fresh browser context signed in as the account (a token minted by the backend from the real claim
     /// producers, stored the way the storefront's useAuth.ts stores it), landed on the storefront path.
@@ -82,6 +110,7 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
             BaseURL = Storefront.Url,
             IgnoreHTTPSErrors = true,
             ViewportSize = new ViewportSize { Width = 1440, Height = 900 },
+            TimezoneId = BrowserTimeZone,
         });
 
         await context.AddInitScriptAsync(
