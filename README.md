@@ -717,7 +717,8 @@ e.g. a workflow task about an order) keeps that link: it reads with no customer,
 setting a customer on it is refused.
 
 A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the
-call editor (time and customer). So that admins can pick and filter it, the module keeps `Call` in the
+call editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like
+the page's other unavailable quick actions. So that admins can pick and filter it, the module keeps `Call` in the
 `TaskManagement.TaskTypes` dictionary, which the platform serves from ONE of two lists: the built-in one until an
 admin first saves the dictionary, the saved one after that. At startup the module adds `Call` to the built-in list
 and, if a saved list exists without it, to the saved list — it never saves the built-in list itself, which would
