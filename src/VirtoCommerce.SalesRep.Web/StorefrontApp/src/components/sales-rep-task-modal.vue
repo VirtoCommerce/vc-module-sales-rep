@@ -381,8 +381,9 @@ function remove(): void {
     @apply mb-2;
   }
 
+  // One row; a long translation on a narrow screen wraps the second box.
   &__calendars {
-    @apply flex flex-col gap-2;
+    @apply flex flex-wrap gap-x-6 gap-y-2;
   }
 
   // Pushed away from the confirm pair so Delete is not a neighbour of Save.
