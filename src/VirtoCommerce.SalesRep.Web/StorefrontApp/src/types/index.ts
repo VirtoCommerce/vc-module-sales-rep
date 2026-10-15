@@ -84,6 +84,7 @@ export type SalesRepActivityItemType = {
   precision: "exact" | "hour";
   // Occurrences this row aggregates (1 for exact rows; the bucket size for analytics hour rows).
   count: number;
+  organizationId: string;
   organizationName: string;
   orderId: string;
   orderNumber: string;

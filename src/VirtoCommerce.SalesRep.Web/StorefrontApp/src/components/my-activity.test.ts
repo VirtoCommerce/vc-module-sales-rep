@@ -44,6 +44,8 @@ const createWrapper = createWrapperFactory(mount, MyActivity, {
 });
 
 const emptyViews = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll("vc-empty-view-stub");
+const incompleteNotice = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.find('[data-test-id="my-activity-incomplete-label"]');
 
 beforeEach(() => {
   customersCount.hasNoCustomers.value = false;
@@ -73,8 +75,8 @@ describe("MyActivity states", () => {
     expect(wrapper.find("vc-link-stub").exists()).toBe(true);
   });
 
-  // Defect 8: the widget's feed is mixed, so an empty one on a store whose analytics did not answer is
-  // not a quiet year — it is a year with the tracked half missing.
+  // The widget's feed is mixed, so an empty one on a store whose analytics did not answer is not a quiet
+  // year — it is a year with the tracked half missing.
   it("names the unavailable state rather than a quiet period", () => {
     state.analyticsUnavailable.value = true;
 
@@ -102,7 +104,7 @@ describe("MyActivity states", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".my-activity__skeleton")).toHaveLength(5);
+    expect(wrapper.findAll('[data-test-id="my-activity-skeleton"]')).toHaveLength(5);
     expect(emptyViews(wrapper)).toHaveLength(0);
     expect(wrapper.find("activity-row-stub").exists()).toBe(false);
   });
@@ -129,6 +131,18 @@ describe("MyActivity states", () => {
 
     expect(wrapper.findAll("activity-row-stub")).toHaveLength(2);
     expect(wrapper.find("vc-link-stub").exists()).toBe(true);
+    expect(incompleteNotice(wrapper).exists()).toBe(false);
+  });
+
+  // Orders and customers still list when the analytics read fails, so the rows alone would pass for the whole year.
+  it("says tracked activity is missing when rows came back without analytics", () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.analyticsUnavailable.value = true;
+
+    const wrapper = createWrapper();
+
+    expect(wrapper.findAll("activity-row-stub")).toHaveLength(1);
+    expect(incompleteNotice(wrapper).text()).toBe("sales_rep.activity.incomplete");
   });
 });
 

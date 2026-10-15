@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Brak śledzonych wyszukiwań w tym okresie",
         "empty_this_year": "Brak śledzonych wyszukiwań w tym roku",
+        "empty_all_time": "Brak śledzonych wyszukiwań",
         "count": "{n} wyszukiwań | {n} wyszukiwanie | {n} wyszukiwania | {n} wyszukiwań",
         "last_searched": "Ostatnie wyszukiwanie: {date}",
         "load_failed": "Nie udało się wczytać historii wyszukiwania"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Brak śledzonych wyświetleń produktów w tym okresie",
         "empty_this_year": "Brak śledzonych wyświetleń produktów w tym roku",
+        "empty_all_time": "Brak śledzonych wyświetleń produktów",
         "views": "{n} wyświetleń | {n} wyświetlenie | {n} wyświetlenia | {n} wyświetleń",
         "load_failed": "Nie udało się wczytać historii przeglądania"
       }
@@ -323,7 +325,7 @@
         "orders": "Zamówienia",
         "customers": "Klienci",
         "searches": "Wyszukiwania",
-        "productViews": "Wyświetlenia produktów",
+        "product_views": "Wyświetlenia produktów",
         "logins": "Logowania"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, w godzinie {time}"
       },
+      "quoted_term": "„{term}”",
       "caveat": "Wyszukiwania, wyświetlenia produktów i logowania opierają się na śledzonej aktywności sklepu i są przybliżone.",
       "tracked_hint": "Śledzona aktywność w sklepie: może pojawić się z opóźnieniem do 48 godzin.",
       "empty": "Brak aktywności",

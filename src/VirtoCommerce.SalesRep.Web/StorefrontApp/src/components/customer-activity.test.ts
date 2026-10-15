@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { VcTabSwitch } from "@vc-frontend/core";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
 import CustomerActivity from "./customer-activity.vue";
+import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
+import TrackedMetricHint from "./tracked-metric-hint.vue";
 import type { SalesRepCustomerActivitySummaryType } from "../types";
 
 const state = await vi.hoisted(async () => {
@@ -24,18 +26,10 @@ vi.mock("../composables/useSalesRepCustomerActivitySummary", () => ({
 
 // The sub-view panels own their queries; here only their mount/visibility contract matters.
 vi.mock("./customer-search-history.vue", () => ({
-  default: {
-    name: "CustomerSearchHistoryStub",
-    props: ["organizationId"],
-    template: '<div class="search-history-panel" />',
-  },
+  default: { name: "CustomerSearchHistoryStub", props: ["organizationId"], template: "<div />" },
 }));
 vi.mock("./customer-browse-history.vue", () => ({
-  default: {
-    name: "CustomerBrowseHistoryStub",
-    props: ["organizationId"],
-    template: '<div class="browse-history-panel" />',
-  },
+  default: { name: "CustomerBrowseHistoryStub", props: ["organizationId"], template: "<div />" },
 }));
 
 function summaryFixture(
@@ -71,15 +65,22 @@ const createWrapper = createWrapperFactory(mount, CustomerActivity, {
       VcEmptyView: true,
       VcIcon: true,
       VcLink: VcLinkStub,
-      // Rendered, not stubbed away: the tracked-metric hint lives in its trigger slot.
-      VcTooltip: { template: '<span><slot name="trigger" /></span>' },
+      // Rendered, not stubbed away: the tracked-metric hint draws its own trigger in the default slot.
+      VcTooltip: { template: '<span><slot :trigger-props="{}" /></span>' },
     },
   },
 });
 
-// The chip row renders the baseline (Summary) first, then the declared rules in order. The tab class
-// sits on VcTabSwitch's <label>; its inner <button> is what carries the click.
-const chips = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll(".sales-rep-rule-chip button");
+type WrapperType = ReturnType<typeof createWrapper>;
+
+// The chip row renders the baseline (Summary) first, then the declared rules in order.
+const chips = (wrapper: WrapperType) => wrapper.findComponent(SalesRepRuleChips).findAll("button");
+const rows = (wrapper: WrapperType) => wrapper.findAll('[data-test-id="customer-activity-row"]');
+const summaryView = (wrapper: WrapperType) => wrapper.get('[data-test-id="customer-activity-summary-section"]');
+const unavailableNote = '[data-test-id="customer-activity-unavailable-label"]';
+const dateLabel = '[data-test-id="customer-activity-date-label"]';
+const searchPanel = (wrapper: WrapperType) => wrapper.findComponent({ name: "CustomerSearchHistoryStub" });
+const browsePanel = (wrapper: WrapperType) => wrapper.findComponent({ name: "CustomerBrowseHistoryStub" });
 
 beforeEach(() => {
   state.summary.value = undefined;
@@ -104,9 +105,9 @@ describe("CustomerActivity summary states", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".customer-activity__skeleton")).toHaveLength(5);
+    expect(wrapper.findAll('[data-test-id="customer-activity-skeleton"]')).toHaveLength(5);
     expect(wrapper.findAll("vc-empty-view-stub")).toHaveLength(0);
-    expect(wrapper.findAll(".customer-activity__row")).toHaveLength(0);
+    expect(rows(wrapper)).toHaveLength(0);
   });
 
   it("renders every definition row when analytics is configured", () => {
@@ -114,8 +115,8 @@ describe("CustomerActivity summary states", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".customer-activity__row")).toHaveLength(5);
-    expect(wrapper.find(".customer-activity__note").exists()).toBe(false);
+    expect(rows(wrapper)).toHaveLength(5);
+    expect(wrapper.find(unavailableNote).exists()).toBe(false);
     expect(wrapper.text()).toContain("SKU-1 · Gloves");
   });
 
@@ -125,13 +126,14 @@ describe("CustomerActivity summary states", () => {
     state.summary.value = summaryFixture();
 
     const wrapper = createWrapper();
+    const hints = wrapper.findAllComponents(TrackedMetricHint);
 
-    expect(wrapper.findAll(".tracked-metric-hint")).toHaveLength(4);
-    expect(wrapper.findAll(".customer-activity__row")[0].find(".tracked-metric-hint").exists()).toBe(false);
+    expect(hints).toHaveLength(4);
+    expect(rows(wrapper)[0].findComponent(TrackedMetricHint).exists()).toBe(false);
 
     // The summary is already on screen, so its hint speaks only of the delay: a load the reader has no
     // decision left to make about is noise, not a warning.
-    expect(wrapper.findAll(".tracked-metric-hint vc-icon-stub").map((icon) => icon.attributes("label"))).toEqual(
+    expect(hints.map((hint) => hint.get("vc-icon-stub").attributes("label"))).toEqual(
       Array.from({ length: 4 }, () => "sales_rep.activity.tracked_hint"),
     );
   });
@@ -149,10 +151,19 @@ describe("CustomerActivity summary states", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".customer-activity__row")).toHaveLength(1);
-    expect(wrapper.find(".customer-activity__note").exists()).toBe(true);
+    expect(rows(wrapper)).toHaveLength(1);
+    expect(wrapper.find(unavailableNote).exists()).toBe(true);
     // A <dl> may hold only dt/dd groups, and the note is neither (axe definition-list).
-    expect(wrapper.find("dl .customer-activity__note").exists()).toBe(false);
+    expect(wrapper.find(`dl ${unavailableNote}`).exists()).toBe(false);
+  });
+
+  // The quote marks differ per language, so they come with the message.
+  it("quotes the last search term through the locale", () => {
+    state.summary.value = summaryFixture();
+
+    const searchRow = rows(createWrapper())[3];
+
+    expect(searchRow.findComponent({ name: "VcLinkStub" }).text()).toBe("sales_rep.activity.quoted_term");
   });
 
   // By product id, never a slug: /product/{id} always resolves, whereas the tracked SEO segment alone
@@ -160,7 +171,7 @@ describe("CustomerActivity summary states", () => {
   it("links the last viewed product by its id", () => {
     state.summary.value = summaryFixture();
 
-    const productRow = createWrapper().findAll(".customer-activity__row")[4];
+    const productRow = rows(createWrapper())[4];
 
     expect(productRow.findComponent({ name: "VcLinkStub" }).props("to")).toEqual({
       name: "Product",
@@ -174,8 +185,7 @@ describe("CustomerActivity summary states", () => {
       lastViewedProduct: { code: "GONE-1", productId: "", name: "" },
     });
 
-    const wrapper = createWrapper();
-    const productRow = wrapper.findAll(".customer-activity__row")[4];
+    const productRow = rows(createWrapper())[4];
 
     expect(productRow.text()).toContain("GONE-1");
     expect(productRow.findComponent({ name: "VcLinkStub" }).exists()).toBe(false);
@@ -185,7 +195,7 @@ describe("CustomerActivity summary states", () => {
   it("keeps the whole product label in the title", () => {
     state.summary.value = summaryFixture();
 
-    const productRow = createWrapper().findAll(".customer-activity__row")[4];
+    const productRow = rows(createWrapper())[4];
 
     expect(productRow.findComponent({ name: "VcLinkStub" }).attributes("title")).toBe("SKU-1 · Gloves");
   });
@@ -195,10 +205,10 @@ describe("CustomerActivity summary states", () => {
   it("dates the last search and the last viewed product", () => {
     state.summary.value = summaryFixture();
 
-    const rows = createWrapper().findAll(".customer-activity__row");
+    const [, , , searchRow, productRow] = rows(createWrapper());
 
-    expect(rows[3].get(".customer-activity__date").text()).toContain("2025");
-    expect(rows[4].get(".customer-activity__date").text()).toContain("2024");
+    expect(searchRow.get(dateLabel).text()).toContain("2025");
+    expect(productRow.get(dateLabel).text()).toContain("2024");
   });
 
   it("shows no date beside a dash", () => {
@@ -209,10 +219,10 @@ describe("CustomerActivity summary states", () => {
       lastViewedDate: undefined,
     });
 
-    const rows = createWrapper().findAll(".customer-activity__row");
+    const [, , , searchRow, productRow] = rows(createWrapper());
 
-    expect(rows[3].find(".customer-activity__date").exists()).toBe(false);
-    expect(rows[4].find(".customer-activity__date").exists()).toBe(false);
+    expect(searchRow.find(dateLabel).exists()).toBe(false);
+    expect(productRow.find(dateLabel).exists()).toBe(false);
   });
 });
 
@@ -224,9 +234,9 @@ describe("CustomerActivity sub-views", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.find(".customer-activity__summary").isVisible()).toBe(true);
-    expect(wrapper.find(".search-history-panel").exists()).toBe(false);
-    expect(wrapper.find(".browse-history-panel").exists()).toBe(false);
+    expect(summaryView(wrapper).isVisible()).toBe(true);
+    expect(searchPanel(wrapper).exists()).toBe(false);
+    expect(browsePanel(wrapper).exists()).toBe(false);
   });
 
   it("mounts the Searches panel when its chip is selected, and hides the summary", async () => {
@@ -235,10 +245,10 @@ describe("CustomerActivity sub-views", () => {
     const wrapper = createWrapper();
     await chips(wrapper)[1].trigger("click");
 
-    expect(wrapper.find(".search-history-panel").isVisible()).toBe(true);
-    expect(wrapper.find(".browse-history-panel").exists()).toBe(false);
-    expect(wrapper.find(".customer-activity__summary").isVisible()).toBe(false);
-    expect(wrapper.findComponent({ name: "CustomerSearchHistoryStub" }).props("organizationId")).toBe("org1");
+    expect(searchPanel(wrapper).isVisible()).toBe(true);
+    expect(browsePanel(wrapper).exists()).toBe(false);
+    expect(summaryView(wrapper).isVisible()).toBe(false);
+    expect(searchPanel(wrapper).props("organizationId")).toBe("org1");
   });
 
   it("mounts the Product views panel when its chip is selected", async () => {
@@ -247,9 +257,9 @@ describe("CustomerActivity sub-views", () => {
     const wrapper = createWrapper();
     await chips(wrapper)[2].trigger("click");
 
-    expect(wrapper.find(".browse-history-panel").isVisible()).toBe(true);
-    expect(wrapper.find(".search-history-panel").exists()).toBe(false);
-    expect(wrapper.findComponent({ name: "CustomerBrowseHistoryStub" }).props("organizationId")).toBe("org1");
+    expect(browsePanel(wrapper).isVisible()).toBe(true);
+    expect(searchPanel(wrapper).exists()).toBe(false);
+    expect(browsePanel(wrapper).props("organizationId")).toBe("org1");
   });
 
   // Returning to a visited view must not remount its panel — a remount refires the GA-backed query.
@@ -260,8 +270,20 @@ describe("CustomerActivity sub-views", () => {
     await chips(wrapper)[1].trigger("click");
     await chips(wrapper)[0].trigger("click");
 
-    expect(wrapper.find(".customer-activity__summary").isVisible()).toBe(true);
-    expect(wrapper.find(".search-history-panel").exists()).toBe(true);
-    expect(wrapper.find(".search-history-panel").isVisible()).toBe(false);
+    expect(summaryView(wrapper).isVisible()).toBe(true);
+    expect(searchPanel(wrapper).exists()).toBe(true);
+    expect(searchPanel(wrapper).isVisible()).toBe(false);
+  });
+
+  // The profile keeps this instance when it moves to another customer (a history jump between two profiles).
+  it("starts over on Summary, with no panel mounted, when the customer changes", async () => {
+    state.summary.value = summaryFixture();
+
+    const wrapper = createWrapper();
+    await chips(wrapper)[1].trigger("click");
+    await wrapper.setProps({ organizationId: "org2" });
+
+    expect(summaryView(wrapper).isVisible()).toBe(true);
+    expect(searchPanel(wrapper).exists()).toBe(false);
   });
 });

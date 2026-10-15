@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "No tracked searches in this period",
         "empty_this_year": "No tracked searches this year",
+        "empty_all_time": "No tracked searches yet",
         "count": "{n} search | {n} searches",
         "last_searched": "Last searched {date}",
         "load_failed": "Couldn't load search history"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "No tracked product views in this period",
         "empty_this_year": "No tracked product views this year",
+        "empty_all_time": "No tracked product views yet",
         "views": "{n} view | {n} views",
         "load_failed": "Couldn't load browse history"
       }
@@ -323,7 +325,7 @@
         "orders": "Orders",
         "customers": "Customers",
         "searches": "Searches",
-        "productViews": "Product views",
+        "product_views": "Product views",
         "logins": "Logins"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, during the hour of {time}"
       },
+      "quoted_term": "“{term}”",
       "caveat": "Searches, product views and sign-ins are based on tracked storefront activity and are approximate.",
       "tracked_hint": "Tracked storefront activity: can take up to 48 hours to appear.",
       "empty": "No activity yet",

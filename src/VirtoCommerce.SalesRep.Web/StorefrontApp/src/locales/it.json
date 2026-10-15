@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Nessuna ricerca tracciata in questo periodo",
         "empty_this_year": "Nessuna ricerca tracciata quest'anno",
+        "empty_all_time": "Ancora nessuna ricerca tracciata",
         "count": "{n} ricerca | {n} ricerche",
         "last_searched": "Ultima ricerca: {date}",
         "load_failed": "Impossibile caricare la cronologia delle ricerche"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Nessuna visualizzazione di prodotto tracciata in questo periodo",
         "empty_this_year": "Nessuna visualizzazione di prodotto tracciata quest'anno",
+        "empty_all_time": "Ancora nessuna visualizzazione di prodotto tracciata",
         "views": "{n} visualizzazione | {n} visualizzazioni",
         "load_failed": "Impossibile caricare la cronologia di navigazione"
       }
@@ -323,7 +325,7 @@
         "orders": "Ordini",
         "customers": "Clienti",
         "searches": "Ricerche",
-        "productViews": "Visualizzazioni prodotto",
+        "product_views": "Visualizzazioni prodotto",
         "logins": "Accessi"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, nell'ora delle {time}"
       },
+      "quoted_term": "«{term}»",
       "caveat": "Ricerche, visualizzazioni prodotto e accessi si basano sull'attività tracciata del negozio e sono approssimativi.",
       "tracked_hint": "Attività tracciata dello store: può richiedere fino a 48 ore per comparire.",
       "empty": "Ancora nessuna attività",

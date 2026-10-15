@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Ei seurattuja hakuja tällä ajanjaksolla",
         "empty_this_year": "Ei seurattuja hakuja tänä vuonna",
+        "empty_all_time": "Ei vielä seurattuja hakuja",
         "count": "{n} haku | {n} hakua",
         "last_searched": "Viimeksi haettu {date}",
         "load_failed": "Hakuhistorian lataaminen epäonnistui"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Ei seurattuja tuotekatseluja tällä ajanjaksolla",
         "empty_this_year": "Ei seurattuja tuotekatseluja tänä vuonna",
+        "empty_all_time": "Ei vielä seurattuja tuotekatseluja",
         "views": "{n} katselukerta | {n} katselukertaa",
         "load_failed": "Selaushistorian lataaminen epäonnistui"
       }
@@ -323,7 +325,7 @@
         "orders": "Tilaukset",
         "customers": "Asiakkaat",
         "searches": "Haut",
-        "productViews": "Tuotekatselut",
+        "product_views": "Tuotekatselut",
         "logins": "Kirjautumiset"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, tunnin {time} aikana"
       },
+      "quoted_term": "”{term}”",
       "caveat": "Haut, tuotekatselut ja kirjautumiset perustuvat seurattuun verkkokaupan toimintaan ja ovat likimääräisiä.",
       "tracked_hint": "Verkkokaupasta kerätty aktiivisuus: voi kestää jopa 48 tuntia ennen kuin se näkyy.",
       "empty": "Ei vielä aktiviteettia",

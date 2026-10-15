@@ -1,11 +1,14 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick, toValue } from "vue";
+import { BREAKPOINTS } from "@vc-frontend/core";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
+import TrackedMetricHint from "../components/tracked-metric-hint.vue";
 import {
   ACTIVITY_MAX_SKIP,
   ACTIVITY_PAGE_SIZE,
   CUSTOMER_PROFILE_ROUTE_NAME,
+  DASHBOARD_ROUTE_NAME,
   MY_CUSTOMERS_ROUTE_NAME,
 } from "../constants";
 import Activities from "./activities.vue";
@@ -76,16 +79,22 @@ type ActivityOptionsType = {
 };
 
 const activityCalls = vi.hoisted(() => ({ options: [] as ActivityOptionsType[] }));
-// The viewport as useBreakpoints reports it; jsdom has no matchMedia to ask.
+// The viewport width useBreakpoints measures; jsdom has no matchMedia to ask. The mock reads the breakpoints and the
+// name it is given, so the page's choice of both is what the pager tests below pin.
 const viewport = await vi.hoisted(async () => {
   const { ref } = await import("vue");
-  return { isPhone: ref(false) };
+  return { width: ref(1280) };
 });
 
-vi.mock("@vueuse/core", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@vueuse/core")>()),
-  useBreakpoints: () => ({ smaller: () => viewport.isPhone }),
-}));
+vi.mock("@vueuse/core", async (importOriginal) => {
+  const { computed } = await import("vue");
+  return {
+    ...(await importOriginal<typeof import("@vueuse/core")>()),
+    useBreakpoints: (breakpoints: Record<string, string>) => ({
+      smaller: (name: string) => computed(() => viewport.width.value < Number.parseInt(breakpoints[name], 10)),
+    }),
+  };
+});
 
 // Whether the count of the rep's customers answered zero.
 const customersCount = await vi.hoisted(async () => {
@@ -216,8 +225,8 @@ const RuleChipsStub = {
   // Renders the suffix slot the way the real component does — once per tab, the baseline with no
   // name — so the page's adornment rule is observable.
   template: `<div>
-    <span class="stub-tab" data-name=""><slot name="suffix" :tab="{}" /></span>
-    <span v-for="rule in rules" :key="rule.name" class="stub-tab" :data-name="rule.name">
+    <span data-name=""><slot name="suffix" :tab="{}" /></span>
+    <span v-for="rule in rules" :key="rule.name" :data-name="rule.name">
       <slot name="suffix" :tab="rule" />
     </span>
   </div>`,
@@ -252,6 +261,8 @@ const createWrapper = createWrapperFactory(mount, Activities, {
       VcLink: { name: "VcLinkStub", props: ["to"], template: "<a><slot /></a>" },
       ActivityRow: ActivityRowStub,
       SalesRepRuleChips: RuleChipsStub,
+      // The tracked-metric hint draws its own trigger in the default slot, with the props the kit hands it.
+      VcTooltip: { template: '<span><slot :trigger-props="{}" /></span>' },
     },
   },
 });
@@ -259,7 +270,20 @@ const createWrapper = createWrapperFactory(mount, Activities, {
 const emptyViews = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll("vc-empty-view-stub");
 const findChips = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAllComponents({ name: "RuleChipsStub" });
 const findRows = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAllComponents({ name: "ActivityRowStub" });
-const topRows = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll(".activities__top-row");
+const topRows = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.findAll('[data-test-id="activity-top-list-row"]');
+const skeletons = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.findAll('[data-test-id="activities-skeleton"]');
+const notice = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.get('[data-test-id="activities-incomplete-label"]');
+const caveat = (wrapper: ReturnType<typeof createWrapper>) => wrapper.find('[data-test-id="activities-caveat-label"]');
+const findPager = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findComponent({ name: "VcPaginationStub" });
+const rowsSkip = () => toValue(activityCalls.options.find((options) => options.withCategoryCounts === false)?.skip);
+
+async function goToPage(wrapper: ReturnType<typeof createWrapper>, page: number): Promise<void> {
+  findPager(wrapper).vm.$emit("update:page", page);
+  await nextTick();
+}
 
 // Chip order in the DOM: category tabs (0), period chips (1), then the mode toggle (2) when shown.
 async function openTab(wrapper: ReturnType<typeof createWrapper>, name: string | undefined): Promise<void> {
@@ -276,7 +300,7 @@ async function switchToTop(wrapper: ReturnType<typeof createWrapper>): Promise<v
 
 beforeEach(() => {
   customersCount.hasNoCustomers.value = false;
-  viewport.isPhone.value = false;
+  viewport.width.value = 1280;
   customerState.organizationName.value = undefined;
   activityCalls.options.length = 0;
   state.items.value = [];
@@ -326,8 +350,8 @@ describe("Activities page", () => {
   // the tabs carrying them say so. Orders and Customers come from the platform's own data and do not.
   it("marks the tracked category tabs", () => {
     const marked = findChips(createWrapper())[0]
-      .findAll(".stub-tab")
-      .filter((tab) => tab.find(".tracked-metric-hint").exists())
+      .findAll("[data-name]")
+      .filter((tab) => tab.findComponent(TrackedMetricHint).exists())
       .map((tab) => tab.attributes("data-name"));
 
     // "" is the All tab, which merges tracked rows in and so carries the mark too.
@@ -364,6 +388,7 @@ describe("Activities page", () => {
     expect(rules.map((rule) => rule.name)).toEqual(["orders", "customers", "searches", "productViews", "logins"]);
     expect(rules[0].label).toContain("(7)");
     expect(rules[2].label).toContain("(0)");
+    expect(rules[3].label).toBe("sales_rep.activity.tabs.product_views (0)");
   });
 
   // The badges count events, the counts request's totalCount counts rows — one hour bucket of 4 sign-ins is 4 on
@@ -413,7 +438,7 @@ describe("Activities page", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.find(".activities__caveat").exists()).toBe(true);
+    expect(caveat(wrapper).exists()).toBe(true);
   });
 
   // A failure gets its own view — it must not read as "no activity" (VCST-5586).
@@ -435,7 +460,7 @@ describe("Activities page", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".activities__skeleton")).toHaveLength(5);
+    expect(skeletons(wrapper)).toHaveLength(5);
     expect(findRows(wrapper)).toHaveLength(0);
     expect(emptyViews(wrapper)).toHaveLength(0);
   });
@@ -452,7 +477,7 @@ describe("Activities page", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".activities__skeleton")).toHaveLength(3);
+    expect(skeletons(wrapper)).toHaveLength(3);
     expect(findRows(wrapper)).toHaveLength(0);
   });
 
@@ -482,9 +507,8 @@ describe("Activities page", () => {
     expect(findChips(wrapper)[0].props("allLabel")).toContain("(7)");
   });
 
-  // Defect 8: the feed never selected isAnalyticsAvailable, so a source that did not answer produced the
-  // same wording as a genuinely quiet period — a confident "nothing happened" over an absence of
-  // measurement. Top mode had the state all along; the feed did not.
+  // A source that did not answer must not read as a genuinely quiet period — a confident "nothing happened" over
+  // an absence of measurement.
   it("names the unavailable state on the feed, not a quiet period", async () => {
     const wrapper = createWrapper();
 
@@ -540,7 +564,7 @@ describe("Activities page", () => {
     expect(chips.props("allLabel")).toContain("(–)");
   });
 
-  // All adds every tab up: QA read "All (31)" beside dashed tracked tabs as the whole feed.
+  // All adds every tab up: "All (31)" beside dashed tracked tabs reads as the whole feed.
   it("dashes the All badge along with the tracked ones when the counts lack analytics", () => {
     counts.categoryCounts.value = [
       { category: "orders", count: 24 },
@@ -554,17 +578,15 @@ describe("Activities page", () => {
     expect(findChips(wrapper)[0].props("allLabel")).toContain("(–)");
   });
 
-  // QA's case: the counts read lost analytics while the rows read kept it, so tracked rows were listed beside
-  // dashed badges with nothing saying why.
+  // The counts read can lose analytics while the rows read keeps it: tracked rows beside dashed badges, with
+  // nothing saying why.
   it("says the figures are incomplete beside rows when either read lacks analytics", () => {
     state.items.value = [{ category: "searches", type: "search" }];
     counts.analyticsUnavailable.value = true;
 
     const wrapper = createWrapper();
-    const notice = wrapper.find(".activities__notice");
 
-    expect(notice.exists()).toBe(true);
-    expect(notice.text()).toContain("sales_rep.activity.incomplete");
+    expect(notice(wrapper).text()).toBe("sales_rep.activity.incomplete");
   });
 
   it("says nothing extra when both reads have analytics", () => {
@@ -572,7 +594,22 @@ describe("Activities page", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.find(".activities__notice").exists()).toBe(false);
+    expect(notice(wrapper).text()).toBe("");
+  });
+
+  // A live region that appears together with its text is not reliably announced, so it is there from the start.
+  it("keeps the notice's live region mounted while it has nothing to say", async () => {
+    state.items.value = [{ category: "searches", type: "search" }];
+
+    const wrapper = createWrapper();
+    const region = notice(wrapper);
+    expect(region.attributes("role")).toBe("status");
+
+    counts.analyticsUnavailable.value = true;
+    await nextTick();
+
+    expect(notice(wrapper).element).toBe(region.element);
+    expect(notice(wrapper).text()).toBe("sales_rep.activity.incomplete");
   });
 
   // The empty view already names the unavailable state; a second message beside it would only repeat it.
@@ -582,33 +619,120 @@ describe("Activities page", () => {
     const wrapper = createWrapper();
 
     expect(emptyViews(wrapper)).toHaveLength(1);
-    expect(wrapper.find(".activities__notice").exists()).toBe(false);
+    expect(notice(wrapper).text()).toBe("");
   });
 
-  // Same route, new query: the instance is reused, so the previous customer's page, tab and mode
-  // carried over.
+  // Paused in Top mode, the feed's query keeps its last answer, which says nothing about the ranked list.
+  it("drops the feed's own analytics flag from the notice in Top mode", async () => {
+    state.items.value = [{ category: "searches", type: "search" }];
+    state.analyticsUnavailable.value = true;
+    insights.searchItems.value = [{ term: "gloves", count: 5 }];
+
+    const wrapper = createWrapper();
+    await openTab(wrapper, "searches");
+    expect(notice(wrapper).text()).toBe("sales_rep.activity.incomplete");
+
+    await switchToTop(wrapper);
+
+    expect(topRows(wrapper)).toHaveLength(1);
+    expect(notice(wrapper).text()).toBe("");
+  });
+
+  // Same route, new query: the instance is reused, so the previous customer's page, tab, mode and window
+  // carried over. All time carried into the rep's own feed would read every customer's history.
   it("starts over when the customer changes", async () => {
+    customerState.organizationName.value = "Acme";
     state.items.value = [{ category: "searches", type: "search" }];
     state.totalCount.value = ACTIVITY_PAGE_SIZE * 5;
     const wrapper = createWrapper({ props: { organizationId: "org-1" } });
     const rows = activityCalls.options.find((options) => options.withCategoryCounts === false);
 
     await openTab(wrapper, "searches");
-    wrapper.findComponent({ name: "VcPaginationStub" }).vm.$emit("update:page", 4);
-    await nextTick();
+    findChips(wrapper)[1].vm.$emit("update:modelValue", undefined);
+    await goToPage(wrapper, 4);
     await switchToTop(wrapper);
     expect(toValue(rows?.skip)).toBe(3 * ACTIVITY_PAGE_SIZE);
+    expect(findChips(wrapper)[1].props("modelValue")).toBeUndefined();
 
     await wrapper.setProps({ organizationId: "org-2" });
 
     expect(findChips(wrapper)[0].props("modelValue")).toBeUndefined();
+    expect(findChips(wrapper)[1].props("modelValue")).toBe("year");
     expect(toValue(rows?.skip)).toBe(0);
     expect(toValue(rows?.enabled)).toBe(true); // out of Top mode
   });
 
-  // QA: a newly pressed period chip, or another customer, showed the previous window's or customer's badges,
-  // held by keepPreviousResult, until the counts for the new ones answered — seconds on a cold analytics read.
-  // The counts request holds nothing across a switch, so the tabs show no figures until the new counts land.
+  it("returns to the first page when the tab changes", async () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 5;
+    const wrapper = createWrapper();
+
+    await goToPage(wrapper, 4);
+    expect(rowsSkip()).toBe(3 * ACTIVITY_PAGE_SIZE);
+
+    await openTab(wrapper, "orders");
+
+    expect(rowsSkip()).toBe(0);
+  });
+
+  it("returns to the first page when the period changes", async () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 5;
+    const wrapper = createWrapper();
+
+    await goToPage(wrapper, 4);
+    findChips(wrapper)[1].vm.$emit("update:modelValue", "month");
+    await nextTick();
+
+    expect(rowsSkip()).toBe(0);
+  });
+
+  // A refetch can shrink the set under the page the rep is on; the page follows it back.
+  it("pulls the page back to the last one when the pages shrink below it", async () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 5;
+    const wrapper = createWrapper();
+
+    await goToPage(wrapper, 5);
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 2;
+    await nextTick();
+
+    expect(findPager(wrapper).props("page")).toBe(2);
+    expect(rowsSkip()).toBe(ACTIVITY_PAGE_SIZE);
+  });
+
+  // The pager stays put while a page loads, so the button the rep just pressed keeps the focus.
+  it("keeps the pager mounted while the next page loads", async () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 5;
+    const wrapper = createWrapper();
+    const pager = findPager(wrapper);
+
+    state.loading.value = true;
+    await goToPage(wrapper, 2);
+
+    expect(skeletons(wrapper).length).toBeGreaterThan(0);
+    expect(findPager(wrapper).exists()).toBe(true);
+    expect(findPager(wrapper).vm).toBe(pager.vm);
+  });
+
+  // The backend drops analytics rows it cannot date but still counts them, so a later page can come back empty.
+  it("keeps the pager when a later page comes back empty", async () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 5;
+    const wrapper = createWrapper();
+
+    await goToPage(wrapper, 4);
+    state.items.value = [];
+    await nextTick();
+
+    expect(emptyViews(wrapper)).toHaveLength(1);
+    expect(findPager(wrapper).exists()).toBe(true);
+  });
+
+  // A newly pressed period chip, or another customer, must not show the previous window's or customer's badges
+  // until the counts for the new ones answer — seconds on a cold analytics read. The counts request holds nothing
+  // across a switch, so the tabs show no figures until the new counts land.
   it("asks the counts request not to hold the previous customer's or period's figures", () => {
     createWrapper();
 
@@ -641,7 +765,7 @@ describe("Activities page", () => {
     expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.activity.empty");
   });
 
-  // QA: a rep with no customers read "No tracked activity in this period", as if the customers were quiet.
+  // A rep with no customers must not read "No tracked activity in this period", as if the customers were quiet.
   it("says the rep has no customers yet on their own feed", async () => {
     customersCount.hasNoCustomers.value = true;
 
@@ -655,6 +779,7 @@ describe("Activities page", () => {
   // An administrator passes every customer check, so they can open a customer's feed with no customers of their own.
   it("keeps one customer's feed on its own empty wording", () => {
     customersCount.hasNoCustomers.value = true;
+    customerState.organizationName.value = "Acme";
 
     const wrapper = createWrapper({ props: { organizationId: "org-1" } });
 
@@ -685,7 +810,7 @@ describe("Activities page", () => {
     const wrapper = createWrapper();
     const servedPages = ACTIVITY_MAX_SKIP / ACTIVITY_PAGE_SIZE + 1;
 
-    expect(wrapper.findComponent({ name: "VcPaginationStub" }).props("pages")).toBe(servedPages);
+    expect(findPager(wrapper).props("pages")).toBe(servedPages);
   });
 
   it("sizes the pager to the rows when they fit inside that window", () => {
@@ -694,27 +819,40 @@ describe("Activities page", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findComponent({ name: "VcPaginationStub" }).props("pages")).toBe(3);
+    expect(findPager(wrapper).props("pages")).toBe(3);
   });
 
-  // With its labels, a two-page pager needed ~350 px and QA's 320 px screen scrolled sideways.
-  it("drops the pager's button labels on a phone", () => {
-    viewport.isPhone.value = true;
+  // With its labels, a two-page pager needs ~350 px, wider than a 320 px screen leaves the card.
+  it("drops the pager's button labels below the sm breakpoint", () => {
+    viewport.width.value = Number.parseInt(BREAKPOINTS.sm, 10) - 1;
     state.items.value = [{ category: "orders", type: "orderPlaced" }];
     state.totalCount.value = ACTIVITY_PAGE_SIZE * 2;
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findComponent({ name: "VcPaginationStub" }).props("compact")).toBe(true);
+    expect(findPager(wrapper).props("compact")).toBe(true);
   });
 
-  it("keeps the pager's button labels on a wider screen", () => {
+  it("keeps the pager's button labels from the sm breakpoint up", () => {
+    viewport.width.value = Number.parseInt(BREAKPOINTS.sm, 10);
     state.items.value = [{ category: "orders", type: "orderPlaced" }];
     state.totalCount.value = ACTIVITY_PAGE_SIZE * 2;
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findComponent({ name: "VcPaginationStub" }).props("compact")).toBe(false);
+    expect(findPager(wrapper).props("compact")).toBe(false);
+  });
+
+  // The feed and the counts answer an unserved id at once, with nothing; until the customer read settles, that
+  // must not show as a quiet customer with "(0)" badges.
+  it("shows the loading state, not an empty zero-badge feed, until the customer resolves", () => {
+    counts.categoryCounts.value = [{ category: "orders", count: 0 }];
+
+    const wrapper = createWrapper({ props: { organizationId: "not-mine" } });
+
+    expect(emptyViews(wrapper)).toHaveLength(0);
+    expect(skeletons(wrapper).length).toBeGreaterThan(0);
+    expect(findChips(wrapper)[0].props("allLabel")).toBe("sales_rep.activity.tabs.all");
   });
 });
 
@@ -766,7 +904,7 @@ describe("Activities page — Top|Recent mode", () => {
   it("renders ranked search rows — rank, term link, count — with no pager", async () => {
     state.totalCount.value = 100;
     insights.searchItems.value = [
-      { term: "gloves", count: 5 },
+      { term: "gloves", count: 5, lastSearchedDate: "2026-08-20T00:00:00Z" },
       { term: "hats", count: 2 },
     ];
 
@@ -776,12 +914,18 @@ describe("Activities page — Top|Recent mode", () => {
 
     const rows = topRows(wrapper);
     expect(rows).toHaveLength(2);
-    expect(rows[0].find(".activities__top-rank").text()).toBe("1");
-    expect(rows[0].find("a").text()).toContain("gloves");
+    expect(rows[0].get('[data-test-id="activity-top-list-rank-label"]').text()).toBe("1");
+    expect(rows[0].findComponent({ name: "VcLinkStub" }).props("to")).toEqual({
+      name: "Search",
+      query: { q: "gloves" },
+    });
+    // The quote marks differ per language, so they come with the message.
+    expect(rows[0].findComponent({ name: "VcLinkStub" }).text()).toBe("sales_rep.activity.quoted_term");
     expect(rows[0].text()).toContain("sales_rep.customer_insights.search_history.count");
+    expect(rows[0].text()).not.toContain("sales_rep.customer_insights.search_history.last_searched");
     expect(findRows(wrapper)).toHaveLength(0);
-    expect(wrapper.find("vc-pagination-stub").exists()).toBe(false);
-    expect(wrapper.find(".activities__caveat").exists()).toBe(true);
+    expect(findPager(wrapper).exists()).toBe(false);
+    expect(caveat(wrapper).exists()).toBe(true);
   });
 
   // By product id, never a slug: /product/{id} always resolves. An unresolved code comes back as its
@@ -815,7 +959,7 @@ describe("Activities page — Top|Recent mode", () => {
     await openTab(wrapper, "searches");
     await switchToTop(wrapper);
 
-    expect(wrapper.findAll(".activities__skeleton")).toHaveLength(5);
+    expect(skeletons(wrapper)).toHaveLength(5);
     expect(topRows(wrapper)).toHaveLength(0);
     expect(emptyViews(wrapper)).toHaveLength(0);
   });
@@ -831,6 +975,21 @@ describe("Activities page — Top|Recent mode", () => {
     await nextTick();
 
     expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.customer_insights.analytics_unavailable");
+  });
+
+  // "In this period" has no period to point at under All time.
+  it("names no period in Top mode under All time", async () => {
+    const wrapper = createWrapper();
+    findChips(wrapper)[1].vm.$emit("update:modelValue", undefined);
+    await openTab(wrapper, "searches");
+    await switchToTop(wrapper);
+
+    expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.customer_insights.search_history.empty_all_time");
+
+    await openTab(wrapper, "productViews");
+    await switchToTop(wrapper);
+
+    expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.customer_insights.browse_history.empty_all_time");
   });
 
   it("replaces the ranked list with the failure view when the insights query failed", async () => {
@@ -898,6 +1057,7 @@ describe("heading and breadcrumbs", () => {
       "sales_rep.hub.title",
       "sales_rep.activity.breadcrumb",
     ]);
+    expect(breadcrumbItems()[1].route).toEqual({ name: DASHBOARD_ROUTE_NAME });
   });
 
   it("names the customer in a single-line heading, with no subtitle", async () => {
@@ -923,6 +1083,7 @@ describe("heading and breadcrumbs", () => {
       "PerfOrg 000101",
       "sales_rep.activity.breadcrumb",
     ]);
+    expect(items[1].route).toEqual({ name: DASHBOARD_ROUTE_NAME });
     expect(items[3].route).toEqual({
       name: CUSTOMER_PROFILE_ROUTE_NAME,
       params: { organizationId: "org-1" },

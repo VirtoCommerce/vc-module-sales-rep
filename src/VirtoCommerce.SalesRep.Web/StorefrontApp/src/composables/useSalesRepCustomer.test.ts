@@ -141,8 +141,6 @@ describe("useSalesRepCustomer", () => {
     expect(notFound.value).toBe(true);
   });
 
-  // A failed read says nothing about whether the rep serves this customer, so the page must not
-  // present it as "not found" (VCST-5682).
   // The Activities page serves the rep-wide feed and one customer's from ONE route record, so it passes
   // "" while the feed is unscoped. No id means nothing to read - and nothing to call "not found" either.
   it("does not read, or answer notFound, without an organization id", () => {
@@ -160,6 +158,8 @@ describe("useSalesRepCustomer", () => {
     expect(passedEnabled().value).toBe(true);
   });
 
+  // A failed read says nothing about whether the rep serves this customer, so the page must not
+  // present it as "not found" (VCST-5682).
   it("keeps a failed read out of notFound", () => {
     const { failed, notFound } = useSalesRepCustomer("org-1");
 

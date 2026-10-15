@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Aucune recherche suivie sur cette période",
         "empty_this_year": "Aucune recherche suivie cette année",
+        "empty_all_time": "Aucune recherche suivie pour le moment",
         "count": "{n} recherche | {n} recherches",
         "last_searched": "Dernière recherche le {date}",
         "load_failed": "Impossible de charger l'historique de recherche"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Aucune vue de produit suivie sur cette période",
         "empty_this_year": "Aucune vue de produit suivie cette année",
+        "empty_all_time": "Aucune vue de produit suivie pour le moment",
         "views": "{n} vue | {n} vues",
         "load_failed": "Impossible de charger l'historique de navigation"
       }
@@ -323,7 +325,7 @@
         "orders": "Commandes",
         "customers": "Clients",
         "searches": "Recherches",
-        "productViews": "Vues de produit",
+        "product_views": "Vues de produit",
         "logins": "Connexions"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, dans l'heure de {time}"
       },
+      "quoted_term": "« {term} »",
       "caveat": "Les recherches, vues de produit et connexions sont basées sur l'activité suivie de la boutique et sont approximatives.",
       "tracked_hint": "Activité suivie de la boutique : peut mettre jusqu'à 48 heures à apparaître.",
       "empty": "Aucune activité pour le moment",

@@ -253,7 +253,7 @@ describe("formatTimeAgo", () => {
     expect(formatTimeAgo(ago(2 * 86400 + 5 * 3600))).toBe("2 days ago");
   });
 
-  // QA: 26 hours back from 1 AM is two calendar days back, and read "yesterday".
+  // 26 hours back from 1 AM is two calendar days back, not "yesterday".
   it("counts days by the calendar, not in 24-hour spans", () => {
     vi.setSystemTime(new Date(2026, 8, 15, 1, 0, 0));
 
@@ -271,5 +271,24 @@ describe("formatTimeAgo", () => {
   // Clock skew between server and browser must not read as an event still to come.
   it("treats a timestamp slightly ahead of the clock as now", () => {
     expect(formatTimeAgo(ago(-90))).toBe("this minute");
+  });
+
+  // Counted back from now, so not a calendar word: 13 days ago is the week before last, not "last week".
+  it("gives weeks, months and years as numbers", () => {
+    expect(formatTimeAgo(ago(13 * 86400))).toBe("1 week ago");
+    expect(formatTimeAgo(ago(56 * 86400))).toBe("1 month ago");
+    expect(formatTimeAgo(ago(400 * 86400))).toBe("1 year ago");
+  });
+
+  // The bucket says which hour, not when within it.
+  it("never puts an hour bucket closer than this hour", () => {
+    expect(formatTimeAgo(ago(40 * 60), { precision: "hour" })).toBe("this hour");
+    expect(formatTimeAgo(ago(70 * 60), { precision: "hour" })).toBe("1 hour ago");
+  });
+
+  it("measures against the clock it is given", () => {
+    const later = new Date(NOW.getTime() + 2 * 3600 * 1000);
+
+    expect(formatTimeAgo(ago(3600), { now: later })).toBe("3 hours ago");
   });
 });

@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Ingen sporede søk i denne perioden",
         "empty_this_year": "Ingen sporede søk i år",
+        "empty_all_time": "Ingen sporede søk ennå",
         "count": "{n} søk | {n} søk",
         "last_searched": "Sist søkt {date}",
         "load_failed": "Kunne ikke laste søkehistorikken"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Ingen sporede produktvisninger i denne perioden",
         "empty_this_year": "Ingen sporede produktvisninger i år",
+        "empty_all_time": "Ingen sporede produktvisninger ennå",
         "views": "{n} visning | {n} visninger",
         "load_failed": "Kunne ikke laste visningshistorikken"
       }
@@ -323,7 +325,7 @@
         "orders": "Ordrer",
         "customers": "Kunder",
         "searches": "Søk",
-        "productViews": "Produktvisninger",
+        "product_views": "Produktvisninger",
         "logins": "Pålogginger"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, i timen {time}"
       },
+      "quoted_term": "«{term}»",
       "caveat": "Søk, produktvisninger og pålogginger er basert på sporet butikkaktivitet og er omtrentlige.",
       "tracked_hint": "Sporet butikkaktivitet: kan bruke opptil 48 timer på å vises.",
       "empty": "Ingen aktivitet ennå",

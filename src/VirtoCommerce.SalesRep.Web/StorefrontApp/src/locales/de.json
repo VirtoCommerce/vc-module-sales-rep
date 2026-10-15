@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Keine erfassten Suchanfragen in diesem Zeitraum",
         "empty_this_year": "Keine erfassten Suchanfragen in diesem Jahr",
+        "empty_all_time": "Noch keine erfassten Suchanfragen",
         "count": "{n} Suchanfrage | {n} Suchanfragen",
         "last_searched": "Zuletzt gesucht am {date}",
         "load_failed": "Suchverlauf konnte nicht geladen werden"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Keine erfassten Produktansichten in diesem Zeitraum",
         "empty_this_year": "Keine erfassten Produktansichten in diesem Jahr",
+        "empty_all_time": "Noch keine erfassten Produktansichten",
         "views": "{n} Aufruf | {n} Aufrufe",
         "load_failed": "Angesehene Produkte konnten nicht geladen werden"
       }
@@ -323,7 +325,7 @@
         "orders": "Bestellungen",
         "customers": "Kunden",
         "searches": "Suchanfragen",
-        "productViews": "Produktansichten",
+        "product_views": "Produktansichten",
         "logins": "Anmeldungen"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, in der Stunde von {time}"
       },
+      "quoted_term": "„{term}“",
       "caveat": "Suchanfragen, Produktansichten und Anmeldungen basieren auf erfasster Storefront-Aktivität und sind Näherungswerte.",
       "tracked_hint": "Erfasste Storefront-Aktivität: erscheint mit bis zu 48 Stunden Verzögerung.",
       "empty": "Noch keine Aktivität",

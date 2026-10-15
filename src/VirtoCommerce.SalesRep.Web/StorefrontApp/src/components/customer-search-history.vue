@@ -9,7 +9,9 @@
       />
 
       <!-- The window, named beside the rows: the empty text names it only when there are none. -->
-      <span class="customer-search-history__period">{{ t("sales_rep.activity.period.year") }}</span>
+      <span class="customer-search-history__period" data-test-id="customer-search-history-period-label">
+        {{ t("sales_rep.activity.period.year") }}
+      </span>
     </div>
 
     <div class="customer-search-history__content">
@@ -34,17 +36,25 @@
 
       <template v-else>
         <ul class="customer-search-history__list">
-          <template v-if="loading && !items.length">
+          <!-- On every request, not only the first: no-cache keeps the previous rows until the answer, so a switch
+               between Recent and Top would leave the other mode's list under the new chip. -->
+          <template v-if="loading">
             <li
               v-for="index in INSIGHTS_DEFAULT_ROWS"
               :key="index"
               class="customer-search-history__skeleton"
+              data-test-id="customer-search-history-skeleton"
               aria-hidden="true"
             />
           </template>
 
           <template v-else>
-            <li v-for="item in items" :key="item.term" class="customer-search-history__row">
+            <li
+              v-for="item in items"
+              :key="item.term"
+              class="customer-search-history__row"
+              data-test-id="customer-search-history-row"
+            >
               <span class="customer-search-history__term-line">
                 <VcLink
                   class="customer-search-history__term"
@@ -55,8 +65,8 @@
                   {{ item.term }}
                 </VcLink>
 
-                <span class="customer-search-history__count">
-                  {{ t("sales_rep.customer_insights.search_history.count", item.count) }}
+                <span class="customer-search-history__count" data-test-id="customer-search-history-count-label">
+                  {{ searchCountLabel(item.count) }}
                 </span>
               </span>
 
@@ -67,7 +77,11 @@
           </template>
         </ul>
 
-        <p v-if="items.length" class="customer-search-history__caveat">
+        <p
+          v-if="items.length"
+          class="customer-search-history__caveat"
+          data-test-id="customer-search-history-caveat-label"
+        >
           {{ t("sales_rep.customer_insights.tracked_caveat") }}
         </p>
       </template>
@@ -86,7 +100,7 @@ import {
   INSIGHTS_SORT_BY_COUNT,
   INSIGHTS_SORT_BY_DATE,
 } from "../constants";
-import { searchResultsRoute } from "../utils";
+import { formatStatCount, searchResultsRoute } from "../utils";
 import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
 import type { SalesRepRuleType } from "../types";
 
@@ -117,6 +131,10 @@ const { items, unavailable, loading, error } = useSalesRepSearchHistory({
 });
 
 const failed = computed(() => Boolean(error.value));
+
+function searchCountLabel(count: number): string {
+  return t("sales_rep.customer_insights.search_history.count", { n: formatStatCount(count) }, count);
+}
 
 function lastSearchedLabel(date: string): string {
   return t("sales_rep.customer_insights.search_history.last_searched", { date: d(new Date(date), "short") });
@@ -154,7 +172,7 @@ function lastSearchedLabel(date: string): string {
   }
 
   &__term {
-    @apply min-w-0 text-sm font-medium text-[--link-color] [word-break:break-word] hover:underline;
+    @apply min-w-0 text-sm text-[--link-color] [word-break:break-word] hover:underline;
   }
 
   &__count {
@@ -162,15 +180,15 @@ function lastSearchedLabel(date: string): string {
   }
 
   &__date {
-    @apply text-xs text-neutral-400;
+    @apply text-xs text-neutral-600;
   }
 
   &__skeleton {
-    @apply my-3 h-9 animate-pulse rounded-[--vc-radius] bg-neutral-100;
+    @apply my-3 h-9 rounded-[--vc-radius] bg-neutral-100 motion-safe:animate-pulse;
   }
 
   &__caveat {
-    @apply border-t border-neutral-100 pt-3 text-xs text-neutral-400;
+    @apply border-t border-neutral-100 pt-3 text-xs text-neutral-600;
   }
 }
 </style>

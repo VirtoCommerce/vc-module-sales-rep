@@ -2,17 +2,21 @@
 
 The Sales Rep Hub as a Module Federation remote for the VC storefront (`vc-frontend`):
 the hub dashboard, My customers, the customer profile with its orders, all customer orders,
-tasks, the document library, list sharing to customers, and the buyer-facing "My Sales Reps"
-page (`/company/sales-reps`). Data comes from this module's Experience API; tasks also need
-`VirtoCommerce.TaskManagement` (an optional dependency — without it the tasks surfaces stay hidden).
+the activity feed with the customer insights (Activities), tasks, the document library, list
+sharing to customers, and the buyer-facing "My Sales Reps" page (`/company/sales-reps`). Data
+comes from this module's Experience API; tasks also need `VirtoCommerce.TaskManagement`, and the
+tracked half of Activities (searches, product views, sign-ins) `VirtoCommerce.GoogleEcommerceAnalytics`
+— both optional dependencies: without the first the tasks surfaces stay hidden, without the second
+tracked activity reads as unavailable.
 
-The code tracks the host's in-repo `client-app/modules/sales-rep` (vc-frontend `dev` at
-`1ae6a0318`); the host-only differences are listed in that module's `PORT_TO_MF.md`.
+The code started as a copy of the host's in-repo `client-app/modules/sales-rep` (vc-frontend
+`dev` at `1ae6a0318`). Hub features land here only since: the in-repo module no longer boots
+(`sales_rep_builtin_enabled: false`) and has none of the later ones, Activities among them.
 
 It ships inside this module: `yarn build` writes the remote into
 `../plugins/vc-frontend/`, the folder the platform probes for `vc-frontend` plugins
 (see "Packaging" below). Full walkthrough of the plugin model (host facade, contract
-gate, dev loop): the host repo's `client-app/modules/federated/HOWTO.md`.
+gate, dev loop): the host repo's `client-app/core/federation/README.md`.
 
 ## Scripts
 
@@ -21,7 +25,7 @@ gate, dev loop): the host repo's `client-app/modules/federated/HOWTO.md`.
 | `yarn build` | Production build of the remote into `../plugins/vc-frontend/` |
 | `yarn watch` | Rebuild on save; pair with `yarn preview` |
 | `yarn preview` | Serve the built remote for the host (port 3001) |
-| `yarn dev` | HMR dev server (see HOWTO "Dev inner loop") |
+| `yarn dev` | HMR dev server |
 | `yarn type-check` | `vue-tsc` against the frozen facade contract |
 | `yarn generate:graphql-types` | Regenerate `src/api/graphql/types.ts` from the backend schema |
 | `yarn test` / `yarn test:watch` | Vitest unit tests (jsdom) |

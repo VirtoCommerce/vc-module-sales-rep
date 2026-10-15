@@ -101,6 +101,7 @@ describe("sales-rep routes", () => {
     ["all customer orders", allCustomerOrdersRoute],
     ["documents", documentsRoute],
     ["tasks", tasksRoute],
+    ["activities", activitiesRoute],
   ])("lets a sales rep through the %s route", (_name, route: RouteRecordRaw) => {
     const next = runGuard(route);
 
@@ -117,6 +118,7 @@ describe("sales-rep routes", () => {
     ["all customer orders", allCustomerOrdersRoute],
     ["documents", documentsRoute],
     ["tasks", tasksRoute],
+    ["activities", activitiesRoute],
   ])("resolves the %s route exactly once, to the account Dashboard, for a non-rep", (_name, route: RouteRecordRaw) => {
     access.isRep = false;
 
@@ -145,12 +147,15 @@ describe("sales-rep routes", () => {
 // One route serves both feeds here: ?organizationId= makes it a page about a customer.
 describe("sales-rep account rail areas", () => {
   it.each([
-    ["the customer list", at("SalesRepMyCustomers"), true, false],
-    ["a customer profile", at("SalesRepCustomerProfile"), true, false],
-    ["a customer's activity", at("SalesRepActivities", { organizationId: "org-1" }), true, false],
-    ["the rep's own activity", at("SalesRepActivities"), false, true],
-    ["the dashboard", at("SalesRepDashboard"), false, false],
-  ])("lights My customers=%s / My activity for %s", (_name, route, inCustomers, inActivity) => {
+    ["the customer list", true, false, at("SalesRepMyCustomers")],
+    ["a customer profile", true, false, at("SalesRepCustomerProfile")],
+    ["a customer's orders", true, false, at("SalesRepCustomerOrders")],
+    ["one of a customer's orders", true, false, at("SalesRepCustomerOrder")],
+    ["a customer's activity", true, false, at("SalesRepActivities", { organizationId: "org-1" })],
+    ["the rep's own activity", false, true, at("SalesRepActivities")],
+    ["the all-customers order list", false, false, at("SalesRepAllCustomerOrders")],
+    ["the dashboard", false, false, at("SalesRepDashboard")],
+  ])("on %s, lights My customers: %s, My activity: %s", (_name, inCustomers, inActivity, route) => {
     expect(isMyCustomersArea(route)).toBe(inCustomers);
     expect(isMyActivity(route)).toBe(inActivity);
   });

@@ -44,7 +44,7 @@
             target="_blank"
             rel="noopener noreferrer"
           >
-            “{{ item.searchTerm }}”
+            {{ t("sales_rep.activity.quoted_term", { term: item.searchTerm }) }}
           </VcLink>
         </template>
 
@@ -76,8 +76,8 @@
           <span>{{ t("sales_rep.activity.rows.unknown") }}</span>
         </template>
 
-        <span v-if="showCount" class="activity-row__count">
-          {{ t("sales_rep.activity.rows.count_suffix", { count: item.count }) }}
+        <span v-if="showCount" class="activity-row__count" data-test-id="activity-row-count-label">
+          {{ t("sales_rep.activity.rows.count_suffix", { count: formatStatCount(item.count) }) }}
         </span>
       </div>
 
@@ -87,7 +87,7 @@
         </span>
 
         <!-- Hour buckets never render as an exact moment: "~" when compact, "during the hour of …" in full. -->
-        <span class="activity-row__time">{{ timeLabel }}</span>
+        <span class="activity-row__time" data-test-id="activity-row-time-label">{{ timeLabel }}</span>
       </div>
     </div>
   </div>
@@ -97,6 +97,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { getProductRoute, OrderStatus } from "@vc-frontend/core";
+import { useActivityClock } from "../composables/useActivityClock";
 import { BUYER_ORDER_ROUTE_NAME } from "../constants";
 import { activityCategoryIcon, formatStatCount, formatTimeAgo, searchResultsRoute } from "../utils";
 import type { SalesRepActivityItemType } from "../types";
@@ -111,6 +112,8 @@ interface IProps {
 const props = defineProps<IProps>();
 
 const { t, d } = useI18n();
+
+const now = useActivityClock();
 
 const icon = computed(() => activityCategoryIcon(props.item.category));
 
@@ -130,7 +133,7 @@ const timeLabel = computed(() => {
   const occurredAt = new Date(props.item.occurredAt);
 
   if (props.compact) {
-    const ago = formatTimeAgo(props.item.occurredAt);
+    const ago = formatTimeAgo(props.item.occurredAt, { now: now.value, precision: props.item.precision });
     return props.item.precision === "hour" ? `~${ago}` : ago;
   }
 
@@ -163,12 +166,7 @@ const timeLabel = computed(() => {
   }
 
   &__link {
-    @apply font-medium text-[--link-color] hover:underline;
-  }
-
-  &__emphasis,
-  &__total {
-    @apply font-medium;
+    @apply text-[--link-color] hover:underline;
   }
 
   // Two lines at most; the full name stays in the title.

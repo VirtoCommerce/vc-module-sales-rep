@@ -18,19 +18,24 @@
         />
       </div>
 
-      <div v-show="!viewChip" class="customer-activity__summary">
+      <div v-show="!viewChip" class="customer-activity__summary" data-test-id="customer-activity-summary-section">
         <VcEmptyView v-if="failed && !loading" :text="t('sales_rep.activity.customer.load_failed')" variant="error" />
 
         <VcEmptyView v-else-if="!summary && !loading" :text="t('sales_rep.activity.customer.empty')" icon="activity" />
 
         <!-- Same first-load skeleton as the insights widgets — the GA-backed query can run for seconds. -->
         <div v-else-if="loading && !summary" class="customer-activity__skeletons" aria-hidden="true">
-          <div v-for="index in skeletonRows" :key="index" class="customer-activity__skeleton" />
+          <div
+            v-for="index in skeletonRows"
+            :key="index"
+            class="customer-activity__skeleton"
+            data-test-id="customer-activity-skeleton"
+          />
         </div>
 
         <template v-else-if="summary">
           <dl class="customer-activity__list">
-            <div v-if="summary.createdOn" class="customer-activity__row">
+            <div v-if="summary.createdOn" class="customer-activity__row" data-test-id="customer-activity-row">
               <dt class="customer-activity__label">
                 <VcIcon class="customer-activity__icon" name="calendar" :size="15" />
                 {{ t("sales_rep.activity.customer.created_on") }}
@@ -40,7 +45,7 @@
             </div>
 
             <template v-if="summary.isAnalyticsAvailable">
-              <div class="customer-activity__row">
+              <div class="customer-activity__row" data-test-id="customer-activity-row">
                 <dt class="customer-activity__label">
                   <VcIcon class="customer-activity__icon" name="log-in" :size="15" />
                   {{ t("sales_rep.activity.customer.last_web_login") }}
@@ -52,7 +57,7 @@
                 </dd>
               </div>
 
-              <div class="customer-activity__row">
+              <div class="customer-activity__row" data-test-id="customer-activity-row">
                 <dt class="customer-activity__label">
                   <VcIcon class="customer-activity__icon" name="activity" :size="15" />
                   {{ t("sales_rep.activity.customer.visits") }}
@@ -62,7 +67,7 @@
                 <dd class="customer-activity__value">{{ formatStatCount(summary.visitsCount) }}</dd>
               </div>
 
-              <div class="customer-activity__row">
+              <div class="customer-activity__row" data-test-id="customer-activity-row">
                 <dt class="customer-activity__label">
                   <VcIcon class="customer-activity__icon" name="search" :size="15" />
                   {{ t("sales_rep.activity.customer.last_search_term") }}
@@ -77,22 +82,27 @@
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    “{{ summary.lastSearchTerm }}”
+                    {{ t("sales_rep.activity.quoted_term", { term: summary.lastSearchTerm }) }}
                   </VcLink>
 
                   <template v-else>—</template>
 
-                  <span v-if="summary.lastSearchedDate" class="customer-activity__date">
+                  <span
+                    v-if="summary.lastSearchedDate"
+                    class="customer-activity__date"
+                    data-test-id="customer-activity-date-label"
+                  >
                     {{ $d(new Date(summary.lastSearchedDate)) }}
                   </span>
                 </dd>
               </div>
 
-              <!-- A product goes under its label: beside it, a long name got a ~150 px column and ran to 8 lines
-                   (QA). The dash stays in line with the other rows' values. -->
+              <!-- A product goes under its label: beside it, a long name got a ~150 px column and ran to 8 lines.
+                   The dash stays in line with the other rows' values. -->
               <div
                 class="customer-activity__row"
                 :class="{ 'customer-activity__row--stacked': summary.lastViewedProduct }"
+                data-test-id="customer-activity-row"
               >
                 <dt class="customer-activity__label">
                   <VcIcon class="customer-activity__icon" name="eye" :size="15" />
@@ -118,7 +128,11 @@
 
                   <template v-else>—</template>
 
-                  <span v-if="summary.lastViewedDate" class="customer-activity__date">
+                  <span
+                    v-if="summary.lastViewedDate"
+                    class="customer-activity__date"
+                    data-test-id="customer-activity-date-label"
+                  >
                     {{ $d(new Date(summary.lastViewedDate)) }}
                   </span>
                 </dd>
@@ -128,7 +142,11 @@
 
           <!-- Untracked or unreadable activity must not read as "never logs in / searches"; Created on (DB data)
                still shows. Outside the <dl>, which may hold only dt/dd groups. -->
-          <div v-if="!summary.isAnalyticsAvailable" class="customer-activity__note">
+          <div
+            v-if="!summary.isAnalyticsAvailable"
+            class="customer-activity__note"
+            data-test-id="customer-activity-unavailable-label"
+          >
             <VcIcon class="customer-activity__icon" name="circle-alert" :size="15" />
             {{ t("sales_rep.activity.customer.analytics_unavailable") }}
           </div>
@@ -191,6 +209,16 @@ watch(viewChip, (view) => {
   }
 });
 
+// The profile page keeps this instance when it moves to another customer, so the widget starts over on Summary:
+// otherwise it opens on the previous customer's sub-view, and the visited panels query the new one at once.
+watch(
+  () => props.organizationId,
+  () => {
+    viewChip.value = undefined;
+    visitedViews.clear();
+  },
+);
+
 // Lifetime, unlike the tabs beside it (this year): a "last" fact must survive a quiet year, so it shows its date.
 const { summary, loading, error } = useSalesRepCustomerActivitySummary(() => props.organizationId);
 
@@ -220,14 +248,16 @@ const productLabel = computed(() => {
 <style lang="scss">
 // @apply: module is self-contained as an MF remote (no global utility layer).
 .customer-activity {
+  $stackedRow: "";
+
   // px-6 aligns the chips with the widget header title, like the panels' own sort-chip rows.
   &__views {
     @apply border-b border-neutral-200 bg-neutral-50 px-6 py-3;
   }
 
-  // vc-widget__slot's padding.
+  // The same px-6 as the chips above and the panels, so the card keeps one left edge on every screen.
   &__summary {
-    @apply px-[--p-x] pb-5 pt-4;
+    @apply px-6 pb-5 pt-4;
   }
 
   &__skeletons {
@@ -236,13 +266,15 @@ const productLabel = computed(() => {
 
   // h-6 + my-3 ≈ one loaded definition row (a py-3 text line), so the card keeps its height.
   &__skeleton {
-    @apply my-3 h-6 animate-pulse rounded-[--vc-radius] bg-neutral-100;
+    @apply my-3 h-6 rounded-[--vc-radius] bg-neutral-100 motion-safe:animate-pulse;
   }
 
   &__row {
     @apply flex items-baseline justify-between gap-4 border-b border-neutral-100 py-3 last:border-b-0;
 
     &--stacked {
+      $stackedRow: &;
+
       @apply flex-col items-stretch gap-1;
     }
   }
@@ -256,11 +288,11 @@ const productLabel = computed(() => {
   }
 
   &__value {
-    @apply min-w-0 text-end text-sm font-medium text-neutral-900 [word-break:break-word];
-  }
+    @apply min-w-0 text-end text-sm text-neutral-900 [word-break:break-word];
 
-  &__row--stacked &__value {
-    @apply text-start;
+    #{$stackedRow} & {
+      @apply text-start;
+    }
   }
 
   &__link {
@@ -274,7 +306,7 @@ const productLabel = computed(() => {
 
   // Under the value, so a long product name keeps the whole first line.
   &__date {
-    @apply block text-xs font-normal text-neutral-500;
+    @apply block text-xs text-neutral-500;
   }
 
   &__note {
@@ -287,7 +319,7 @@ const productLabel = computed(() => {
   }
 
   &__all-link {
-    @apply inline-flex items-center gap-1 whitespace-nowrap text-sm font-medium text-[--link-color] hover:text-[--link-hover-color];
+    @apply inline-flex items-center gap-1 whitespace-nowrap text-sm text-[--link-color] hover:text-[--link-hover-color];
   }
 }
 </style>

@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Inga spårade sökningar under den här perioden",
         "empty_this_year": "Inga spårade sökningar i år",
+        "empty_all_time": "Inga spårade sökningar ännu",
         "count": "{n} sökning | {n} sökningar",
         "last_searched": "Senast sökt {date}",
         "load_failed": "Det gick inte att läsa in sökhistoriken"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Inga spårade produktvisningar under den här perioden",
         "empty_this_year": "Inga spårade produktvisningar i år",
+        "empty_all_time": "Inga spårade produktvisningar ännu",
         "views": "{n} visning | {n} visningar",
         "load_failed": "Det gick inte att läsa in visningshistoriken"
       }
@@ -323,7 +325,7 @@
         "orders": "Beställningar",
         "customers": "Kunder",
         "searches": "Sökningar",
-        "productViews": "Produktvisningar",
+        "product_views": "Produktvisningar",
         "logins": "Inloggningar"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, under timmen {time}"
       },
+      "quoted_term": "”{term}”",
       "caveat": "Sökningar, produktvisningar och inloggningar baseras på spårad butiksaktivitet och är ungefärliga.",
       "tracked_hint": "Spårad butiksaktivitet: kan ta upp till 48 timmar att visas.",
       "empty": "Ingen aktivitet ännu",

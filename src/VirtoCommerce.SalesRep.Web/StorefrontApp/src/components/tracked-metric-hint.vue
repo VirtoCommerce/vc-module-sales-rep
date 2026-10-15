@@ -1,18 +1,18 @@
 <template>
-  <!-- Own element for the class: VcTooltip forwards attributes to VcPopover, which may have no single root. -->
-  <span class="tracked-metric-hint">
-    <!-- lazy: otherwise the popover mounts at once and floating-ui's autoUpdate measures the trigger every
-         frame, once per hint. -->
-    <VcTooltip lazy placement="top">
-      <template #trigger>
+  <!-- lazy: otherwise the popover mounts at once and floating-ui's autoUpdate measures the trigger every frame, once
+       per hint. -->
+  <VcTooltip class="tracked-metric-hint" lazy placement="top">
+    <!-- A focusable trigger of our own, so the hint opens from the keyboard as well as on hover. -->
+    <template #default="{ triggerProps }">
+      <span class="tracked-metric-hint__trigger" tabindex="0" v-bind="triggerProps">
         <VcIcon name="hourglass" :size="14" :label="t('sales_rep.activity.tracked_hint')" />
-      </template>
+      </span>
+    </template>
 
-      <template #content>
-        {{ t("sales_rep.activity.tracked_hint") }}
-      </template>
-    </VcTooltip>
-  </span>
+    <template #content>
+      {{ t("sales_rep.activity.tracked_hint") }}
+    </template>
+  </VcTooltip>
 </template>
 
 <script setup lang="ts">
@@ -25,16 +25,11 @@ const { t } = useI18n();
 <style lang="scss">
 // @apply: module is self-contained as an MF remote (no global utility layer).
 .tracked-metric-hint {
-  @apply inline-flex shrink-0 items-center self-center text-neutral-400;
+  @apply inline-flex shrink-0 items-center self-center;
 
-  // The tooltip's block wrappers leave VcIcon (inline-block, align-top) on the line box; flex them to centre it.
-  .vc-popover,
-  .vc-popover__trigger {
-    @apply flex items-center;
-  }
-
-  .vc-icon {
-    @apply block;
+  // Flex, so the icon is centred instead of sitting on a text line.
+  &__trigger {
+    @apply flex items-center text-neutral-500;
   }
 }
 </style>

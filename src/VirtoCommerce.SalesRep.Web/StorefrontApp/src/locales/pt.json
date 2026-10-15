@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "Nenhuma pesquisa rastreada neste período",
         "empty_this_year": "Nenhuma pesquisa rastreada neste ano",
+        "empty_all_time": "Ainda não há pesquisas rastreadas",
         "count": "{n} pesquisa | {n} pesquisas",
         "last_searched": "Última pesquisa: {date}",
         "load_failed": "Não foi possível carregar o histórico de pesquisa"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "Nenhuma visualização de produto rastreada neste período",
         "empty_this_year": "Nenhuma visualização de produto rastreada neste ano",
+        "empty_all_time": "Ainda não há visualizações de produto rastreadas",
         "views": "{n} visualização | {n} visualizações",
         "load_failed": "Não foi possível carregar o histórico de navegação"
       }
@@ -323,7 +325,7 @@
         "orders": "Pedidos",
         "customers": "Clientes",
         "searches": "Pesquisas",
-        "productViews": "Visualizações de produto",
+        "product_views": "Visualizações de produto",
         "logins": "Logins"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, durante a hora de {time}"
       },
+      "quoted_term": "“{term}”",
       "caveat": "Pesquisas, visualizações de produto e logins baseiam-se na atividade monitorada da loja e são aproximados.",
       "tracked_hint": "Atividade rastreada da loja: pode levar até 48 horas para aparecer.",
       "empty": "Ainda não há atividade",

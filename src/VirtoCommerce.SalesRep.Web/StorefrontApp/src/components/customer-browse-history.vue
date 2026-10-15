@@ -9,7 +9,9 @@
       />
 
       <!-- The window, named beside the rows: the empty text names it only when there are none. -->
-      <span class="customer-browse-history__period">{{ t("sales_rep.activity.period.year") }}</span>
+      <span class="customer-browse-history__period" data-test-id="customer-browse-history-period-label">
+        {{ t("sales_rep.activity.period.year") }}
+      </span>
     </div>
 
     <div class="customer-browse-history__content">
@@ -34,24 +36,28 @@
 
       <template v-else>
         <ul class="customer-browse-history__list">
-          <template v-if="loading && !items.length">
+          <!-- On every request, not only the first: no-cache keeps the previous rows until the answer, so a switch
+               between Recent and Top would leave the other mode's list under the new chip. -->
+          <template v-if="loading">
             <li
               v-for="index in INSIGHTS_DEFAULT_ROWS"
               :key="index"
               class="customer-browse-history__skeleton"
+              data-test-id="customer-browse-history-skeleton"
               aria-hidden="true"
             />
           </template>
 
           <template v-else>
-            <li v-for="item in items" :key="item.sku" class="customer-browse-history__row">
+            <li
+              v-for="item in items"
+              :key="item.sku"
+              class="customer-browse-history__row"
+              data-test-id="customer-browse-history-row"
+            >
               <span class="customer-browse-history__thumb">
-                <VcImage
-                  v-if="item.imageUrl"
-                  :src="item.imageUrl"
-                  :alt="item.name"
-                  class="customer-browse-history__thumb-img"
-                />
+                <!-- The name beside it already says what this is. -->
+                <VcImage v-if="item.imageUrl" :src="item.imageUrl" alt="" class="customer-browse-history__thumb-img" />
 
                 <VcIcon v-else name="cube" aria-hidden="true" />
               </span>
@@ -61,21 +67,29 @@
                 <VcLink
                   v-if="item.isResolved"
                   :to="getProductRoute(item.productId)"
-                  :title="item.name"
+                  :title="item.name || item.sku"
                   target="_blank"
                   rel="noopener noreferrer"
                   class="customer-browse-history__name"
                 >
-                  {{ item.name }}
+                  {{ item.name || item.sku }}
                 </VcLink>
 
                 <span v-else class="customer-browse-history__name" :title="item.name || item.sku">
                   {{ item.name || item.sku }}
                 </span>
 
-                <span v-if="item.sku && item.name" class="customer-browse-history__sku">{{ item.sku }}</span>
+                <span
+                  v-if="item.sku && item.name"
+                  class="customer-browse-history__sku"
+                  data-test-id="customer-browse-history-sku-label"
+                >
+                  {{ item.sku }}
+                </span>
 
-                <span class="customer-browse-history__meta">{{ rowMeta(item) }}</span>
+                <span class="customer-browse-history__meta" data-test-id="customer-browse-history-meta-label">
+                  {{ rowMeta(item) }}
+                </span>
               </span>
             </li>
           </template>
@@ -101,6 +115,7 @@ import {
   INSIGHTS_SORT_BY_COUNT,
   INSIGHTS_SORT_BY_DATE,
 } from "../constants";
+import { formatStatCount } from "../utils";
 import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
 import type { SalesRepRuleType } from "../types";
 import type { SalesRepBrowsedProductRowType } from "../types/insights";
@@ -134,7 +149,9 @@ const { items, unavailable, loading, error } = useSalesRepBrowseHistory({
 const failed = computed(() => Boolean(error.value));
 
 function rowMeta(item: SalesRepBrowsedProductRowType): string {
-  const parts = [t("sales_rep.customer_insights.browse_history.views", item.viewCount)];
+  const parts = [
+    t("sales_rep.customer_insights.browse_history.views", { n: formatStatCount(item.viewCount) }, item.viewCount),
+  ];
   if (item.lastViewedDate) {
     parts.push(d(new Date(item.lastViewedDate), "short"));
   }
@@ -171,7 +188,7 @@ function rowMeta(item: SalesRepBrowsedProductRowType): string {
   &__thumb {
     --vc-icon-size: 1.25rem;
 
-    @apply flex size-10 flex-none items-center justify-center overflow-hidden rounded-md border border-neutral-200 bg-additional-50 text-neutral-400;
+    @apply flex size-10 flex-none items-center justify-center overflow-hidden rounded-[--vc-radius] border border-neutral-200 bg-additional-50 text-neutral-400;
   }
 
   &__thumb-img {
@@ -184,7 +201,7 @@ function rowMeta(item: SalesRepBrowsedProductRowType): string {
 
   // Two lines at most; the full name stays in the title.
   &__name {
-    @apply line-clamp-2 text-sm font-medium [word-break:break-word];
+    @apply line-clamp-2 text-sm [word-break:break-word];
   }
 
   &__sku {
@@ -192,15 +209,15 @@ function rowMeta(item: SalesRepBrowsedProductRowType): string {
   }
 
   &__meta {
-    @apply text-xs text-neutral-400;
+    @apply text-xs text-neutral-600;
   }
 
   &__skeleton {
-    @apply my-3 h-12 animate-pulse rounded-[--vc-radius] bg-neutral-100;
+    @apply my-3 h-12 rounded-[--vc-radius] bg-neutral-100 motion-safe:animate-pulse;
   }
 
   &__caveat {
-    @apply border-t border-neutral-100 pt-3 text-xs text-neutral-400;
+    @apply border-t border-neutral-100 pt-3 text-xs text-neutral-600;
   }
 }
 </style>

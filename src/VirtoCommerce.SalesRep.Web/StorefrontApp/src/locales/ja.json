@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "この期間にトラッキングされた検索はありません",
         "empty_this_year": "今年トラッキングされた検索はありません",
+        "empty_all_time": "まだトラッキングされた検索はありません",
         "count": "{n} 回の検索",
         "last_searched": "最終検索日: {date}",
         "load_failed": "検索履歴を読み込めませんでした"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "この期間にトラッキングされた商品閲覧はありません",
         "empty_this_year": "今年トラッキングされた商品閲覧はありません",
+        "empty_all_time": "まだトラッキングされた商品閲覧はありません",
         "views": "{n} 回の閲覧",
         "load_failed": "閲覧履歴を読み込めませんでした"
       }
@@ -323,7 +325,7 @@
         "orders": "注文",
         "customers": "顧客",
         "searches": "検索",
-        "productViews": "商品閲覧",
+        "product_views": "商品閲覧",
         "logins": "ログイン"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date} {time} 台"
       },
+      "quoted_term": "「{term}」",
       "caveat": "検索・商品閲覧・ログインはトラッキングされたストア活動に基づく概算値です。",
       "tracked_hint": "ストアフロントの計測データ: 表示までに最大 48 時間かかります。",
       "empty": "まだアクティビティはありません",

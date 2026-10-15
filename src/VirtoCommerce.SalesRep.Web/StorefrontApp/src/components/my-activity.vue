@@ -18,12 +18,25 @@
 
         <!-- Same first-load skeleton as the insights widgets — the GA-backed query can run for seconds. -->
         <div v-else-if="loading && !items.length" class="my-activity__skeletons" aria-hidden="true">
-          <div v-for="index in skeletonRows" :key="index" class="my-activity__skeleton" />
+          <div
+            v-for="index in skeletonRows"
+            :key="index"
+            class="my-activity__skeleton"
+            data-test-id="my-activity-skeleton"
+          />
         </div>
 
-        <div v-else class="my-activity__list">
-          <ActivityRow v-for="(item, index) in items" :key="index" :item="item" compact show-organization />
-        </div>
+        <template v-else>
+          <div class="my-activity__list">
+            <ActivityRow v-for="item in items" :key="activityKey(item)" :item="item" compact show-organization />
+          </div>
+
+          <!-- Orders and customers still list when analytics did not answer, so say what is missing from them. -->
+          <p v-if="analyticsUnavailable" class="my-activity__notice" data-test-id="my-activity-incomplete-label">
+            <VcIcon class="my-activity__notice-icon" name="circle-alert" :size="15" />
+            {{ t("sales_rep.activity.incomplete") }}
+          </p>
+        </template>
       </div>
     </template>
   </LayoutWidget>
@@ -36,6 +49,7 @@ import { useSalesRepActivities } from "../composables/useSalesRepActivities";
 import { useSharedSalesRepCustomersCount } from "../composables/useSalesRepCustomersCount";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
 import { ACTIVITIES_ROUTE_NAME, HUB_ACTIVITY_PERIOD, MY_ACTIVITY_TAKE } from "../constants";
+import { activityKey } from "../utils";
 import ActivityRow from "./activity-row.vue";
 import LayoutWidget from "./layout-widget.vue";
 
@@ -81,16 +95,24 @@ const failed = computed(() => Boolean(error.value));
     @apply flex flex-col divide-y divide-neutral-100;
   }
 
+  &__notice {
+    @apply flex items-start gap-2 border-t border-neutral-100 pt-3 text-sm text-neutral-600;
+  }
+
+  &__notice-icon {
+    @apply mt-0.5 shrink-0 text-warning;
+  }
+
   &__skeletons {
     @apply flex flex-col;
   }
 
   &__skeleton {
-    @apply my-3 h-12 animate-pulse rounded-[--vc-radius] bg-neutral-100;
+    @apply my-3 h-12 rounded-[--vc-radius] bg-neutral-100 motion-safe:animate-pulse;
   }
 
   &__all-link {
-    @apply inline-flex items-center gap-1 whitespace-nowrap text-sm font-medium text-[--link-color] hover:text-[--link-hover-color];
+    @apply inline-flex items-center gap-1 whitespace-nowrap text-sm text-[--link-color] hover:text-[--link-hover-color];
   }
 }
 </style>

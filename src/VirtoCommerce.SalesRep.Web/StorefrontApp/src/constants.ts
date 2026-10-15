@@ -74,14 +74,32 @@ export const MY_ACTIVITY_TAKE = 5;
 // The window the hub's activity surfaces show and the Activities page opens on: one window, so "View all" never
 // shows less than a widget did, and the widget's analytics read is the page's first one. Labels say "this year".
 export const HUB_ACTIVITY_PERIOD: SalesRepPeriodType = "year";
-// Category vocabulary of salesRepActivities (the backend types it as free-form String). Ordered —
-// the page renders its tabs in this order, whatever order categoryCounts arrives in.
-export const ACTIVITY_CATEGORIES = ["orders", "customers", "searches", "productViews", "logins"] as const;
+// Category vocabulary of salesRepActivities (the backend types it as free-form String).
+export const ACTIVITY_CATEGORY = {
+  orders: "orders",
+  customers: "customers",
+  searches: "searches",
+  productViews: "productViews",
+  logins: "logins",
+} as const;
+export type ActivityCategoryType = (typeof ACTIVITY_CATEGORY)[keyof typeof ACTIVITY_CATEGORY];
+// Ordered — the page renders its tabs in this order, whatever order categoryCounts arrives in.
+export const ACTIVITY_CATEGORIES: readonly ActivityCategoryType[] = [
+  ACTIVITY_CATEGORY.orders,
+  ACTIVITY_CATEGORY.customers,
+  ACTIVITY_CATEGORY.searches,
+  ACTIVITY_CATEGORY.productViews,
+  ACTIVITY_CATEGORY.logins,
+];
 // Categories sourced from tracked analytics (hour-precision buckets), named by the caveat line. Membership
 // sets, built once for the module; the array above carries the tab order.
-export const TRACKED_ACTIVITY_CATEGORIES = new Set<string>(["searches", "productViews", "logins"]);
+export const TRACKED_ACTIVITY_CATEGORIES = new Set<string>([
+  ACTIVITY_CATEGORY.searches,
+  ACTIVITY_CATEGORY.productViews,
+  ACTIVITY_CATEGORY.logins,
+]);
 // The categories salesRepCustomerInsights can rank by count — only their tabs offer Top | Recent.
-export const RANKED_ACTIVITY_CATEGORIES = new Set<string>(["searches", "productViews"]);
+export const RANKED_ACTIVITY_CATEGORIES = new Set<string>([ACTIVITY_CATEGORY.searches, ACTIVITY_CATEGORY.productViews]);
 
 // Document library (VCST-5730). Read permission gates the widget, the page and the nav link;
 // write implies read and administrators pass — both are resolved server-side, the client only

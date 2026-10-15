@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import { unref } from "vue";
+import { ACTIVITY_PAGE_SIZE } from "../constants";
 import { useSalesRepActivities } from "./useSalesRepActivities";
 import type { SalesRepActivitiesQuery } from "../api/graphql/types";
 
@@ -37,6 +39,22 @@ function activityEvent(overrides: Partial<ActivityEventType> = {}): ActivityEven
     orderTotal: { formattedAmount: "$100.00" },
     ...overrides,
   };
+}
+
+/** The reactive `variables` computed the composable handed to useQuery. */
+function passedVariables(): Record<string, unknown> {
+  const call = (queryMock.useQuery.mock.calls.at(-1) ?? []) as unknown[];
+  const variables = call[1] as { value: Record<string, unknown> } | undefined;
+  if (!variables) {
+    throw new Error("useQuery was not called with variables");
+  }
+  return variables.value;
+}
+
+/** The options the composable handed to useQuery. */
+function passedOptions(): { enabled?: unknown; keepPreviousResult?: boolean } {
+  const call = (queryMock.useQuery.mock.calls.at(-1) ?? []) as unknown[];
+  return (call[2] ?? {}) as { enabled?: unknown; keepPreviousResult?: boolean };
 }
 
 function connection(
@@ -148,15 +166,64 @@ describe("useSalesRepActivities", () => {
 
   // Held by default, so a tab switch keeps the outgoing rows until the new ones land; the badges opt out.
   it("holds the previous result unless asked not to", () => {
-    const keepPreviousResult = () => {
-      const call = (queryMock.useQuery.mock.calls.at(-1) ?? []) as unknown[];
-      return (call[2] as { keepPreviousResult?: boolean } | undefined)?.keepPreviousResult;
-    };
-
     useSalesRepActivities();
-    expect(keepPreviousResult()).toBe(true);
+    expect(passedOptions().keepPreviousResult).toBe(true);
 
     useSalesRepActivities({ keepPreviousResult: false });
-    expect(keepPreviousResult()).toBe(false);
+    expect(passedOptions().keepPreviousResult).toBe(false);
+  });
+});
+
+describe("useSalesRepActivities request", () => {
+  it("asks for a first page of every category, with the badges, in the store and culture", () => {
+    useSalesRepActivities();
+
+    expect(passedVariables()).toEqual({
+      organizationId: undefined,
+      storeId: "test-store",
+      cultureName: "en-US",
+      categories: undefined,
+      periodFrom: undefined,
+      periodTo: undefined,
+      take: ACTIVITY_PAGE_SIZE,
+      skip: 0,
+      withCategoryCounts: true,
+    });
+  });
+
+  // take: 0 is the counts-only request behind the badges: a default for any falsy take would fetch a page of rows.
+  it("keeps take: 0", () => {
+    useSalesRepActivities({ take: 0 });
+
+    expect(passedVariables().take).toBe(0);
+  });
+
+  it("leaves the badges out when asked, and passes the scope, window and page through", () => {
+    useSalesRepActivities({
+      organizationId: () => "org-1",
+      categories: () => ["searches"],
+      periodFrom: "2026-01-01T00:00:00.000Z",
+      periodTo: () => "2026-12-31T23:59:59.999Z",
+      take: 20,
+      skip: () => 40,
+      withCategoryCounts: false,
+    });
+
+    expect(passedVariables()).toMatchObject({
+      organizationId: "org-1",
+      categories: ["searches"],
+      periodFrom: "2026-01-01T00:00:00.000Z",
+      periodTo: "2026-12-31T23:59:59.999Z",
+      take: 20,
+      skip: 40,
+      withCategoryCounts: false,
+    });
+  });
+
+  // Apollo unwraps a ref inside its options but reads a getter as truthy: the feed would never pause in Top mode.
+  it("hands Apollo a ref for an enabled getter", () => {
+    useSalesRepActivities({ enabled: () => false });
+
+    expect(unref(passedOptions().enabled)).toBe(false);
   });
 });

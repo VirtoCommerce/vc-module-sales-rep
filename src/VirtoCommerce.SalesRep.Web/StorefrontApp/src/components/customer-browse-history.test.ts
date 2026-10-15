@@ -48,7 +48,10 @@ const createWrapper = createWrapperFactory(mount, CustomerBrowseHistory, {
 });
 
 const emptyViews = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll("vc-empty-view-stub");
-const rows = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll(".customer-browse-history__row");
+const rows = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.findAll('[data-test-id="customer-browse-history-row"]');
+const skeletons = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.findAll('[data-test-id="customer-browse-history-skeleton"]');
 
 beforeEach(() => {
   state.items.value = [];
@@ -73,7 +76,9 @@ describe("CustomerBrowseHistory states", () => {
     const wrapper = createWrapper();
 
     expect(periodFilter.initial).toBe("year");
-    expect(wrapper.get(".customer-browse-history__period").text()).toBe("sales_rep.activity.period.year");
+    expect(wrapper.get('[data-test-id="customer-browse-history-period-label"]').text()).toBe(
+      "sales_rep.activity.period.year",
+    );
   });
 
   it("names the unavailable state distinctly from the empty one", () => {
@@ -97,7 +102,7 @@ describe("CustomerBrowseHistory states", () => {
     expect(views[0].attributes("variant")).toBe("error");
   });
 
-  it("keeps the list while a retry is in flight rather than flashing the failure view", () => {
+  it("shows skeleton rows, not the failure view, while a retry is in flight", () => {
     state.items.value = [{ productId: "p1", name: "Drill", sku: "", imageUrl: "", viewCount: 2 }];
     state.error.value = new Error("boom");
     state.loading.value = true;
@@ -105,7 +110,18 @@ describe("CustomerBrowseHistory states", () => {
     const wrapper = createWrapper();
 
     expect(emptyViews(wrapper)).toHaveLength(0);
-    expect(rows(wrapper)).toHaveLength(1);
+    expect(skeletons(wrapper)).toHaveLength(5);
+  });
+
+  // The query keeps the previous answer until the new one lands: Recent's rows must not sit under the Top chip.
+  it("replaces the shown rows with skeleton rows while the other sort loads", () => {
+    state.items.value = [{ productId: "p1", name: "Drill", sku: "", imageUrl: "", viewCount: 2 }];
+    state.loading.value = true;
+
+    const wrapper = createWrapper();
+
+    expect(rows(wrapper)).toHaveLength(0);
+    expect(skeletons(wrapper)).toHaveLength(5);
   });
 
   // GA stores the product code, not the id; only a backend-resolved row may deep-link, and it does so
@@ -125,5 +141,48 @@ describe("CustomerBrowseHistory states", () => {
     });
     expect(unresolved.find("a").exists()).toBe(false);
     expect(unresolved.text()).toContain("Mystery");
+  });
+
+  // A resolved product can come back with an empty name: the code stands in, in the link and its title.
+  it("names a resolved product by its code when it has no name", () => {
+    state.items.value = [{ productId: "p1", name: "", sku: "SKU-1", imageUrl: "", isResolved: true, viewCount: 1 }];
+
+    const link = createWrapper().findComponent({ name: "VcLinkStub" });
+
+    expect(link.text()).toBe("SKU-1");
+    expect(link.attributes("title")).toBe("SKU-1");
+  });
+
+  it("shows the code under a product's name, and not twice when it stands in for the name", () => {
+    state.items.value = [
+      { productId: "p1", name: "Drill", sku: "SKU-1", imageUrl: "", isResolved: true, viewCount: 1 },
+      { productId: "p2", name: "", sku: "SKU-2", imageUrl: "", isResolved: true, viewCount: 1 },
+    ];
+
+    const [named, unnamed] = rows(createWrapper());
+
+    expect(named.get('[data-test-id="customer-browse-history-sku-label"]').text()).toBe("SKU-1");
+    expect(unnamed.find('[data-test-id="customer-browse-history-sku-label"]').exists()).toBe(false);
+  });
+
+  // Beside the product's name, a picture of it says nothing more: decorative.
+  it("shows the product image without alt text, and a placeholder icon without one", () => {
+    state.items.value = [
+      {
+        productId: "p1",
+        name: "Drill",
+        sku: "SKU-1",
+        imageUrl: "https://cdn/drill.png",
+        isResolved: true,
+        viewCount: 1,
+      },
+      { productId: "p2", name: "Saw", sku: "SKU-2", imageUrl: "", isResolved: true, viewCount: 1 },
+    ];
+
+    const [withImage, withoutImage] = rows(createWrapper());
+
+    expect(withImage.get("vc-image-stub").attributes("alt")).toBe("");
+    expect(withoutImage.find("vc-image-stub").exists()).toBe(false);
+    expect(withoutImage.get("vc-icon-stub").attributes("name")).toBe("cube");
   });
 });

@@ -30,6 +30,7 @@ query SalesRepActivities(
       occurredAt
       precision
       count
+      organizationId
       organizationName
       orderId
       orderNumber

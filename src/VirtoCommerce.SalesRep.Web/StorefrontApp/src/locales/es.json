@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "No hay búsquedas registradas en este período",
         "empty_this_year": "No hay búsquedas registradas este año",
+        "empty_all_time": "Aún no hay búsquedas registradas",
         "count": "{n} búsqueda | {n} búsquedas",
         "last_searched": "Última búsqueda: {date}",
         "load_failed": "No se pudo cargar el historial de búsqueda"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "No hay vistas de productos registradas en este período",
         "empty_this_year": "No hay vistas de productos registradas este año",
+        "empty_all_time": "Aún no hay vistas de productos registradas",
         "views": "{n} vista | {n} vistas",
         "load_failed": "No se pudo cargar el historial de navegación"
       }
@@ -323,7 +325,7 @@
         "orders": "Pedidos",
         "customers": "Clientes",
         "searches": "Búsquedas",
-        "productViews": "Vistas de producto",
+        "product_views": "Vistas de producto",
         "logins": "Inicios de sesión"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date}, durante la hora de las {time}"
       },
+      "quoted_term": "«{term}»",
       "caveat": "Las búsquedas, vistas de producto e inicios de sesión se basan en la actividad registrada de la tienda y son aproximados.",
       "tracked_hint": "Actividad registrada de la tienda: puede tardar hasta 48 horas en aparecer.",
       "empty": "Aún no hay actividad",

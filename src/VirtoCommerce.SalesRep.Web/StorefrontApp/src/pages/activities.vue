@@ -48,10 +48,20 @@
         </div>
 
         <!-- The badges and the rows are separate reads, and either can come back without analytics while the other
-             shows tracked figures: say so, rather than leave a "–" beside listed rows to explain itself. -->
-        <p v-if="showIncompleteNotice" class="activities__notice" role="status">
-          <VcIcon class="activities__notice-icon" name="circle-alert" :size="15" aria-hidden="true" />
-          {{ t("sales_rep.activity.incomplete") }}
+             shows tracked figures: say so, rather than leave a "–" beside listed rows to explain itself. Mounted with
+             the page and only its text swapped: a live region that appears together with its text is not reliably
+             announced. -->
+        <p
+          class="activities__notice"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          data-test-id="activities-incomplete-label"
+        >
+          <template v-if="showIncompleteNotice">
+            <VcIcon class="activities__notice-icon" name="circle-alert" :size="15" aria-hidden="true" />
+            {{ t("sales_rep.activity.incomplete") }}
+          </template>
         </p>
 
         <!-- A failure gets its own view — it must not read as "no activity" (VCST-5586). -->
@@ -63,78 +73,39 @@
           <template #default-container>
             <!-- Skeleton on every fetch, as VcTable's loading prop does: the GA-backed query can run for seconds. -->
             <div v-if="viewLoading" class="activities__skeletons" aria-hidden="true">
-              <div v-for="index in skeletonRows" :key="index" class="activities__skeleton" />
+              <div
+                v-for="index in skeletonRows"
+                :key="index"
+                class="activities__skeleton"
+                data-test-id="activities-skeleton"
+              />
             </div>
 
-            <!-- Top mode: ranked counts, not events — no timestamps, one capped page, no pager. -->
-            <ol v-else-if="topMode && category === 'searches'" class="activities__top-list">
-              <li v-for="(item, index) in topSearchItems" :key="item.term" class="activities__top-row">
-                <span class="activities__top-rank">{{ index + 1 }}</span>
+            <ActivityTopList v-else-if="topMode" :rows="topRows" />
 
-                <VcLink
-                  class="activities__top-link"
-                  :to="searchResultsRoute(item.term)"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  “{{ item.term }}”
-                </VcLink>
-
-                <span class="activities__top-count">
-                  {{ t("sales_rep.customer_insights.search_history.count", item.count) }}
-                </span>
-              </li>
-            </ol>
-
-            <ol v-else-if="topMode" class="activities__top-list">
-              <li v-for="(item, index) in topViewItems" :key="item.sku" class="activities__top-row">
-                <span class="activities__top-rank">{{ index + 1 }}</span>
-
-                <!-- Only a row resolved to a real product links; an unresolved one stays plain text. -->
-                <VcLink
-                  v-if="item.isResolved"
-                  class="activities__top-link activities__top-product"
-                  :to="getProductRoute(item.productId)"
-                  :title="item.name || item.sku"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {{ item.name || item.sku }}
-                </VcLink>
-
-                <span v-else class="activities__top-name activities__top-product" :title="item.name || item.sku">
-                  {{ item.name || item.sku }}
-                </span>
-
-                <span class="activities__top-count">
-                  {{ t("sales_rep.customer_insights.browse_history.views", item.viewCount) }}
-                </span>
-              </li>
-            </ol>
-
-            <template v-else>
-              <div class="activities__list">
-                <ActivityRow
-                  v-for="(item, index) in items"
-                  :key="index"
-                  :item="item"
-                  :show-organization="!organizationId"
-                />
-              </div>
-
-              <VcPagination
-                v-if="pages > 1"
-                v-model:page="page"
-                :pages="pages"
-                :compact="isPhone"
-                class="activities__pagination"
-                @update:page="scrollToTop"
+            <div v-else class="activities__list">
+              <ActivityRow
+                v-for="item in items"
+                :key="activityKey(item)"
+                :item="item"
+                :show-organization="!organizationId"
               />
-            </template>
+            </div>
           </template>
         </VcWidget>
 
-        <p v-if="showCaveat && !viewFailed" class="activities__caveat">
+        <!-- Outside the list's states, as VcTable keeps its own: a page that is loading keeps the pager, and the focus
+             on the button just pressed, and a page that came back empty still has a way to the others. -->
+        <VcPagination
+          v-if="showPager"
+          v-model:page="page"
+          :pages="pages"
+          :compact="isPhone"
+          class="activities__pagination"
+          @update:page="scrollToTop"
+        />
+
+        <p v-if="showCaveat && !viewFailed" class="activities__caveat" data-test-id="activities-caveat-label">
           <VcIcon name="info" :size="14" aria-hidden="true" />
           {{ t("sales_rep.activity.caveat") }}
         </p>
@@ -149,6 +120,7 @@ import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { BREAKPOINTS, getProductRoute, ROUTES, useBreadcrumbs, usePageHead } from "@vc-frontend/core";
 import ActivityRow from "../components/activity-row.vue";
+import ActivityTopList from "../components/activity-top-list.vue";
 import SalesRepRuleChips from "../components/sales-rep-rule-chips.vue";
 import TrackedMetricHint from "../components/tracked-metric-hint.vue";
 import { useSalesRepActivities } from "../composables/useSalesRepActivities";
@@ -159,9 +131,11 @@ import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter"
 import { useSalesRepSearchHistory } from "../composables/useSalesRepSearchHistory";
 import {
   ACTIVITY_CATEGORIES,
+  ACTIVITY_CATEGORY,
   ACTIVITY_MAX_SKIP,
   ACTIVITY_PAGE_SIZE,
   CUSTOMER_PROFILE_ROUTE_NAME,
+  DASHBOARD_ROUTE_NAME,
   HUB_ACTIVITY_PERIOD,
   INSIGHTS_MAX_ROWS,
   INSIGHTS_SORT_BY_COUNT,
@@ -169,9 +143,11 @@ import {
   TRACKED_ACTIVITY_CATEGORIES,
   MY_CUSTOMERS_ROUTE_NAME,
 } from "../constants";
-import { formatStatCount, searchResultsRoute } from "../utils";
+import { activityKey, formatStatCount, searchResultsRoute } from "../utils";
+import type { ActivityCategoryType } from "../constants";
 import type { SalesRepPeriodType } from "../composables/useSalesRepPeriodFilter";
 import type { SalesRepRuleType } from "../types";
+import type { SalesRepRankedRowType } from "../types/insights";
 
 interface IProps {
   // Optional narrowing to one customer (from the customer-activity widget's "All activity" link).
@@ -179,6 +155,28 @@ interface IProps {
 }
 
 const props = defineProps<IProps>();
+
+const CATEGORY_TAB_KEYS: Record<ActivityCategoryType, string> = {
+  orders: "sales_rep.activity.tabs.orders",
+  customers: "sales_rep.activity.tabs.customers",
+  searches: "sales_rep.activity.tabs.searches",
+  productViews: "sales_rep.activity.tabs.product_views",
+  logins: "sales_rep.activity.tabs.logins",
+};
+
+// Recent (the feed) is the baseline; the one rule flips to the ranked Top list, as in the customer panels.
+const TOP_MODE_RULE = "top";
+
+// A tracked tab shows "–" when analytics did not answer: a "(0)" in the tab row reads as "they searched
+// nothing". Orders and Customers keep real counts; a failed counts request dashes every tab.
+const UNMEASURED_BADGE = "–";
+
+// Match the rows being replaced so the page height holds during a refetch; a handful on first load.
+const FIRST_LOAD_SKELETON_ROWS = 5;
+
+// totalCount counts rows the backend will not serve past its skip cap (see ACTIVITY_MAX_SKIP), so the
+// pager stops at the deepest page that still comes back with rows.
+const MAX_PAGES = Math.floor(ACTIVITY_MAX_SKIP / ACTIVITY_PAGE_SIZE) + 1;
 
 const { t } = useI18n();
 
@@ -204,9 +202,8 @@ const periodRules = computed<SalesRepRuleType[]>(() => [
 ]);
 
 const isRankableTab = computed(() => Boolean(category.value && RANKED_ACTIVITY_CATEGORIES.has(category.value)));
+const isSearchesTab = computed(() => category.value === ACTIVITY_CATEGORY.searches);
 
-// Recent (the feed) is the baseline; the one rule flips to the ranked Top list, as in the customer panels.
-const TOP_MODE_RULE = "top";
 const modeChip = ref<string | undefined>(undefined);
 const modeRules = computed<SalesRepRuleType[]>(() => [
   { name: TOP_MODE_RULE, label: t("sales_rep.customer_insights.top") },
@@ -228,12 +225,14 @@ watch(category, () => {
   modeChip.value = undefined;
 });
 
-// A customer switch reuses this instance (same route, new query), so it starts over like a fresh open.
+// A customer switch reuses this instance (same route, new query), so it starts over like a fresh open — the
+// window included: All time carried into the rep's whole feed would read every customer's history from 2015.
 watch(
   () => props.organizationId,
   () => {
     category.value = undefined;
     modeChip.value = undefined;
+    period.value = HUB_ACTIVITY_PERIOD;
     page.value = 1;
   },
   { flush: "sync" },
@@ -268,34 +267,42 @@ const {
   keepPreviousResult: false,
 });
 
-// Every badge reads the counts request, the selected tab included: one figure, one source.
-const countOf = (name: string) => categoryCounts.value.find((entry) => entry.category === name)?.count ?? 0;
+// The scoped customer's name — resolved only when the query param narrows the feed.
+const {
+  customer,
+  failed: customerFailed,
+  notFound: customerNotFound,
+} = useSalesRepCustomer(() => props.organizationId ?? "");
+const customerName = computed(() => (props.organizationId ? customer.value?.organizationName : undefined));
+
+// An id the rep cannot see would otherwise read as their own feed (fallback heading, every badge 0); only this
+// query can tell. Both flags are scoped: no id, no read, and notFound answers only for the id being asked.
+const customerUnavailable = computed(() => customerFailed.value || customerNotFound.value);
+
+// The feed and the counts answer an unserved id at once, with nothing, so until the customer resolves they count as
+// still loading: "(0)" badges and "No activity" must not show for a customer that turns out not to be the rep's.
+// The reads still start together, so a served customer's GA read waits for nothing.
+const isCustomerPending = computed(
+  () => Boolean(props.organizationId) && !customer.value && !customerUnavailable.value,
+);
 
 // The badges count events and the counts request's totalCount counts rows (an analytics row is an hour bucket of
 // several events), so "All" adds up the tabs — the figure it has to agree with.
 const allCount = computed(() => categoryCounts.value.reduce((sum, entry) => sum + entry.count, 0));
 
 // The tabs show no figures until the counts for this customer and window land.
-const countsPending = computed(() => countsLoading.value && !categoryCounts.value.length);
+const countsPending = computed(() => isCustomerPending.value || (countsLoading.value && !categoryCounts.value.length));
 const countsFailed = computed(() => Boolean(countsError.value));
-
-// A tracked tab shows "–" when analytics did not answer: a "(0)" in the tab row reads as "they searched
-// nothing". Orders and Customers keep real counts; a failed counts request dashes every tab.
-const UNMEASURED_BADGE = "–";
-const badgeFor = (name: string) =>
-  countsFailed.value || (countsAnalyticsUnavailable.value && TRACKED_ACTIVITY_CATEGORIES.has(name))
-    ? UNMEASURED_BADGE
-    : formatStatCount(countOf(name));
 
 // Zero-count categories keep their tab: a rep must see that a category exists and is quiet.
 const categoryRules = computed<SalesRepRuleType[]>(() =>
   ACTIVITY_CATEGORIES.map((name) => {
-    const label = t(`sales_rep.activity.tabs.${name}`);
+    const label = t(CATEGORY_TAB_KEYS[name]);
     return { name, label: countsPending.value ? label : `${label} (${badgeFor(name)})` };
   }),
 );
 
-// All adds every tab up, so a dashed tab dashes it too: QA read a partial sum beside "–" tabs as the whole.
+// All adds every tab up, so a dashed tab dashes it too: a partial sum beside "–" tabs reads as the whole feed.
 const allBadge = computed(() =>
   countsFailed.value || countsAnalyticsUnavailable.value ? UNMEASURED_BADGE : formatStatCount(allCount.value),
 );
@@ -307,8 +314,8 @@ const allTabLabel = computed(() =>
 const failed = computed(() => Boolean(error.value));
 
 // Each Top list runs only while its tab shows it: no speculative GA reads.
-const topSearchesEnabled = computed(() => topMode.value && category.value === "searches");
-const topViewsEnabled = computed(() => topMode.value && category.value === "productViews");
+const topSearchesEnabled = computed(() => topMode.value && isSearchesTab.value);
+const topViewsEnabled = computed(() => topMode.value && category.value === ACTIVITY_CATEGORY.productViews);
 
 const {
   items: topSearchItems,
@@ -338,36 +345,53 @@ const {
   enabled: topViewsEnabled,
 });
 
+const topRows = computed<SalesRepRankedRowType[]>(() =>
+  isSearchesTab.value
+    ? topSearchItems.value.map((item) => ({
+        key: item.term,
+        label: t("sales_rep.activity.quoted_term", { term: item.term }),
+        to: searchResultsRoute(item.term),
+        count: t("sales_rep.customer_insights.search_history.count", { n: formatStatCount(item.count) }, item.count),
+      }))
+    : topViewItems.value.map((item) => ({
+        key: item.sku,
+        label: item.name || item.sku,
+        to: item.isResolved ? getProductRoute(item.productId) : undefined,
+        count: t(
+          "sales_rep.customer_insights.browse_history.views",
+          { n: formatStatCount(item.viewCount) },
+          item.viewCount,
+        ),
+      })),
+);
+
 // The state ladder speaks for whichever source the current tab+mode shows.
-const onSearchesTab = computed(() => category.value === "searches");
-const topRowCount = computed(() => (onSearchesTab.value ? topSearchItems.value.length : topViewItems.value.length));
-const topLoading = computed(() => (onSearchesTab.value ? topSearchesLoading.value : topViewsLoading.value));
-const topFailed = computed(() => Boolean(onSearchesTab.value ? topSearchesError.value : topViewsError.value));
-const topUnavailable = computed(() => (onSearchesTab.value ? topSearchesUnavailable.value : topViewsUnavailable.value));
+const topLoading = computed(() => (isSearchesTab.value ? topSearchesLoading.value : topViewsLoading.value));
+const topFailed = computed(() => Boolean(isSearchesTab.value ? topSearchesError.value : topViewsError.value));
+const topUnavailable = computed(() => (isSearchesTab.value ? topSearchesUnavailable.value : topViewsUnavailable.value));
 
-const viewLoading = computed(() => (topMode.value ? topLoading.value : loading.value));
+const viewLoading = computed(() => isCustomerPending.value || (topMode.value ? topLoading.value : loading.value));
 const viewFailed = computed(() => (topMode.value ? topFailed.value : failed.value));
-const viewEmpty = computed(() => (topMode.value ? topUnavailable.value || !topRowCount.value : !items.value.length));
+const viewEmpty = computed(() => (topMode.value ? topUnavailable.value || !topRows.value.length : !items.value.length));
 
-// Only beside rows: an empty view already says why it is empty.
+// Only beside rows: an empty view already says why it is empty. The feed's flag counts only while the feed is
+// shown: paused in Top mode, its query keeps the last answer, which says nothing about the ranked list.
 const figuresIncomplete = computed(
-  () => countsFailed.value || countsAnalyticsUnavailable.value || analyticsUnavailable.value,
+  () => countsFailed.value || countsAnalyticsUnavailable.value || (!topMode.value && analyticsUnavailable.value),
 );
 const showIncompleteNotice = computed(
   () => figuresIncomplete.value && !viewLoading.value && !viewFailed.value && !viewEmpty.value,
 );
 
-// Match the rows being replaced so the page height holds during a refetch; a handful on first load.
-const FIRST_LOAD_SKELETON_ROWS = 5;
 const skeletonRows = computed(
-  () => (topMode.value ? topRowCount.value : items.value.length) || FIRST_LOAD_SKELETON_ROWS,
+  () => (topMode.value ? topRows.value.length : items.value.length) || FIRST_LOAD_SKELETON_ROWS,
 );
 
 const failedText = computed(() => {
   if (!topMode.value) {
     return t("sales_rep.activity.load_failed");
   }
-  return onSearchesTab.value
+  return isSearchesTab.value
     ? t("sales_rep.customer_insights.search_history.load_failed")
     : t("sales_rep.customer_insights.browse_history.load_failed");
 });
@@ -384,12 +408,7 @@ const emptyText = computed(() => {
     return t("sales_rep.activity.no_customers");
   }
   if (topMode.value) {
-    if (topUnavailable.value) {
-      return t("sales_rep.customer_insights.analytics_unavailable");
-    }
-    return onSearchesTab.value
-      ? t("sales_rep.customer_insights.search_history.empty")
-      : t("sales_rep.customer_insights.browse_history.empty");
+    return topEmptyText();
   }
   // An empty tracked tab is a quiet period or a source that never answered; only the flag tells them apart.
   if (analyticsUnavailable.value && showCaveat.value) {
@@ -405,35 +424,23 @@ const emptyIcon = computed(() => {
   if (!topMode.value) {
     return "activity";
   }
-  return onSearchesTab.value ? "search" : "eye";
+  return isSearchesTab.value ? "search" : "eye";
 });
 
 // Icon-only Prev/Next on a phone: with their labels, two pages need ~350 px, wider than a 320 px screen leaves the
-// card, and QA saw the page scroll sideways.
+// card, and the page scrolled sideways.
 const isPhone = useBreakpoints(BREAKPOINTS).smaller("sm");
 
-// totalCount counts rows the backend will not serve past its skip cap (see ACTIVITY_MAX_SKIP), so the
-// pager stops at the deepest page that still comes back with rows.
-const MAX_PAGES = Math.floor(ACTIVITY_MAX_SKIP / ACTIVITY_PAGE_SIZE) + 1;
 const pages = computed(() => Math.min(Math.max(1, Math.ceil(totalCount.value / ACTIVITY_PAGE_SIZE)), MAX_PAGES));
+
+// The feed's pager; the ranked list is one capped page.
+const showPager = computed(() => !topMode.value && pages.value > 1);
 
 watch(pages, (total) => {
   if (page.value > total) {
     page.value = total;
   }
 });
-
-// The scoped customer's name — resolved only when the query param narrows the feed.
-const {
-  customer,
-  failed: customerFailed,
-  notFound: customerNotFound,
-} = useSalesRepCustomer(() => props.organizationId ?? "");
-const customerName = computed(() => (props.organizationId ? customer.value?.organizationName : undefined));
-
-// An id the rep cannot see would otherwise read as their own feed (fallback heading, every badge 0); only this
-// query can tell. Both flags are scoped: no id, no read, and notFound answers only for the id being asked.
-const customerUnavailable = computed(() => customerFailed.value || customerNotFound.value);
 
 // The customer profile's own wording for the same two situations, reused rather than restated.
 const unavailableText = computed(() =>
@@ -450,16 +457,12 @@ const heading = computed(() => {
     : t("sales_rep.activity.page.title_fallback");
 });
 
-function scrollToTop(): void {
-  window.scroll({ top: 0, behavior: "smooth" });
-}
-
 usePageHead({ title: heading });
 
 const breadcrumbs = useBreadcrumbs(() => {
   const trail = [
     { title: t("common.links.account"), route: { name: ROUTES.ACCOUNT.NAME } },
-    { title: t("sales_rep.hub.title") },
+    { title: t("sales_rep.hub.title"), route: { name: DASHBOARD_ROUTE_NAME } },
   ];
 
   // The customer segment waits for the name — a crumb with an empty title is worse than no crumb.
@@ -477,6 +480,36 @@ const breadcrumbs = useBreadcrumbs(() => {
     { title: t("sales_rep.activity.breadcrumb") },
   ];
 });
+
+// Every badge reads the counts request, the selected tab included: one figure, one source.
+function countOf(name: string): number {
+  return categoryCounts.value.find((entry) => entry.category === name)?.count ?? 0;
+}
+
+function badgeFor(name: string): string {
+  return countsFailed.value || (countsAnalyticsUnavailable.value && TRACKED_ACTIVITY_CATEGORIES.has(name))
+    ? UNMEASURED_BADGE
+    : formatStatCount(countOf(name));
+}
+
+// "In this period" has no period to point at under All time.
+function topEmptyText(): string {
+  if (topUnavailable.value) {
+    return t("sales_rep.customer_insights.analytics_unavailable");
+  }
+  if (isSearchesTab.value) {
+    return periodRule.value
+      ? t("sales_rep.customer_insights.search_history.empty")
+      : t("sales_rep.customer_insights.search_history.empty_all_time");
+  }
+  return periodRule.value
+    ? t("sales_rep.customer_insights.browse_history.empty")
+    : t("sales_rep.customer_insights.browse_history.empty_all_time");
+}
+
+function scrollToTop(): void {
+  window.scroll({ top: 0, behavior: "smooth" });
+}
 </script>
 
 <style lang="scss">
@@ -498,34 +531,8 @@ const breadcrumbs = useBreadcrumbs(() => {
     @apply -mt-1 flex;
   }
 
-  &__list,
-  &__top-list {
+  &__list {
     @apply flex flex-col divide-y divide-neutral-100 px-6 py-2;
-  }
-
-  &__top-row {
-    @apply flex items-baseline gap-3 py-3;
-  }
-
-  &__top-rank {
-    @apply w-5 flex-none text-right text-sm font-semibold text-neutral-400;
-  }
-
-  &__top-link {
-    @apply min-w-0 text-sm font-medium text-[--link-color] [word-break:break-word] hover:underline;
-  }
-
-  &__top-name {
-    @apply min-w-0 text-sm font-medium [word-break:break-word];
-  }
-
-  // Two lines at most; the full name stays in the title.
-  &__top-product {
-    @apply line-clamp-2;
-  }
-
-  &__top-count {
-    @apply ms-auto flex-none text-sm font-semibold text-neutral-500;
   }
 
   &__skeletons {
@@ -533,11 +540,7 @@ const breadcrumbs = useBreadcrumbs(() => {
   }
 
   &__skeleton {
-    @apply my-3 h-12 animate-pulse rounded-[--vc-radius] bg-neutral-100;
-  }
-
-  &__pagination {
-    @apply px-6 pb-5;
+    @apply my-3 h-12 rounded-[--vc-radius] bg-neutral-100 motion-safe:animate-pulse;
   }
 
   &__caveat {
@@ -546,6 +549,11 @@ const breadcrumbs = useBreadcrumbs(() => {
 
   &__notice {
     @apply flex items-start gap-2 text-sm text-neutral-600;
+
+    // Kept in the column while empty, for screen readers; -mt-4 hands back the gap-4 it would otherwise add.
+    &:empty {
+      @apply -mt-4;
+    }
   }
 
   &__notice-icon {

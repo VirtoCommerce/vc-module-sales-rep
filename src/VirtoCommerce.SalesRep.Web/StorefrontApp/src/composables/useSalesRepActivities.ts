@@ -66,6 +66,7 @@ export function useSalesRepActivities(options: UseSalesRepActivitiesOptionsType 
       occurredAt: event.occurredAt as string,
       precision: event.precision === "hour" ? "hour" : "exact",
       count: event.count ?? 1,
+      organizationId: event.organizationId ?? "",
       organizationName: event.organizationName ?? "",
       orderId: event.orderId ?? "",
       orderNumber: event.orderNumber ?? "",

@@ -297,6 +297,7 @@
       "search_history": {
         "empty": "此时间段内没有已跟踪的搜索",
         "empty_this_year": "今年没有已跟踪的搜索",
+        "empty_all_time": "暂无已跟踪的搜索",
         "count": "{n} 次搜索",
         "last_searched": "上次搜索:{date}",
         "load_failed": "无法加载搜索历史"
@@ -304,6 +305,7 @@
       "browse_history": {
         "empty": "此时间段内没有已跟踪的商品浏览",
         "empty_this_year": "今年没有已跟踪的商品浏览",
+        "empty_all_time": "暂无已跟踪的商品浏览",
         "views": "{n} 次浏览",
         "load_failed": "无法加载浏览历史"
       }
@@ -323,7 +325,7 @@
         "orders": "订单",
         "customers": "客户",
         "searches": "搜索",
-        "productViews": "商品浏览",
+        "product_views": "商品浏览",
         "logins": "登录"
       },
       "period": {
@@ -343,6 +345,7 @@
       "time": {
         "during_hour": "{date} {time} 时段内"
       },
+      "quoted_term": "“{term}”",
       "caveat": "搜索、商品浏览和登录基于跟踪到的商店活动，为近似值。",
       "tracked_hint": "店面跟踪数据：最多可能需要 48 小时才会显示。",
       "empty": "暂无活动",

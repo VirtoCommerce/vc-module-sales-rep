@@ -48,7 +48,10 @@ const createWrapper = createWrapperFactory(mount, CustomerSearchHistory, {
 });
 
 const emptyViews = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll("vc-empty-view-stub");
-const rows = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll(".customer-search-history__row");
+const rows = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.findAll('[data-test-id="customer-search-history-row"]');
+const skeletons = (wrapper: ReturnType<typeof createWrapper>) =>
+  wrapper.findAll('[data-test-id="customer-search-history-skeleton"]');
 
 beforeEach(() => {
   state.items.value = [];
@@ -74,7 +77,9 @@ describe("CustomerSearchHistory states", () => {
     const wrapper = createWrapper();
 
     expect(periodFilter.initial).toBe("year");
-    expect(wrapper.get(".customer-search-history__period").text()).toBe("sales_rep.activity.period.year");
+    expect(wrapper.get('[data-test-id="customer-search-history-period-label"]').text()).toBe(
+      "sales_rep.activity.period.year",
+    );
   });
 
   // The backend answers null when the store has no insights provider — the widget must name that
@@ -100,7 +105,7 @@ describe("CustomerSearchHistory states", () => {
     expect(views[0].attributes("variant")).toBe("error");
   });
 
-  it("keeps the list while a retry is in flight rather than flashing the failure view", () => {
+  it("shows skeleton rows, not the failure view, while a retry is in flight", () => {
     state.items.value = [{ term: "gloves", count: 3 }];
     state.error.value = new Error("boom");
     state.loading.value = true;
@@ -108,7 +113,7 @@ describe("CustomerSearchHistory states", () => {
     const wrapper = createWrapper();
 
     expect(emptyViews(wrapper)).toHaveLength(0);
-    expect(rows(wrapper)).toHaveLength(1);
+    expect(skeletons(wrapper)).toHaveLength(5);
   });
 
   it("renders skeleton rows on first load, before any rows exist", () => {
@@ -116,16 +121,27 @@ describe("CustomerSearchHistory states", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".customer-search-history__skeleton")).toHaveLength(5);
+    expect(skeletons(wrapper)).toHaveLength(5);
     expect(emptyViews(wrapper)).toHaveLength(0);
   });
 
+  // The query keeps the previous answer until the new one lands: Recent's rows must not sit under the Top chip.
+  it("replaces the shown rows with skeleton rows while the other sort loads", () => {
+    state.items.value = [{ term: "gloves", count: 3 }];
+    state.loading.value = true;
+
+    const wrapper = createWrapper();
+
+    expect(rows(wrapper)).toHaveLength(0);
+    expect(skeletons(wrapper)).toHaveLength(5);
+  });
+
   // GA sees only tracked activity (§4.7 of the design doc); a list without the caveat reads as a record. No date
-  // beside it: the newest row's date read as the data's freshness (QA: "Data as of Sep 25" on Oct 7).
+  // beside it: the newest row's date read as the data's freshness.
   it("shows the tracked-activity caveat beside the rows, with no date", () => {
     state.items.value = [{ term: "gloves", count: 3, lastSearchedDate: "2026-08-20T00:00:00Z" }];
 
-    const caveat = createWrapper().find(".customer-search-history__caveat");
+    const caveat = createWrapper().find('[data-test-id="customer-search-history-caveat-label"]');
 
     expect(caveat.exists()).toBe(true);
     expect(caveat.text()).toBe("sales_rep.customer_insights.tracked_caveat");

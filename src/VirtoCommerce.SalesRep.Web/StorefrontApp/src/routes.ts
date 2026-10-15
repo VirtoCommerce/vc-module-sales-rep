@@ -191,12 +191,14 @@ export function isCustomerScopedActivity(route: RouteLocationNormalizedLoaded): 
   return route.name === ACTIVITIES_ROUTE_NAME && Boolean(getActivityOrganizationId(route.query));
 }
 
-// The pages of "My customers": the list, a profile and that customer's activity — sibling route records, so
-// vue-router cannot see they are one area.
+// The pages of "My customers": the list, a profile, and that customer's orders, one of them and their activity —
+// sibling route records, so vue-router cannot see they are one area. Their breadcrumbs say so too.
 export function isMyCustomersArea(route: RouteLocationNormalizedLoaded): boolean {
   return (
     route.name === MY_CUSTOMERS_ROUTE_NAME ||
     route.name === CUSTOMER_PROFILE_ROUTE_NAME ||
+    route.name === CUSTOMER_ORDERS_ROUTE_NAME ||
+    route.name === CUSTOMER_ORDER_ROUTE_NAME ||
     isCustomerScopedActivity(route)
   );
 }
