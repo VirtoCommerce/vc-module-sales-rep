@@ -25,8 +25,9 @@ beforeEach(() => {
   queryMock.loading.value = false;
 });
 
+// The flag, the cache policy and the error are the shared query's: useSalesRepInsightsQuery.test.ts.
 describe("useSalesRepBrowseHistory", () => {
-  it("maps rows, blanking absent display fields and flagging the unresolved code", () => {
+  it("maps rows, blanking absent display fields and the unresolved code's product id", () => {
     queryMock.result.value = {
       salesRepCustomerInsights: {
         isAnalyticsAvailable: true,
@@ -41,75 +42,8 @@ describe("useSalesRepBrowseHistory", () => {
     const { items } = useSalesRepBrowseHistory({ organizationId: "org-1" });
 
     expect(items.value).toEqual([
-      {
-        productId: "p1",
-        name: "Drill",
-        sku: "SKU-1",
-        imageUrl: "img",
-        isResolved: true,
-        viewCount: 4,
-        lastViewedDate: undefined,
-      },
-      {
-        productId: "",
-        name: "",
-        sku: "CODE-2",
-        imageUrl: "",
-        isResolved: false,
-        viewCount: 1,
-        lastViewedDate: undefined,
-      },
+      { productId: "p1", name: "Drill", sku: "SKU-1", imageUrl: "img", viewCount: 4, lastViewedDate: undefined },
+      { productId: "", name: "", sku: "CODE-2", imageUrl: "", viewCount: 1, lastViewedDate: undefined },
     ]);
-  });
-
-  // In a catalog whose product ids equal their codes, the old `productId !== sku` test read every row as
-  // unresolved, so none of them ever got a link.
-  it("keeps a resolved product resolved when its id equals its code", () => {
-    queryMock.result.value = {
-      salesRepCustomerInsights: {
-        isAnalyticsAvailable: true,
-        browsedProducts: [{ productId: "SKU-1", sku: "SKU-1", viewCount: 2 }],
-      },
-    } satisfies SalesRepCustomerBrowsedProductsQuery;
-
-    const { items } = useSalesRepBrowseHistory({ organizationId: "org-1" });
-
-    expect(items.value[0].isResolved).toBe(true);
-  });
-
-  it("flags unavailable from the backend flag, but never before a result arrives", () => {
-    const { unavailable } = useSalesRepBrowseHistory({ organizationId: "org-1" });
-
-    expect(unavailable.value).toBe(false);
-
-    // One flag covers analytics absent, unconfigured, and a read that failed.
-    queryMock.result.value = {
-      salesRepCustomerInsights: { isAnalyticsAvailable: false, browsedProducts: [] },
-    };
-
-    expect(unavailable.value).toBe(true);
-  });
-
-  // A null payload means only that the caller may not see this customer.
-  it("does not flag unavailable on a null payload", () => {
-    const { unavailable } = useSalesRepBrowseHistory({ organizationId: "org-1" });
-
-    queryMock.result.value = { salesRepCustomerInsights: null } as unknown as SalesRepCustomerBrowsedProductsQuery;
-
-    expect(unavailable.value).toBe(false);
-  });
-
-  it("keeps the op out of the shared cache", () => {
-    useSalesRepBrowseHistory({ organizationId: "org-1" });
-
-    const call = (queryMock.useQuery.mock.calls.at(-1) ?? []) as unknown[];
-    const options = call[2] as { fetchPolicy?: string } | undefined;
-    expect(options?.fetchPolicy).toBe("no-cache");
-  });
-
-  it("surfaces the query error so the widget can show a failure state", () => {
-    const { error } = useSalesRepBrowseHistory({ organizationId: "org-1" });
-
-    expect(error).toBe(queryMock.error);
   });
 });

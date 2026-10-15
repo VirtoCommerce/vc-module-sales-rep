@@ -52,9 +52,7 @@ export function useSalesRepInsightsQuery<TResult extends InsightsQueryType>(
   });
 
   // One flag covers absent, unconfigured and failed; a null payload means the caller may not see this customer.
-  const unavailable = computed(
-    () => Boolean(result.value) && result.value?.salesRepCustomerInsights?.isAnalyticsAvailable === false,
-  );
+  const unavailable = computed(() => result.value?.salesRepCustomerInsights?.isAnalyticsAvailable === false);
 
   return { result, unavailable, loading, error };
 }

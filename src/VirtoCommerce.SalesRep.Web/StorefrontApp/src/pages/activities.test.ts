@@ -225,15 +225,22 @@ const RuleChipsStub = {
   name: "RuleChipsStub",
   // Typed rather than a name list: a bare boolean attribute arrives as "" on an untyped prop. modelValue
   // is declared so props("modelValue") reads the selection; undeclared, it fell through as an attribute.
-  props: { rules: Array, allLabel: String, allLast: Boolean, loading: Boolean, modelValue: String },
+  props: { rules: Array, allLabel: String, loading: Boolean, modelValue: String },
   // Renders the suffix slot the way the real component does — once per tab, the baseline with no
   // name — so the page's adornment rule is observable.
   template: `<div>
-    <span data-name=""><slot name="suffix" :tab="{}" /></span>
+    <span data-name=""><slot name="suffix" /></span>
     <span v-for="rule in rules" :key="rule.name" :data-name="rule.name">
-      <slot name="suffix" :tab="rule" />
+      <slot name="suffix" :rule-name="rule.name" />
     </span>
   </div>`,
+};
+// The period chips stand on their own: a progression, not a rule filter with a baseline.
+const RuleChipStub = {
+  name: "RuleChipStub",
+  props: { value: String, modelValue: String, label: String },
+  emits: ["change"],
+  template: "<button />",
 };
 const ActivityRowStub = {
   name: "ActivityRowStub",
@@ -265,6 +272,7 @@ const createWrapper = createWrapperFactory(mount, Activities, {
       VcLink: { name: "VcLinkStub", props: ["to"], template: "<a><slot /></a>" },
       ActivityRow: ActivityRowStub,
       SalesRepRuleChips: RuleChipsStub,
+      SalesRepRuleChip: RuleChipStub,
       // The tracked-metric hint draws its own trigger in the default slot, with the props the kit hands it.
       VcTooltip: { template: '<span><slot :trigger-props="{}" /></span>' },
     },
@@ -273,6 +281,8 @@ const createWrapper = createWrapperFactory(mount, Activities, {
 
 const emptyViews = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll("vc-empty-view-stub");
 const findChips = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAllComponents({ name: "RuleChipsStub" });
+const periodChips = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAllComponents({ name: "RuleChipStub" });
+const selectedPeriod = (wrapper: ReturnType<typeof createWrapper>) => periodChips(wrapper)[0].props("modelValue");
 const findRows = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAllComponents({ name: "ActivityRowStub" });
 const topRows = (wrapper: ReturnType<typeof createWrapper>) =>
   wrapper.findAll('[data-test-id="activity-top-list-row"]');
@@ -289,7 +299,7 @@ async function goToPage(wrapper: ReturnType<typeof createWrapper>, page: number)
   await nextTick();
 }
 
-// Chip order in the DOM: category tabs (0), period chips (1), then the mode toggle (2) when shown.
+// Rule-chip rows in the DOM: category tabs (0), then the mode toggle (1) when shown. The period chips stand apart.
 async function openTab(wrapper: ReturnType<typeof createWrapper>, name: string | undefined): Promise<void> {
   findChips(wrapper)[0].vm.$emit("update:modelValue", name);
   await nextTick();
@@ -297,8 +307,15 @@ async function openTab(wrapper: ReturnType<typeof createWrapper>, name: string |
 }
 
 async function switchToTop(wrapper: ReturnType<typeof createWrapper>): Promise<void> {
-  findChips(wrapper)[2].vm.$emit("update:modelValue", "top");
+  findChips(wrapper)[1].vm.$emit("update:modelValue", "top");
   await nextTick();
+  await nextTick();
+}
+
+async function selectPeriod(wrapper: ReturnType<typeof createWrapper>, period: string): Promise<void> {
+  periodChips(wrapper)
+    .find((chip) => chip.props("value") === period)
+    ?.vm.$emit("change", period);
   await nextTick();
 }
 
@@ -375,7 +392,7 @@ describe("Activities page", () => {
   it("opens on This year, the window of the widgets that link here", () => {
     const wrapper = createWrapper();
 
-    expect(findChips(wrapper)[1].props("modelValue")).toBe("year");
+    expect(selectedPeriod(wrapper)).toBe("year");
   });
 
   // Zero-count categories keep their tab: a rep must see a category exists and is quiet, not wonder
@@ -430,12 +447,16 @@ describe("Activities page", () => {
     expect(ordersBadge()).toContain("(2)");
   });
 
-  it("offers the period chips beside the category tabs", () => {
-    const wrapper = createWrapper();
-    const chips = findChips(wrapper);
+  // A progression, so All time comes last.
+  it("offers the period chips beside the category tabs, All time last", () => {
+    const chips = periodChips(createWrapper());
 
-    expect(chips).toHaveLength(2);
-    expect((chips[1].props("rules") as SalesRepRuleType[]).map((rule) => rule.name)).toEqual(["month", "year"]);
+    expect(chips.map((chip) => chip.props("value"))).toEqual(["month", "year", "lifetime"]);
+    expect(chips.map((chip) => chip.props("label"))).toEqual([
+      "sales_rep.activity.period.month",
+      "sales_rep.activity.period.year",
+      "sales_rep.activity.period.all_time",
+    ]);
   });
 
   it("shows the tracked-activity caveat on the mixed view", () => {
@@ -627,22 +648,6 @@ describe("Activities page", () => {
     expect(notice(wrapper).text()).toBe("");
   });
 
-  // Paused in Top mode, the feed's query keeps its last answer, which says nothing about the ranked list.
-  it("drops the feed's own analytics flag from the notice in Top mode", async () => {
-    state.items.value = [{ category: "searches", type: "search" }];
-    state.analyticsUnavailable.value = true;
-    insights.searchItems.value = [{ term: "gloves", count: 5 }];
-
-    const wrapper = createWrapper();
-    await openTab(wrapper, "searches");
-    expect(notice(wrapper).text()).toBe("sales_rep.activity.incomplete");
-
-    await switchToTop(wrapper);
-
-    expect(topRows(wrapper)).toHaveLength(1);
-    expect(notice(wrapper).text()).toBe("");
-  });
-
   // Same route, new query: the instance is reused, so the previous customer's page, tab, mode and window
   // carried over. All time carried into the rep's own feed would read every customer's history.
   it("starts over when the customer changes", async () => {
@@ -653,16 +658,16 @@ describe("Activities page", () => {
     const rows = activityCalls.options.find((options) => options.withCategoryCounts === false);
 
     await openTab(wrapper, "searches");
-    findChips(wrapper)[1].vm.$emit("update:modelValue", undefined);
+    await selectPeriod(wrapper, "lifetime");
     await goToPage(wrapper, 4);
     await switchToTop(wrapper);
     expect(toValue(rows?.skip)).toBe(3 * ACTIVITY_PAGE_SIZE);
-    expect(findChips(wrapper)[1].props("modelValue")).toBeUndefined();
+    expect(selectedPeriod(wrapper)).toBe("lifetime");
 
     await wrapper.setProps({ organizationId: "org-2" });
 
     expect(findChips(wrapper)[0].props("modelValue")).toBeUndefined();
-    expect(findChips(wrapper)[1].props("modelValue")).toBe("year");
+    expect(selectedPeriod(wrapper)).toBe("year");
     expect(toValue(rows?.skip)).toBe(0);
     expect(toValue(rows?.enabled)).toBe(true); // out of Top mode
   });
@@ -686,8 +691,7 @@ describe("Activities page", () => {
     const wrapper = createWrapper();
 
     await goToPage(wrapper, 4);
-    findChips(wrapper)[1].vm.$emit("update:modelValue", "month");
-    await nextTick();
+    await selectPeriod(wrapper, "month");
 
     expect(rowsSkip()).toBe(0);
   });
@@ -757,15 +761,14 @@ describe("Activities page", () => {
     expect(toValue(rows?.enabled)).toBe(false);
   });
 
-  // A period-scoped feed names the tracked window; clearing the chip widens it back to lifetime,
+  // A period-scoped feed names the tracked window; All time widens it to everything on record,
   // where "No activity yet" is the honest wording.
   it("switches the empty-state wording with the period", async () => {
     const wrapper = createWrapper();
 
     expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.activity.empty_period");
 
-    findChips(wrapper)[1].vm.$emit("update:modelValue", undefined);
-    await nextTick();
+    await selectPeriod(wrapper, "lifetime");
 
     expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.activity.empty");
   });
@@ -865,22 +868,22 @@ describe("Activities page — Top|Recent mode", () => {
   it("offers the Top|Recent toggle only on the Searches and Product views tabs", async () => {
     const wrapper = createWrapper();
 
-    expect(findChips(wrapper)).toHaveLength(2);
+    expect(findChips(wrapper)).toHaveLength(1);
 
     await openTab(wrapper, "orders");
-    expect(findChips(wrapper)).toHaveLength(2);
+    expect(findChips(wrapper)).toHaveLength(1);
 
     await openTab(wrapper, "searches");
     const chips = findChips(wrapper);
-    expect(chips).toHaveLength(3);
-    expect((chips[2].props("rules") as SalesRepRuleType[]).map((rule) => rule.name)).toEqual(["top"]);
-    expect(chips[2].props("allLabel")).toBe("sales_rep.customer_insights.recent");
+    expect(chips).toHaveLength(2);
+    expect((chips[1].props("rules") as SalesRepRuleType[]).map((rule) => rule.name)).toEqual(["top"]);
+    expect(chips[1].props("allLabel")).toBe("sales_rep.customer_insights.recent");
 
     await openTab(wrapper, "productViews");
-    expect(findChips(wrapper)).toHaveLength(3);
+    expect(findChips(wrapper)).toHaveLength(2);
 
     await openTab(wrapper, "logins");
-    expect(findChips(wrapper)).toHaveLength(2);
+    expect(findChips(wrapper)).toHaveLength(1);
   });
 
   it("runs the ranked query only in Top mode, without organizationId on the rep-wide page", async () => {
@@ -933,12 +936,12 @@ describe("Activities page — Top|Recent mode", () => {
     expect(caveat(wrapper).exists()).toBe(true);
   });
 
-  // By product id, never a slug: /product/{id} always resolves. An unresolved code comes back as its
-  // own productId, so it has nothing linkable and must stay plain text.
+  // By product id, never a slug: /product/{id} always resolves. An unresolved code has no product id, so
+  // it has nothing linkable and must stay plain text.
   it("deep-links a resolved product by id and degrades an unresolved code to plain text", async () => {
     insights.browseItems.value = [
-      { productId: "p1", name: "Drill", sku: "D-1", isResolved: true, viewCount: 9 },
-      { productId: "X-2", name: "", sku: "X-2", isResolved: false, viewCount: 3 },
+      { productId: "p1", name: "Drill", sku: "D-1", viewCount: 9 },
+      { productId: "", name: "", sku: "X-2", viewCount: 3 },
     ];
 
     const wrapper = createWrapper();
@@ -985,7 +988,7 @@ describe("Activities page — Top|Recent mode", () => {
   // "In this period" has no period to point at under All time.
   it("names no period in Top mode under All time", async () => {
     const wrapper = createWrapper();
-    findChips(wrapper)[1].vm.$emit("update:modelValue", undefined);
+    await selectPeriod(wrapper, "lifetime");
     await openTab(wrapper, "searches");
     await switchToTop(wrapper);
 

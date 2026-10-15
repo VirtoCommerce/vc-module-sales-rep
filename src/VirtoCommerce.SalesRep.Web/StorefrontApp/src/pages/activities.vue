@@ -25,17 +25,22 @@
         <div class="activities__controls">
           <SalesRepRuleChips v-model="category" :rules="categoryRules" :all-label="allTabLabel">
             <!-- No name = the All tab, which merges tracked rows in and so carries the mark too. -->
-            <template #suffix="{ tab }">
-              <TrackedMetricHint v-if="hasTrackedMark(tab.name)" />
+            <template #suffix="{ ruleName }">
+              <TrackedMetricHint v-if="isTracked(ruleName)" />
             </template>
           </SalesRepRuleChips>
 
-          <SalesRepRuleChips
-            v-model="periodRule"
-            :rules="periodRules"
-            :all-label="t('sales_rep.activity.period.all_time')"
-            all-last
-          />
+          <!-- A progression, so All time comes last. -->
+          <div class="activities__period">
+            <SalesRepRuleChip
+              v-for="option in PERIODS"
+              :key="option"
+              :value="option"
+              :model-value="period"
+              :label="t(PERIOD_LABEL_KEYS[option])"
+              @change="period = $event"
+            />
+          </div>
         </div>
 
         <!-- Top|Recent, only on the tracked categories that rank (searches, product views); Recent is the baseline. -->
@@ -121,6 +126,7 @@ import { useI18n } from "vue-i18n";
 import { BREAKPOINTS, getProductRoute, ROUTES, useBreadcrumbs, usePageHead } from "@vc-frontend/core";
 import ActivityRow from "../components/activity-row.vue";
 import ActivityTopList from "../components/activity-top-list.vue";
+import SalesRepRuleChip from "../components/sales-rep-rule-chip.vue";
 import SalesRepRuleChips from "../components/sales-rep-rule-chips.vue";
 import TrackedMetricHint from "../components/tracked-metric-hint.vue";
 import { useSalesRepActivities } from "../composables/useSalesRepActivities";
@@ -144,7 +150,7 @@ import {
   TRACKED_ACTIVITY_CATEGORIES,
   MY_CUSTOMERS_ROUTE_NAME,
 } from "../constants";
-import { activityKey, formatStatCount, searchResultsRoute } from "../utils";
+import { activityCategoryIcon, activityKey, formatStatCount, searchResultsRoute } from "../utils";
 import type { ActivityCategoryType } from "../constants";
 import type { SalesRepPeriodType } from "../composables/useSalesRepPeriodFilter";
 import type { SalesRepRuleType } from "../types";
@@ -163,6 +169,14 @@ const CATEGORY_TAB_KEYS: Record<ActivityCategoryType, string> = {
   searches: "sales_rep.activity.tabs.searches",
   productViews: "sales_rep.activity.tabs.product_views",
   logins: "sales_rep.activity.tabs.logins",
+};
+
+const PERIODS: readonly SalesRepPeriodType[] = ["month", "year", "lifetime"];
+
+const PERIOD_LABEL_KEYS: Record<SalesRepPeriodType, string> = {
+  month: "sales_rep.activity.period.month",
+  year: "sales_rep.activity.period.year",
+  lifetime: "sales_rep.activity.period.all_time",
 };
 
 // Recent (the feed) is the baseline; the one rule flips to the ranked Top list, as in the customer panels.
@@ -196,19 +210,6 @@ const page = ref(1);
 // page; it stays one chip away.
 const { period, from: periodFrom, to: periodTo } = useSalesRepPeriodFilter(HUB_ACTIVITY_PERIOD);
 
-// Chips speak "rule name | undefined"; undefined is the lifetime baseline.
-const periodRule = computed<string | undefined>({
-  get: () => (period.value === "lifetime" ? undefined : period.value),
-  set: (value) => {
-    period.value = (value as SalesRepPeriodType | undefined) ?? "lifetime";
-  },
-});
-
-const periodRules = computed<SalesRepRuleType[]>(() => [
-  { name: "month", label: t("sales_rep.activity.period.month") },
-  { name: "year", label: t("sales_rep.activity.period.year") },
-]);
-
 const isRankableTab = computed(() => Boolean(category.value && RANKED_ACTIVITY_CATEGORIES.has(category.value)));
 const isSearchesTab = computed(() => category.value === ACTIVITY_CATEGORY.searches);
 
@@ -221,7 +222,7 @@ const topMode = computed(() => isRankableTab.value && modeChip.value === TOP_MOD
 // flush: "sync" resets the page before the variables watcher runs, so a tab/period change fires one
 // request, not two.
 watch(
-  [category, periodRule],
+  [category, period],
   () => {
     page.value = 1;
   },
@@ -281,7 +282,7 @@ const {
   failed: customerFailed,
   notFound: customerNotFound,
 } = useSalesRepCustomer(() => props.organizationId ?? "");
-const customerName = computed(() => (props.organizationId ? customer.value?.organizationName : undefined));
+const customerName = computed(() => customer.value?.organizationName);
 
 // An id the rep cannot see would otherwise read as their own feed (fallback heading, every badge 0); only this
 // query can tell. Both flags are scoped: no id, no read, and notFound answers only for the id being asked.
@@ -296,11 +297,7 @@ const isCustomerPending = computed(
 
 // The badges count events and the counts request's totalCount counts rows (an analytics row is an hour bucket of
 // several events), so "All" adds up the tabs it sits beside — the figure it has to agree with.
-const allCount = computed(() =>
-  categoryCounts.value
-    .filter((entry) => visibleCategories.some((name) => name === entry.category))
-    .reduce((sum, entry) => sum + entry.count, 0),
-);
+const allCount = computed(() => visibleCategories.reduce((sum, name) => sum + countOf(name), 0));
 
 // The tabs show no figures until the counts for this customer and window land.
 const countsPending = computed(() => isCustomerPending.value || (countsLoading.value && !categoryCounts.value.length));
@@ -308,69 +305,44 @@ const countsFailed = computed(() => Boolean(countsError.value));
 
 // Zero-count categories keep their tab: a rep must see that a category exists and is quiet.
 const categoryRules = computed<SalesRepRuleType[]>(() =>
-  visibleCategories.map((name) => {
-    const label = t(CATEGORY_TAB_KEYS[name]);
-    return { name, label: countsPending.value ? label : `${label} (${badgeFor(name)})` };
-  }),
+  visibleCategories.map((name) => ({ name, label: tabLabel(t(CATEGORY_TAB_KEYS[name]), name) })),
 );
 
-// All adds every tab up, so a dashed tab dashes it too: a partial sum beside "–" tabs reads as the whole feed.
-const allBadge = computed(() =>
-  countsFailed.value || (isAnalyticsEnabled && countsAnalyticsUnavailable.value)
-    ? UNMEASURED_BADGE
-    : formatStatCount(allCount.value),
-);
-
-const allTabLabel = computed(() =>
-  countsPending.value ? t("sales_rep.activity.tabs.all") : `${t("sales_rep.activity.tabs.all")} (${allBadge.value})`,
-);
+const allTabLabel = computed(() => tabLabel(t("sales_rep.activity.tabs.all")));
 
 const failed = computed(() => Boolean(error.value));
 
 // Each Top list runs only while its tab shows it: no speculative GA reads.
-const topSearchesEnabled = computed(() => topMode.value && isSearchesTab.value);
-const topViewsEnabled = computed(() => topMode.value && category.value === ACTIVITY_CATEGORY.productViews);
-
-const {
-  items: topSearchItems,
-  unavailable: topSearchesUnavailable,
-  loading: topSearchesLoading,
-  error: topSearchesError,
-} = useSalesRepSearchHistory({
+const topSearches = useSalesRepSearchHistory({
   organizationId: () => props.organizationId,
   sort: INSIGHTS_SORT_BY_COUNT,
   periodFrom,
   periodTo,
   take: INSIGHTS_MAX_ROWS,
-  enabled: topSearchesEnabled,
+  enabled: computed(() => topMode.value && isSearchesTab.value),
 });
 
-const {
-  items: topViewItems,
-  unavailable: topViewsUnavailable,
-  loading: topViewsLoading,
-  error: topViewsError,
-} = useSalesRepBrowseHistory({
+const topViews = useSalesRepBrowseHistory({
   organizationId: () => props.organizationId,
   sort: INSIGHTS_SORT_BY_COUNT,
   periodFrom,
   periodTo,
   take: INSIGHTS_MAX_ROWS,
-  enabled: topViewsEnabled,
+  enabled: computed(() => topMode.value && category.value === ACTIVITY_CATEGORY.productViews),
 });
 
 const topRows = computed<SalesRepRankedRowType[]>(() =>
   isSearchesTab.value
-    ? topSearchItems.value.map((item) => ({
+    ? topSearches.items.value.map((item) => ({
         key: item.term,
         label: t("sales_rep.activity.quoted_term", { term: item.term }),
         to: searchResultsRoute(item.term),
         count: t("sales_rep.customer_insights.search_history.count", { n: formatStatCount(item.count) }, item.count),
       }))
-    : topViewItems.value.map((item) => ({
+    : topViews.items.value.map((item) => ({
         key: item.sku,
         label: item.name || item.sku,
-        to: item.isResolved ? getProductRoute(item.productId) : undefined,
+        to: item.productId ? getProductRoute(item.productId) : undefined,
         count: t(
           "sales_rep.customer_insights.browse_history.views",
           { n: formatStatCount(item.viewCount) },
@@ -379,21 +351,19 @@ const topRows = computed<SalesRepRankedRowType[]>(() =>
       })),
 );
 
-// The state ladder speaks for whichever source the current tab+mode shows.
-const topLoading = computed(() => (isSearchesTab.value ? topSearchesLoading.value : topViewsLoading.value));
-const topFailed = computed(() => Boolean(isSearchesTab.value ? topSearchesError.value : topViewsError.value));
-const topUnavailable = computed(() => (isSearchesTab.value ? topSearchesUnavailable.value : topViewsUnavailable.value));
+// The state ladder speaks for whichever list the current tab ranks.
+const topList = computed(() => (isSearchesTab.value ? topSearches : topViews));
+const topLoading = computed(() => topList.value.loading.value);
+const topFailed = computed(() => Boolean(topList.value.error.value));
+const topUnavailable = computed(() => topList.value.unavailable.value);
 
 const viewLoading = computed(() => isCustomerPending.value || (topMode.value ? topLoading.value : loading.value));
 const viewFailed = computed(() => (topMode.value ? topFailed.value : failed.value));
 const viewEmpty = computed(() => (topMode.value ? topUnavailable.value || !topRows.value.length : !items.value.length));
 
-// Only beside rows: an empty view already says why it is empty. The feed's flag counts only while the feed is
-// shown: paused in Top mode, its query keeps the last answer, which says nothing about the ranked list.
+// Only beside rows: an empty view already says why it is empty.
 const figuresIncomplete = computed(
-  () =>
-    isAnalyticsEnabled &&
-    (countsFailed.value || countsAnalyticsUnavailable.value || (!topMode.value && analyticsUnavailable.value)),
+  () => isTracked() && (countsFailed.value || countsAnalyticsUnavailable.value || analyticsUnavailable.value),
 );
 const showIncompleteNotice = computed(
   () => figuresIncomplete.value && !viewLoading.value && !viewFailed.value && !viewEmpty.value,
@@ -413,9 +383,7 @@ const failedText = computed(() => {
 });
 
 // The caveat concerns tracked (GA-sourced) rows, so it shows for those tabs and for the mixed "All" view.
-const showCaveat = computed(
-  () => isAnalyticsEnabled && (!category.value || TRACKED_ACTIVITY_CATEGORIES.has(category.value)),
-);
+const showCaveat = computed(() => isTracked(category.value));
 
 const { hasNoCustomers } = useSharedSalesRepCustomersCount();
 
@@ -435,18 +403,13 @@ const emptyText = computed(() => {
   if (category.value) {
     return t("sales_rep.activity.no_results");
   }
-  if (!periodRule.value) {
+  if (period.value === "lifetime") {
     return t("sales_rep.activity.empty");
   }
-  return isAnalyticsEnabled ? t("sales_rep.activity.empty_period") : t("sales_rep.activity.empty_period_untracked");
+  return isTracked() ? t("sales_rep.activity.empty_period") : t("sales_rep.activity.empty_period_untracked");
 });
 
-const emptyIcon = computed(() => {
-  if (!topMode.value) {
-    return "activity";
-  }
-  return isSearchesTab.value ? "search" : "eye";
-});
+const emptyIcon = computed(() => (topMode.value && category.value ? activityCategoryIcon(category.value) : "activity"));
 
 // Icon-only Prev/Next on a phone: with their labels, two pages need ~350 px, wider than a 320 px screen leaves the
 // card, and the page scrolled sideways.
@@ -502,8 +465,8 @@ const breadcrumbs = useBreadcrumbs(() => {
   ];
 });
 
-// No name = the All tab, which merges tracked rows in and so carries the mark too.
-function hasTrackedMark(name?: string): boolean {
+// Whether a tab carries tracked (GA-sourced) rows. No name = the All tab, which merges them in.
+function isTracked(name?: string): boolean {
   return isAnalyticsEnabled && (!name || TRACKED_ACTIVITY_CATEGORIES.has(name));
 }
 
@@ -512,10 +475,17 @@ function countOf(name: string): number {
   return categoryCounts.value.find((entry) => entry.category === name)?.count ?? 0;
 }
 
-function badgeFor(name: string): string {
-  return countsFailed.value || (countsAnalyticsUnavailable.value && TRACKED_ACTIVITY_CATEGORIES.has(name))
-    ? UNMEASURED_BADGE
-    : formatStatCount(countOf(name));
+// No name = the All tab, which adds every tab up: a dashed tab dashes it too, as a partial sum beside "–" tabs
+// reads as the whole feed.
+function tabLabel(label: string, name?: string): string {
+  if (countsPending.value) {
+    return label;
+  }
+  const badge =
+    countsFailed.value || (countsAnalyticsUnavailable.value && isTracked(name))
+      ? UNMEASURED_BADGE
+      : formatStatCount(name ? countOf(name) : allCount.value);
+  return `${label} (${badge})`;
 }
 
 // "In this period" has no period to point at under All time.
@@ -523,14 +493,15 @@ function topEmptyText(): string {
   if (topUnavailable.value) {
     return t("sales_rep.customer_insights.analytics_unavailable");
   }
+  const isAllTime = period.value === "lifetime";
   if (isSearchesTab.value) {
-    return periodRule.value
-      ? t("sales_rep.customer_insights.search_history.empty")
-      : t("sales_rep.customer_insights.search_history.empty_all_time");
+    return isAllTime
+      ? t("sales_rep.customer_insights.search_history.empty_all_time")
+      : t("sales_rep.customer_insights.search_history.empty");
   }
-  return periodRule.value
-    ? t("sales_rep.customer_insights.browse_history.empty")
-    : t("sales_rep.customer_insights.browse_history.empty_all_time");
+  return isAllTime
+    ? t("sales_rep.customer_insights.browse_history.empty_all_time")
+    : t("sales_rep.customer_insights.browse_history.empty");
 }
 
 function scrollToTop(): void {
@@ -551,6 +522,11 @@ function scrollToTop(): void {
 
   &__controls {
     @apply flex flex-wrap items-center justify-between gap-3;
+  }
+
+  // The rule-chips row's own layout.
+  &__period {
+    @apply flex flex-wrap items-center gap-1;
   }
 
   &__mode {

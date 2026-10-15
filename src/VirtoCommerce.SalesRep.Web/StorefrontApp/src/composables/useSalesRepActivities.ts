@@ -87,8 +87,11 @@ export function useSalesRepActivities(options: UseSalesRepActivitiesOptionsType 
 
   const totalCount = computed(() => result.value?.salesRepActivities?.totalCount ?? 0);
 
-  // Only an explicit false counts, so nothing claims “unavailable” before the first response lands.
-  const analyticsUnavailable = computed(() => result.value?.salesRepActivities?.isAnalyticsAvailable === false);
+  // Only an explicit false counts, so nothing claims “unavailable” before the first response lands. Paused, the
+  // query keeps its last answer, which says nothing about the view shown instead.
+  const analyticsUnavailable = computed(
+    () => enabled.value && result.value?.salesRepActivities?.isAnalyticsAvailable === false,
+  );
 
   return { items, categoryCounts, totalCount, analyticsUnavailable, loading, error };
 }

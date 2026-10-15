@@ -1,106 +1,61 @@
 <template>
-  <!-- Chrome-less: the Customer activity widget's "Product views" sub-view owns the box and the title. -->
-  <div class="customer-browse-history">
-    <div class="customer-browse-history__filter">
-      <SalesRepRuleChips
-        v-model="sortChip"
-        :rules="sortChipRules"
-        :all-label="t('sales_rep.customer_insights.recent')"
-      />
+  <!-- The Customer activity widget's "Product views" sub-view. -->
+  <CustomerInsightsPanel
+    v-model:sort="sort"
+    class="customer-browse-history"
+    :loading="loading"
+    :failed="failed"
+    :unavailable="unavailable"
+    :has-rows="items.length > 0"
+    icon="eye"
+    :failed-text="t('sales_rep.customer_insights.browse_history.load_failed')"
+    :empty-text="t('sales_rep.customer_insights.browse_history.empty_this_year')"
+    tall-rows
+  >
+    <li
+      v-for="item in items"
+      :key="item.sku"
+      class="customer-browse-history__row"
+      data-test-id="customer-browse-history-row"
+    >
+      <span class="customer-browse-history__thumb">
+        <!-- The name beside it already says what this is. -->
+        <VcImage v-if="item.imageUrl" :src="item.imageUrl" alt="" class="customer-browse-history__thumb-img" />
 
-      <!-- The window, named beside the rows: the empty text names it only when there are none. -->
-      <span class="customer-browse-history__period" data-test-id="customer-browse-history-period-label">
-        {{ t("sales_rep.activity.period.year") }}
+        <VcIcon v-else name="cube" aria-hidden="true" />
       </span>
-    </div>
 
-    <div class="customer-browse-history__content">
-      <!-- A failure replaces stale rows — same state ladder as top-sellers.vue (VCST-5586). -->
-      <VcEmptyView
-        v-if="failed && !loading"
-        :text="t('sales_rep.customer_insights.browse_history.load_failed')"
-        variant="error"
-      />
+      <span class="customer-browse-history__text">
+        <!-- Only a row resolved to a real product links; an unresolved code stays plain text. -->
+        <VcLink
+          v-if="item.productId"
+          :to="getProductRoute(item.productId)"
+          :title="item.name || item.sku"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="customer-browse-history__name"
+        >
+          {{ item.name || item.sku }}
+        </VcLink>
 
-      <VcEmptyView
-        v-else-if="unavailable && !loading"
-        :text="t('sales_rep.customer_insights.analytics_unavailable')"
-        icon="eye"
-      />
+        <span v-else class="customer-browse-history__name" :title="item.name || item.sku">
+          {{ item.name || item.sku }}
+        </span>
 
-      <VcEmptyView
-        v-else-if="!items.length && !loading"
-        :text="t('sales_rep.customer_insights.browse_history.empty_this_year')"
-        icon="eye"
-      />
+        <span
+          v-if="item.sku && item.name"
+          class="customer-browse-history__sku"
+          data-test-id="customer-browse-history-sku-label"
+        >
+          {{ item.sku }}
+        </span>
 
-      <template v-else>
-        <ul class="customer-browse-history__list">
-          <!-- On every request, not only the first: no-cache keeps the previous rows until the answer, so a switch
-               between Recent and Top would leave the other mode's list under the new chip. -->
-          <template v-if="loading">
-            <li
-              v-for="index in INSIGHTS_DEFAULT_ROWS"
-              :key="index"
-              class="customer-browse-history__skeleton"
-              data-test-id="customer-browse-history-skeleton"
-              aria-hidden="true"
-            />
-          </template>
-
-          <template v-else>
-            <li
-              v-for="item in items"
-              :key="item.sku"
-              class="customer-browse-history__row"
-              data-test-id="customer-browse-history-row"
-            >
-              <span class="customer-browse-history__thumb">
-                <!-- The name beside it already says what this is. -->
-                <VcImage v-if="item.imageUrl" :src="item.imageUrl" alt="" class="customer-browse-history__thumb-img" />
-
-                <VcIcon v-else name="cube" aria-hidden="true" />
-              </span>
-
-              <span class="customer-browse-history__text">
-                <!-- Only a row resolved to a real product links; an unresolved code stays plain text. -->
-                <VcLink
-                  v-if="item.isResolved"
-                  :to="getProductRoute(item.productId)"
-                  :title="item.name || item.sku"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="customer-browse-history__name"
-                >
-                  {{ item.name || item.sku }}
-                </VcLink>
-
-                <span v-else class="customer-browse-history__name" :title="item.name || item.sku">
-                  {{ item.name || item.sku }}
-                </span>
-
-                <span
-                  v-if="item.sku && item.name"
-                  class="customer-browse-history__sku"
-                  data-test-id="customer-browse-history-sku-label"
-                >
-                  {{ item.sku }}
-                </span>
-
-                <span class="customer-browse-history__meta" data-test-id="customer-browse-history-meta-label">
-                  {{ rowMeta(item) }}
-                </span>
-              </span>
-            </li>
-          </template>
-        </ul>
-
-        <p v-if="items.length" class="customer-browse-history__caveat">
-          {{ t("sales_rep.customer_insights.tracked_caveat") }}
-        </p>
-      </template>
-    </div>
-  </div>
+        <span class="customer-browse-history__meta" data-test-id="customer-browse-history-meta-label">
+          {{ rowMeta(item) }}
+        </span>
+      </span>
+    </li>
+  </CustomerInsightsPanel>
 </template>
 
 <script setup lang="ts">
@@ -109,15 +64,9 @@ import { useI18n } from "vue-i18n";
 import { getProductRoute } from "@vc-frontend/core";
 import { useSalesRepBrowseHistory } from "../composables/useSalesRepBrowseHistory";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
-import {
-  HUB_ACTIVITY_PERIOD,
-  INSIGHTS_DEFAULT_ROWS,
-  INSIGHTS_SORT_BY_COUNT,
-  INSIGHTS_SORT_BY_DATE,
-} from "../constants";
+import { HUB_ACTIVITY_PERIOD, INSIGHTS_DEFAULT_ROWS, INSIGHTS_SORT_BY_DATE } from "../constants";
 import { formatStatCount } from "../utils";
-import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
-import type { SalesRepRuleType } from "../types";
+import CustomerInsightsPanel from "./customer-insights-panel.vue";
 import type { SalesRepBrowsedProductRowType } from "../types/insights";
 
 interface IProps {
@@ -129,13 +78,9 @@ const props = defineProps<IProps>();
 const { t, d } = useI18n();
 
 // Recent is the baseline (the ticket asks for recent product views); the one rule flips to most viewed.
-const sortChip = ref<string | undefined>(undefined);
-const sortChipRules = computed<SalesRepRuleType[]>(() => [
-  { name: INSIGHTS_SORT_BY_COUNT, label: t("sales_rep.customer_insights.top") },
-]);
-const sort = computed(() => sortChip.value ?? INSIGHTS_SORT_BY_DATE);
+const sort = ref<string>(INSIGHTS_SORT_BY_DATE);
 
-// This year, like the hub's other activity surfaces; the label and the empty text above name it.
+// This year, like the hub's other activity surfaces; the label and the empty text name it.
 const { from: periodFrom, to: periodTo } = useSalesRepPeriodFilter(HUB_ACTIVITY_PERIOD);
 
 const { items, unavailable, loading, error } = useSalesRepBrowseHistory({
@@ -162,25 +107,6 @@ function rowMeta(item: SalesRepBrowsedProductRowType): string {
 <style lang="scss">
 // @apply: module is self-contained as an MF remote (no global utility layer).
 .customer-browse-history {
-  @apply flex flex-col;
-
-  // px-6 aligns the chips with the widget header title.
-  &__filter {
-    @apply flex items-center justify-between gap-3 border-b border-neutral-200 bg-neutral-50 px-6 py-3;
-  }
-
-  &__period {
-    @apply flex-none text-xs text-neutral-500;
-  }
-
-  &__content {
-    @apply px-6 pb-4 pt-1;
-  }
-
-  &__list {
-    @apply flex flex-col;
-  }
-
   &__row {
     @apply flex items-center gap-3 border-b border-neutral-100 py-3 last:border-b-0;
   }
@@ -210,14 +136,6 @@ function rowMeta(item: SalesRepBrowsedProductRowType): string {
 
   &__meta {
     @apply text-xs text-neutral-600;
-  }
-
-  &__skeleton {
-    @apply my-3 h-12 rounded-[--vc-radius] bg-neutral-100 motion-safe:animate-pulse;
-  }
-
-  &__caveat {
-    @apply border-t border-neutral-100 pt-3 text-xs text-neutral-600;
   }
 }
 </style>

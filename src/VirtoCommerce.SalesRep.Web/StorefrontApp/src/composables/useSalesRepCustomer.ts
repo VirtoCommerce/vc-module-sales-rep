@@ -40,8 +40,9 @@ export function useSalesRepCustomer(organizationId: MaybeRefOrGetter<string>, op
     Logger.error("[sales-rep] salesRepCustomer failed:", queryError);
   });
 
+  // Scoped like failed below: Apollo's stop() keeps the last result, so a cleared id would still show that customer.
   const customer = computed<SalesRepCustomerProfileType | undefined>(() => {
-    const node = result.value?.salesRepCustomer;
+    const node = enabled.value ? result.value?.salesRepCustomer : undefined;
     return node
       ? {
           organizationId: node.organizationId,
@@ -56,7 +57,7 @@ export function useSalesRepCustomer(organizationId: MaybeRefOrGetter<string>, op
   });
 
   // A failed read says nothing about whether the rep serves this customer, so the page words it differently.
-  // Scoped like notFound: Apollo's stop() keeps the last error, so a cleared id would otherwise stay failed.
+  // Scoped like customer and notFound: stop() keeps the last error too.
   const failed = computed(() => enabled.value && Boolean(error.value));
 
   // Not served / unknown settle to the not-found view once loading finishes.

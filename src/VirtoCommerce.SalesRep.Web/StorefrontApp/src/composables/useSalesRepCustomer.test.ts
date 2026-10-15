@@ -183,6 +183,18 @@ describe("useSalesRepCustomer", () => {
     expect(failed.value).toBe(false);
   });
 
+  // stop() keeps the last result as well: the rep's own feed must not go on naming the customer just left.
+  it("stops reporting the customer once the id is cleared", () => {
+    const organizationId = ref("org-1");
+    const { customer } = useSalesRepCustomer(() => organizationId.value);
+
+    queryMock.result.value = { salesRepCustomer: { organizationId: "org-1", organizationName: "Acme" } };
+    expect(customer.value?.organizationName).toBe("Acme");
+
+    organizationId.value = "";
+    expect(customer.value).toBeUndefined();
+  });
+
   it("passes loading through and registers an error handler", () => {
     const { loading } = useSalesRepCustomer("org-1");
 

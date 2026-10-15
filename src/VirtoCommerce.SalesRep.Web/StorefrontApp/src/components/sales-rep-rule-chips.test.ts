@@ -21,7 +21,7 @@ const RULES: SalesRepRuleType[] = [
 // VcIcon is resolved above the `v-if` that guards it, so it needs a stub even with no icon prop.
 function mountChips(
   props: Partial<InstanceType<typeof SalesRepRuleChips>["$props"]> = {},
-  slots?: { suffix: (params: { tab: { name?: string } }) => VNode },
+  slots?: { suffix: (params: { ruleName?: string }) => VNode },
 ) {
   return mount(SalesRepRuleChips, {
     props: { rules: RULES, allLabel: "All", ...props },
@@ -62,26 +62,8 @@ describe("SalesRepRuleChips", () => {
   });
 
   // A set of alternatives reads with the widest option first — "All, Orders, Customers...".
-  it("puts the baseline tab first by default", () => {
+  it("puts the baseline tab first", () => {
     expect(labels(mountChips())).toEqual(["All", "New", "Processing"]);
-  });
-
-  // A vocabulary that reads as a progression widens left to right, so the baseline belongs at the end.
-  it("puts the baseline tab last when asked", () => {
-    expect(labels(mountChips({ allLast: true }))).toEqual(["New", "Processing", "All"]);
-  });
-
-  // Wherever it sits, the baseline is the pressed one while nothing is selected, and clicking it clears.
-  // Clearing has to start from a selection: re-clicking the already-active baseline is a no-op, because
-  // defineModel does not emit a value that did not change.
-  it("presses and clears the baseline wherever it sits", async () => {
-    expect(pressed(mountChips({ allLast: true }))).toEqual(["false", "false", "true"]);
-
-    const wrapper = mountChips({ allLast: true, modelValue: "Processing" });
-
-    await wrapper.findAll(".sales-rep-rule-chip button")[2].trigger("click");
-
-    expect(wrapper.emitted("update:modelValue")).toEqual([[undefined]]);
   });
 
   // Adornments are the caller's to decide: the component hands each tab's name to the slot and knows
@@ -89,7 +71,7 @@ describe("SalesRepRuleChips", () => {
   it("renders the suffix slot for every tab, naming each one", () => {
     const wrapper = mountChips(
       {},
-      { suffix: (params: { tab: { name?: string } }) => h("i", { class: "mark" }, params.tab.name ?? "baseline") },
+      { suffix: (params: { ruleName?: string }) => h("i", { class: "mark" }, params.ruleName ?? "baseline") },
     );
 
     expect(wrapper.findAll(".mark").map((mark) => mark.text())).toEqual(["baseline", "New", "Processing"]);

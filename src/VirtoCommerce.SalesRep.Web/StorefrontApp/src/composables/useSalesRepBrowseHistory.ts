@@ -14,12 +14,11 @@ export function useSalesRepBrowseHistory(options: UseSalesRepInsightsOptionsType
 
   const items = computed<SalesRepBrowsedProductRowType[]>(() =>
     (result.value?.salesRepCustomerInsights?.browsedProducts ?? []).map((row) => ({
+      // No productId for a tracked code that matches no product: such a row must not deep-link.
       productId: row.productId ?? "",
       name: row.name ?? "",
       sku: row.sku ?? "",
       imageUrl: row.imageUrl ?? "",
-      // No productId for a tracked code that matches no product: such a row must not deep-link.
-      isResolved: Boolean(row.productId),
       viewCount: row.viewCount,
       lastViewedDate: row.lastViewedDate as string | undefined,
     })),

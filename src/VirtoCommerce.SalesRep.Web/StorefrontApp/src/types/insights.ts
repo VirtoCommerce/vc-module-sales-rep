@@ -10,12 +10,11 @@ export type SalesRepSearchTermRowType = {
 };
 
 export type SalesRepBrowsedProductRowType = {
+  // Empty unless the backend resolved GA's product code to a real product; gates the deep link.
   productId: string;
   name: string;
   sku: string;
   imageUrl: string;
-  // True only when the backend resolved GA's product code to a real product; gates the deep link.
-  isResolved: boolean;
   viewCount: number;
   lastViewedDate?: string;
 };

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { unref } from "vue";
+import { ref, unref } from "vue";
 import { ACTIVITY_PAGE_SIZE } from "../constants";
 import { useSalesRepActivities } from "./useSalesRepActivities";
 import type { SalesRepActivitiesQuery } from "../api/graphql/types";
@@ -145,6 +145,19 @@ describe("useSalesRepActivities", () => {
 
     queryMock.result.value = connection([activityEvent()]);
     expect(useSalesRepActivities().analyticsUnavailable.value).toBe(false);
+  });
+
+  // Paused, the query keeps its last answer, which says nothing about the view shown instead (the Activities
+  // page's Top list): the incomplete-figures notice must not fire on it.
+  it("reports analytics unavailable only while it reads", () => {
+    queryMock.result.value = connection([], [], false);
+    const reading = ref(false);
+
+    const { analyticsUnavailable } = useSalesRepActivities({ enabled: () => reading.value });
+    expect(analyticsUnavailable.value).toBe(false);
+
+    reading.value = true;
+    expect(analyticsUnavailable.value).toBe(true);
   });
 
   // A null field (unauthorized org / analytics off) settles to empty data, never a crash or an error state.

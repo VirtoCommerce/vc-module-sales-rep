@@ -137,8 +137,11 @@ export function buildStatisticsWindows(now: Date = new Date()): StatisticsWindow
 // backend converted to the same currency.
 const EMPTY_STAT_VALUE = "0";
 
+// Built once per culture: the activity surfaces format a count per row and per badge.
+const statCountFormatterFor = useMemoize((cultureName: string) => new Intl.NumberFormat(cultureName));
+
 export function formatStatCount(value?: number | null): string {
-  return new Intl.NumberFormat(globals.cultureName).format(value ?? 0);
+  return statCountFormatterFor(globals.cultureName).format(value ?? 0);
 }
 
 // Client-side currency formatting follows <VcTotalDisplay>, so an absent amount reads as a currency
