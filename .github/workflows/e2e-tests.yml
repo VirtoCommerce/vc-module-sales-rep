@@ -113,8 +113,9 @@ jobs:
             echo "### E2E tests"
             echo "- Module: ${GITHUB_REF_NAME} at $(git -C vc-module-sales-rep rev-parse --short HEAD)"
             echo "- Storefront: vc-frontend ${FRONTEND_REF} at $(git -C vc-frontend rev-parse --short HEAD 2>/dev/null || echo 'no checkout')"
-            grep -E "Passed!|Failed!" "$RUNNER_TEMP/e2e.log" 2>/dev/null | sed 's/^/- /' || echo "- The tests did not run."
-          } >> "$GITHUB_STEP_SUMMARY"
+            grep -E "^Test Run (Successful|Failed|Aborted)|^\s*(Total tests|Passed|Failed|Skipped): " "$RUNNER_TEMP/e2e.log" 2>/dev/null \
+              | sed -E 's/^\s+//; s/^/- /' || echo "- The tests did not run."
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload diagnostics
         if: failure()
