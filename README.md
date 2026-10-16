@@ -529,6 +529,8 @@ The keyword matches the **display name** (the raw file name is internal), and `u
 The rep's own tasks, stored by **`VirtoCommerce.TaskManagement`** — an **optional** dependency. With that module
 absent or disabled every read below answers empty and every mutation errors cleanly, so the storefront can hide
 the feature without the API changing shape.
+Its `.Core` assembly ships in this module's package (`module.keep`), so a platform without TaskManagement still
+starts this one.
 
 Ownership is the whole security boundary: a task is the caller's when `WorkTask.ResponsibleId` equals their
 **contact id**, taken from the `memberId` claim. There is no organization scoping — a task belongs to a person,
@@ -550,14 +552,14 @@ not to a customer — and no dedicated permission beyond being a sales rep.
   ) {
     totalCount
     pageInfo { hasNextPage endCursor }
-    items { id name description type priority dueDate isActive completed createdDate modifiedDate }
+    items { id name description type priority dueDate isActive completed createdDate modifiedDate customerId customerName }
   }
 
   salesRepTask(id: "…") { id name dueDate }   # null when missing OR not the caller's — existence never leaks
 
   salesRepTaskFilterRules { name localizedName }                                  # upcoming / overdue / completed
   salesRepTaskSortRules { name localizedName defaultDirection supportsDirection } # due-date / recent / name
-  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text)
+  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text); includes "Call" unless forced by configuration
 }
 ```
 
@@ -669,13 +671,14 @@ mutation {
                                          # strings included, so "999" is rejected rather than stored.
     type: "Customer Support"             # free text; salesRepTaskTypes is the suggested vocabulary, not a constraint
     description: "Escalate to regional manager."
-  }) { id name priority dueDate isActive completed }
+    customerId: "7b8c..."                # optional: one of the caller's customers (an organization id)
+  }) { id name priority dueDate isActive completed customerId customerName }
 
   # REPLACES the task, so send the whole record back - an omitted field is cleared, like null or "".
   # Accepts exactly what the read returns, nulls included, so a dateless task can be written back unchanged.
   updateSalesRepTask(command: {
-    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…"
-  }) { id name description type priority dueDate }
+    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…", customerId: "…"
+  }) { id name description type priority dueDate customerId }
 
   # completed: true finishes the task, false reopens it.
   changeSalesRepTaskStatus(command: { id: "…", completed: true }) { id isActive completed }
@@ -690,7 +693,7 @@ required at the database level, so every one of these is a *validation* rule, st
 
 ⚠️ `updateSalesRepTask` **replaces, it does not patch** — an omitted field is *cleared*, exactly like an explicit
 `null` or `""`. So send the whole record back, which is what the shared shape is for: **create, read and update
-carry the same five editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
+carry the same six editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
 accept. Every column behind them is nullable, so the read is the reference; a non-null input would be an invention
 that made a task with no description — or no due date — impossible to write back.
 
@@ -703,6 +706,33 @@ editable.
 `storeId` field and `updateSalesRepTask` never changes it. A rep whose account is **not** store-bound
 (`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
 read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
+
+**Calls and the customer link.** `customerId` links a task to one of the caller's customers. It is checked against
+the organizations they serve — one they do not serve fails with `Customer not found.`, exactly like an unknown id —
+and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the organization
+id), so there is no new column. `customerId` and `customerName` read back only while the caller still serves that
+customer; a task outlives the membership that let the rep link it, and so does the link: writing back the null such a
+task reads keeps it, while another customer replaces it. A task linked to something else (any other `ObjectType`,
+or an `ObjectId` without one; e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit
+leaves the link alone, and setting a customer on it is refused.
+
+A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the call
+editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
+page's other unavailable quick actions. The popup's customer picker offers the rep's first 100 customers by name, the
+list-sharing picker's list, filtered in the browser: a rep who serves more cannot pick the rest there until the picker
+searches on the server (VCST-5923). "Schedule call" on a customer's page fills in that customer whatever the count,
+and an edit keeps the customer already linked. So that admins can pick and filter it, the module keeps `Call` in the
+`TaskManagement.TaskTypes` dictionary, which the platform serves from ONE of two lists: the built-in one until an
+admin first saves the dictionary, the saved one after that. At startup the module adds `Call` to the built-in list
+and, if a saved list exists without it, to the saved list — it never saves the built-in list itself, which would
+freeze it. A list forced through configuration is left alone (with a warning in the log). An admin who removes `Call`
+gets it back on the next restart; existing calls keep their type either way.
+
+A new call can also go to the rep's own calendar, as the rep ticks it in the popup: Google Calendar opens its
+new-event page filled in, and Apple Calendar gets an `.ics` file, which Outlook opens too. The event is titled with the
+call and its customer, lasts 30 minutes, and carries the notes. Both are copies made once, on creation, entirely in the
+browser: the storefront cannot reach them afterwards, so editing a call offers neither, and a later change is made in
+the calendar by hand.
 
 ⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
 `WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
@@ -903,6 +933,50 @@ Two limits are worth knowing. A write that runs inside an `EventSuppressor` scop
 | `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
 | `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |
+
+## Tests
+
+`tests/VirtoCommerce.SalesRep.Tests` holds three layers, selectable by the `Category` trait:
+
+| Category | Where | What runs | Backend |
+|----------|-------|-----------|---------|
+| `Unit` | `UnitTests/` and the classes at the project root | Validators, mappers, resolvers, response groups and authorization handlers in isolation. | Mocks. |
+| `Component` | `ComponentTests/` | The module's real services, repositories, GraphQL schema and REST controllers, called in-process. | The component harness (`SalesRepTestContext`): one in-memory SQLite database per module context, created with `EnsureCreated`; a RAM Lucene index; hand-written doubles for the platform parts the module only reads (store, settings, currency). |
+| `StorefrontE2E`, `VCShellAppE2E` | `StorefrontE2E/`, `VCShellAppE2E/` | The real UIs, driven by Playwright. | The same harness, hosted on Kestrel inside the test process. |
+
+`dotnet test` runs all three. The end-to-end tests also carry the `IntegrationTest` category, which `vc-build Test`, and so the module CI, leaves out by default (see below).
+
+### End-to-end tests
+
+The idea is to keep the component-test shape — seed through the harness, exercise the module, assert on the rows — and replace the direct GraphQL or REST call with browser actions on the real UI. Nothing external takes part: no running platform, no PostgreSQL, no Redis, no background jobs; the installed platform folder is not read. A test group is one xunit collection with `DisableParallelization = true` and one environment fixture: the backend on a random loopback port, the group's seed, one browser. Tests inside a group share the environment and its data and each get their own signed-in browser context; groups run one after another.
+
+| | `StorefrontE2E` | `VCShellAppE2E` |
+|---|---|---|
+| UI | The B2B storefront (`vc-theme-b2b-vue`): a vc-frontend clone on its Vite dev server, which the test starts and stops, or a build (the theme zip's `default` folder) that the test host serves. | The sales-rep VC-Shell app (`src/VirtoCommerce.SalesRep.Web/App`), served by the test host as static files under `/apps/vc-sales-rep/`. |
+| Groups | `Customers/`: the rep's customer list and a customer's profile. `Calendar/`: completing and creating tasks. `Calls/`: scheduled calls, meaning booking one from a customer's page or the task form, adding a new one to Google and Apple Calendar, editing calls and tasks, what the task list shows of a call, and a customer the rep no longer serves. | `SalesReps/`: an administrator creates a rep through the details blade and blocks one. |
+| Backend surface | `/graphql` (one combined X-API schema) and `/connect/token`, plus the hub plugin's build on the platform's route for it, found through `store.plugins` as in production. | `/api/sales-rep/**` (the module's controllers, hosted as they are) plus replicas of the platform endpoints the VC-Shell framework and the blades call. |
+| Sign-in | A JWT minted from the real claim producers, placed in `localStorage` before the first navigation. | The platform's Identity cookie, obtained from the host before the first navigation. |
+| Needs on the machine | A storefront: `VC_STOREFRONT_BUILD` (a build) or `VC_STOREFRONT_DIR` (a clone), else a `vc-frontend` clone next to this repo, else a build two levels up; in a ticket folder that is `sources\vc-frontend`, then `front`. A clone needs `node_modules` and Node 22 on PATH. Plus the hub plugin built: `yarn build` in `StorefrontApp/`; a missing build, or one older than its sources, fails the groups with that command. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
+| Without it | The groups fail with what is missing. | The group fails with the command that builds the app. |
+| Run | `dotnet test --filter "Category=StorefrontE2E"` | `dotnet test --filter "Category=VCShellAppE2E"` |
+| Diagnostics | `bin/Debug/net10.0/StorefrontE2E-diagnostics/` | `bin/Debug/net10.0/VCShellAppE2E-diagnostics/` |
+| Details | [StorefrontE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/StorefrontE2E/README.md) | [VCShellAppE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/VCShellAppE2E/README.md) |
+
+Common prerequisites: the .NET 10 SDK and Playwright's Chromium for the referenced `Microsoft.Playwright` version (`pwsh bin/Debug/net10.0/playwright.ps1 install chromium`, once). `E2E_HEADED=1` shows the browser. A failing test reports the page URL and title, the start of the page text, the API or GraphQL errors, dialogs, failed requests and console errors it saw, plus a full-page screenshot in the diagnostics folder.
+
+**On CI** the module workflow runs `vc-build Test`, whose default filter (`Category!=IntegrationTest`) leaves the end-to-end tests out. Its runner has none of what they need: the storefront is a separate repository, and the hub plugin and the VC-Shell app are built only by `vc-build Compress`, after the tests.
+
+**Writing a test.** Seed in the group's environment (`SeedAsync`, through the harness helpers: organizations, contacts, reps, accounts, orders, tasks), open a signed-in context with `OpenAsync`, act with Playwright, assert through the harness (`NewSalesRepDbContext()`, `GetRequiredService<IMemberService>()`, `UserManager`, `GetMembershipsAsync`, …). What the harness does differently from a platform:
+
+* Databases are created with `EnsureCreated`, so nothing that only migrations create exists; every account, administrators included, comes from the seed (`ApplicationUser.IsAdministrator = true` makes one).
+* Nothing indexes on its own (there are no background jobs): a read that goes through the index needs `IndexMembersAsync` / `IndexOrdersAsync` in the seed. Member searches with a type filter and keyword searches are such reads.
+* Store, settings and currency are doubles; store-level configuration is set on the store double (`TestStoreService.Customize`), not by inserting rows.
+* Each in-memory SQLite database lives on one connection, which is not thread-safe, so the storefront host answers one request at a time. A test that reads the database while the page may still be fetching takes the same turn: `Backend.RunExclusiveAsync`.
+* The storefront's first page load in a group takes about twenty seconds (Vite compiles on demand, then the storefront loads the hub plugin); the VC-Shell app loads in about a second.
+
+**Combining the two surfaces** in one test — create a rep in the VC-Shell app, then sign in as that rep on the storefront — is possible on one host: register both surfaces on one container, select the authentication scheme per request the way the platform does (bearer header → JWT, otherwise the cookie), and give the environment an `Open…` method per UI. The two UIs live on different origins, so a test holds one browser context per UI; the data behind them is the same database. The storefront's own sign-in page can serve the second half, because the host's `/connect/token` implements the password grant. Not built yet.
+
+The storefront could also be served the VC-Shell way, as a built theme from the test host, which would remove Vite and the checkout from the prerequisites and shorten the first page load to about a second; today's group drives the dev server.
 
 ## Documentation
 

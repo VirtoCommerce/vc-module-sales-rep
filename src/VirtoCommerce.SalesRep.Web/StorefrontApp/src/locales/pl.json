@@ -256,6 +256,7 @@
         "expired": "Termin minął {date}",
         "due": "Termin {date}"
       },
+      "customer_not_assigned": "Nie przypisano klienta",
       "legend": {
         "upcoming": "Nadchodzące",
         "overdue": "Po terminie",
@@ -264,17 +265,28 @@
       "form": {
         "create_title": "Nowe zadanie",
         "edit_title": "Edytuj zadanie",
+        "create_call_title": "Zaplanuj rozmowę",
+        "edit_call_title": "Edytuj rozmowę",
         "name_label": "Tytuł",
         "due_date_label": "Termin",
+        "time_label": "Godzina",
+        "customer_label": "Klient",
+        "customer_placeholder": "Szukaj klientów według nazwy",
+        "customer_error": "Nie udało się wczytać listy klientów. Spróbuj ponownie.",
+        "call_name": "Rozmowa",
         "priority_label": "Priorytet",
         "type_label": "Typ",
         "description_label": "Notatki",
+        "calendars_label": "Dodaj do kalendarza",
+        "google_calendar": "Kalendarz Google",
+        "apple_calendar": "Kalendarz Apple",
         "save_button": "Zapisz",
         "cancel_button": "Anuluj",
         "delete_button": "Usuń",
         "delete_title": "Usuń zadanie",
         "delete_confirm": "To zadanie zostanie trwale usunięte. Kontynuować?",
         "saved": "Zadanie zapisane",
+        "calendar_failed": "Zadanie zapisane, ale nie udało się dodać go do kalendarza",
         "deleted": "Zadanie usunięte"
       }
     },
