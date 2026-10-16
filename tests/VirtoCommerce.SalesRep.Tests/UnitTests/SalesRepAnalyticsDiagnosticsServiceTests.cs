@@ -56,7 +56,8 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         diagnostics.ReceivedStoreId.Should().Be(StoreId);
 
         var request = diagnostics.ReceivedRequest;
-        request.UserDimensionNames.Should().Equal("contact_id", "organization_id", "organization_name", "is_sales_rep", "session_kind");
+        // The analytics module owns the user dimensions (it has dropped one since alpha.282); this module forwards them.
+        request.UserDimensionNames.Should().Equal(AnalyticsConstants.UserDimensions.AllNames);
         request.EventNames.Should().Equal("search", "view_search_results", "view_item", "login");
         request.Reports.Should().HaveCount(2);
 
