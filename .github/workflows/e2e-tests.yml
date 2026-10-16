@@ -62,23 +62,25 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # The installs run no package scripts (YARN_ENABLE_SCRIPTS=false: Yarn 2+ has no --ignore-scripts); the builds
+      # need none.
       - name: Build the storefront
         working-directory: vc-frontend
         run: |
           corepack enable
-          yarn install --immutable
+          YARN_ENABLE_SCRIPTS=false yarn install --immutable
           yarn build-only
 
       - name: Build the hub plugin
         working-directory: vc-module-sales-rep/src/VirtoCommerce.SalesRep.Web/StorefrontApp
         run: |
-          yarn install --immutable
+          YARN_ENABLE_SCRIPTS=false yarn install --immutable
           yarn build
 
       - name: Build the VC-Shell app
         working-directory: vc-module-sales-rep/src/VirtoCommerce.SalesRep.Web/App
         run: |
-          yarn install --immutable
+          YARN_ENABLE_SCRIPTS=false yarn install --immutable
           yarn build:app
 
       # A new NuGet advisory is the module CI's business; here it would only stop the run.
