@@ -11,9 +11,6 @@ on:
         type: string
         required: false
         default: ''
-  # TEMPORARY: lets the workflow run on this branch before it reaches dev; reverted before review.
-  push:
-    branches: [feat/VCST-6403-e2e-tests-ci]
 
 permissions:
   contents: read
