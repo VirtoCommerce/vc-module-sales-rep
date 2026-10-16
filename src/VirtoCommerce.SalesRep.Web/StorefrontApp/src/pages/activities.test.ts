@@ -225,7 +225,7 @@ const RuleChipsStub = {
   name: "RuleChipsStub",
   // Typed rather than a name list: a bare boolean attribute arrives as "" on an untyped prop. modelValue
   // is declared so props("modelValue") reads the selection; undeclared, it fell through as an attribute.
-  props: { rules: Array, allLabel: String, loading: Boolean, modelValue: String },
+  props: { rules: Array, allLabel: String, allHint: String, loading: Boolean, modelValue: String },
   // Renders the suffix slot the way the real component does — once per tab, the baseline with no
   // name — so the page's adornment rule is observable.
   template: `<div>
@@ -312,6 +312,14 @@ async function switchToTop(wrapper: ReturnType<typeof createWrapper>): Promise<v
   await nextTick();
 }
 
+// The rows request settling, as Apollo reports it: loading on for the new variables, then off with their answer.
+async function settleRows(): Promise<void> {
+  state.loading.value = true;
+  await nextTick();
+  state.loading.value = false;
+  await nextTick();
+}
+
 async function selectPeriod(wrapper: ReturnType<typeof createWrapper>, period: string): Promise<void> {
   periodChips(wrapper)
     .find((chip) => chip.props("value") === period)
@@ -378,6 +386,23 @@ describe("Activities page", () => {
 
     // "" is the All tab, which merges tracked rows in and so carries the mark too.
     expect(marked).toEqual(["", "searches", "productViews", "logins"]);
+  });
+
+  // The tab itself opens the hint, so the mark inside its button is the icon alone: a focusable trigger there would
+  // nest an interactive element in the button (axe: nested-interactive) and add a Tab stop per tracked tab.
+  it("hands the hint to the tracked tabs, and marks them with the icon alone", () => {
+    const chips = findChips(createWrapper())[0];
+    const hints = (chips.props("rules") as SalesRepRuleType[]).map((rule) => [rule.name, rule.hint]);
+
+    expect(hints).toEqual([
+      ["orders", undefined],
+      ["customers", undefined],
+      ["searches", "sales_rep.activity.tracked_hint"],
+      ["productViews", "sales_rep.activity.tracked_hint"],
+      ["logins", "sales_rep.activity.tracked_hint"],
+    ]);
+    expect(chips.props("allHint")).toBe("sales_rep.activity.tracked_hint");
+    expect(chips.findAllComponents(TrackedMetricHint).every((mark) => mark.props("iconOnly"))).toBe(true);
   });
 
   // "All time" reads the tracked categories from GA4's earliest supported date — a decade scanned to
@@ -659,6 +684,7 @@ describe("Activities page", () => {
 
     await openTab(wrapper, "searches");
     await selectPeriod(wrapper, "lifetime");
+    await settleRows();
     await goToPage(wrapper, 4);
     await switchToTop(wrapper);
     expect(toValue(rows?.skip)).toBe(3 * ACTIVITY_PAGE_SIZE);
@@ -708,6 +734,39 @@ describe("Activities page", () => {
 
     expect(findPager(wrapper).props("page")).toBe(2);
     expect(rowsSkip()).toBe(ACTIVITY_PAGE_SIZE);
+  });
+
+  // The rows keep their previous answer until the new one lands, page count included: a tab, period or customer
+  // change must not offer the old scope's pages, where a click asks the new one for a page it may not have.
+  it.each([
+    ["tab", (wrapper: ReturnType<typeof createWrapper>) => openTab(wrapper, "logins")],
+    ["period", (wrapper: ReturnType<typeof createWrapper>) => selectPeriod(wrapper, "month")],
+    ["customer", (wrapper: ReturnType<typeof createWrapper>) => wrapper.setProps({ organizationId: "org-2" })],
+  ])("hides the pager after a %s change until that scope's rows settle", async (_change, change) => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 15;
+    const wrapper = createWrapper();
+    expect(findPager(wrapper).props("pages")).toBe(15);
+
+    await change(wrapper);
+    expect(findPager(wrapper).exists()).toBe(false);
+
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 3;
+    await settleRows();
+    expect(findPager(wrapper).props("pages")).toBe(3);
+  });
+
+  // A failed read of the new scope leaves the failure view, not the old scope's pages beside it.
+  it("keeps the pager hidden when the new scope's rows fail", async () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    state.totalCount.value = ACTIVITY_PAGE_SIZE * 15;
+    const wrapper = createWrapper();
+
+    await openTab(wrapper, "logins");
+    state.error.value = new Error("boom");
+    await settleRows();
+
+    expect(findPager(wrapper).exists()).toBe(false);
   });
 
   // The pager stays put while a page loads, so the button the rep just pressed keeps the focus.
@@ -1065,6 +1124,8 @@ describe("Activities page without the analytics module", () => {
       "customers",
     ]);
     expect(wrapper.findAllComponents(TrackedMetricHint)).toHaveLength(0);
+    expect((findChips(wrapper)[0].props("rules") as SalesRepRuleType[]).some((rule) => rule.hint)).toBe(false);
+    expect(findChips(wrapper)[0].props("allHint")).toBeUndefined();
   });
 
   it("adds All up from the tabs it shows, and does not dash it for the missing module", () => {

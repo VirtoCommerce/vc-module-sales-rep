@@ -13,6 +13,7 @@
         :model-value="!modelValue"
         :label="allLabel ?? ''"
         :count="allCount"
+        :hint="allHint"
         @change="modelValue = undefined"
       >
         <!-- Adornments belong to whoever knows what a tab means: the baseline arrives with no name. -->
@@ -29,6 +30,7 @@
       :model-value="modelValue"
       :label="rule.label"
       :count="rule.count"
+      :hint="rule.hint"
       @change="modelValue = $event"
     >
       <template #append>
@@ -51,6 +53,8 @@ interface IProps {
   allLabel?: string;
   // Item count for the baseline tab; rendered as a highlighted counter when present (like `rule.count`).
   allCount?: number;
+  // Hint for the baseline tab, shown on its hover and focus (like `rule.hint`).
+  allHint?: string;
   // Whether `rules` is still being fetched — an in-flight refetch must not look like "the rule is gone".
   loading?: boolean;
 }

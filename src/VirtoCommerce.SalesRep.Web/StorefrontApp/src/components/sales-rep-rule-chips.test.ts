@@ -26,7 +26,17 @@ function mountChips(
   return mount(SalesRepRuleChips, {
     props: { rules: RULES, allLabel: "All", ...props },
     slots,
-    global: { components: { VcTabSwitch }, stubs: { VcIcon: true } },
+    global: {
+      components: { VcTabSwitch },
+      stubs: {
+        VcIcon: true,
+        // The trigger and the content, side by side: which tabs a tooltip wraps is what the hint tests read.
+        VcTooltip: {
+          template:
+            '<div class="tooltip-stub"><slot name="trigger" /><p class="tooltip-content"><slot name="content" /></p></div>',
+        },
+      },
+    },
   });
 }
 
@@ -75,6 +85,19 @@ describe("SalesRepRuleChips", () => {
     );
 
     expect(wrapper.findAll(".mark").map((mark) => mark.text())).toEqual(["baseline", "New", "Processing"]);
+  });
+
+  // A hint opens on the whole tab: the tooltip wraps the tab, so nothing focusable has to sit inside its button.
+  it("makes a hinted tab, and only that one, its tooltip's trigger", () => {
+    const wrapper = mountChips({
+      rules: [{ name: "New", label: "New", hint: "New hint" }, RULES[1]],
+      allHint: "All hint",
+    });
+
+    const tooltips = wrapper.findAll(".tooltip-stub");
+    expect(tooltips.map((tooltip) => tooltip.get(".sales-rep-rule-chip__label").text())).toEqual(["All", "New"]);
+    expect(tooltips.map((tooltip) => tooltip.get(".tooltip-content").text())).toEqual(["All hint", "New hint"]);
+    expect(labels(wrapper)).toEqual(["All", "New", "Processing"]);
   });
 
   // The baseline's value is a boolean, so no non-empty rule name can equal it — a string sentinel

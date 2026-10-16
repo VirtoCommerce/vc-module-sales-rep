@@ -28,7 +28,7 @@ function createWrapper(options: PropsType = {}, attachTo?: HTMLElement) {
       dayLabel: DAY,
       counts: { today: 3, all: 12 },
     },
-    global: { components: { VcTabSwitch }, stubs: { VcIcon: true } },
+    global: { components: { VcTabSwitch }, stubs: { VcIcon: true, VcTooltip: true } },
   });
 }
 

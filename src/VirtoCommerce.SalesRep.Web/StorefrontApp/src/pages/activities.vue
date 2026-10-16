@@ -23,10 +23,16 @@
 
       <div class="activities__results">
         <div class="activities__controls">
-          <SalesRepRuleChips v-model="category" :rules="categoryRules" :all-label="allTabLabel">
-            <!-- No name = the All tab, which merges tracked rows in and so carries the mark too. -->
+          <SalesRepRuleChips
+            v-model="category"
+            :rules="categoryRules"
+            :all-label="allTabLabel"
+            :all-hint="trackedHint()"
+          >
+            <!-- No name = the All tab, which merges tracked rows in and so carries the mark too. The tab itself opens
+                 the hint, so the mark is the icon alone: nothing focusable inside the tab's button. -->
             <template #suffix="{ ruleName }">
-              <TrackedMetricHint v-if="isTracked(ruleName)" />
+              <TrackedMetricHint v-if="isTracked(ruleName)" icon-only />
             </template>
           </SalesRepRuleChips>
 
@@ -307,7 +313,11 @@ const countsFailed = computed(() => Boolean(countsError.value));
 
 // Zero-count categories keep their tab: a rep must see that a category exists and is quiet.
 const categoryRules = computed<SalesRepRuleType[]>(() =>
-  visibleCategories.map((name) => ({ name, label: tabLabel(t(CATEGORY_TAB_KEYS[name]), name) })),
+  visibleCategories.map((name) => ({
+    name,
+    label: tabLabel(t(CATEGORY_TAB_KEYS[name]), name),
+    hint: trackedHint(name),
+  })),
 );
 
 const allTabLabel = computed(() => tabLabel(t("sales_rep.activity.tabs.all")));
@@ -425,8 +435,24 @@ const isPhone = useBreakpoints(BREAKPOINTS).smaller("sm");
 
 const pages = computed(() => Math.min(Math.max(1, Math.ceil(totalCount.value / ACTIVITY_PAGE_SIZE)), MAX_PAGES));
 
+// The rows keep their previous answer until the new one lands, page count included: after a tab, period or customer
+// change the pager would offer the old scope's pages. It returns once this scope's rows have settled; a page change
+// keeps the scope, so the pager stays mounted and keeps focus. Settled on loading's fall only: Apollo restarts a query
+// with new variables on the next tick, so right after a scope change `loading` still reads false.
+const rowsScope = computed(() => [category.value ?? "", period.value, props.organizationId ?? ""].join("|"));
+const settledRowsScope = ref<string>();
+watch(
+  loading,
+  (isLoading) => {
+    if (!isLoading && !error.value) {
+      settledRowsScope.value = rowsScope.value;
+    }
+  },
+  { immediate: true },
+);
+
 // The feed's pager; the ranked list is one capped page.
-const showPager = computed(() => !topMode.value && pages.value > 1);
+const showPager = computed(() => !topMode.value && settledRowsScope.value === rowsScope.value && pages.value > 1);
 
 watch(pages, (total) => {
   if (page.value > total) {
@@ -476,6 +502,10 @@ const breadcrumbs = useBreadcrumbs(() => {
 // Whether a tab carries tracked (GA-sourced) rows. No name = the All tab, which merges them in.
 function isTracked(name?: string): boolean {
   return isAnalyticsEnabled && (!name || TRACKED_ACTIVITY_CATEGORIES.has(name));
+}
+
+function trackedHint(name?: string): string | undefined {
+  return isTracked(name) ? t("sales_rep.activity.tracked_hint") : undefined;
 }
 
 // Every badge reads the counts request, the selected tab included: one figure, one source.

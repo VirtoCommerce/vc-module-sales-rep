@@ -32,6 +32,8 @@ export type SalesRepRuleType = {
   label: string;
   // Item count shown as a highlighted counter next to the label (document-category tabs only).
   count?: number;
+  // Shown on the chip's hover and focus; the chip itself is the tooltip's trigger.
+  hint?: string;
   defaultDirection?: SalesRepSortDirectionType;
   supportsDirection?: boolean;
 };
