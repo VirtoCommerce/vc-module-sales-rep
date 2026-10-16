@@ -6,9 +6,10 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 /// <summary>
 /// The hub as the storefront gets it in production: the module's Module Federation plugin, which <c>yarn build</c> in
-/// <c>StorefrontApp</c> writes to <c>plugins/vc-frontend</c>. The tests serve that build as it is. A missing or outdated
-/// one fails the group with the command to run: a rebuild per run would cost 30-60 seconds, and testing a stale
-/// build would test yesterday's hub.
+/// <c>StorefrontApp</c> writes to <c>plugins/vc-frontend</c>. The tests serve that build as it is. A missing build, or
+/// one older than a source under <c>StorefrontApp/src</c>, fails the group with the command to run: a rebuild per run
+/// would cost 30-60 seconds, and testing a stale build would test yesterday's hub. Other build inputs
+/// (<c>vite.config.ts</c>, <c>package.json</c>, <c>public/plugin.json</c>) are not checked.
 /// </summary>
 internal static class StorefrontPlugin
 {

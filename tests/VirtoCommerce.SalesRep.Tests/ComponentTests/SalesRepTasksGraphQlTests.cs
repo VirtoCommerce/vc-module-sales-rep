@@ -952,9 +952,10 @@ public class SalesRepTasksGraphQlTests
         byId.GetProperty("customerId").GetString().Should().Be(OrgA);
         byId.GetProperty("customerName").GetString().Should().Be(OrgA);
 
-        // Stored in task-management's generic object link, under this module's own object type - no new column.
+        // Stored in task-management's generic object link, under this module's own object type - no new column. The
+        // literal pins the persisted value: renaming the constant would orphan every link already stored.
         var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
-        stored.ObjectType.Should().Be(ModuleConstants.Tasks.CustomerObjectType);
+        stored.ObjectType.Should().Be("SalesRepCustomer");
         stored.ObjectId.Should().Be(OrgA);
     }
 
@@ -1026,6 +1027,32 @@ public class SalesRepTasksGraphQlTests
         stored.Name.Should().Be("Review order, renamed");
         stored.ObjectType.Should().Be("CustomerOrder");
         stored.ObjectId.Should().Be("order-1");
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_TreatsAnObjectIdWithoutAType_AsAnotherRecordsLink()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+
+        // An id with no type, as only a direct REST call or custom code would write it - here even an organization the
+        // rep serves. The read does not take it for a customer link, so the write must not either.
+        var taskId = await SaveTaskDirectlyAsync(ctx, rep, "Imported", Today, isActive: true, completed: null,
+            objectType: null, objectId: OrgA);
+
+        var read = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, $"salesRepTask(id: \"{taskId}\") {{ customerId }}"), "salesRepTask");
+        read.GetProperty("customerId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+
+        // Writing back the null it read keeps the link, and a customer cannot replace it.
+        SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Imported, renamed", Today), "updateSalesRepTask");
+        var replaced = await UpdateTaskAsync(ctx, rep, taskId, "Imported", Today, customerId: OrgB);
+        replaced.Should().Contain("cannot take a customer");
+
+        var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
+        stored.Name.Should().Be("Imported, renamed");
+        stored.ObjectType.Should().BeNull();
+        stored.ObjectId.Should().Be(OrgA);
     }
 
     [Fact]

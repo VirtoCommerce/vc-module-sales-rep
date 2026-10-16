@@ -15,7 +15,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { TIME_OF_DAY_FORMAT, timeKeyToDate, timeKeysOfDay } from "../tasks";
+import { formatTimeOfDay, timeKeyToDate, timeKeysOfDay } from "../tasks";
 
 interface IProps {
   label?: string;
@@ -39,9 +39,7 @@ const items = computed(() => {
     keys.sort();
   }
 
-  // One formatter for the list: vue-i18n's `d` builds a new one per call when given options without a format key.
-  const format = new Intl.DateTimeFormat(locale.value, TIME_OF_DAY_FORMAT);
-
-  return keys.map((value) => ({ value, label: format.format(timeKeyToDate(value)) }));
+  // The formatter a call's line in the task list uses too, so both read alike.
+  return keys.map((value) => ({ value, label: formatTimeOfDay(timeKeyToDate(value), locale.value) }));
 });
 </script>

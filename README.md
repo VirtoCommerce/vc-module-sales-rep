@@ -559,7 +559,7 @@ not to a customer — and no dedicated permission beyond being a sales rep.
 
   salesRepTaskFilterRules { name localizedName }                                  # upcoming / overdue / completed
   salesRepTaskSortRules { name localizedName defaultDirection supportsDirection } # due-date / recent / name
-  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text); includes "Call"
+  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text); includes "Call" unless forced by configuration
 }
 ```
 
@@ -713,12 +713,15 @@ and stored in task-management's generic object link (`ObjectType = "SalesRepCust
 id), so there is no new column. `customerId` and `customerName` read back only while the caller still serves that
 customer; a task outlives the membership that let the rep link it, and so does the link: writing back the null such a
 task reads keeps it, while another customer replaces it. A task linked to something else (any other `ObjectType`,
-e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit leaves the link alone, and
-setting a customer on it is refused.
+or an `ObjectId` without one; e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit
+leaves the link alone, and setting a customer on it is refused.
 
-A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the
-call editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like
-the page's other unavailable quick actions. So that admins can pick and filter it, the module keeps `Call` in the
+A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the call
+editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
+page's other unavailable quick actions. The popup's customer picker offers the rep's first 100 customers by name, the
+list-sharing picker's list, filtered in the browser: a rep who serves more cannot pick the rest there until the picker
+searches on the server (VCST-5923). "Schedule call" on a customer's page fills in that customer whatever the count,
+and an edit keeps the customer already linked. So that admins can pick and filter it, the module keeps `Call` in the
 `TaskManagement.TaskTypes` dictionary, which the platform serves from ONE of two lists: the built-in one until an
 admin first saves the dictionary, the saved one after that. At startup the module adds `Call` to the built-in list
 and, if a saved list exists without it, to the saved list — it never saves the built-in list itself, which would

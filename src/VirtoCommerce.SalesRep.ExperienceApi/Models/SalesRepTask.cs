@@ -49,6 +49,24 @@ public class SalesRepTask
         Completed = task.Completed;
         CreatedDate = task.CreatedDate;
         ModifiedDate = task.ModifiedDate;
-        CustomerId = task.ObjectType.EqualsIgnoreCase(ModuleConstants.Tasks.CustomerObjectType) ? task.ObjectId : null;
+        CustomerId = IsCustomerLink(task) ? task.ObjectId : null;
+    }
+
+    /// <summary>
+    /// Whether the task's object link (ObjectType/ObjectId) is this module's customer link. The read above and the
+    /// write in SalesRepTaskCommandHandlerBase both decide by this pair, so they agree on whose link a task carries.
+    /// </summary>
+    internal static bool IsCustomerLink(WorkTask task)
+    {
+        return task.ObjectType.EqualsIgnoreCase(ModuleConstants.Tasks.CustomerObjectType);
+    }
+
+    /// <summary>
+    /// Whether the task links a record of another kind, a workflow task about an order, say: any link data that is not
+    /// a customer link, an ObjectId without an ObjectType included. Such a link is never shown, cleared or replaced.
+    /// </summary>
+    internal static bool IsLinkedToAnotherRecord(WorkTask task)
+    {
+        return (!string.IsNullOrEmpty(task.ObjectType) || !string.IsNullOrEmpty(task.ObjectId)) && !IsCustomerLink(task);
     }
 }

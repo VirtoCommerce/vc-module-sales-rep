@@ -6,6 +6,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
 using VirtoCommerce.TaskManagement.Core.Models;
 using VirtoCommerce.TaskManagement.Core.Services;
@@ -91,7 +92,7 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         customerId = customerId?.Trim().EmptyToNull();
 
         // ObjectType/ObjectId may hold another feature's link (a workflow task about an order); never clear or replace it.
-        if (!string.IsNullOrEmpty(task.ObjectType) && !task.ObjectType.EqualsIgnoreCase(ModuleConstants.Tasks.CustomerObjectType))
+        if (SalesRepTask.IsLinkedToAnotherRecord(task))
         {
             if (customerId != null)
             {

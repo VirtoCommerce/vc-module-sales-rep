@@ -53,7 +53,7 @@ public class SalesRepTaskType : ExtendableGraphType<SalesRepTask>
         var services = context.RequestServices;
 
         var loader = context.GetRequiredService<IDataLoaderContextAccessor>().Context.GetOrAddBatchLoader<string, Member>(
-            $"{nameof(SalesRepTaskType)}.CustomerById",
+            $"{nameof(SalesRepTaskType)}.CustomerById:{userId}",
             async customerIds =>
             {
                 // All of the caller's customers rather than these ids: authorizing the request has already loaded that list.

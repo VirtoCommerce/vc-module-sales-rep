@@ -706,7 +706,7 @@ export type InputSendCustomerCommunicationType = {
 };
 
 export type InputUpdateSalesRepTask = {
-  /** Organization id of a customer the caller serves - the customer the task is about. Null or empty removes the link. */
+  /** Organization id of a customer the caller serves - the customer the task is about. Null or empty removes the link, unless it is to a customer the caller no longer serves: that one reads back as null and is kept. A task linked to another kind of record keeps that link, and setting a customer on it is refused. */
   customerId?: InputMaybe<Scalars['String']['input']>;
   /** Free-text notes. Null or empty clears it. */
   description?: InputMaybe<Scalars['String']['input']>;

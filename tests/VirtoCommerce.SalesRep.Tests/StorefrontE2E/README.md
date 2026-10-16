@@ -24,7 +24,7 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Shell services | `Infrastructure/StorefrontServices.cs` | Real X-API `store` handler, real profile handlers and graph types, real claim producers, the platform's `AppManifestService` for `store.plugins`; JWT bearer auth; pipeline (plugin files, one request at a time). |
 | Shell schema | `Infrastructure/StorefrontShellSchema.cs` | `pageContext`, `childCategories`, `cart`, `organization`, `menu`, `searchHistory`: real response types, empty data. |
 | Doubles | `Infrastructure/StorefrontDoubles.cs` | Store search/currency/auth schemes, module list (the module's own `module.manifest` plus two dependencies at the versions the storefront checkout expects, from its `backend-packages.json`), settings (`ReturnModuleVersion`, task types), cart methods. |
-| Hub plugin | `Infrastructure/StorefrontPlugin.cs` | The module's plugin build (`plugins/vc-frontend`) and its route; a missing build, or one older than its sources, fails the group. |
+| Hub plugin | `Infrastructure/StorefrontPlugin.cs` | The module's plugin build (`plugins/vc-frontend`) and its route; a missing build, or one older than its sources under `StorefrontApp/src`, fails the group. |
 | Package skew | `Infrastructure/StorefrontOrganizationType.cs` | The storefront selects `isLockedForCurrentUser`; the pinned profile package predates it. |
 | Tokens | `Infrastructure/TestTokenService.cs` | Production-shaped JWTs via `IUserClaimsPrincipalFactory` + `ITokenClaimProvider`s; `/connect/token`, `/revoke/token`. |
 | Storefront | `Infrastructure/ViteDevServer.cs` | `node node_modules/vite/bin/vite.js --port N --strictPort` with `APP_BACKEND_URL`; waits for HTTP 200; bounded kill. |
@@ -47,16 +47,16 @@ compiles on demand, then the storefront loads the hub plugin), later loads ≈2 
 ## Running
 
 The storefront tests are local-only by construction: each fact carries `SkipUnless = StorefrontAvailability.IsAvailable`,
-so without a storefront checkout (a CI runner, or `VC_STOREFRONT_E2E=0`) the five tests report as skipped and the group
-fixtures start nothing. The shared CI workflow needs no filter. Verified: the full suite with the opt-out reports
-583 passed, 5 skipped, 0 failed.
+so without a storefront checkout (a CI runner, or `VC_STOREFRONT_E2E=0`) the storefront tests report as skipped and the
+group fixtures start nothing. The shared CI workflow needs no filter.
 
 Prerequisites:
 - **Storefront checkout:** with `node_modules` installed. The tests look at `VC_STOREFRONT_DIR` first, then a
   `vc-frontend` clone next to this repo (a ticket folder's `sources`), then `<workspace>/front`. The checkout must load
   plugins, which vc-frontend `dev` does since vc-frontend#2569.
 - **Hub plugin build:** `yarn build` in `src/VirtoCommerce.SalesRep.Web/StorefrontApp`. A missing build, or one older
-  than its sources, fails the groups with that command; they never rebuild it themselves.
+  than its sources under `src`, fails the groups with that command; they never rebuild it themselves. Other build
+  inputs (`vite.config.ts`, `package.json`, `public/plugin.json`) are not checked: rebuild after changing them.
 - **Node 22** on PATH.
 - **Playwright browsers** for Microsoft.Playwright 1.63: run `pwsh bin/Debug/net10.0/playwright.ps1 install chromium`
   once, if `%LOCALAPPDATA%\ms-playwright\chromium-1243` is not already there.

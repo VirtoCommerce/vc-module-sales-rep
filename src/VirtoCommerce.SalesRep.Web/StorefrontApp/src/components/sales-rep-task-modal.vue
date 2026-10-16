@@ -311,9 +311,10 @@ function addToCalendars(task: SalesRepTaskFieldsFragment): boolean {
 const save = handleSubmit(async (data) => {
   const input = {
     name: data.name.trim(),
-    // A call is due at the picked time; any other task keeps its time of day, see dueDateForDay.
+    // A call is due at the picked time; any other task keeps its time of day, see dueDateForDay. Either way an
+    // unchanged due date goes back as it was.
     dueDate: isCall.value
-      ? dueDateForDayAndTime(data.dueDate, data.time)
+      ? dueDateForDayAndTime(data.dueDate, data.time, props.task?.dueDate)
       : dueDateForDay(data.dueDate, props.task?.dueDate),
     priority: data.priority || undefined,
     type: data.type || undefined,

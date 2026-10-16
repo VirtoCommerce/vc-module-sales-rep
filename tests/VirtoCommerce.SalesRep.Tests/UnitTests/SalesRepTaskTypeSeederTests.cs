@@ -1,7 +1,9 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.Data.Services;
@@ -73,14 +75,29 @@ public class SalesRepTaskTypeSeederTests
     }
 
     [Fact]
-    public async Task EnsureCallType_LeavesAListSetInConfiguration()
+    public async Task EnsureCallType_WarnsAboutAListSetInConfiguration_WithoutIt()
     {
-        // A value forced through appsettings wins over both lists and the platform ignores saves to it.
-        var settings = new FakeSettingsManager { Saved = ["Other"], ReadOnly = true };
+        // A value forced through appsettings wins over both lists and the platform ignores saves to it, so say so.
+        var settings = new FakeSettingsManager { Forced = ["Other"] };
+        var logger = new RecordingLogger();
 
-        await CreateSeeder(settings).EnsureCallTypeAsync();
+        await CreateSeeder(settings, logger).EnsureCallTypeAsync();
 
         settings.Writes.Should().BeEmpty();
+        logger.Warnings.Should().ContainSingle().Which.Should().Contain("Call");
+    }
+
+    [Fact]
+    public async Task EnsureCallType_StaysQuietAboutAListSetInConfiguration_ThatHasIt()
+    {
+        // Nothing to add, so nothing to warn about on every start.
+        var settings = new FakeSettingsManager { Forced = ["Other", "Call"] };
+        var logger = new RecordingLogger();
+
+        await CreateSeeder(settings, logger).EnsureCallTypeAsync();
+
+        settings.Writes.Should().BeEmpty();
+        logger.Warnings.Should().BeEmpty();
     }
 
     [Fact]
@@ -95,17 +112,18 @@ public class SalesRepTaskTypeSeederTests
         settings.Writes.Should().BeEmpty();
     }
 
-    private static SalesRepTaskTypeSeeder CreateSeeder(ISettingsManager settings) =>
-        new(settings, NullLogger<SalesRepTaskTypeSeeder>.Instance);
+    private static SalesRepTaskTypeSeeder CreateSeeder(ISettingsManager settings, ILogger<SalesRepTaskTypeSeeder> logger = null) =>
+        new(settings, logger ?? NullLogger<SalesRepTaskTypeSeeder>.Instance);
 
     /// <summary>
     /// The one dictionary setting, the way the platform serves it: with the saved row's Id and values once an admin
-    /// has saved it, without an Id before. Saves are recorded, not applied.
+    /// has saved it, without an Id before, and read-only without an Id when configuration forces it (the platform's
+    /// SettingsManager.CreateOverriddenSetting). Saves are recorded, not applied.
     /// </summary>
     private sealed class FakeSettingsManager : ISettingsManager
     {
         public bool Registered { get; init; } = true;
-        public bool ReadOnly { get; init; }
+        public object[] Forced { get; init; }
         public object[] Saved { get; init; }
 
         public int Reads { get; private set; }
@@ -123,8 +141,13 @@ public class SalesRepTaskTypeSeederTests
         {
             Reads++;
 
-            var setting = new ObjectSettingEntry(Descriptor) { IsReadOnly = ReadOnly };
-            if (Saved != null)
+            var setting = new ObjectSettingEntry(Descriptor);
+            if (Forced != null)
+            {
+                setting.IsReadOnly = true;
+                setting.AllowedValues = Forced.ToArray();
+            }
+            else if (Saved != null)
             {
                 setting.Id = "saved-setting";
                 setting.AllowedValues = Saved.ToArray();
@@ -148,5 +171,23 @@ public class SalesRepTaskTypeSeederTests
             => Task.FromResult<IEnumerable<ObjectSettingEntry>>([]);
 
         public Task RemoveObjectSettingsAsync(IEnumerable<ObjectSettingEntry> objectSettings) => Task.CompletedTask;
+    }
+
+    /// <summary>Keeps the warnings the seeder logs, so a test can tell a quiet start from a noisy one.</summary>
+    private sealed class RecordingLogger : ILogger<SalesRepTaskTypeSeeder>
+    {
+        public List<string> Warnings { get; } = [];
+
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => null;
+
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception exception, Func<TState, Exception, string> formatter)
+        {
+            if (logLevel == LogLevel.Warning)
+            {
+                Warnings.Add(formatter(state, exception));
+            }
+        }
     }
 }

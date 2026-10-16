@@ -32,6 +32,11 @@ public class SalesRepTaskTypeSeeder(ISettingsManager settingsManager, ILogger<Sa
 
         var setting = await settingsManager.GetObjectSettingAsync(name);
 
+        if (HasCallType(setting.AllowedValues))
+        {
+            return;
+        }
+
         if (setting.IsReadOnly)
         {
             logger.LogWarning("{SettingName} is set in configuration, so the {TaskType} task type cannot be added to it.", name, ModuleConstants.Tasks.CallType);
@@ -39,7 +44,7 @@ public class SalesRepTaskTypeSeeder(ISettingsManager settingsManager, ILogger<Sa
         }
 
         // No Id = nothing saved, the built-in list is served. Saving it here would freeze that list.
-        if (string.IsNullOrEmpty(setting.Id) || HasCallType(setting.AllowedValues))
+        if (string.IsNullOrEmpty(setting.Id))
         {
             return;
         }

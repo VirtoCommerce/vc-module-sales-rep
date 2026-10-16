@@ -511,6 +511,20 @@ describe("SalesRepTaskModal calls", () => {
     expect([sent.getHours(), sent.getMinutes()]).toEqual([11, 0]);
   });
 
+  // updateSalesRepTask replaces the task, so an edit that moves neither the day nor the time sends the instant back as
+  // it was, seconds and all - as a date-only task's edit already does (VCST-5732 QA A-1).
+  it("leaves an unchanged call's instant exactly as it found it", async () => {
+    const dueDate = new Date(2026, 9, 15, 9, 30, 15, 250).toISOString();
+    const wrapper = createWrapper({
+      task: makeTask({ type: "Call", dueDate, customerId: "org-1", customerName: "Lakeview Outfitters" }),
+    });
+    await field(wrapper, "name_label").setValue("Call ACME back");
+
+    await save(wrapper);
+
+    expect(mutations.update.mock.calls[0][1].dueDate).toBe(dueDate);
+  });
+
   // Schedule call must not turn into some other task, and a call opened from the list stays one: the type is not
   // offered for change in either.
   it("offers no Type in call mode", () => {

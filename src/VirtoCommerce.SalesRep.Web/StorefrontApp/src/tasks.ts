@@ -118,6 +118,23 @@ export function isCallTask(type?: string | null): boolean {
 /** How a time of day is written: the hour and minute alone, the user's locale deciding 12- or 24-hour. */
 export const TIME_OF_DAY_FORMAT: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
 
+// One formatter per locale: vue-i18n's `d` builds a new one per call when given options without a format key.
+const timeOfDayFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * A time of day as the user's locale writes it, in TIME_OF_DAY_FORMAT. The time select lists its times this way and a
+ * call's line shows its time this way, so the two always read alike.
+ */
+export function formatTimeOfDay(value: string | Date, locale: string): string {
+  let format = timeOfDayFormats.get(locale);
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, TIME_OF_DAY_FORMAT);
+    timeOfDayFormats.set(locale, format);
+  }
+
+  return format.format(typeof value === "string" ? new Date(value) : value);
+}
+
 /** "HH:mm" on the user's clock — the key a time select is addressed by. */
 export function localTimeKey(value: string | Date): string {
   const date = typeof value === "string" ? new Date(value) : value;
@@ -125,8 +142,16 @@ export function localTimeKey(value: string | Date): string {
   return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** A picked day and time of day, both on the user's clock ("YYYY-MM-DD", "HH:mm"), as the instant the API stores. */
-export function dueDateForDayAndTime(dayKey: string, timeKey: string): string {
+/**
+ * A picked day and time of day, both on the user's clock ("YYYY-MM-DD", "HH:mm"), as the instant the API stores. When
+ * neither moved, the original instant comes back byte for byte, as in dueDateForDay: rebuilding it would drop seconds
+ * set elsewhere, and on the night the clocks go back it would pick the other of the two 1:30s.
+ */
+export function dueDateForDayAndTime(dayKey: string, timeKey: string, original?: string): string {
+  if (original && localDayKey(original) === dayKey && localTimeKey(original) === timeKey) {
+    return original;
+  }
+
   const [hours, minutes] = timeKey.split(":").map(Number);
   const date = localDayKeyToDate(dayKey);
   date.setHours(hours, minutes, 0, 0);
@@ -220,24 +245,31 @@ export function buildDayMarkers(
  *
  * The type rides along rather than replacing the date: it is the only place the form's Type field is ever read
  * back, and a rep-created task always has a due date, so a "type instead of date" fallback would never show it.
- * A call is due at a time of day, so its deadline carries the hour and minute too. It also always names its customer,
- * or says it has none to name: none was picked, or the rep no longer serves it and the API leaves it out.
+ * A call is due at a time of day, so its deadline carries the hour and minute too, written by formatTimeOfDay as the
+ * time select writes them. They do not come from the host's named format: the host defines `short` for en and de
+ * only, so in every other locale vue-i18n formats it in English, and the line would read 2:30 PM beside the popup's
+ * 14:30. The date keeps that format, like every other task's. A call also always names its customer, or says it has
+ * none to name: none was picked, or the rep no longer serves it and the API leaves it out.
  */
 export function taskSubline(
   task: SalesRepTaskType,
   t: ComposerTranslation,
   d: (value: number | Date | string, options: DateTimeOptions) => string,
+  locale: string,
 ): string {
   const key = task.status === "overdue" ? "expired" : "due";
   const isCall = isCallTask(task.type);
-  const format: DateTimeOptions = isCall ? { key: "short", ...TIME_OF_DAY_FORMAT } : { key: "short" };
   const customer = task.customerName ?? (isCall ? t("sales_rep.tasks.customer_not_assigned") : undefined);
 
-  return [
-    task.dueDate ? t(`sales_rep.tasks.due_relative.${key}`, { date: d(task.dueDate, format) }) : "",
-    customer,
-    task.type,
-  ]
+  let date = "";
+  if (task.dueDate) {
+    date = d(task.dueDate, { key: "short" });
+    if (isCall) {
+      date = `${date}, ${formatTimeOfDay(task.dueDate, locale)}`;
+    }
+  }
+
+  return [date ? t(`sales_rep.tasks.due_relative.${key}`, { date }) : "", customer, task.type]
     .filter(Boolean)
     .join(" · ");
 }
