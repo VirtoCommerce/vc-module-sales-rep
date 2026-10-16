@@ -1,5 +1,9 @@
 import { useUser } from "@vc-frontend/core";
-import { isSalesRepsEnabled, isSalesRepTasksEnabled } from "./composables/useSalesRepsConfig";
+import {
+  isSalesRepAnalyticsEnabled,
+  isSalesRepsEnabled,
+  isSalesRepTasksEnabled,
+} from "./composables/useSalesRepsConfig";
 import {
   ACTIVITIES_ROUTE_NAME,
   ACTIVITIES_ROUTE_SEGMENT,
@@ -72,6 +76,16 @@ const guardCustomerRoute: NavigationGuard = (to, _from, next) => {
 const guardRepRoute: NavigationGuard = (_to, _from, next) => {
   if (guardSalesRep(next)) {
     next();
+  }
+};
+
+// One customer's activity page is the customer activity widget's, and that widget exists only with the analytics
+// module: without it nothing leads to the page, and the profile's own orders list what it would show.
+const guardCustomerActivitiesRoute: NavigationGuard = (to, from, next) => {
+  if (isSalesRepAnalyticsEnabled()) {
+    guardCustomerRoute(to, from, next);
+  } else if (guardSalesRep(next)) {
+    next({ name: CUSTOMER_PROFILE_ROUTE_NAME, params: { organizationId: to.params.organizationId } });
   }
 };
 
@@ -178,7 +192,7 @@ export const customerActivitiesRoute: RouteRecordRaw = {
   component: ActivitiesPage,
   props: true,
   meta: repRouteMeta,
-  beforeEnter: guardCustomerRoute,
+  beforeEnter: guardCustomerActivitiesRoute,
 };
 
 // No customer in the route, so the page needs no id check — only the reps-only gate.

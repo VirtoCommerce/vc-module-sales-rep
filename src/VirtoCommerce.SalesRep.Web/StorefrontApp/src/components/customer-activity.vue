@@ -4,6 +4,7 @@
       <VcLink
         :to="{ name: CUSTOMER_ACTIVITIES_ROUTE_NAME, params: { organizationId } }"
         class="customer-activity__all-link"
+        data-test-id="customer-activity-all-link"
       >
         {{ t("sales_rep.activity.view_all") }}
 

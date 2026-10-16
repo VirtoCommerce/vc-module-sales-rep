@@ -231,7 +231,7 @@ describe("CustomerActivity header", () => {
   it("links All activity to the customer's activity page", () => {
     const link = createWrapper()
       .findAllComponents({ name: "VcLinkStub" })
-      .find((candidate) => candidate.classes("customer-activity__all-link"));
+      .find((candidate) => candidate.attributes("data-test-id") === "customer-activity-all-link");
 
     expect(link?.props("to")).toEqual({ name: "SalesRepCustomerActivities", params: { organizationId: "org1" } });
   });

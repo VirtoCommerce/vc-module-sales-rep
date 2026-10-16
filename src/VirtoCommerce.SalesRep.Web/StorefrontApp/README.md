@@ -11,7 +11,7 @@ absent, or disabled in the admin UI — the hub leaves its tracked parts out: th
 marks, and the customer activity widget.
 
 The code started as a copy of the host's in-repo `client-app/modules/sales-rep` (vc-frontend
-`dev` at `1ae6a0318`). Hub features land here only since: the in-repo module no longer boots
+`dev` at `1ae6a0318`). Hub features land here only since: the in-repo module does not boot by default
 (`sales_rep_builtin_enabled: false`) and has none of the later ones, Activities among them.
 
 It ships inside this module: `yarn build` writes the remote into

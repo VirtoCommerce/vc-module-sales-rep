@@ -648,7 +648,7 @@ describe("Activities page", () => {
     expect(notice(wrapper).text()).toBe("");
   });
 
-  // Same route, new query: the instance is reused, so the previous customer's page, tab, mode and window
+  // One page on two routes: the instance is reused, so the previous customer's page, tab, mode and window
   // carried over. All time carried into the rep's own feed would read every customer's history.
   it("starts over when the customer changes", async () => {
     customerState.organizationName.value = "Acme";
@@ -1097,6 +1097,17 @@ describe("Activities page without the analytics module", () => {
     const wrapper = createWrapper();
 
     expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.activity.empty_period_untracked");
+  });
+
+  // A failed counts request dashes every tab, the platform's too: the notice explains it, with no word about tracking.
+  it("explains a failed counts request, without a word about tracking", () => {
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+    counts.error.value = new Error("boom");
+
+    const wrapper = createWrapper();
+
+    expect(findChips(wrapper)[0].props("allLabel")).toBe("sales_rep.activity.tabs.all (–)");
+    expect(notice(wrapper).text()).toBe("sales_rep.activity.counts_failed");
   });
 });
 

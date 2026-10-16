@@ -353,6 +353,7 @@
       "empty_period_untracked": "Ingen aktivitet under denna period",
       "no_customers": "Inga tilldelade kunder ännu",
       "incomplete": "En del av den spårade aktiviteten kunde inte läsas in, så de här siffrorna kan vara ofullständiga.",
+      "counts_failed": "Kunde inte läsa in antalet aktiviteter.",
       "no_results": "Ingen aktivitet i denna kategori",
       "load_failed": "Kunde inte ladda aktivitet",
       "view_all": "All aktivitet",

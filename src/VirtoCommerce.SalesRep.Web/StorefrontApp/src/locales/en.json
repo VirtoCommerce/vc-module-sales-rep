@@ -353,6 +353,7 @@
       "empty_period_untracked": "No activity in this period",
       "no_customers": "No customers assigned to you yet",
       "incomplete": "Some tracked activity couldn't be loaded, so these figures may be incomplete.",
+      "counts_failed": "The activity counts couldn't be loaded.",
       "no_results": "No activity in this category",
       "load_failed": "Couldn't load activity",
       "view_all": "All activity",

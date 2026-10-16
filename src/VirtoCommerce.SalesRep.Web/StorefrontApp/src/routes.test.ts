@@ -21,7 +21,7 @@ import type {
   RouteRecordRaw,
 } from "vue-router";
 
-const access = vi.hoisted(() => ({ isRep: true, tasksEnabled: true }));
+const access = vi.hoisted(() => ({ isRep: true, tasksEnabled: true, analyticsEnabled: true }));
 
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -30,6 +30,8 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
 vi.mock("./composables/useSalesRepsConfig", () => ({
   isSalesRepsEnabled: () => true,
   isSalesRepTasksEnabled: () => access.tasksEnabled,
+  // A rep's check, as the real one is: a non-rep never has the analytics surfaces.
+  isSalesRepAnalyticsEnabled: () => access.isRep && access.analyticsEnabled,
 }));
 
 const to = { params: { organizationId: "org-1", orderId: "o-1" } } as unknown as RouteLocationNormalized;
@@ -43,6 +45,7 @@ function runGuard(route: RouteRecordRaw) {
 afterEach(() => {
   access.isRep = true;
   access.tasksEnabled = true;
+  access.analyticsEnabled = true;
 });
 
 const at = (name: string) => ({ name, query: {} }) as unknown as RouteLocationNormalizedLoaded;
@@ -125,6 +128,17 @@ describe("sales-rep routes", () => {
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith({ name: "Dashboard" });
+  });
+
+  // The customer activity widget's page goes with the widget, which needs the analytics module; the rep lands on
+  // that customer's profile instead.
+  it("sends a sales rep to the customer's profile when the analytics module is not installed", () => {
+    access.analyticsEnabled = false;
+
+    const next = runGuard(customerActivitiesRoute);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith({ name: "SalesRepCustomerProfile", params: { organizationId: "org-1" } });
   });
 
   it("sends a sales rep to the hub dashboard when task management is not installed", () => {

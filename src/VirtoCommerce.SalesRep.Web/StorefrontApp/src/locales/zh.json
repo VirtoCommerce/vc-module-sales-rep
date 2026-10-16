@@ -353,6 +353,7 @@
       "empty_period_untracked": "此期间暂无活动",
       "no_customers": "暂无已分配的客户",
       "incomplete": "部分跟踪到的活动无法加载，因此这些数据可能不完整。",
+      "counts_failed": "无法加载活动计数。",
       "no_results": "此类别暂无活动",
       "load_failed": "无法加载活动",
       "view_all": "全部活动",

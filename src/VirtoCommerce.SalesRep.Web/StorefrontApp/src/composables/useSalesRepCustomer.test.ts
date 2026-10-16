@@ -141,7 +141,7 @@ describe("useSalesRepCustomer", () => {
     expect(notFound.value).toBe(true);
   });
 
-  // The Activities page serves the rep-wide feed and one customer's from ONE route record, so it passes
+  // The Activities page serves the rep-wide feed and one customer's with one component, so it passes
   // "" while the feed is unscoped. No id means nothing to read - and nothing to call "not found" either.
   it("does not read, or answer notFound, without an organization id", () => {
     const organizationId = ref("");

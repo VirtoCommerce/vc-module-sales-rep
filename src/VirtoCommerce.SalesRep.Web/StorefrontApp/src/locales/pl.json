@@ -353,6 +353,7 @@
       "empty_period_untracked": "Brak aktywności w tym okresie",
       "no_customers": "Brak przypisanych klientów",
       "incomplete": "Nie udało się wczytać części śledzonej aktywności, więc te dane mogą być niepełne.",
+      "counts_failed": "Nie udało się wczytać liczników aktywności.",
       "no_results": "Brak aktywności w tej kategorii",
       "load_failed": "Nie udało się załadować aktywności",
       "view_all": "Cała aktywność",

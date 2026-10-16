@@ -65,7 +65,7 @@
         >
           <template v-if="showIncompleteNotice">
             <VcIcon class="activities__notice-icon" name="circle-alert" :size="15" aria-hidden="true" />
-            {{ t("sales_rep.activity.incomplete") }}
+            {{ incompleteText }}
           </template>
         </p>
 
@@ -363,9 +363,15 @@ const viewLoading = computed(() => isCustomerPending.value || (topMode.value ? t
 const viewFailed = computed(() => (topMode.value ? topFailed.value : failed.value));
 const viewEmpty = computed(() => (topMode.value ? topUnavailable.value || !topRows.value.length : !items.value.length));
 
-// Only beside rows: an empty view already says why it is empty.
+// Only beside rows: an empty view already says why it is empty. A failed counts request dashes every tab, the
+// platform's too, so it is explained with or without the analytics module.
 const figuresIncomplete = computed(
-  () => isTracked() && (countsFailed.value || countsAnalyticsUnavailable.value || analyticsUnavailable.value),
+  () => countsFailed.value || (isTracked() && (countsAnalyticsUnavailable.value || analyticsUnavailable.value)),
+);
+
+// Without the analytics module only the counts can be missing: nothing tracked is shown to be incomplete.
+const incompleteText = computed(() =>
+  isTracked() ? t("sales_rep.activity.incomplete") : t("sales_rep.activity.counts_failed"),
 );
 const showIncompleteNotice = computed(
   () => figuresIncomplete.value && !viewLoading.value && !viewFailed.value && !viewEmpty.value,
@@ -483,10 +489,11 @@ function tabLabel(label: string, name?: string): string {
   if (countsPending.value) {
     return label;
   }
+  const count = name ? countOf(name) : allCount.value;
   const badge =
     countsFailed.value || (countsAnalyticsUnavailable.value && isTracked(name))
       ? UNMEASURED_BADGE
-      : formatStatCount(name ? countOf(name) : allCount.value);
+      : formatStatCount(count);
   return `${label} (${badge})`;
 }
 

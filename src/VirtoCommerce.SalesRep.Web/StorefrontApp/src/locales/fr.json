@@ -353,6 +353,7 @@
       "empty_period_untracked": "Aucune activité sur cette période",
       "no_customers": "Aucun client attribué pour le moment",
       "incomplete": "Une partie de l'activité suivie n'a pas pu être chargée, ces chiffres peuvent donc être incomplets.",
+      "counts_failed": "Impossible de charger les compteurs d'activité.",
       "no_results": "Aucune activité dans cette catégorie",
       "load_failed": "Impossible de charger l'activité",
       "view_all": "Toute l'activité",
