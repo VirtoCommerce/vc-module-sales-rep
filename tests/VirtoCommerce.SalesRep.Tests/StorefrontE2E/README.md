@@ -53,7 +53,8 @@ compiles on demand, then the storefront loads the hub plugin), later loads ≈2 
 ## Running
 
 The tests run wherever they find a storefront, and anywhere else they fail with what is missing. The module CI never
-runs them: every class also carries the `IntegrationTest` category, which `vc-build Test` leaves out by default.
+runs them: every class also carries the `IntegrationTest` category, which `vc-build Test` leaves out by default. In
+GitHub, the `E2E tests` workflow runs them on demand against any vc-frontend branch (see the module README).
 
 Prerequisites:
 - **A storefront**, either of:
