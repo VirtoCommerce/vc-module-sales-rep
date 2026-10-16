@@ -20,12 +20,13 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
 /// </summary>
 [Collection(CallsCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
+[Trait("Category", "IntegrationTest")]
 public sealed class CallsTests(CallsEnvironment env)
 {
     private const string Call = SalesRepModuleConstants.Tasks.CallType;
     private const string CustomerLink = SalesRepModuleConstants.Tasks.CustomerObjectType;
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task ScheduleCall_FromCustomerProfile_CreatesACallForThatCustomer()
     {
         await using var session = await OpenAsync($"/company/my-customers/{CallsEnvironment.NorthwindId}");
@@ -58,7 +59,7 @@ public sealed class CallsTests(CallsEnvironment env)
         task.ResponsibleId.Should().Be(env.RepMemberId);
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task ScheduleCall_TickingBothCalendars_OpensGoogleAndDownloadsTheEvent()
     {
         string googleUrl = null;
@@ -118,7 +119,7 @@ public sealed class CallsTests(CallsEnvironment env)
             .And.Contain($"\r\nSUMMARY:Call — {CallsEnvironment.ContosoName}\r\n");
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task NewTask_PickingCall_AddsCustomerAndTime_AndSavesACall()
     {
         const string name = "Call about the spring order";
@@ -158,7 +159,7 @@ public sealed class CallsTests(CallsEnvironment env)
         task.DueDate.Should().Be(CallsEnvironment.At(9));
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task NewTask_LeavingCall_SavesAPlainTask()
     {
         const string name = "Ask about the catalog";
@@ -188,7 +189,7 @@ public sealed class CallsTests(CallsEnvironment env)
         task.ObjectId.Should().BeNull();
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task TasksList_ShowsACallsTimeAndCustomer()
     {
         var day = CallsEnvironment.ListedTomorrow;
@@ -209,7 +210,7 @@ public sealed class CallsTests(CallsEnvironment env)
         });
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task EditCall_ChangesTimeCustomerAndPriority()
     {
         await using var session = await OpenAsync("/company/tasks");
@@ -244,7 +245,7 @@ public sealed class CallsTests(CallsEnvironment env)
         task.Priority.Should().Be("High");
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task EditCall_ClearingTheCustomer_UnlinksIt()
     {
         await using var session = await OpenAsync("/company/tasks");
@@ -268,7 +269,7 @@ public sealed class CallsTests(CallsEnvironment env)
         task.ObjectType.Should().BeNull();
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task EditTask_PickingCall_TurnsItIntoACall()
     {
         await using var session = await OpenAsync("/company/tasks");
@@ -297,7 +298,7 @@ public sealed class CallsTests(CallsEnvironment env)
         task.DueDate.Should().Be(CallsEnvironment.At(16));
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task FormerCustomer_IsHidden_AndAnEditKeepsTheLink()
     {
         await using var session = await OpenAsync("/company/tasks");

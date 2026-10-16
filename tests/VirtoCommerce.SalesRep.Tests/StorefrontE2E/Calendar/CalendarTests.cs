@@ -9,9 +9,10 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calendar;
 
 [Collection(CalendarCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
+[Trait("Category", "IntegrationTest")]
 public sealed class CalendarTests(CalendarEnvironment env)
 {
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task Calendar_CompletingTheSeededTask_PersistsTheCompletion()
     {
         await using var session = await env.OpenAsync(env.RepUserId, "/company/tasks");
@@ -33,7 +34,7 @@ public sealed class CalendarTests(CalendarEnvironment env)
         task.Completed.Should().BeTrue();
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task Calendar_CreatingATaskFromTheForm_WritesTheWorkTaskRow()
     {
         const string name = "Send the Q4 price list";

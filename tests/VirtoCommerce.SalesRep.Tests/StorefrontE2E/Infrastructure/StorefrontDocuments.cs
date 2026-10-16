@@ -9,8 +9,9 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 /// <summary>
 /// Loads a GraphQL document the way the storefront bundles it: a <c>.graphql</c> file under
-/// <c>client-app/core/api/graphql</c> with its <c>#import "…"</c> fragments inlined. A contract test can then send
-/// the storefront's own operation text, so the backend is checked against what the client really asks for.
+/// <c>client-app/core/api/graphql</c> of the clone (<see cref="StorefrontLocation.SourceDirectory"/>) with its
+/// <c>#import "…"</c> fragments inlined. A contract test can then send the storefront's own operation text, so the
+/// backend is checked against what the client really asks for.
 /// </summary>
 internal static class StorefrontDocuments
 {
@@ -21,7 +22,7 @@ internal static class StorefrontDocuments
     /// </param>
     public static string Load(string relativePath, IReadOnlyCollection<string> installedModules = null)
     {
-        var root = Path.Combine(ViteDevServer.ResolveFrontendDirectory(), "client-app", "core", "api", "graphql");
+        var root = Path.Combine(StorefrontLocation.Current.SourceDirectory, "client-app", "core", "api", "graphql");
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var text = new StringBuilder();
 

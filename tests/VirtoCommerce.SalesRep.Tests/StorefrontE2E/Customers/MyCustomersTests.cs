@@ -10,9 +10,10 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Customers;
 
 [Collection(CustomersCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
+[Trait("Category", "IntegrationTest")]
 public sealed class MyCustomersTests(CustomersEnvironment env)
 {
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task MyCustomers_ListsEveryServedOrganization_WithTheRepsLatestOrder()
     {
         await using var session = await env.OpenAsync(env.RepUserId, "/company/my-customers");
@@ -30,7 +31,7 @@ public sealed class MyCustomersTests(CustomersEnvironment env)
         memberships.Select(x => x.OrganizationId).Should().BeEquivalentTo([CustomersEnvironment.FabrikamId, CustomersEnvironment.ContosoId]);
     }
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task CustomerProfile_ShowsTheSeededOrganizationDetails()
     {
         await using var session = await env.OpenAsync(env.RepUserId, $"/company/my-customers/{CustomersEnvironment.FabrikamId}");

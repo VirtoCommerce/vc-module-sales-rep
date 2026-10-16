@@ -1,8 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.PaymentModule.Core.Model;
@@ -67,6 +65,14 @@ internal sealed class PasswordOnlyStoreAuthenticationService : IStoreAuthenticat
 /// </summary>
 internal sealed class StorefrontModuleService : IModuleService
 {
+    /// <summary>
+    /// What the two stand-ins report: a version no storefront expects to exceed. The storefront compares each module's
+    /// version with its own backend-packages.json, and a lower one gets its "outdated backend" error over the page's
+    /// top-right buttons for fifteen seconds; a built storefront keeps that list inside its bundle. The module under
+    /// test reports its real version, so a real mismatch still shows.
+    /// </summary>
+    private const string StandInVersion = "999.0.0";
+
     private static readonly IList<ManifestModuleInfo> _installed = CreateInstalledModules();
 
     public IList<ManifestModuleInfo> GetModules() => _installed;
@@ -79,7 +85,6 @@ internal sealed class StorefrontModuleService : IModuleService
     private static IList<ManifestModuleInfo> CreateInstalledModules()
     {
         var manifest = ManifestReader.Read(Path.Combine(StorefrontPlugin.ModuleDirectory, "module.manifest"));
-        var expectedVersions = ReadExpectedVersions();
 
         var salesRep = new ManifestModuleInfo().LoadFromManifest(manifest);
         // Where the platform looks for the hub plugin's build (plugins/vc-frontend).
@@ -88,51 +93,14 @@ internal sealed class StorefrontModuleService : IModuleService
         return
         [
             salesRep,
-            StandIn(manifest, expectedVersions, "VirtoCommerce.TaskManagement"),
+            StandIn(manifest, "VirtoCommerce.TaskManagement"),
             // X-Frontend's own manifest ships only in its module zip, so its app declaration is restated here.
-            StandIn(manifest, expectedVersions, "VirtoCommerce.XFrontend", new ManifestApp { Id = "vc-frontend" }),
+            StandIn(manifest, "VirtoCommerce.XFrontend", new ManifestApp { Id = "vc-frontend" }),
         ];
     }
 
-    /// <summary>
-    /// A dependency at the version the storefront expects of it: a lower one makes the storefront show its "outdated
-    /// backend" error on every page, over the page's top-right buttons for fifteen seconds. A module the storefront
-    /// does not list is not checked, and stands in at the version the manifest depends on.
-    /// </summary>
-    private static ManifestModuleInfo StandIn(ModuleManifest manifest, Dictionary<string, string> expectedVersions, string id, params ManifestApp[] apps)
-    {
-        var version = expectedVersions.TryGetValue(id, out var expected)
-            ? expected
-            : manifest.Dependencies.Single(x => x.Id.EqualsIgnoreCase(id)).Version;
-
-        return new ManifestModuleInfo().LoadFromManifest(new ModuleManifest { Id = id, Version = version, PlatformVersion = manifest.PlatformVersion, Apps = apps });
-    }
-
-    /// <summary>
-    /// The module versions the storefront checkout expects of its backend (backend-packages.json), read the way the
-    /// storefront reads them: across all sources, the last listing of a module winning.
-    /// </summary>
-    private static Dictionary<string, string> ReadExpectedVersions()
-    {
-        using var stream = File.OpenRead(Path.Combine(StorefrontAvailability.FrontendDirectory, "backend-packages.json"));
-        using var document = JsonDocument.Parse(stream);
-
-        var versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var source in document.RootElement.GetProperty("Sources").EnumerateArray())
-        {
-            if (!source.TryGetProperty("Modules", out var modules))
-            {
-                continue;
-            }
-
-            foreach (var module in modules.EnumerateArray())
-            {
-                versions[module.GetProperty("Id").GetString()] = module.GetProperty("Version").GetString();
-            }
-        }
-
-        return versions;
-    }
+    private static ManifestModuleInfo StandIn(ModuleManifest manifest, string id, params ManifestApp[] apps)
+        => new ManifestModuleInfo().LoadFromManifest(new ModuleManifest { Id = id, Version = StandInVersion, PlatformVersion = manifest.PlatformVersion, Apps = apps });
 }
 
 /// <summary>

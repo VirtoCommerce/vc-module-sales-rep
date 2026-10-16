@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -27,10 +28,12 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
     public const string StoreId = "B2B-store";
 
     private readonly WebApplication _app;
+    private readonly SemaphoreSlim _gate;
 
-    private InProcessVCShellBackend(WebApplication app, SalesRepTestContext context, string url)
+    private InProcessVCShellBackend(WebApplication app, SemaphoreSlim gate, SalesRepTestContext context, string url)
     {
         _app = app;
+        _gate = gate;
         Context = context;
         Url = url;
     }
@@ -44,9 +47,28 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
     /// <summary>Where the app's index.html is served (<c>/apps/vc-sales-rep/</c>), what the browser opens.</summary>
     public string AppUrl => Url + VCShellServices.AppPath + "/";
 
+    /// <summary>
+    /// Runs test-side work against the harness between requests. Its in-memory SQLite databases each live on one
+    /// connection, which is not thread-safe, so the host answers one request at a time and a test's reads take the
+    /// same turn: the blade may still be refreshing after the save or block it waited for.
+    /// </summary>
+    public async Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work)
+    {
+        await _gate.WaitAsync();
+        try
+        {
+            return await work(Context);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public static async Task<InProcessVCShellBackend> StartAsync(string appDirectory)
     {
         WebApplication app = null;
+        var gate = new SemaphoreSlim(1, 1);
 
         var context = SalesRepTestContext.Create(
             configureOverrides: VCShellServices.AddVCShellOverrides,
@@ -72,7 +94,7 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
                 VCShellServices.AddWebServices(builder.Services);
 
                 app = builder.Build();
-                VCShellServices.ConfigurePipeline(app, appDirectory);
+                VCShellServices.ConfigurePipeline(app, appDirectory, gate);
 
                 // Not started yet: the harness still wires event handlers and search builders on this provider.
                 return app.Services;
@@ -88,7 +110,7 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
         await app.StartAsync();
 
         var url = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First().TrimEnd('/');
-        var backend = new InProcessVCShellBackend(app, context, url);
+        var backend = new InProcessVCShellBackend(app, gate, context, url);
 
         await backend.SelfCheckAsync();
 
@@ -121,5 +143,6 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
 
         // The provider was the app's and is gone; this closes the in-memory SQLite connections.
         Context.Dispose();
+        _gate.Dispose();
     }
 }

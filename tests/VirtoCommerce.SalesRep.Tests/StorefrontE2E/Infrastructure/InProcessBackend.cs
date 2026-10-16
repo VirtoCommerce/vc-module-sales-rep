@@ -41,7 +41,10 @@ internal sealed class InProcessBackend : IAsyncDisposable
     /// <summary>The harness: seed, index and assert through it exactly as the component tests do.</summary>
     public SalesRepTestContext Context { get; }
 
-    /// <summary>Loopback base URL of the Kestrel host (<c>http://127.0.0.1:port</c>), what the storefront proxies to.</summary>
+    /// <summary>
+    /// Loopback base URL of the Kestrel host (<c>http://127.0.0.1:port</c>): what a clone's Vite dev server proxies
+    /// to, and where a built storefront is served.
+    /// </summary>
     public string Url { get; }
 
     public TestTokenService Tokens => Context.GetRequiredService<TestTokenService>();
@@ -64,7 +67,8 @@ internal sealed class InProcessBackend : IAsyncDisposable
         }
     }
 
-    public static async Task<InProcessBackend> StartAsync()
+    /// <param name="storefrontBuild">A built storefront to serve from the backend's own origin; null when there is none to serve.</param>
+    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null)
     {
         WebApplication app = null;
         var gate = new SemaphoreSlim(1, 1);
@@ -89,7 +93,7 @@ internal sealed class InProcessBackend : IAsyncDisposable
                 StorefrontServices.AddWebServices(builder.Services);
 
                 app = builder.Build();
-                StorefrontServices.ConfigurePipeline(app, gate);
+                StorefrontServices.ConfigurePipeline(app, gate, storefrontBuild);
 
                 // Not started yet: the harness still wires event handlers and search builders on this provider.
                 return app.Services;

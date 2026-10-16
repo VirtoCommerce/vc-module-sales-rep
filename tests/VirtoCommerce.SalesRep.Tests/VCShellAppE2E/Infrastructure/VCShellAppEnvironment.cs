@@ -29,14 +29,11 @@ public abstract class VCShellAppEnvironment : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        // Every test in the group skips itself without a built app; the environment must not fail first.
-        if (!VCShellAppAvailability.IsAvailable)
-        {
-            return;
-        }
+        // Without a built app the group fails here, with the command that builds it.
+        var appDirectory = VCShellAppLocation.AppDirectory;
 
         Log("backend starting");
-        Backend = await InProcessVCShellBackend.StartAsync(VCShellAppAvailability.AppDirectory);
+        Backend = await InProcessVCShellBackend.StartAsync(appDirectory);
         Log($"backend ready at {Backend.Url}, app at {Backend.AppUrl}");
 
         await SeedAsync(Backend.Context);

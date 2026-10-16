@@ -41,8 +41,8 @@ internal sealed class ViteDevServer : IAsyncDisposable
         }
     }
 
-    /// <summary>The vc-frontend checkout (see <see cref="StorefrontAvailability"/>), or an exception naming what is missing.</summary>
-    public static string ResolveFrontendDirectory() => StorefrontAvailability.FrontendDirectory;
+    /// <summary>Vite's own entry point in a clone's <c>node_modules</c>, which the dev server runs under node.</summary>
+    public static string EntryPoint(string frontendDirectory) => Path.Combine(frontendDirectory, "node_modules", "vite", "bin", "vite.js");
 
     public static async Task<ViteDevServer> StartAsync(string frontendDirectory, string backendUrl, string logDirectory = null, TimeSpan? timeout = null)
     {
@@ -55,7 +55,7 @@ internal sealed class ViteDevServer : IAsyncDisposable
 
         // Vite's own entry point under node, not `yarn dev`: a cmd -> yarn -> node chain leaves the dev server as an
         // orphan when the chain is killed, and its inherited stdout pipe then keeps the exit wait hanging.
-        var viteEntry = Path.Combine(frontendDirectory, "node_modules", "vite", "bin", "vite.js");
+        var viteEntry = EntryPoint(frontendDirectory);
         var startInfo = new ProcessStartInfo("node", $"\"{viteEntry}\" --port {port} --strictPort");
 
         startInfo.WorkingDirectory = frontendDirectory;

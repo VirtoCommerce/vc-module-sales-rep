@@ -944,7 +944,7 @@ Two limits are worth knowing. A write that runs inside an `EventSuppressor` scop
 | `Component` | `ComponentTests/` | The module's real services, repositories, GraphQL schema and REST controllers, called in-process. | The component harness (`SalesRepTestContext`): one in-memory SQLite database per module context, created with `EnsureCreated`; a RAM Lucene index; hand-written doubles for the platform parts the module only reads (store, settings, currency). |
 | `StorefrontE2E`, `VCShellAppE2E` | `StorefrontE2E/`, `VCShellAppE2E/` | The real UIs, driven by Playwright. | The same harness, hosted on Kestrel inside the test process. |
 
-`dotnet test` runs all three. The end-to-end groups skip themselves where their UI is not available (see below), so the shared CI workflow needs no filter.
+`dotnet test` runs all three. The end-to-end tests also carry the `IntegrationTest` category, which `vc-build Test`, and so the module CI, leaves out by default (see below).
 
 ### End-to-end tests
 
@@ -952,19 +952,19 @@ The idea is to keep the component-test shape — seed through the harness, exerc
 
 | | `StorefrontE2E` | `VCShellAppE2E` |
 |---|---|---|
-| UI | The B2B storefront (`vc-theme-b2b-vue`), served by its Vite dev server, which the test starts and stops. | The sales-rep VC-Shell app (`src/VirtoCommerce.SalesRep.Web/App`), served by the test host as static files under `/apps/vc-sales-rep/`. |
+| UI | The B2B storefront (`vc-theme-b2b-vue`): a vc-frontend clone on its Vite dev server, which the test starts and stops, or a build (the theme zip's `default` folder) that the test host serves. | The sales-rep VC-Shell app (`src/VirtoCommerce.SalesRep.Web/App`), served by the test host as static files under `/apps/vc-sales-rep/`. |
 | Groups | `Customers/`: the rep's customer list and a customer's profile. `Calendar/`: completing and creating tasks. `Calls/`: scheduled calls, meaning booking one from a customer's page or the task form, adding a new one to Google and Apple Calendar, editing calls and tasks, what the task list shows of a call, and a customer the rep no longer serves. | `SalesReps/`: an administrator creates a rep through the details blade and blocks one. |
 | Backend surface | `/graphql` (one combined X-API schema) and `/connect/token`, plus the hub plugin's build on the platform's route for it, found through `store.plugins` as in production. | `/api/sales-rep/**` (the module's controllers, hosted as they are) plus replicas of the platform endpoints the VC-Shell framework and the blades call. |
 | Sign-in | A JWT minted from the real claim producers, placed in `localStorage` before the first navigation. | The platform's Identity cookie, obtained from the host before the first navigation. |
-| Needs on the machine | The storefront checkout with `node_modules` installed (`VC_STOREFRONT_DIR`, else a `vc-frontend` clone next to this repo, else `<workspace>/front`), Node 22 on PATH, and the hub plugin built: `yarn build` in `StorefrontApp/`. A missing build, or one older than its sources, fails the groups with that command. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
-| Opt-out | `VC_STOREFRONT_E2E=0` | `VC_VCSHELL_APP_E2E=0` |
+| Needs on the machine | A storefront: `VC_STOREFRONT_BUILD` (a build) or `VC_STOREFRONT_DIR` (a clone), else a `vc-frontend` clone next to this repo, else a build two levels up; in a ticket folder that is `sources\vc-frontend`, then `front`. A clone needs `node_modules` and Node 22 on PATH. Plus the hub plugin built: `yarn build` in `StorefrontApp/`; a missing build, or one older than its sources, fails the groups with that command. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
+| Without it | The groups fail with what is missing. | The group fails with the command that builds the app. |
 | Run | `dotnet test --filter "Category=StorefrontE2E"` | `dotnet test --filter "Category=VCShellAppE2E"` |
 | Diagnostics | `bin/Debug/net10.0/StorefrontE2E-diagnostics/` | `bin/Debug/net10.0/VCShellAppE2E-diagnostics/` |
 | Details | [StorefrontE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/StorefrontE2E/README.md) | [VCShellAppE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/VCShellAppE2E/README.md) |
 
 Common prerequisites: the .NET 10 SDK and Playwright's Chromium for the referenced `Microsoft.Playwright` version (`pwsh bin/Debug/net10.0/playwright.ps1 install chromium`, once). `E2E_HEADED=1` shows the browser. A failing test reports the page URL and title, the start of the page text, the API or GraphQL errors, dialogs, failed requests and console errors it saw, plus a full-page screenshot in the diagnostics folder.
 
-**On CI** every end-to-end fact carries a conditional skip (`SkipUnless` on its group's availability class), so the groups report as skipped and their fixtures start nothing. The storefront is a separate repository and is never on the runner. The VC-Shell app's output folders are gitignored, and the module workflow runs `vc-build Test` before `vc-build Compress`, the step that builds the app into `Content/vc-sales-rep`, so the runner has no built app at test time either.
+**On CI** the module workflow runs `vc-build Test`, whose default filter (`Category!=IntegrationTest`) leaves the end-to-end tests out. Its runner has none of what they need: the storefront is a separate repository, and the hub plugin and the VC-Shell app are built only by `vc-build Compress`, after the tests.
 
 **Writing a test.** Seed in the group's environment (`SeedAsync`, through the harness helpers: organizations, contacts, reps, accounts, orders, tasks), open a signed-in context with `OpenAsync`, act with Playwright, assert through the harness (`NewSalesRepDbContext()`, `GetRequiredService<IMemberService>()`, `UserManager`, `GetMembershipsAsync`, …). What the harness does differently from a platform:
 

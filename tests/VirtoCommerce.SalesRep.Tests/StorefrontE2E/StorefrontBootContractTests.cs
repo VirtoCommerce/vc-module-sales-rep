@@ -12,18 +12,23 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E;
 
 /// <summary>
 /// The storefront's boot, without a browser: the in-process backend answers the storefront's OWN operation documents
-/// (loaded from the checkout, fragments inlined) for a signed-in rep. A failure here is a backend-side shell gap, and
+/// (loaded from the clone, fragments inlined) for a signed-in rep. A failure here is a backend-side shell gap, and
 /// reads as a GraphQL error rather than as a blank page in the Playwright tests.
 /// </summary>
 [Trait("Category", "StorefrontE2E")]
+[Trait("Category", "IntegrationTest")]
 public sealed class StorefrontBootContractTests
 {
     /// <summary>What the in-process backend reports as installed; the storefront gates documents on this list.</summary>
     private static readonly string[] InstalledModules = ["VirtoCommerce.SalesRep", "VirtoCommerce.TaskManagement"];
 
-    [Fact(Timeout = 300_000, Skip = StorefrontAvailability.SkipReason, SkipUnless = nameof(StorefrontAvailability.IsAvailable), SkipType = typeof(StorefrontAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task Boot_AnswersTheStorefrontsOwnDocuments_ForASignedInRep()
     {
+        // The documents are files of a clone; a build carries them only inside its bundle.
+        Assert.SkipWhen(StorefrontLocation.Current.SourceDirectory == null,
+            $"This test reads the storefront's .graphql files, which a build does not ship: set {StorefrontLocation.SourceVariable} to the clone the build came from.");
+
         await using var backend = await InProcessBackend.StartAsync();
         var context = backend.Context;
 

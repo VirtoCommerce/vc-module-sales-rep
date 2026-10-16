@@ -18,11 +18,12 @@ namespace VirtoCommerce.SalesRep.Tests.VCShellAppE2E.SalesReps;
 /// </summary>
 [Collection(SalesRepsCollection.Name)]
 [Trait("Category", "VCShellAppE2E")]
+[Trait("Category", "IntegrationTest")]
 public sealed class SalesRepsTests(SalesRepsEnvironment env)
 {
     private const string ListRoute = "sales-reps";
 
-    [Fact(Timeout = 300_000, Skip = VCShellAppAvailability.SkipReason, SkipUnless = nameof(VCShellAppAvailability.IsAvailable), SkipType = typeof(VCShellAppAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task Details_blade_creates_a_rep_with_account_and_memberships()
     {
         const string email = "sam.seller@e2e.local";
@@ -51,22 +52,26 @@ public sealed class SalesRepsTests(SalesRepsEnvironment env)
             (await created).Status.Should().Be(200);
         });
 
-        // The module wrote the account, the contact and the membership; the tests read them back from the harness.
-        using var userManager = env.Context.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
-        var account = await userManager.FindByEmailAsync(email);
+        // The module wrote the account, the contact and the membership; the tests read them back from the harness,
+        // between the blade's requests.
+        var account = await env.Backend.RunExclusiveAsync(async context =>
+        {
+            using var userManager = context.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+            return await userManager.FindByEmailAsync(email);
+        });
         account.Should().NotBeNull();
         account.MemberId.Should().NotBeNullOrEmpty();
 
-        var contact = await env.Context.GetRequiredService<IMemberService>().GetByIdAsync(account.MemberId) as Contact;
+        var contact = await env.Backend.RunExclusiveAsync(async context => await context.GetRequiredService<IMemberService>().GetByIdAsync(account.MemberId) as Contact);
         contact.Should().NotBeNull();
         contact.FirstName.Should().Be("Sam");
         contact.LastName.Should().Be("Seller");
 
-        var memberships = await env.Context.GetMembershipsAsync(account.Id);
+        var memberships = await env.Backend.RunExclusiveAsync(context => context.GetMembershipsAsync(account.Id));
         memberships.Should().ContainSingle(membership => membership.OrganizationId == SalesRepsEnvironment.FabrikamId);
     }
 
-    [Fact(Timeout = 300_000, Skip = VCShellAppAvailability.SkipReason, SkipUnless = nameof(VCShellAppAvailability.IsAvailable), SkipType = typeof(VCShellAppAvailability))]
+    [Fact(Timeout = 300_000)]
     public async Task Details_blade_blocks_a_rep_account()
     {
         await using var session = await env.OpenAsync(env.AdminUserId, ListRoute);
@@ -81,9 +86,13 @@ public sealed class SalesRepsTests(SalesRepsEnvironment env)
             (await blocked).Status.Should().Be(204);
         });
 
-        using var userManager = env.Context.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
-        var account = await userManager.FindByIdAsync(env.Rita.UserId);
-        (await userManager.IsLockedOutAsync(account)).Should().BeTrue();
+        var lockedOut = await env.Backend.RunExclusiveAsync(async context =>
+        {
+            using var userManager = context.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
+            var account = await userManager.FindByIdAsync(env.Rita.UserId);
+            return await userManager.IsLockedOutAsync(account);
+        });
+        lockedOut.Should().BeTrue();
     }
 
     // A VcSelect: its trigger is a combobox named by the label, its choices are options.

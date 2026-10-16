@@ -12,19 +12,21 @@ using Xunit;
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 /// <summary>
-/// One virtual environment per test group (xunit collection): the in-process backend, its seeded data, a storefront
-/// dev server proxying to it, and one browser. Tests in the group share all of it; each test gets its own signed-in
-/// browser context. Groups run one after another (their collections disable parallelization), so only one
-/// environment is alive at a time.
+/// One virtual environment per test group (xunit collection): the in-process backend, its seeded data, the storefront
+/// (a clone's Vite dev server proxying to the backend, or a build the backend serves itself), and one browser. Tests
+/// in the group share all of it; each test gets its own signed-in browser context. Groups run one after another
+/// (their collections disable parallelization), so only one environment is alive at a time.
 /// </summary>
 public abstract class StorefrontEnvironment : IAsyncLifetime
 {
     private IPlaywright _playwright;
     private IBrowser _browser;
+    private ViteDevServer _vite;
 
     internal InProcessBackend Backend { get; private set; }
 
-    internal ViteDevServer Storefront { get; private set; }
+    /// <summary>Where the browser opens the storefront: the Vite dev server, or the backend's own origin for a build.</summary>
+    internal string StorefrontUrl { get; private set; }
 
     internal SalesRepTestContext Context => Backend.Context;
 
@@ -35,24 +37,29 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
 
     public async ValueTask InitializeAsync()
     {
-        // Every test in the group skips itself without a storefront checkout; the environment must not fail first.
-        if (!StorefrontAvailability.IsAvailable)
-        {
-            return;
-        }
-
-        // Before anything starts: every hub page comes from the plugin's build.
+        // Before anything starts: the storefront, and the plugin's build that every hub page comes from. Either one
+        // missing fails the group with what to do.
+        var storefront = StorefrontLocation.Current;
         StorefrontPlugin.EnsureBuilt();
 
         Log("backend starting");
-        Backend = await InProcessBackend.StartAsync();
+        Backend = await InProcessBackend.StartAsync(storefront.BuildDirectory);
         Log($"backend ready at {Backend.Url}");
 
         await SeedAsync(Backend.Context);
         Log("seeded");
 
-        Storefront = await ViteDevServer.StartAsync(ViteDevServer.ResolveFrontendDirectory(), Backend.Url, DiagnosticsDirectory);
-        Log($"storefront ready at {Storefront.Url}");
+        if (storefront.BuildDirectory != null)
+        {
+            StorefrontUrl = Backend.Url;
+        }
+        else
+        {
+            _vite = await ViteDevServer.StartAsync(storefront.SourceDirectory, Backend.Url, DiagnosticsDirectory);
+            StorefrontUrl = _vite.Url;
+        }
+
+        Log($"storefront ready at {StorefrontUrl}");
 
         _playwright = await Playwright.CreateAsync();
         _browser = await _playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
@@ -107,7 +114,7 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
 
         var context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {
-            BaseURL = Storefront.Url,
+            BaseURL = StorefrontUrl,
             IgnoreHTTPSErrors = true,
             ViewportSize = new ViewportSize { Width = 1440, Height = 900 },
             TimezoneId = BrowserTimeZone,
@@ -121,7 +128,7 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         page.SetDefaultTimeout(30_000);
         var session = new StorefrontSession(context, page);
 
-        // The dev server compiles on first request, so the first navigation of a group is the slow one.
+        // Vite compiles on first request, so with a clone the first navigation of a group is the slow one.
         await page.GotoAsync(path, new PageGotoOptions { Timeout = 120_000, WaitUntil = WaitUntilState.Load });
         Log($"loaded {page.Url}");
 
@@ -145,9 +152,9 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         _playwright?.Dispose();
         Log("browser closed");
 
-        if (Storefront != null)
+        if (_vite != null)
         {
-            await Storefront.DisposeAsync();
+            await _vite.DisposeAsync();
         }
 
         Log("storefront stopped");

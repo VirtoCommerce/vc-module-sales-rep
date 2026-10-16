@@ -28,7 +28,7 @@ test process ─┬─ Kestrel (InProcessVCShellBackend) ── SalesRepTestCont
 | Dynamic properties | `Infrastructure/EmptyDynamicPropertyMetaDataResolver.cs` | The process-wide metadata the JSON contract consults; the harness has none. |
 | Group fixture | `Infrastructure/VCShellAppEnvironment.cs` | Backend + seed + browser per xunit collection; `OpenAsync(userId, route)` = signed-in context on the app route. |
 | Session | `Infrastructure/VCShellSession.cs` | Records console errors, dialogs, API responses of 400 and above and failed requests; a failing test gets them plus a screenshot in its message. |
-| Availability | `Infrastructure/VCShellAppAvailability.cs` | Skips the tests where the built app is absent (CI). |
+| App location | `Infrastructure/VCShellAppLocation.cs` | Finds the built app; without one the group fails with the command that builds it. |
 | Group 1 | `SalesReps/` | An administrator creates a rep through the details blade (account, contact and membership rows asserted) and blocks one (lockout asserted). |
 
 Groups are xunit collections with `DisableParallelization = true`; tests inside a group share the environment and its
@@ -39,10 +39,10 @@ up in about 3 seconds; each test takes about one second (the built app loads fro
 
 ## Running
 
-The tests are local-only by construction: each fact carries `SkipUnless = VCShellAppAvailability.IsAvailable`, so
-without a built app (a CI runner, or `VC_VCSHELL_APP_E2E=0`) they report as skipped and the fixture starts nothing.
-On the module CI both output folders are gitignored and `vc-build Test` runs before `vc-build Compress`, the step
-that builds the app into `Content/vc-sales-rep`, so the runner never has a built app at test time.
+The tests run wherever the built app is, and anywhere else they fail with the command that builds it. The module CI
+never runs them: every class also carries the `IntegrationTest` category, which `vc-build Test` leaves out by default.
+That runner would have no built app either: both output folders are gitignored, and `vc-build Compress`, the step
+that builds the app into `Content/vc-sales-rep`, runs after `vc-build Test`.
 
 Prerequisites: the built app, produced once with `yarn build:app` in `src/VirtoCommerce.SalesRep.Web/App` (the
 output `App/dist` is found automatically, as is `Content/vc-sales-rep`, which vc-build fills; `VC_VCSHELL_APP_DIR`

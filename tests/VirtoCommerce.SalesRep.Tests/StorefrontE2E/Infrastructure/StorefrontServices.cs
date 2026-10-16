@@ -1,4 +1,6 @@
+using System;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using GraphQL;
 using GraphQL.Types;
@@ -52,6 +54,10 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 internal static class StorefrontServices
 {
     public const string DefaultCulture = "en-US";
+
+    /// <summary>The platform's paths: what a clone's dev proxy forwards to the backend (vc-frontend's vite.config.ts).</summary>
+    private static readonly string[] _platformPaths =
+        ["/api", "/graphql", "/ucp", "/connect", "/revoke", "/.well-known", "/cms-content", "/modules", "/externalsignin", "/signin-oidc", "/signin-google"];
 
     /// <summary>Applied as the harness's last-wins overrides, so the component tests keep their own defaults.</summary>
     public static void AddStorefrontShell(IServiceCollection services)
@@ -156,7 +162,7 @@ internal static class StorefrontServices
             .AddErrorInfoProvider(options => options.ExposeExceptionDetails = true));
     }
 
-    public static void ConfigurePipeline(WebApplication app, SemaphoreSlim gate)
+    public static void ConfigurePipeline(WebApplication app, SemaphoreSlim gate, string storefrontBuild)
     {
         // The hub plugin's build, on the platform's route for it; the storefront's dev proxy forwards that path here.
         // Without a build there is nothing to serve, and the groups that need one say so (StorefrontPlugin).
@@ -167,6 +173,24 @@ internal static class StorefrontServices
                 FileProvider = new PhysicalFileProvider(StorefrontPlugin.BuildDirectory),
                 RequestPath = StorefrontPlugin.RequestPath,
             });
+        }
+
+        // A built storefront, served from the backend's own origin as the cloud serves it: its files, and index.html
+        // for a page navigation to one of its routes. The platform's paths never fall back, so a missing endpoint
+        // stays a 404 as it would behind the dev proxy.
+        if (storefrontBuild != null)
+        {
+            var storefrontFiles = new PhysicalFileProvider(storefrontBuild);
+            app.Use((context, next) =>
+            {
+                if (IsStorefrontRoute(context.Request) && !storefrontFiles.GetFileInfo(context.Request.Path.Value).Exists)
+                {
+                    context.Request.Path = "/index.html";
+                }
+
+                return next(context);
+            });
+            app.UseStaticFiles(new StaticFileOptions { FileProvider = storefrontFiles, ServeUnknownFileTypes = true });
         }
 
         // The harness keeps each in-memory SQLite database on one connection, which is not thread-safe, and the
@@ -194,6 +218,12 @@ internal static class StorefrontServices
         app.MapGet("/health", () => Results.Text("Healthy"));
         TestTokenEndpoints.Map(app);
     }
+
+    /// <summary>A page navigation (a GET for HTML) outside the platform's paths.</summary>
+    private static bool IsStorefrontRoute(HttpRequest request)
+        => (HttpMethods.IsGet(request.Method) || HttpMethods.IsHead(request.Method))
+           && request.Headers.Accept.ToString().Contains("text/html", StringComparison.OrdinalIgnoreCase)
+           && !_platformPaths.Any(x => request.Path.StartsWithSegments(x, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>The store the harness double hands out, enriched with what the storefront boot reads from it.</summary>
     public static void ConfigureStoreDouble(SalesRepTestContext context)
