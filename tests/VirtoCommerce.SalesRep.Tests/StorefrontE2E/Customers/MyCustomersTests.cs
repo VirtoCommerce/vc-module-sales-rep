@@ -41,7 +41,8 @@ public sealed class MyCustomersTests(CustomersEnvironment env)
             await Expect(page.GetByRole(AriaRole.Heading, new() { Level = 1, Name = CustomersEnvironment.FabrikamName }))
                 .ToBeVisibleAsync(new() { Timeout = 60_000 });
             await Expect(page.GetByText(CustomersEnvironment.FabrikamOwnerName)).ToBeVisibleAsync();
-            await Expect(page.GetByText(CustomersEnvironment.FabrikamOwnerPhone)).ToBeVisibleAsync();
+            // TEMPORARY: a deliberate failure, to show what a failed run reports.
+            await Expect(page.GetByText("+1 555 000 0000 (deliberately wrong)")).ToBeVisibleAsync();
 
             // The profile's recent-orders widget links the bare number (the customers list prefixes it with '#').
             await Expect(page.GetByRole(AriaRole.Link, new() { Name = CustomersEnvironment.OrderNumber, Exact = true })).ToBeVisibleAsync();
