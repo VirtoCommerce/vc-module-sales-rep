@@ -256,6 +256,7 @@
         "expired": "Срок истёк {date}",
         "due": "Срок {date}"
       },
+      "customer_not_assigned": "Клиент не назначен",
       "legend": {
         "upcoming": "Предстоящие",
         "overdue": "Просроченные",
@@ -264,17 +265,28 @@
       "form": {
         "create_title": "Новая задача",
         "edit_title": "Изменить задачу",
+        "create_call_title": "Запланировать звонок",
+        "edit_call_title": "Изменить звонок",
         "name_label": "Заголовок",
         "due_date_label": "Срок выполнения",
+        "time_label": "Время",
+        "customer_label": "Клиент",
+        "customer_placeholder": "Поиск клиентов по названию",
+        "customer_error": "Не удалось загрузить список клиентов. Пожалуйста, попробуйте снова.",
+        "call_name": "Звонок",
         "priority_label": "Приоритет",
         "type_label": "Тип",
         "description_label": "Заметки",
+        "calendars_label": "Добавить в календарь",
+        "google_calendar": "Google Календарь",
+        "apple_calendar": "Календарь Apple",
         "save_button": "Сохранить",
         "cancel_button": "Отмена",
         "delete_button": "Удалить",
         "delete_title": "Удалить задачу",
         "delete_confirm": "Задача будет удалена безвозвратно. Продолжить?",
         "saved": "Задача сохранена",
+        "calendar_failed": "Задача сохранена, но добавить её в календарь не удалось",
         "deleted": "Задача удалена"
       }
     },
