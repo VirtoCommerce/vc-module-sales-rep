@@ -1,8 +1,10 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
+import { h } from "vue";
 import { VcTabSwitch } from "@vc-frontend/core";
 import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
 import type { SalesRepRuleType } from "../types";
+import type { VNode } from "vue";
 
 // formatStatCount formats in the store's culture.
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
@@ -17,15 +19,32 @@ const RULES: SalesRepRuleType[] = [
 
 // The real VcTabSwitch, not a stub: the selected state lives in its markup, so a stub cannot see it.
 // VcIcon is resolved above the `v-if` that guards it, so it needs a stub even with no icon prop.
-function mountChips(props: Partial<InstanceType<typeof SalesRepRuleChips>["$props"]> = {}) {
+function mountChips(
+  props: Partial<InstanceType<typeof SalesRepRuleChips>["$props"]> = {},
+  slots?: { suffix: (params: { ruleName?: string }) => VNode },
+) {
   return mount(SalesRepRuleChips, {
     props: { rules: RULES, allLabel: "All", ...props },
-    global: { components: { VcTabSwitch }, stubs: { VcIcon: true } },
+    slots,
+    global: {
+      components: { VcTabSwitch },
+      stubs: {
+        VcIcon: true,
+        // The trigger and the content, side by side: which tabs a tooltip wraps is what the hint tests read.
+        VcTooltip: {
+          template:
+            '<div class="tooltip-stub"><slot name="trigger" /><p class="tooltip-content"><slot name="content" /></p></div>',
+        },
+      },
+    },
   });
 }
 
 const pressed = (wrapper: ReturnType<typeof mountChips>) =>
   wrapper.findAll(".sales-rep-rule-chip button").map((tab) => tab.attributes("aria-pressed"));
+
+const labels = (wrapper: ReturnType<typeof mountChips>) =>
+  wrapper.findAll(".sales-rep-rule-chip__label").map((label) => label.text());
 
 describe("SalesRepRuleChips", () => {
   it("presses the baseline tab while no rule is chosen", () => {
@@ -50,6 +69,35 @@ describe("SalesRepRuleChips", () => {
     await wrapper.findAll(".sales-rep-rule-chip button")[2].trigger("click");
 
     expect(wrapper.emitted("update:modelValue")).toEqual([["Processing"]]);
+  });
+
+  // A set of alternatives reads with the widest option first — "All, Orders, Customers...".
+  it("puts the baseline tab first", () => {
+    expect(labels(mountChips())).toEqual(["All", "New", "Processing"]);
+  });
+
+  // Adornments are the caller's to decide: the component hands each tab's name to the slot and knows
+  // nothing about what the name means. The baseline has no name.
+  it("renders the suffix slot for every tab, naming each one", () => {
+    const wrapper = mountChips(
+      {},
+      { suffix: (params: { ruleName?: string }) => h("i", { class: "mark" }, params.ruleName ?? "baseline") },
+    );
+
+    expect(wrapper.findAll(".mark").map((mark) => mark.text())).toEqual(["baseline", "New", "Processing"]);
+  });
+
+  // A hint opens on the whole tab: the tooltip wraps the tab, so nothing focusable has to sit inside its button.
+  it("makes a hinted tab, and only that one, its tooltip's trigger", () => {
+    const wrapper = mountChips({
+      rules: [{ name: "New", label: "New", hint: "New hint" }, RULES[1]],
+      allHint: "All hint",
+    });
+
+    const tooltips = wrapper.findAll(".tooltip-stub");
+    expect(tooltips.map((tooltip) => tooltip.get(".sales-rep-rule-chip__label").text())).toEqual(["All", "New"]);
+    expect(tooltips.map((tooltip) => tooltip.get(".tooltip-content").text())).toEqual(["All hint", "New hint"]);
+    expect(labels(wrapper)).toEqual(["All", "New", "Processing"]);
   });
 
   // The baseline's value is a boolean, so no non-empty rule name can equal it — a string sentinel
