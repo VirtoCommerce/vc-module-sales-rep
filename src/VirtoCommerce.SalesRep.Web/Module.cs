@@ -89,6 +89,7 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddScoped<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
+        serviceCollection.AddSingleton<Func<ISalesRepOrganizationAccessService>>(provider => () => provider.CreateScope().ServiceProvider.GetRequiredService<ISalesRepOrganizationAccessService>());
         serviceCollection.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
         serviceCollection.AddSingleton<AbstractValidator<SalesRepDetails>, SalesRepDetailsValidator>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();
