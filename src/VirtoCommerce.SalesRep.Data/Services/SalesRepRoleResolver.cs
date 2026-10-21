@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Caching.Memory;
+using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
+using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.SalesRep.Core.Services;
 using ModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
@@ -15,17 +18,25 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
     private const string AccessPermission = ModuleConstants.Security.Permissions.Access;
 
     private readonly Func<RoleManager<Role>> _roleManagerFactory;
+    private readonly IPlatformMemoryCache _platformMemoryCache;
 
-    private IList<Role> _grantingRolesCache;
-
-    public SalesRepRoleResolver(Func<RoleManager<Role>> roleManagerFactory)
+    public SalesRepRoleResolver(Func<RoleManager<Role>> roleManagerFactory, IPlatformMemoryCache platformMemoryCache)
     {
         _roleManagerFactory = roleManagerFactory;
+        _platformMemoryCache = platformMemoryCache;
     }
 
+    // Cached with the platform's role entries, so it expires on any role change and the resolver can be a singleton
+    // (VCST-6476). The list is shared: read it, don't change it.
     public virtual async Task<IList<Role>> GetRolesGrantingAccessAsync()
     {
-        return _grantingRolesCache ??= await LoadRolesGrantingAccessAsync();
+        var cacheKey = CacheKey.With(GetType(), nameof(GetRolesGrantingAccessAsync));
+
+        return await _platformMemoryCache.GetOrCreateExclusiveAsync(cacheKey, async cacheEntry =>
+        {
+            cacheEntry.AddExpirationToken(SecurityCacheRegion.CreateChangeToken());
+            return await LoadRolesGrantingAccessAsync();
+        });
     }
 
     protected virtual async Task<IList<Role>> LoadRolesGrantingAccessAsync()
@@ -80,7 +91,7 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
             throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
         }
 
-        _grantingRolesCache = null;
+        // The role manager's create expires the cached list with the security cache region.
         return role;
     }
 }

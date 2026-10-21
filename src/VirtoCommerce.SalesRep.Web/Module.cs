@@ -85,11 +85,10 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddSingleton<SalesRepStatisticsCartChangedEventHandler>();
         serviceCollection.AddSingleton<SalesRepStatisticsOrderChangedEventHandler>();
 
-        // Scoped so the resolver's memoized granting roles are shared across a request.
-        serviceCollection.AddScoped<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        // A singleton: the granting roles are cached with the platform's role entries (VCST-6476).
+        serviceCollection.AddSingleton<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
-        serviceCollection.AddSingleton<Func<ISalesRepOrganizationAccessService>>(provider => () => provider.CreateScope().ServiceProvider.GetRequiredService<ISalesRepOrganizationAccessService>());
         serviceCollection.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
         serviceCollection.AddSingleton<AbstractValidator<SalesRepDetails>, SalesRepDetailsValidator>();
         serviceCollection.AddTransient<ISalesRepService, SalesRepService>();

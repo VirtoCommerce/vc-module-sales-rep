@@ -35,7 +35,7 @@ public class SalesRepCustomerCartSharingScopePolicyTests
     private const string SharingKey = "sharing-key-1";
 
     private static SalesRepCustomerCartSharingScopePolicy CustomerPolicy(bool servesOrganization = false, IList<Member> organizations = null) =>
-        new(() => new FakeOrganizationAccessService(servesOrganization), new FakeMemberService(organizations ?? []));
+        new(new FakeOrganizationAccessService(servesOrganization), new FakeMemberService(organizations ?? []));
 
     // XCart built-ins plus the sales-rep scope. Only the Customer policy is under test - the built-ins exercise
     // transitions, so this list need not track XCart's registration. The repository is unused by these paths.

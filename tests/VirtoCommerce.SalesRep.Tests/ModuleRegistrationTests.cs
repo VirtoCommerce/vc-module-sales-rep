@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.CartModule.Core.Services;
 using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Caching;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Data.Services;
 using VirtoCommerce.SalesRep.Web;
@@ -45,6 +46,7 @@ namespace VirtoCommerce.SalesRep.Tests
             // Unused stand-ins: a regression then fails on the scope check, not on a missing service.
             services.AddSingleton<Func<UserManager<ApplicationUser>>>(_ => () => null);
             services.AddSingleton<Func<RoleManager<Role>>>(_ => () => null);
+            services.AddSingleton<IPlatformMemoryCache>(_ => null);
             services.AddSingleton<IShoppingCartService>(_ => null);
             services.AddSingleton<ICartAggregateRepository>(_ => null);
             services.AddSingleton<IMemberService>(_ => null);

@@ -248,7 +248,7 @@ internal static class TestServicesConfiguration
         services.AddTransient<SalesRepStatisticsCartChangedEventHandler>();
         services.AddTransient<SalesRepStatisticsOrderChangedEventHandler>();
 
-        services.AddTransient<ISalesRepRoleResolver, SalesRepRoleResolver>();
+        services.AddSingleton<ISalesRepRoleResolver, SalesRepRoleResolver>();
         services.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
         services.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         services.AddSingleton<AbstractValidator<SalesRepDetails>, SalesRepDetailsValidator>();

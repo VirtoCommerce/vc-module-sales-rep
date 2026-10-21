@@ -19,8 +19,7 @@ namespace VirtoCommerce.SalesRep.Data.Services;
 // The "Customer" wishlist scope (VCST-5332): one list, N customer organizations as targets, one message. Reads are
 // synchronous off the eager-loaded setting. Adds are gated by "the caller is a rep who serves the org" (so "can share
 // with an org" == "can message it"); removals are not - the owner must always be able to revoke.
-// A factory: X-Cart's singleton cart handler holds this policy, the access service needs a scope (VCST-6476).
-public class SalesRepCustomerCartSharingScopePolicy(Func<ISalesRepOrganizationAccessService> organizationAccessServiceFactory, IMemberService memberService)
+public class SalesRepCustomerCartSharingScopePolicy(ISalesRepOrganizationAccessService organizationAccessService, IMemberService memberService)
     : CartSharingScopePolicyBase
 {
     public override string Scope => ModuleConstants.Sharing.CustomerScope;
@@ -122,7 +121,7 @@ public class SalesRepCustomerCartSharingScopePolicy(Func<ISalesRepOrganizationAc
 
         var addedIds = (context.AddSharedWithIds ?? []).Where(x => !string.IsNullOrEmpty(x)).ToList();
 
-        if (addedIds.Count > 0 && !await organizationAccessServiceFactory().ServesAllOrganizationsAsync(context.CurrentUserId, addedIds))
+        if (addedIds.Count > 0 && !await organizationAccessService.ServesAllOrganizationsAsync(context.CurrentUserId, addedIds))
         {
             throw AuthorizationError.Forbidden();
         }
