@@ -13,8 +13,14 @@
         :model-value="!modelValue"
         :label="allLabel ?? ''"
         :count="allCount"
+        :hint="allHint"
         @change="modelValue = undefined"
-      />
+      >
+        <!-- Adornments belong to whoever knows what a tab means: the baseline arrives with no name. -->
+        <template #append>
+          <slot name="suffix" />
+        </template>
+      </SalesRepRuleChip>
     </slot>
 
     <SalesRepRuleChip
@@ -24,8 +30,13 @@
       :model-value="modelValue"
       :label="rule.label"
       :count="rule.count"
+      :hint="rule.hint"
       @change="modelValue = $event"
-    />
+    >
+      <template #append>
+        <slot name="suffix" :rule-name="rule.name" />
+      </template>
+    </SalesRepRuleChip>
   </div>
 </template>
 
@@ -42,11 +53,20 @@ interface IProps {
   allLabel?: string;
   // Item count for the baseline tab; rendered as a highlighted counter when present (like `rule.count`).
   allCount?: number;
+  // Hint for the baseline tab, shown on its hover and focus (like `rule.hint`).
+  allHint?: string;
   // Whether `rules` is still being fetched — an in-flight refetch must not look like "the rule is gone".
   loading?: boolean;
 }
 
 const props = defineProps<IProps>();
+
+defineSlots<{
+  /** Chips that stand in for the baseline tab. */
+  baseline?(): unknown;
+  /** An adornment after a tab's label; the baseline tab has no rule name. */
+  suffix?(props: { ruleName?: string }): unknown;
+}>();
 
 // undefined = baseline (first tab); single source of this convention across all rule-tab surfaces.
 const modelValue = defineModel<string | undefined>();
