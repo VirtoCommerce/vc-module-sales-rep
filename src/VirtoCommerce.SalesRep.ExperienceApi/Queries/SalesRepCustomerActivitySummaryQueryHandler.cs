@@ -1,0 +1,83 @@
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Core.Models;
+using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Services;
+using VirtoCommerce.Xapi.Core.Infrastructure;
+
+namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
+
+public class SalesRepCustomerActivitySummaryQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerActivitySummaryQuery, SalesRepCustomerActivitySummary>
+{
+    private readonly ISalesRepCustomerActivityService _customerActivityService;
+    private readonly IMemberService _memberService;
+    private readonly ISalesRepProductResolver _productResolver;
+    private readonly ISalesRepStoreAccessService _storeAccessService;
+
+    public SalesRepCustomerActivitySummaryQueryHandler(
+        ISalesRepOrganizationAccessService organizationAccessService,
+        ISalesRepCustomerActivityService customerActivityService,
+        IMemberService memberService,
+        ISalesRepProductResolver productResolver,
+        ISalesRepStoreAccessService storeAccessService)
+        : base(organizationAccessService)
+    {
+        _customerActivityService = customerActivityService;
+        _memberService = memberService;
+        _productResolver = productResolver;
+        _storeAccessService = storeAccessService;
+    }
+
+    public virtual async Task<SalesRepCustomerActivitySummary> Handle(SalesRepCustomerActivitySummaryQuery request, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrEmpty(request.UserId) || string.IsNullOrEmpty(request.OrganizationId))
+        {
+            return null;
+        }
+
+        if (!await OrganizationAccessService.ServesOrganizationAsync(request.UserId, request.OrganizationId))
+        {
+            return null;
+        }
+
+        if (!await _storeAccessService.IsAllowedAsync(request.UserId, request.StoreId))
+        {
+            return null;
+        }
+
+        var criteria = AbstractTypeFactory<SalesRepCustomerActivityCriteria>.TryCreateInstance();
+        criteria.OrganizationId = request.OrganizationId;
+        criteria.StoreId = request.StoreId;
+        criteria.From = request.Period?.From;
+        criteria.To = request.Period?.To;
+
+        // The organization is database data: it loads while Google answers.
+        var summaryTask = _customerActivityService.GetSummaryAsync(criteria);
+        var organizationTask = _memberService.GetByIdsAsync([request.OrganizationId], nameof(MemberResponseGroup.Default), [nameof(Organization)]);
+
+        await Task.WhenAll(summaryTask, organizationTask);
+
+        var result = await summaryTask;
+        result.CreatedOn = (await organizationTask).FirstOrDefault()?.CreatedDate;
+
+        await ResolveLastViewedProductAsync(result, request);
+
+        return result;
+    }
+
+    protected virtual Task ResolveLastViewedProductAsync(SalesRepCustomerActivitySummary result, SalesRepCustomerActivitySummaryQuery request)
+    {
+        SalesRepActivityProduct[] rows = result.LastViewedProduct == null ? [] : [result.LastViewedProduct];
+
+        return _productResolver.ResolveAsync(rows, request.StoreId, x => x.Code, (row, product) =>
+        {
+            row.ProductId = product.ProductId;
+            row.ImageUrl = product.ImageUrl;
+            row.Name = _productResolver.GetProductName(product, row.Name);
+        });
+    }
+}

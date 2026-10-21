@@ -29,13 +29,13 @@ using VirtoCommerce.SalesRep.Data.MySql;
 using VirtoCommerce.SalesRep.Data.PostgreSql;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.Data.Services;
+using VirtoCommerce.SalesRep.Data.Services.Activities;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.SqlServer;
 using VirtoCommerce.SalesRep.Data.Validation;
 using VirtoCommerce.SalesRep.ExperienceApi;
 using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
-using VirtoCommerce.SalesRep.ExperienceApi.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.XCart.Core.Services;
 using TaskManagementSettings = VirtoCommerce.TaskManagement.Core.ModuleConstants.Settings.General;
@@ -111,6 +111,20 @@ public class Module : IModule, IHasConfiguration
         serviceCollection.AddTransient<ISalesRepCustomerCountsService, SalesRepCustomerCountsService>();
 
         serviceCollection.AddTransient<ISalesRepTopSellerService, SalesRepTopSellerService>();
+
+        serviceCollection.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepStoreAccessService, SalesRepStoreAccessService>();
+        serviceCollection.AddTransient<ISalesRepAnalyticsAvailability, SalesRepAnalyticsAvailability>();
+        serviceCollection.AddTransient<ISalesRepAnalyticsScope, SalesRepAnalyticsScope>();
+        serviceCollection.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
+
+        serviceCollection.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
+
+        serviceCollection.AddTransient<ISalesRepAnalyticsDiagnosticsService, SalesRepAnalyticsDiagnosticsService>();
 
         serviceCollection.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
 

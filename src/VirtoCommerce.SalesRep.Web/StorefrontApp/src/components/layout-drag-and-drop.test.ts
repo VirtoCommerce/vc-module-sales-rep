@@ -499,10 +499,11 @@ describe("widget column drag and drop", () => {
   });
 });
 
-// The dashboard's right rail holds only the dynamically registered documents widget (VCST-5730), so
-// this is the regression net for a block that joins a surface through `registerBlock` rather than the
-// registry defaults: its ✕ must move it to the hidden half, the tray must offer it back, and the
-// restore must re-render it — the same contract the built-in widgets get from the suites above.
+// The dashboard's right rail holds the built-in My activity widget (VCST-5337) plus the dynamically
+// registered documents widget (VCST-5730), so this is the regression net for a block that joins a
+// surface through `registerBlock` rather than the registry defaults: its ✕ must move it to the hidden
+// half, the tray must offer it back, and the restore must re-render it — the same contract the
+// built-in widgets get from the suites above.
 describe("dashboard rail with the runtime-registered documents widget", () => {
   function setupRail() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the composable's full surface
@@ -566,12 +567,12 @@ describe("dashboard rail with the runtime-registered documents widget", () => {
     api.startEdit();
     await nextTick();
 
-    expect(api.visibleIn("mainRight")).toEqual(["documents"]);
+    expect(api.visibleIn("mainRight")).toEqual(["my_activity", "documents"]);
 
     await wrapper.find('[data-block-id="documents"] .layout-widget__hide').trigger("click");
 
     expect(api.hiddenIn("mainRight")).toEqual(["documents"]);
-    expect(api.visibleIn("mainRight")).toEqual([]);
+    expect(api.visibleIn("mainRight")).toEqual(["my_activity"]);
     expect(wrapper.find('[data-block-id="documents"]').exists()).toBe(false);
     expect(wrapper.find('[data-restore-id="documents"]').exists()).toBe(true);
   });
@@ -584,7 +585,7 @@ describe("dashboard rail with the runtime-registered documents widget", () => {
     await wrapper.find('[data-block-id="documents"] .layout-widget__hide').trigger("click");
     await wrapper.find('[data-restore-id="documents"]').trigger("click");
 
-    expect(api.visibleIn("mainRight")).toEqual(["documents"]);
+    expect(api.visibleIn("mainRight")).toEqual(["my_activity", "documents"]);
     expect(api.hiddenIn("mainRight")).toEqual([]);
     expect(wrapper.find('[data-block-id="documents"]').exists()).toBe(true);
     expect(wrapper.find('[data-restore-id="documents"]').exists()).toBe(false);

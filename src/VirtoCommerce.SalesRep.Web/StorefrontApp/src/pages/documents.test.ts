@@ -99,6 +99,7 @@ const createWrapper = createWrapperFactory(mount, Documents, {
       VcBadge: true,
       VcIcon: true,
       VcImage: true,
+      VcTooltip: true,
       VcEmptyView: true,
       VcPagination: true,
     },
