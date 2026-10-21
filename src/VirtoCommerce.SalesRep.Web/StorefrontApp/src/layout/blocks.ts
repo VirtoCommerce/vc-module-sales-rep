@@ -21,6 +21,9 @@ const CustomerProfileActions = markRaw(
   defineAsyncComponent(() => import("../components/customer-profile-actions.vue")),
 );
 const CustomerProfileInfo = markRaw(defineAsyncComponent(() => import("../components/customer-profile-info.vue")));
+// Shown with or without the analytics module: orders and customer assignments are platform data, and the card
+// leaves the tracked half out when the module is absent. The customer activity widget is registered on its own.
+const MyActivity = markRaw(defineAsyncComponent(() => import("../components/my-activity.vue")));
 
 // Both surfaces configure the same two list widgets; the row cap differs per widget, not per scope.
 // Shared arrays rather than repeated literals — nothing mutates a registered block, only the arrays
@@ -56,10 +59,15 @@ const topSellersBlock: BlockType = {
 // card tables: order follows the table, a saved document overrides it.
 export const dashboardBlocks: readonly BlockType[] = [
   ...statBlocks(DASHBOARD_STAT_CARDS),
-  // The dashboard has no right rail of its own: `mainRight` holds only the blocks `init()` registers when
-  // their feature is present (tasks, documents) and collapses to one column without them.
   ordersBlock,
   topSellersBlock,
+  {
+    id: "my_activity",
+    region: "mainRight",
+    titleKey: "sales_rep.activity.my_activity.title",
+    order: 10,
+    component: MyActivity,
+  },
 ];
 
 export const customerProfileBlocks: readonly BlockType[] = [

@@ -1,12 +1,20 @@
 import { useUser } from "@vc-frontend/core";
-import { isSalesRepsEnabled, isSalesRepTasksEnabled } from "./composables/useSalesRepsConfig";
 import {
+  isSalesRepAnalyticsEnabled,
+  isSalesRepsEnabled,
+  isSalesRepTasksEnabled,
+} from "./composables/useSalesRepsConfig";
+import {
+  ACTIVITIES_ROUTE_NAME,
+  ACTIVITIES_ROUTE_SEGMENT,
   TASKS_ROUTE_NAME,
   TASKS_ROUTE_SEGMENT,
   ALL_CUSTOMER_ORDERS_ROUTE_NAME,
   ALL_CUSTOMER_ORDERS_ROUTE_SEGMENT,
   CUSTOMER_ORDERS_ROUTE_NAME,
   CUSTOMER_ORDERS_ROUTE_SEGMENT,
+  CUSTOMER_ACTIVITIES_ROUTE_NAME,
+  CUSTOMER_ACTIVITIES_ROUTE_SEGMENT,
   CUSTOMER_ORDER_ROUTE_NAME,
   CUSTOMER_ORDER_ROUTE_SEGMENT,
   CUSTOMER_PROFILE_ROUTE_NAME,
@@ -22,7 +30,7 @@ import {
   SALES_REP_ACCESS_PERMISSION,
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
-import type { NavigationGuard, RouteRecordRaw } from "vue-router";
+import type { NavigationGuard, RouteLocationNormalizedLoaded, RouteRecordRaw } from "vue-router";
 
 const SalesRepsPage = () => import("./pages/sales-reps.vue");
 const CustomerOrdersPage = () => import("./pages/customer-orders.vue");
@@ -30,6 +38,7 @@ const CustomerOrderDetailsPage = () => import("./pages/customer-order-details.vu
 const MyCustomersPage = () => import("./pages/my-customers.vue");
 const CustomerProfilePage = () => import("./pages/customer-profile.vue");
 const DashboardPage = () => import("./pages/dashboard.vue");
+const ActivitiesPage = () => import("./pages/activities.vue");
 const DocumentsPage = () => import("./pages/documents.vue");
 const TasksPage = () => import("./pages/sales-rep-tasks-page.vue");
 
@@ -70,6 +79,16 @@ const guardRepRoute: NavigationGuard = (_to, _from, next) => {
   }
 };
 
+// One customer's activity page is the customer activity widget's, and that widget exists only with the analytics
+// module: without it nothing leads to the page, and the profile's own orders list what it would show.
+const guardCustomerActivitiesRoute: NavigationGuard = (to, from, next) => {
+  if (isSalesRepAnalyticsEnabled()) {
+    guardCustomerRoute(to, from, next);
+  } else if (guardSalesRep(next)) {
+    next({ name: CUSTOMER_PROFILE_ROUTE_NAME, params: { organizationId: to.params.organizationId } });
+  }
+};
+
 // Relative path -> mounts under the "Company" parent (/company/sales-reps).
 export const salesRepsRoute: RouteRecordRaw = {
   path: ROUTE_SEGMENT,
@@ -106,6 +125,16 @@ export const documentsRoute: RouteRecordRaw = {
       next();
     }
   },
+};
+
+// The rep's own activity feed (VCST-5337) -> /company/activities, across every customer they serve.
+export const activitiesRoute: RouteRecordRaw = {
+  path: ACTIVITIES_ROUTE_SEGMENT,
+  name: ACTIVITIES_ROUTE_NAME,
+  component: ActivitiesPage,
+  meta: repRouteMeta,
+  // Reps only — non-reps who hit the URL directly are bounced to the dashboard.
+  beforeEnter: guardRepRoute,
 };
 
 // Tasks (VCST-5732) -> /company/tasks. Gated on vc-module-task-management being installed rather than on a
@@ -155,6 +184,17 @@ export const customerOrderRoute: RouteRecordRaw = {
   beforeEnter: guardCustomerRoute,
 };
 
+// One customer's activity (VCST-5337) -> /company/my-customers/:organizationId/activities: the rep's feed page,
+// narrowed to that customer. An id the rep does not serve reads as nothing server-side.
+export const customerActivitiesRoute: RouteRecordRaw = {
+  path: CUSTOMER_ACTIVITIES_ROUTE_SEGMENT,
+  name: CUSTOMER_ACTIVITIES_ROUTE_NAME,
+  component: ActivitiesPage,
+  props: true,
+  meta: repRouteMeta,
+  beforeEnter: guardCustomerActivitiesRoute,
+};
+
 // No customer in the route, so the page needs no id check — only the reps-only gate.
 export const allCustomerOrdersRoute: RouteRecordRaw = {
   path: ALL_CUSTOMER_ORDERS_ROUTE_SEGMENT,
@@ -163,3 +203,15 @@ export const allCustomerOrdersRoute: RouteRecordRaw = {
   meta: repRouteMeta,
   beforeEnter: guardRepRoute,
 };
+
+// The pages of "My customers": the list, a profile, and that customer's orders, one of them and their activity —
+// sibling route records, so vue-router cannot see they are one area. Their breadcrumbs say so too.
+export function isMyCustomersArea(route: RouteLocationNormalizedLoaded): boolean {
+  return (
+    route.name === MY_CUSTOMERS_ROUTE_NAME ||
+    route.name === CUSTOMER_PROFILE_ROUTE_NAME ||
+    route.name === CUSTOMER_ORDERS_ROUTE_NAME ||
+    route.name === CUSTOMER_ORDER_ROUTE_NAME ||
+    route.name === CUSTOMER_ACTIVITIES_ROUTE_NAME
+  );
+}

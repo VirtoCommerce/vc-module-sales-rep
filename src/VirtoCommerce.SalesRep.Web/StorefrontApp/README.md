@@ -2,17 +2,22 @@
 
 The Sales Rep Hub as a Module Federation remote for the VC storefront (`vc-frontend`):
 the hub dashboard, My customers, the customer profile with its orders, all customer orders,
-tasks, the document library, list sharing to customers, and the buyer-facing "My Sales Reps"
-page (`/company/sales-reps`). Data comes from this module's Experience API; tasks also need
-`VirtoCommerce.TaskManagement` (an optional dependency — without it the tasks surfaces stay hidden).
+the activity feed with the customer insights (Activities), tasks, the document library, list
+sharing to customers, and the buyer-facing "My Sales Reps" page (`/company/sales-reps`). Data
+comes from this module's Experience API; tasks also need `VirtoCommerce.TaskManagement`, and the
+tracked half of Activities (searches, product views, sign-ins) `VirtoCommerce.GoogleEcommerceAnalytics`
+— both optional dependencies. Without the first the tasks surfaces stay hidden; without the second —
+absent, or disabled in the admin UI — the hub leaves its tracked parts out: the tracked tabs and their
+marks, and the customer activity widget.
 
-The code tracks the host's in-repo `client-app/modules/sales-rep` (vc-frontend `dev` at
-`1ae6a0318`); the host-only differences are listed in that module's `PORT_TO_MF.md`.
+The code started as a copy of the host's in-repo `client-app/modules/sales-rep` (vc-frontend
+`dev` at `1ae6a0318`). Hub features land here only since: the in-repo module does not boot by default
+(`sales_rep_builtin_enabled: false`) and has none of the later ones, Activities among them.
 
 It ships inside this module: `yarn build` writes the remote into
 `../plugins/vc-frontend/`, the folder the platform probes for `vc-frontend` plugins
 (see "Packaging" below). Full walkthrough of the plugin model (host facade, contract
-gate, dev loop): the host repo's `client-app/modules/federated/HOWTO.md`.
+gate, dev loop): the host repo's `client-app/core/federation/README.md`.
 
 ## Scripts
 
@@ -21,7 +26,7 @@ gate, dev loop): the host repo's `client-app/modules/federated/HOWTO.md`.
 | `yarn build` | Production build of the remote into `../plugins/vc-frontend/` |
 | `yarn watch` | Rebuild on save; pair with `yarn preview` |
 | `yarn preview` | Serve the built remote for the host (port 3001) |
-| `yarn dev` | HMR dev server (see HOWTO "Dev inner loop") |
+| `yarn dev` | HMR dev server |
 | `yarn type-check` | `vue-tsc` against the frozen facade contract |
 | `yarn generate:graphql-types` | Regenerate `src/api/graphql/types.ts` from the backend schema |
 | `yarn test` / `yarn test:watch` | Vitest unit tests (jsdom) |
@@ -50,7 +55,7 @@ commit a `file:.yalc/...` dependency.
 version does not satisfy it refuse to load this plugin (clean skip instead of a runtime
 error). When you adopt an export added in a newer facade version, bump
 `requiredHostVersion` **and** the pinned tarball URL together. This plugin requires
-**^0.2.4**, the facade that exports the dashboard layout engine.
+**^0.2.5**, the facade that exports the dashboard layout engine.
 
 The dashboard layout engine is the host's: `LayoutSurface` and `LayoutWidget`, the `useLayout`
 controller, `registerBlock`, the stat-card and widget-settings helpers all come from

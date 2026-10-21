@@ -1,5 +1,33 @@
 <template>
+  <VcTooltip v-if="hint" class="sales-rep-rule-chip-hint" lazy placement="top">
+    <template #trigger>
+      <VcTabSwitch
+        class="sales-rep-rule-chip"
+        size="sm"
+        :value="value"
+        :model-value="modelValue"
+        @change="$emit('change', value)"
+      >
+        <span class="sales-rep-rule-chip__label">{{ label }}</span>
+
+        <span
+          v-if="count !== undefined"
+          :class="['sales-rep-rule-chip__count', { 'sales-rep-rule-chip__count--checked': checked }]"
+        >
+          {{ formatStatCount(count) }}
+        </span>
+
+        <slot name="append" />
+      </VcTabSwitch>
+    </template>
+
+    <template #content>
+      {{ hint }}
+    </template>
+  </VcTooltip>
+
   <VcTabSwitch
+    v-else
     class="sales-rep-rule-chip"
     size="sm"
     :value="value"
@@ -35,6 +63,11 @@ const props = defineProps<{
   label: string;
   // Rendered as a counter when present.
   count?: number;
+  // Shown on hover and focus of the whole chip: the tooltip's trigger wrapper opens on focusin, which bubbles up from
+  // the chip's button, so the keyboard reaches the hint with nothing focusable nested in the button (axe:
+  // nested-interactive). The template root carries no comment: a comment there makes the root a fragment in dev, and
+  // callers read the chip's $el (sales-rep-task-scope-chips.vue focuses its button).
+  hint?: string;
 }>();
 
 // The tab's own rule, read here rather than off its `--checked` class: the kit's classes are not ours to select.

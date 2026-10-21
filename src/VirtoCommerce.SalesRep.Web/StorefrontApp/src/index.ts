@@ -13,10 +13,18 @@ import {
 } from "@vc-frontend/core";
 import { computed, defineAsyncComponent } from "vue";
 import { useSharedSalesRepCustomersCount } from "./composables/useSalesRepCustomersCount";
-import { isSalesRepsEnabled, isSalesRepTasksEnabled, isSalesRepUser } from "./composables/useSalesRepsConfig";
 import {
+  isSalesRepAnalyticsEnabled,
+  isSalesRepsEnabled,
+  isSalesRepTasksEnabled,
+  isSalesRepUser,
+} from "./composables/useSalesRepsConfig";
+import {
+  ACTIVITIES_NAV_LINK_ID,
+  ACTIVITIES_ROUTE_NAME,
   TASKS_NAV_LINK_ID,
   TASKS_ROUTE_NAME,
+  CUSTOMER_PROFILE_LAYOUT_SCOPE,
   CUSTOMER_SHARING_SCOPE,
   DASHBOARD_LAYOUT_SCOPE,
   DASHBOARD_NAV_LINK_ID,
@@ -31,17 +39,21 @@ import {
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
 import { registerHubBlocks } from "./layout/blocks";
+import { customerActivityBlock } from "./layout/customer-activity-block";
 import { documentsBlock } from "./layout/documents-block";
 import { tasksBlock } from "./layout/tasks-block";
 import { salesRepMenuSchema } from "./menu";
 import {
+  activitiesRoute,
   tasksRoute,
   allCustomerOrdersRoute,
+  customerActivitiesRoute,
   customerOrderRoute,
   customerOrdersRoute,
   customerProfileRoute,
   dashboardRoute,
   documentsRoute,
+  isMyCustomersArea,
   myCustomersRoute,
   salesRepsRoute,
 } from "./routes";
@@ -126,6 +138,9 @@ export function init(): void {
   router.addRoute(ROUTES.COMPANY.NAME, documentsRoute);
   // Tasks (VCST-5732) -> /company/tasks (its own beforeEnter checks the tasks module is installed).
   router.addRoute(ROUTES.COMPANY.NAME, tasksRoute);
+  // Activity feed (VCST-5337) -> /company/activities; one customer's, under their profile like their orders.
+  router.addRoute(ROUTES.COMPANY.NAME, activitiesRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, customerActivitiesRoute);
 
   const { mergeMenuSchema, registerAccountSection } = useNavigations();
   const { checkPermissions } = useUser();
@@ -137,7 +152,7 @@ export function init(): void {
   const canReadDocuments = checkPermissions(SALES_REP_ACCESS_PERMISSION, SALES_REP_DOCUMENTS_READ_PERMISSION);
   const tasksEnabled = isSalesRepTasksEnabled();
 
-  // The hub's own blocks go into the host's layout engine first; the two below join only when their feature does.
+  // The hub's own blocks go into the host's layout engine first; the ones below join only when their feature does.
   registerHubBlocks();
 
   // Same one-shot registration seam as the documents widget, and the same caveat: while the tasks module is
@@ -147,6 +162,12 @@ export function init(): void {
     registerBlock(DASHBOARD_LAYOUT_SCOPE, tasksBlock);
   }
 
+  // Same seam and caveat for the customer activity widget, which shows tracked behaviour and so exists only while
+  // the analytics module does.
+  if (isSalesRepAnalyticsEnabled()) {
+    registerBlock(CUSTOMER_PROFILE_LAYOUT_SCOPE, customerActivityBlock);
+  }
+
   if (canReadDocuments) {
     // Caveat: while the permission is absent the block is unknown to the layout registry, so a layout
     // SAVED in that state drops the block's persisted position/settings (reconcileLayout discards
@@ -154,9 +175,9 @@ export function init(): void {
     registerBlock(DASHBOARD_LAYOUT_SCOPE, documentsBlock);
   }
 
-  // My customers links showing the total-customer count badge. Desktop needs its own
-  // component for the sibling-route highlight; mobile only contributes the count, so the
-  // host renders its own menu link with it.
+  // My customers links showing the total-customer count badge: desktop draws its own link to carry the
+  // badge, mobile only contributes the count and the host draws the link. Both light up by the link's
+  // activeWhen below.
   const { register, registerContribution } = useExtensionRegistry();
   register("accountMenu", MY_CUSTOMERS_NAV_LINK_ID, {
     component: defineAsyncComponent(() => import("./components/link-my-customers.vue")),
@@ -233,9 +254,18 @@ export function init(): void {
         title: "sales_rep.my_customers.navigation.link",
         icon: "users",
         route: { name: MY_CUSTOMERS_ROUTE_NAME },
+        // A customer's profile, orders and activity are pages about a customer, so the rail keeps this
+        // item lit there — vue-router cannot tell, they are sibling route records.
+        activeWhen: isMyCustomersArea,
       },
       ...tasksNavLink,
       ...documentsNavLink,
+      {
+        id: ACTIVITIES_NAV_LINK_ID,
+        title: "sales_rep.activity.navigation.link",
+        icon: "activity",
+        route: { name: ACTIVITIES_ROUTE_NAME },
+      },
     ],
     isVisible: computed(() => isSalesRepsEnabled() && checkPermissions(SALES_REP_ACCESS_PERMISSION)),
   });

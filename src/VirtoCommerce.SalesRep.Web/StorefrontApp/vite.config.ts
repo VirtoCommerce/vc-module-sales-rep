@@ -17,7 +17,7 @@ export default defineConfig({
       createRemoteFederationOptions({
         name: "sales-rep",
         // CONTRACT GATE: the facade version this plugin is built against.
-        requiredHostVersion: "^0.2.4",
+        requiredHostVersion: "^0.2.5",
         // No sharedOverrides: the host's set is exactly what this plugin needs. Apollo and
         // @vue/apollo-composable are imported DIRECTLY here (useSalesRepHubQuery), so bundling
         // a second copy would give the plugin its own client and cache instead of the host's;
