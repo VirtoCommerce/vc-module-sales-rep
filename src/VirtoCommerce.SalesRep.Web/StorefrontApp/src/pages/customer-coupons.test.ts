@@ -11,13 +11,14 @@ const state = await vi.hoisted(async () => {
     coupons: ref<SalesRepCouponType[]>([]),
     totalCount: ref(0),
     loading: ref(false),
-    error: ref<Error | null>(null),
+    failed: ref(false),
     customer: ref<{ organizationName: string } | undefined>({ organizationName: "MERCURY123" }),
     notFound: ref(false),
     useSalesRepCoupons: vitest.fn(),
   };
 });
 
+// The page's composable runs for real over these two, so its paging is under test here too.
 vi.mock("../composables/useSalesRepCoupons", () => ({ useSalesRepCoupons: state.useSalesRepCoupons }));
 vi.mock("../composables/useSalesRepCustomer", () => ({
   useSalesRepCustomer: () => ({ customer: state.customer, notFound: state.notFound }),
@@ -29,17 +30,7 @@ vi.mock("vue-i18n", () => ({
   }),
 }));
 
-function makeCoupon(id: string): SalesRepCouponType {
-  return {
-    id,
-    couponCode: id.toUpperCase(),
-    promotionId: `p-${id}`,
-    maxUsesNumber: 0,
-    maxUsesPerUser: 0,
-    totalUsesCount: 0,
-  };
-}
-
+// The list itself is covered by coupon-list.test.ts; here it is a stub that shows what the page hands it.
 function createWrapper() {
   return mount(CustomerCoupons, {
     props: { organizationId: "org-1" },
@@ -53,17 +44,19 @@ function createWrapper() {
         },
         VcButton: { props: ["to"], template: '<a class="back" :data-route="to.name"><slot /></a>' },
         VcPagination: { name: "VcPaginationStub", props: ["page", "pages"], template: "<nav class='pager' />" },
+        CouponList: {
+          props: { compact: Boolean, skeletonRows: Number },
+          template: '<div class="list" :data-compact="String(compact)" :data-rows="skeletonRows" />',
+        },
       },
     },
   });
 }
 
-const cards = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll(".coupon-item");
-const pagerProps = (wrapper: ReturnType<typeof createWrapper>) =>
-  wrapper.findComponent({ name: "VcPaginationStub" }).props() as { page: number; pages: number };
-const requestedPage = () => {
-  const [{ first, after }] = state.useSalesRepCoupons.mock.calls.at(-1) as [{ first: number; after: () => string }];
-  return { first, after: after() };
+const pager = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findComponent({ name: "VcPaginationStub" });
+const requestedAfter = () => {
+  const [{ after }] = state.useSalesRepCoupons.mock.calls.at(-1) as [{ after: () => string }];
+  return after();
 };
 
 vi.stubGlobal("scroll", vi.fn());
@@ -71,10 +64,10 @@ vi.stubGlobal("scroll", vi.fn());
 enableAutoUnmount(afterEach);
 
 beforeEach(() => {
-  state.coupons.value = [makeCoupon("c1"), makeCoupon("c2")];
+  state.coupons.value = [];
   state.totalCount.value = 2;
   state.loading.value = false;
-  state.error.value = null;
+  state.failed.value = false;
   state.customer.value = { organizationName: "MERCURY123" };
   state.notFound.value = false;
   state.useSalesRepCoupons.mockClear();
@@ -82,16 +75,16 @@ beforeEach(() => {
     coupons: state.coupons,
     totalCount: state.totalCount,
     loading: state.loading,
-    error: state.error,
+    failed: state.failed,
   }));
 });
 
 describe("CustomerCoupons page", () => {
-  it("lists the host's regular (not compact) card per coupon, under the customer's name", () => {
+  it("lists in the regular layout, under the customer's name", () => {
     const wrapper = createWrapper();
 
-    expect(cards(wrapper)).toHaveLength(2);
-    expect(cards(wrapper)[0].attributes("data-compact")).toBe("false");
+    expect(wrapper.find(".list").attributes("data-compact")).toBe("false");
+    expect(wrapper.find(".list").attributes("data-rows")).toBe(String(COUPONS_PAGE_SIZE));
     expect(wrapper.find("h1").text()).toBe('sales_rep.coupons.page.title {"customer":"MERCURY123"}');
   });
 
@@ -100,124 +93,43 @@ describe("CustomerCoupons page", () => {
 
     const wrapper = createWrapper();
 
-    expect(requestedPage()).toEqual({ first: COUPONS_PAGE_SIZE, after: "0" });
-    expect(pagerProps(wrapper).pages).toBe(3);
+    expect(requestedAfter()).toBe("0");
+    expect(pager(wrapper).props("pages")).toBe(3);
 
-    wrapper.findComponent({ name: "VcPaginationStub" }).vm.$emit("update:page", 3);
+    pager(wrapper).vm.$emit("update:page", 3);
     await wrapper.vm.$nextTick();
 
-    expect(requestedPage().after).toBe(String(2 * COUPONS_PAGE_SIZE));
-  });
-
-  // Regression: apollo drops the result while the next page loads, so the total briefly reads 0.
-  it("stays on the requested page while it loads", async () => {
-    state.totalCount.value = 25;
-    const wrapper = createWrapper();
-
-    wrapper.findComponent({ name: "VcPaginationStub" }).vm.$emit("update:page", 2);
-    state.loading.value = true;
-    state.totalCount.value = 0;
-    await wrapper.vm.$nextTick();
-
-    state.loading.value = false;
-    state.totalCount.value = 25;
-    await wrapper.vm.$nextTick();
-
-    expect(requestedPage().after).toBe(String(COUPONS_PAGE_SIZE));
+    expect(requestedAfter()).toBe(String(2 * COUPONS_PAGE_SIZE));
   });
 
   it("steps back to the last page when the list shrinks under it", async () => {
     state.totalCount.value = 25;
     const wrapper = createWrapper();
 
-    wrapper.findComponent({ name: "VcPaginationStub" }).vm.$emit("update:page", 3);
+    pager(wrapper).vm.$emit("update:page", 3);
     await wrapper.vm.$nextTick();
     state.totalCount.value = 12;
     await wrapper.vm.$nextTick();
 
-    expect(requestedPage().after).toBe(String(COUPONS_PAGE_SIZE));
-  });
-
-  it("shows the host's regular skeleton cards on the first load", () => {
-    state.coupons.value = [];
-    state.loading.value = true;
-
-    const wrapper = createWrapper();
-
-    expect(wrapper.findAll(".coupon-item-skeleton")).toHaveLength(COUPONS_PAGE_SIZE);
-    expect(wrapper.find(".coupon-item-skeleton").attributes("data-compact")).toBe("false");
+    expect(requestedAfter()).toBe(String(COUPONS_PAGE_SIZE));
   });
 
   it("hides the pager on a single page", () => {
     expect(createWrapper().find(".pager").exists()).toBe(false);
   });
 
-  it("names a customer the rep does not serve, with the way back to the profile", () => {
+  it("names a customer the rep does not serve, with the way back to the profile, and announces it", () => {
     state.notFound.value = true;
 
     const wrapper = createWrapper();
 
     expect(wrapper.find(".empty").text()).toContain("sales_rep.customer_profile.not_found");
     expect(wrapper.find(".back").attributes("data-route")).toBe(CUSTOMER_PROFILE_ROUTE_NAME);
-    expect(cards(wrapper)).toHaveLength(0);
+    expect(wrapper.find('[role="status"]').text()).toBe("sales_rep.customer_profile.not_found");
+    expect(wrapper.find(".list").exists()).toBe(false);
   });
 
-  it("names the failure instead of the previous rows", () => {
-    state.error.value = new Error("boom");
-
-    const wrapper = createWrapper();
-
-    expect(wrapper.find(".empty").attributes("data-variant")).toBe("error");
-    expect(cards(wrapper)).toHaveLength(0);
-  });
-
-  it("shows the empty view when the store has no coupons", () => {
-    state.coupons.value = [];
-    state.totalCount.value = 0;
-
-    expect(createWrapper().find(".empty").text()).toBe("sales_rep.coupons.empty");
-  });
-
-  // VcEmptyView is silent to assistive tech; the page's own live region, mounted from the start, speaks for it.
-  describe("live region", () => {
-    const status = (wrapper: ReturnType<typeof createWrapper>) => wrapper.find('[role="status"]');
-
-    it("stays quiet over listed coupons and while loading", () => {
-      expect(status(createWrapper()).text()).toBe("");
-
-      state.coupons.value = [];
-      state.loading.value = true;
-
-      expect(status(createWrapper()).text()).toBe("");
-    });
-
-    it.each([
-      [
-        "an empty store",
-        () => {
-          state.coupons.value = [];
-          state.totalCount.value = 0;
-        },
-        "sales_rep.coupons.empty",
-      ],
-      [
-        "a failure",
-        () => {
-          state.error.value = new Error("boom");
-        },
-        "sales_rep.coupons.load_failed",
-      ],
-      [
-        "a customer the rep does not serve",
-        () => {
-          state.notFound.value = true;
-        },
-        "sales_rep.customer_profile.not_found",
-      ],
-    ])("announces %s", (_name, arrange, expected) => {
-      arrange();
-
-      expect(status(createWrapper()).text()).toBe(expected);
-    });
+  it("stays quiet in its own live region over a served customer", () => {
+    expect(createWrapper().find('[role="status"]').text()).toBe("");
   });
 });

@@ -29,6 +29,8 @@ export function useSalesRepCoupons(options: UseSalesRepCouponsOptionsType = {}) 
 
   const { result, loading, error, onError } = useSalesRepHubQuery(SalesRepCouponsDocument, variables, {
     fetchPolicy: HUB_FETCH_POLICY,
+    // Holds the current rows while the next page or a new row cap loads, so the total never reads 0 in between.
+    keepPreviousResult: true,
   });
 
   onError((err) => {
@@ -40,6 +42,7 @@ export function useSalesRepCoupons(options: UseSalesRepCouponsOptionsType = {}) 
     (result.value?.salesRepCoupons?.items ?? []).filter((item): item is SalesRepCouponType => Boolean(item)),
   );
   const totalCount = computed(() => result.value?.salesRepCoupons?.totalCount ?? 0);
+  const failed = computed(() => Boolean(error.value));
 
-  return { coupons, totalCount, loading, error };
+  return { coupons, totalCount, loading, failed };
 }

@@ -12,19 +12,16 @@ export function useSalesRepCustomerCoupons(organizationId: MaybeRefOrGetter<stri
   const { customer, notFound } = useSalesRepCustomer(organizationId);
 
   const page = ref(1);
-  const { coupons, totalCount, loading, error } = useSalesRepCoupons({
+  const { coupons, totalCount, loading, failed } = useSalesRepCoupons({
     first: COUPONS_PAGE_SIZE,
     after: () => String((page.value - 1) * COUPONS_PAGE_SIZE),
   });
 
-  const failed = computed(() => Boolean(error.value));
   const pages = computed(() => Math.max(1, Math.ceil(totalCount.value / COUPONS_PAGE_SIZE)));
 
-  // A coupon can expire or be used up between pages; never strand the rep past the last one. Only on a settled
-  // read: while the next page loads apollo has no result for its variables, so the total reads 0 and would snap
-  // back to 1.
-  watch([pages, loading], ([total, isLoading]) => {
-    if (!isLoading && page.value > total) {
+  // A coupon can expire or be used up between pages; never strand the rep past the last one.
+  watch(pages, (total) => {
+    if (page.value > total) {
       page.value = total;
     }
   });

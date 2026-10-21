@@ -83,24 +83,18 @@ const guardRepRoute: NavigationGuard = (_to, _from, next) => {
   }
 };
 
-// One customer's activity page is the customer activity widget's, and that widget exists only with the analytics
-// module: without it nothing leads to the page, and the profile's own orders list what it would show.
-const guardCustomerActivitiesRoute: NavigationGuard = (to, from, next) => {
-  if (isSalesRepAnalyticsEnabled()) {
-    guardCustomerRoute(to, from, next);
-  } else if (guardSalesRep(next)) {
-    next({ name: CUSTOMER_PROFILE_ROUTE_NAME, params: { organizationId: to.params.organizationId } });
-  }
-};
-
-// Same shape for the coupons page: without vc-module-marketing there is nothing to list, so back to the profile.
-const guardCustomerCouponsRoute: NavigationGuard = (to, from, next) => {
-  if (isSalesRepCouponsEnabled()) {
-    guardCustomerRoute(to, from, next);
-  } else if (guardSalesRep(next)) {
-    next({ name: CUSTOMER_PROFILE_ROUTE_NAME, params: { organizationId: to.params.organizationId } });
-  }
-};
+// A customer page that belongs to a widget on an optional module: without the module nothing leads to the page, so a
+// rep who lands on it goes back to that customer's profile. Used by the activity page (analytics module) and the
+// coupons page (marketing module).
+const guardCustomerModuleRoute =
+  (isModuleEnabled: () => boolean): NavigationGuard =>
+  (to, from, next) => {
+    if (isModuleEnabled()) {
+      guardCustomerRoute(to, from, next);
+    } else if (guardSalesRep(next)) {
+      next({ name: CUSTOMER_PROFILE_ROUTE_NAME, params: { organizationId: to.params.organizationId } });
+    }
+  };
 
 // Relative path -> mounts under the "Company" parent (/company/sales-reps).
 export const salesRepsRoute: RouteRecordRaw = {
@@ -205,7 +199,7 @@ export const customerActivitiesRoute: RouteRecordRaw = {
   component: ActivitiesPage,
   props: true,
   meta: repRouteMeta,
-  beforeEnter: guardCustomerActivitiesRoute,
+  beforeEnter: guardCustomerModuleRoute(isSalesRepAnalyticsEnabled),
 };
 
 // All promotion coupons (VCST-6158) -> /company/my-customers/:organizationId/coupons.
@@ -215,7 +209,7 @@ export const customerCouponsRoute: RouteRecordRaw = {
   component: CustomerCouponsPage,
   props: true,
   meta: repRouteMeta,
-  beforeEnter: guardCustomerCouponsRoute,
+  beforeEnter: guardCustomerModuleRoute(isSalesRepCouponsEnabled),
 };
 
 // No customer in the route, so the page needs no id check — only the reps-only gate.

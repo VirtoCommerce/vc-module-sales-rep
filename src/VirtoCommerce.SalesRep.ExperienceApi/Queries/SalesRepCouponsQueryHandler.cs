@@ -59,10 +59,16 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
 
         var coupons = await _couponSearchService.Value.SearchAllNoCloneAsync(BuildCouponSearchCriteria(promotions));
 
-        var available = ToAvailableCoupons(coupons, promotions, request.CultureName);
+        var promotionsById = promotions.ToDictionary(x => x.Id);
+        var available = ToAvailableCoupons(coupons, promotionsById);
 
+        // Mapped after paging: only the returned page gets localized.
         result.TotalCount = available.Count;
-        result.Results = available.Skip(request.Skip).Take(request.Take).ToList();
+        result.Results = available
+            .Skip(request.Skip)
+            .Take(request.Take)
+            .Select(x => SalesRepCoupon.FromCoupon(x, promotionsById[x.PromotionId], request.CultureName))
+            .ToList();
 
         return result;
     }
@@ -88,18 +94,16 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
         return criteria;
     }
 
-    protected virtual IList<SalesRepCoupon> ToAvailableCoupons(IList<Coupon> coupons, IList<Promotion> promotions, string cultureName)
+    protected virtual IList<Coupon> ToAvailableCoupons(IList<Coupon> coupons, IDictionary<string, Promotion> promotionsById)
     {
         var now = DateTime.UtcNow;
-        var promotionsById = promotions.ToDictionary(x => x.Id);
 
         return coupons
-            .Where(x => promotionsById.ContainsKey(x.PromotionId))
             .Where(x => x.ExpirationDate == null || x.ExpirationDate > now)
             .Where(x => x.MaxUsesNumber == 0 || x.TotalUsesCount < x.MaxUsesNumber)
-            .Select(x => SalesRepCoupon.FromCoupon(x, promotionsById[x.PromotionId], cultureName))
-            // Soonest to expire first, like the storefront's own coupon list; the id keeps pages stable.
-            .OrderBy(x => x.EndDate ?? DateTime.MaxValue)
+            // Soonest to expire first, like the storefront's own coupon list (the card's end date: the coupon's
+            // expiration, else the promotion's end); the id keeps pages stable.
+            .OrderBy(x => x.ExpirationDate ?? promotionsById[x.PromotionId].EndDate ?? DateTime.MaxValue)
             .ThenBy(x => x.Id)
             .ToList();
     }

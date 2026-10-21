@@ -1,17 +1,11 @@
+# What the host's CouponItem card reads, plus the uses line. The schema carries every coupon field for other consumers.
 fragment salesRepCouponFields on SalesRepCoupon {
   id
   couponCode
-  promotionId
-  systemName
   name
   label
   description
-  startDate
   endDate
-  promotionEndDate
-  expirationDate
   maxUsesNumber
-  maxUsesPerUser
   totalUsesCount
-  memberId
 }
