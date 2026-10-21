@@ -5,6 +5,7 @@ using Microsoft.Playwright;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
+using static VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure.HubControls;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Customers;
 
@@ -47,4 +48,45 @@ public sealed class MyCustomersTests(CustomersEnvironment env)
             await Expect(page.GetByRole(AriaRole.Link, new() { Name = CustomersEnvironment.OrderNumber, Exact = true })).ToBeVisibleAsync();
         });
     }
+
+    [Fact(Timeout = 300_000)]
+    public async Task QuickActions_OnAServedCustomer_OfferScheduleCallAndSendEmail()
+    {
+        await using var session = await env.OpenAsync(env.RepUserId, $"/company/my-customers/{CustomersEnvironment.FabrikamId}");
+
+        await session.RunAsync(nameof(QuickActions_OnAServedCustomer_OfferScheduleCallAndSendEmail), async page =>
+        {
+            // Both wait for the customer to load; the other two stay placeholders.
+            await Expect(QuickAction(page, "Send email")).ToBeEnabledAsync(new() { Timeout = 60_000 });
+            await Expect(QuickAction(page, "Schedule call")).ToBeEnabledAsync();
+            await Expect(QuickAction(page, "Order on behalf")).ToBeDisabledAsync();
+            await Expect(QuickAction(page, "Create quote")).ToBeDisabledAsync();
+
+            await QuickAction(page, "Send email").ClickAsync();
+            var message = Dialog(page, "Send a message");
+            await CancelButton(message).ClickAsync();
+            await Expect(message).ToHaveCountAsync(0);
+
+            await QuickAction(page, "Schedule call").ClickAsync();
+            var call = Dialog(page, "Schedule call");
+            await Expect(Field(call, "Customer")).ToHaveValueAsync(CustomersEnvironment.FabrikamName);
+            await CancelButton(call).ClickAsync();
+            await Expect(call).ToHaveCountAsync(0);
+        });
+    }
+
+    [Fact(Timeout = 300_000)]
+    public async Task UnservedCustomerPage_SaysNotFound()
+    {
+        await using var session = await env.OpenAsync(env.RepUserId, $"/company/my-customers/{CustomersEnvironment.AdventureWorksId}");
+
+        await session.RunAsync(nameof(UnservedCustomerPage_SaysNotFound), async page =>
+        {
+            await Expect(page.GetByText("Customer not found or not in your customers.", new() { Exact = true })).ToBeVisibleAsync(new() { Timeout = 60_000 });
+            await Expect(page.GetByText("Quick actions", new() { Exact = true })).ToHaveCountAsync(0);
+            await Expect(QuickAction(page, "Schedule call")).ToHaveCountAsync(0);
+        });
+    }
+
+    private static ILocator QuickAction(IPage page, string label) => page.GetByRole(AriaRole.Button, new() { Name = label, Exact = true });
 }

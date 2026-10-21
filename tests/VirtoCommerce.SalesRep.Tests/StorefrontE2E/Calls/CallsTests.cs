@@ -9,6 +9,7 @@ using Microsoft.Playwright;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
+using static VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure.HubControls;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
@@ -45,8 +46,11 @@ public sealed class CallsTests(CallsEnvironment env)
             await Expect(Field(dialog, "Type")).ToHaveCountAsync(0);
             await Expect(SaveButton(dialog)).ToBeDisabledAsync();
 
-            await TypeTomorrowAsync(dialog);
+            // A time is not a day: Save still waits for one.
             await PickAsync(page, Field(dialog, "Time"), "2:30 PM");
+            await Expect(SaveButton(dialog)).ToBeDisabledAsync();
+
+            await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
             await SaveAsync(page, dialog);
         });
 
@@ -66,16 +70,14 @@ public sealed class CallsTests(CallsEnvironment env)
         string icsFileName = null;
         string ics = null;
 
-        await using var session = await OpenAsync($"/company/my-customers/{CallsEnvironment.ContosoId}");
+        // Google itself is never reached: its tab gets a stand-in page.
+        await using var session = await env.OpenAsync(env.RepUserId, $"/company/my-customers/{CallsEnvironment.ContosoId}", CallsEnvironment.NorthwindId, beforeLoad: StandInForGoogleAsync);
 
         await session.RunAsync(nameof(ScheduleCall_TickingBothCalendars_OpensGoogleAndDownloadsTheEvent), async page =>
         {
-            // Google itself is never reached: its tab gets a stand-in page.
-            await page.Context.RouteAsync("https://calendar.google.com/**", route => route.FulfillAsync(new() { ContentType = "text/html", Body = "<title>Google Calendar</title>" }));
-
             await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
             var dialog = Dialog(page, "Schedule call");
-            await TypeTomorrowAsync(dialog);
+            await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
             await PickAsync(page, Field(dialog, "Time"), "11:45 AM");
 
             // Both offered unticked, every time.
@@ -97,8 +99,6 @@ public sealed class CallsTests(CallsEnvironment env)
             var file = await download;
             icsFileName = file.SuggestedFilename;
             ics = await File.ReadAllTextAsync(await file.PathAsync());
-
-            await Expect(dialog).ToHaveCountAsync(0);
         });
 
         var task = await env.WaitForTaskAsync(x => x.ObjectId == CallsEnvironment.ContosoId && x.DueDate == CallsEnvironment.At(11, 45));
@@ -131,12 +131,15 @@ public sealed class CallsTests(CallsEnvironment env)
             var dialog = await NewTaskAsync(page);
             await dialog.GetByLabel("Title").FillAsync(name);
 
-            // A plain task until it becomes a call: no customer, no time of day.
+            // A plain task until it becomes a call: no customer, no time of day, no calendars.
             await Expect(Field(dialog, "Customer")).ToHaveCountAsync(0);
             await Expect(Field(dialog, "Time")).ToHaveCountAsync(0);
+            await Expect(Calendars(dialog)).ToHaveCountAsync(0);
 
             await PickAsync(page, Field(dialog, "Type"), Call);
             await Expect(Field(dialog, "Time")).ToHaveValueAsync(Exactly("9:00 AM"));
+            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox)).ToHaveCountAsync(2);
+            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox, new() { Checked = true })).ToHaveCountAsync(0);
 
             // Only the rep's own customers are offered: not the one they stopped serving, not one they never did.
             await Field(dialog, "Customer").ClickAsync();
@@ -147,7 +150,7 @@ public sealed class CallsTests(CallsEnvironment env)
             await Field(dialog, "Customer").FillAsync("Con");
             await Option(page, CallsEnvironment.ContosoName).ClickAsync();
 
-            await TypeTomorrowAsync(dialog);
+            await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
             await SaveAsync(page, dialog);
         });
 
@@ -177,8 +180,9 @@ public sealed class CallsTests(CallsEnvironment env)
             await PickAsync(page, Field(dialog, "Type"), "Other");
             await Expect(Field(dialog, "Customer")).ToHaveCountAsync(0);
             await Expect(Field(dialog, "Time")).ToHaveCountAsync(0);
+            await Expect(Calendars(dialog)).ToHaveCountAsync(0);
 
-            await TypeTomorrowAsync(dialog);
+            await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
             await SaveAsync(page, dialog);
         });
 
@@ -331,85 +335,6 @@ public sealed class CallsTests(CallsEnvironment env)
     }
 
     private Task<StorefrontSession> OpenAsync(string path) => env.OpenAsync(env.RepUserId, path, CallsEnvironment.NorthwindId);
-
-    private static ILocator Dialog(IPage page, string title) => page.GetByRole(AriaRole.Dialog, new() { Name = title });
-
-    /// <summary>A select by its label: VcSelect renders a combobox that shows the selected item's text.</summary>
-    private static ILocator Field(ILocator dialog, string label) => dialog.GetByRole(AriaRole.Combobox, new() { Name = label, Exact = true });
-
-    /// <summary>The date picker's input: a combobox too, as it opens a calendar.</summary>
-    private static ILocator DueDate(ILocator dialog) => Field(dialog, "Due date");
-
-    private static ILocator SaveButton(ILocator dialog) => dialog.GetByRole(AriaRole.Button, new() { Name = "Save", Exact = true });
-
-    /// <summary>The "Add to calendar" checkboxes, a group named by its label.</summary>
-    private static ILocator Calendars(ILocator dialog) => dialog.GetByRole(AriaRole.Group, new() { Name = "Add to calendar", Exact = true });
-
-    /// <summary>A select's option; VcSelect lists them outside the dialog.</summary>
-    private static ILocator Option(IPage page, string text) => page.GetByRole(AriaRole.Option, new() { NameRegex = Exactly(text) });
-
-    /// <summary>The task list's row for a task, found by its edit button.</summary>
-    private static ILocator Row(IPage page, string name)
-        => page.GetByRole(AriaRole.Row).Filter(new() { Has = page.GetByRole(AriaRole.Button, new() { Name = $"Edit “{name}”", Exact = true }) });
-
-    private static async Task<ILocator> NewTaskAsync(IPage page)
-    {
-        await page.GetByRole(AriaRole.Button, new() { Name = "New task", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-        return Dialog(page, "New task");
-    }
-
-    private static async Task<ILocator> EditAsync(IPage page, string name, string title)
-    {
-        await page.GetByRole(AriaRole.Button, new() { Name = $"Edit “{name}”", Exact = true }).ClickAsync();
-        return Dialog(page, title);
-    }
-
-    /// <summary>The "All" tab: the seeded tasks are due tomorrow, and the page opens on today.</summary>
-    private static Task ShowAllAsync(IPage page)
-        => page.GetByRole(AriaRole.Button, new() { NameRegex = new Regex(@"^All \d+$") }).ClickAsync(new() { Timeout = 60_000 });
-
-    private static async Task PickAsync(IPage page, ILocator field, string option)
-    {
-        await field.ClickAsync();
-        await Option(page, option).ClickAsync();
-    }
-
-    /// <summary>Picks a customer the way a rep does, by typing the start of its name.</summary>
-    private static async Task PickCustomerAsync(IPage page, ILocator dialog, string name)
-    {
-        await Field(dialog, "Customer").ClickAsync();
-        await Field(dialog, "Customer").FillAsync(name[..3]);
-        await Option(page, name).ClickAsync();
-    }
-
-    /// <summary>Types tomorrow into the date picker; Enter commits it without moving the focus on.</summary>
-    private static async Task TypeTomorrowAsync(ILocator dialog)
-    {
-        await DueDate(dialog).FillAsync(CallsEnvironment.TypedTomorrow);
-        await DueDate(dialog).PressAsync("Enter");
-    }
-
-    /// <summary>Ticks a checkbox by its label, as a rep does: VcCheckbox draws its box over the real input.</summary>
-    private static async Task TickAsync(ILocator dialog, string label)
-    {
-        await dialog.GetByText(label, new() { Exact = true }).ClickAsync();
-        await Expect(dialog.GetByRole(AriaRole.Checkbox, new() { Name = label, Exact = true })).ToBeCheckedAsync();
-    }
-
-    private static async Task SaveAsync(IPage page, ILocator dialog)
-    {
-        await SaveButton(dialog).ClickAsync();
-        // Exact: "Task saved, but it could not be added to the calendar" is a warning, not this.
-        await Expect(page.GetByText("Task saved", new() { Exact = true })).ToBeVisibleAsync();
-    }
-
-    /// <summary>The text exactly. Intl puts a narrow no-break space before AM/PM, so every space matches any.</summary>
-    private static Regex Exactly(string text) => new($"^{Spaced(text)}$");
-
-    /// <summary>The text anywhere, spaces matched as in <see cref="Exactly"/>.</summary>
-    private static Regex Containing(string text) => new(Spaced(text));
-
-    private static string Spaced(string text) => Regex.Escape(text).Replace(@"\ ", @"\s");
 
     /// <summary>An instant as a calendar event carries it: UTC, to the second.</summary>
     private static string Stamp(DateTime utc) => utc.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);

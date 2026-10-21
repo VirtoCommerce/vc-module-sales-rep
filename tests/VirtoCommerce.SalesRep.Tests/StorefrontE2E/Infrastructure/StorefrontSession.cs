@@ -48,6 +48,18 @@ internal sealed class StorefrontSession : IAsyncDisposable
 
     public IPage Page { get; }
 
+    /// <summary>The GraphQL operations that came back with errors so far, one line each.</summary>
+    public IReadOnlyList<string> GraphQlErrors
+    {
+        get
+        {
+            lock (_graphQlErrors)
+            {
+                return [.. _graphQlErrors];
+            }
+        }
+    }
+
     /// <summary>Runs the test body; a failure is rethrown with the storefront's own account of what happened.</summary>
     public async Task RunAsync(string name, Func<IPage, Task> body)
     {
