@@ -26,8 +26,8 @@ public class SalesRepRoleResolver : ISalesRepRoleResolver
         _platformMemoryCache = platformMemoryCache;
     }
 
-    // Cached with the platform's role entries, so it expires on any role change and the resolver can be a singleton
-    // (VCST-6476). The list is shared: read it, don't change it.
+    // Expires with the platform's role entries (role create, delete and permission change), so the resolver can be a
+    // singleton (VCST-6476). The list is shared: read it, don't change it.
     public virtual async Task<IList<Role>> GetRolesGrantingAccessAsync()
     {
         var cacheKey = CacheKey.With(GetType(), nameof(GetRolesGrantingAccessAsync));

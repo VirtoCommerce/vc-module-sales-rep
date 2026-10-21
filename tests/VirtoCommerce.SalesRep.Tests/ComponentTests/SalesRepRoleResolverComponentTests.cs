@@ -44,6 +44,28 @@ public class SalesRepRoleResolverComponentTests
         (await resolver.GetRoleIdsGrantingAccessAsync()).Should().NotContain(role.Id);
     }
 
+    [Fact]
+    public async Task GetRoleIdsGrantingAccessAsync_GrantingRoleDeletedAfterCaching_IsExcludedOnTheNextCall()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var resolver = ctx.GetRequiredService<ISalesRepRoleResolver>();
+        var role = await ctx.CreateGrantingRoleAsync("Field Sales");
+        (await resolver.GetRoleIdsGrantingAccessAsync()).Should().Contain(role.Id);
+
+        // DATA-ISOLATION INVARIANT: a deleted role must stop granting at once.
+        await DeleteRoleAsync(ctx, role);
+
+        (await resolver.GetRoleIdsGrantingAccessAsync()).Should().NotContain(role.Id);
+    }
+
+    private static async Task DeleteRoleAsync(SalesRepTestContext ctx, Role role)
+    {
+        using var roleManager = ctx.GetRequiredService<Func<RoleManager<Role>>>()();
+
+        var result = await roleManager.DeleteAsync(role);
+        result.Succeeded.Should().BeTrue(string.Join("; ", result.Errors.Select(x => x.Description)));
+    }
+
     private static async Task UpdatePermissionsAsync(SalesRepTestContext ctx, Role role, params string[] permissions)
     {
         using var roleManager = ctx.GetRequiredService<Func<RoleManager<Role>>>()();
