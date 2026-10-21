@@ -150,7 +150,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { useBlockChrome } from "@vc-frontend/core";
+import {
+  knownHiddenTabs,
+  LayoutWidget,
+  OrderStatus,
+  toggleTabRule,
+  useBlockChrome,
+  visibleTabRules,
+} from "@vc-frontend/core";
 import { useSalesRepColumnSort } from "../composables/useSalesRepColumnSort";
 import { useSalesRepOrders } from "../composables/useSalesRepOrders";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
@@ -161,13 +168,10 @@ import {
   CUSTOMER_ORDERS_ROUTE_NAME,
   ORDERS_DEFAULT_LIMIT,
 } from "../constants";
-import { knownHiddenTabs, toggleTabRule, visibleTabRules } from "@vc-frontend/core";
 import { selectableFilterRules } from "../utils";
-import { LayoutWidget } from "@vc-frontend/core";
 import SalesRepRuleAlert from "./sales-rep-rule-alert.vue";
 import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
 import SalesRepRuleToggles from "./sales-rep-rule-toggles.vue";
-import { OrderStatus } from "@vc-frontend/core";
 
 interface IProps {
   // Widget heading — the caller decides the wording (e.g. "Recent orders").
