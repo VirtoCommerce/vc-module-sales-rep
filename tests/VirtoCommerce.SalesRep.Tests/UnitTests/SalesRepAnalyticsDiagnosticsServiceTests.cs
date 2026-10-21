@@ -56,7 +56,7 @@ public class SalesRepAnalyticsDiagnosticsServiceTests
         diagnostics.ReceivedStoreId.Should().Be(StoreId);
 
         var request = diagnostics.ReceivedRequest;
-        // The analytics module owns the user dimensions (it has dropped one since alpha.282); this module forwards them.
+        // The analytics module owns the user dimensions, so the expected list is its own; this module only forwards them.
         request.UserDimensionNames.Should().Equal(AnalyticsConstants.UserDimensions.AllNames);
         request.EventNames.Should().Equal("search", "view_search_results", "view_item", "login");
         request.Reports.Should().HaveCount(2);

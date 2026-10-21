@@ -18,7 +18,7 @@
     "generate:graphql-types": "graphql-codegen --config codegen.ts"
   },
   "dependencies": {
-    "@vc-frontend/core": "file:./facade/vc-frontend-core-0.2.4.tgz"
+    "@vc-frontend/core": "https://github.com/VirtoCommerce/vc-frontend/releases/download/core-v0.2.4/vc-frontend-core-0.2.4.tgz"
   },
   "devDependencies": {
     "@apollo/client": "^3.14.1",
