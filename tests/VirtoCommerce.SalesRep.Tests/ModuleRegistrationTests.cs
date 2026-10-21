@@ -31,8 +31,7 @@ namespace VirtoCommerce.SalesRep.Tests
                 && x.ImplementationType == typeof(SalesRepCustomerCartSharingScopePolicy));
         }
 
-        // VCST-6476: X-Cart's CanAccessCartAuthorizationHandler is a singleton that holds every scope policy, so a scoped
-        // service below the Customer policy stops the platform at startup wherever scopes are validated (Development).
+        // VCST-6476: X-Cart's singleton cart handler holds the policy, so nothing below it may be scoped.
         [Fact]
         public void Initialize_CustomerPolicyHeldBySingleton_PassesScopeValidation()
         {
@@ -43,8 +42,7 @@ namespace VirtoCommerce.SalesRep.Tests
             services.AddSingleton<IAuthorizationHandler, CanAccessCartAuthorizationHandler>();
             services.AddTransient<ICartSharingService, CartSharingService>();
 
-            // Every other service the chain reaches, unused here: a regression then fails on the scope check, not on a
-            // missing service.
+            // Unused stand-ins: a regression then fails on the scope check, not on a missing service.
             services.AddSingleton<Func<UserManager<ApplicationUser>>>(_ => () => null);
             services.AddSingleton<Func<RoleManager<Role>>>(_ => () => null);
             services.AddSingleton<IShoppingCartService>(_ => null);
