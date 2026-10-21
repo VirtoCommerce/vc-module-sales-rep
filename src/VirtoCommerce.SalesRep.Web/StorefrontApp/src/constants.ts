@@ -59,6 +59,11 @@ export const DASHBOARD_ROUTE_NAME = "SalesRepDashboard";
 export const DASHBOARD_ROUTE_SEGMENT = "dashboard";
 export const DASHBOARD_NAV_LINK_ID = "sales-rep-dashboard";
 
+// Reporting (VCST-6255): monthly revenue, orders and AOV across the rep's customers -> /company/reporting.
+export const REPORTING_ROUTE_NAME = "SalesRepReporting";
+export const REPORTING_ROUTE_SEGMENT = "reporting";
+export const REPORTING_NAV_LINK_ID = "sales-rep-reporting";
+
 // Document library (VCST-5730). Read permission gates the widget, the page and the nav link;
 // write implies read and administrators pass — both are resolved server-side, the client only
 // checks for the read permission itself (an admin/writer also carries it through checkPermissions'

@@ -27,6 +27,8 @@ import {
   HUB_SECTION_ID,
   MY_CUSTOMERS_NAV_LINK_ID,
   MY_CUSTOMERS_ROUTE_NAME,
+  REPORTING_NAV_LINK_ID,
+  REPORTING_ROUTE_NAME,
   SALES_REP_ACCESS_PERMISSION,
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
@@ -44,6 +46,7 @@ import {
   dashboardRoute,
   documentsRoute,
   myCustomersRoute,
+  reportingRoute,
   salesRepsRoute,
 } from "./routes";
 import type { ExtendedMenuLinkType, I18n, ILanguage } from "@vc-frontend/core";
@@ -117,6 +120,7 @@ export function init(): void {
   // Relative routes -> mount under the Company parent (/company/sales-reps, /company/dashboard, /company/my-customers).
   router.addRoute(ROUTES.COMPANY.NAME, salesRepsRoute);
   router.addRoute(ROUTES.COMPANY.NAME, dashboardRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, reportingRoute);
   router.addRoute(ROUTES.COMPANY.NAME, myCustomersRoute);
   // Customer profile (VCST-5308) -> /company/my-customers/:organizationId.
   router.addRoute(ROUTES.COMPANY.NAME, customerProfileRoute);
@@ -225,6 +229,12 @@ export function init(): void {
         title: "sales_rep.hub.dashboard.navigation.link",
         icon: "view-grid",
         route: { name: DASHBOARD_ROUTE_NAME },
+      },
+      {
+        id: REPORTING_NAV_LINK_ID,
+        title: "sales_rep.reporting.navigation.link",
+        icon: "chart-bar",
+        route: { name: REPORTING_ROUTE_NAME },
       },
       {
         id: MY_CUSTOMERS_NAV_LINK_ID,

@@ -363,6 +363,89 @@
       "scope_label": "Выбранные клиенты",
       "status": "Отправлен {count} клиентам | Отправлен {count} клиенту | Отправлен {count} клиентам | Отправлен {count} клиентам",
       "badge": "Рекомендовано вашим торговым представителем"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Отчёты"
+      },
+      "title": "Отчёты",
+      "subtitle": "Продажи, заказы и средний чек ваших клиентов в сравнении с прошлым годом",
+      "period_label": "Период",
+      "periods": {
+        "six_months": "6 месяцев",
+        "twelve_months": "12 месяцев",
+        "year": "Текущий год",
+        "q1": "I кв.",
+        "q2": "II кв.",
+        "q3": "III кв.",
+        "q4": "IV кв."
+      },
+      "customer_label": "Клиент",
+      "all_customers": "Все мои клиенты ({count})",
+      "customers_failed": "Не удалось загрузить клиентов",
+      "load_failed": "Не удалось загрузить отчёт. Попробуйте позже.",
+      "last_year": "Прошлый год",
+      "upcoming": "Впереди",
+      "cancelled_excluded": "Отменённые заказы не учитываются",
+      "sales_chart": {
+        "title": "Продажи по месяцам · {period}",
+        "subtitle": "В среднем {value} за закрытый месяц"
+      },
+      "aov_chart": {
+        "title": "Средний чек",
+        "subtitle_period": "Средний чек за период: {aov}"
+      },
+      "legend": {
+        "sales_closed": "Продажи, закрытые месяцы",
+        "aov_closed": "Средний чек, закрытые месяцы",
+        "current": "Текущий месяц, на сегодня",
+        "projection": "Прогноз на конец месяца",
+        "last_year": "Прошлый год",
+        "vs_last_year": "к тому же месяцу прошлого года",
+        "up": "рост",
+        "down": "спад"
+      },
+      "tooltip": {
+        "revenue": "Выручка",
+        "revenue_to_date": "Выручка на сегодня",
+        "projection": "Прогноз на конец месяца",
+        "aov": "Средний чек",
+        "vs_month": "К {month}",
+        "last_year_revenue": "Выручка, {month}",
+        "last_year_aov": "Средний чек, {month}"
+      },
+      "card_title": "Мои продажи",
+      "all_orders": "Все заказы",
+      "kpi": {
+        "sales": "Продажи · {period}",
+        "orders": "Заказы · {period}",
+        "aov": "Средний чек · {period}",
+        "month_to_date": "{month} на сегодня · день {day} из {days}",
+        "projected": "{share} месяца · прогноз {value}",
+        "vs_last_year": "{change} к прошлому году"
+      },
+      "chart_periods": {
+        "six_months": "последние 6 месяцев",
+        "twelve_months": "последние 12 месяцев",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "Средний чек, {currency}"
+      },
+      "table": {
+        "toggle": "Показать таблицей",
+        "description": "Продажи, заказы и средний чек по месяцам",
+        "month": "Месяц",
+        "sales": "Продажи",
+        "orders": "Заказы",
+        "aov": "Средний чек",
+        "last_year": "Тот же месяц прошлого года",
+        "change": "К прошлому году"
+      },
+      "footnote": "{from} – {to}, текущий месяц по {today}. Продажи — нетто, по дате заказа; отменённые заказы не учитываются.",
+      "footnote_empty": "За этот период заказов нет.",
+      "example_data": "Пример данных"
     }
   }
 }

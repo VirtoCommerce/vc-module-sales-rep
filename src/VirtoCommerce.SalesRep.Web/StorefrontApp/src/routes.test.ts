@@ -8,6 +8,7 @@ import {
   dashboardRoute,
   documentsRoute,
   myCustomersRoute,
+  reportingRoute,
   salesRepsRoute,
   tasksRoute,
 } from "./routes";
@@ -43,6 +44,7 @@ afterEach(() => {
 describe("sales-rep routes", () => {
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -70,6 +72,7 @@ describe("sales-rep routes", () => {
   // through leaves the click doing nothing at all.
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -86,6 +89,7 @@ describe("sales-rep routes", () => {
 
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],

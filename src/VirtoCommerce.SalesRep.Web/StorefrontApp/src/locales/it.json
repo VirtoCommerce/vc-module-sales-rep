@@ -363,6 +363,89 @@
       "scope_label": "Clienti specifici",
       "status": "Condivisa con 1 cliente | Condivisa con {count} clienti",
       "badge": "Consigliato dal tuo rappresentante commerciale"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Reporting"
+      },
+      "title": "Reporting",
+      "subtitle": "Sales, orders and average order value for your customers, compared with last year",
+      "period_label": "Period",
+      "periods": {
+        "six_months": "6 months",
+        "twelve_months": "12 months",
+        "year": "Current year",
+        "q1": "Q1",
+        "q2": "Q2",
+        "q3": "Q3",
+        "q4": "Q4"
+      },
+      "customer_label": "Customer",
+      "all_customers": "All my customers ({count})",
+      "customers_failed": "Couldn't load your customers",
+      "load_failed": "Couldn't load the report. Try again later.",
+      "last_year": "Last year",
+      "upcoming": "Upcoming",
+      "cancelled_excluded": "Cancelled orders excluded",
+      "sales_chart": {
+        "title": "Monthly sales · {period}",
+        "subtitle": "Average {value} / closed month"
+      },
+      "aov_chart": {
+        "title": "Average order value",
+        "subtitle_period": "AOV {aov} over the period"
+      },
+      "legend": {
+        "sales_closed": "Sales, closed months",
+        "aov_closed": "AOV, closed months",
+        "current": "This month, to date",
+        "projection": "Projected month end",
+        "last_year": "Last year",
+        "vs_last_year": "vs same month last year",
+        "up": "up",
+        "down": "down"
+      },
+      "tooltip": {
+        "revenue": "Revenue",
+        "revenue_to_date": "Revenue to date",
+        "projection": "Projected month end",
+        "aov": "AOV",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Revenue, {month}",
+        "last_year_aov": "AOV, {month}"
+      },
+      "card_title": "My sales",
+      "all_orders": "All orders",
+      "kpi": {
+        "sales": "Sales · {period}",
+        "orders": "Orders · {period}",
+        "aov": "Average order value · {period}",
+        "month_to_date": "{month} to date · day {day} of {days}",
+        "projected": "{share} of the month · projected {value}",
+        "vs_last_year": "{change} vs last year"
+      },
+      "chart_periods": {
+        "six_months": "last 6 months",
+        "twelve_months": "last 12 months",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "AOV, {currency}"
+      },
+      "table": {
+        "toggle": "Show as table",
+        "description": "Monthly sales, orders and average order value",
+        "month": "Month",
+        "sales": "Sales",
+        "orders": "Orders",
+        "aov": "AOV",
+        "last_year": "Same month last year",
+        "change": "vs last year"
+      },
+      "footnote": "{from} – {to}, current month to {today}. Sales are net, by order date; cancelled orders are excluded.",
+      "footnote_empty": "No orders in this period.",
+      "example_data": "Example data"
     }
   }
 }
