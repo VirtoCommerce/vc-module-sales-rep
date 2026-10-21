@@ -1,5 +1,11 @@
 import { useModuleSettings, useUser } from "@vc-frontend/core";
-import { ENABLED_KEY, MODULE_ID, SALES_REP_ACCESS_PERMISSION, TASK_MANAGEMENT_MODULE_ID } from "../constants";
+import {
+  ENABLED_KEY,
+  GOOGLE_ANALYTICS_MODULE_ID,
+  MODULE_ID,
+  SALES_REP_ACCESS_PERMISSION,
+  TASK_MANAGEMENT_MODULE_ID,
+} from "../constants";
 
 // The Sales reps feature is gated by the backend module's storefront setting
 // `SalesRep.Enabled` (VirtoCommerce.SalesRep, Boolean, default true). When the module
@@ -21,4 +27,11 @@ export function isSalesRepUser(): boolean {
 // the backend independently answers empty, so nothing half-renders.
 export function isSalesRepTasksEnabled(): boolean {
   return isSalesRepUser() && useModuleSettings(TASK_MANAGEMENT_MODULE_ID).hasModuleSettings.value;
+}
+
+// Tracked activity, gated the same way on vc-module-google-ecommerce-analytics: module absent or disabled => no
+// entry => the hub leaves its GA-based parts out rather than showing them unavailable. Storefront tagging is the
+// host's own and goes on either way.
+export function isSalesRepAnalyticsEnabled(): boolean {
+  return isSalesRepUser() && useModuleSettings(GOOGLE_ANALYTICS_MODULE_ID).hasModuleSettings.value;
 }

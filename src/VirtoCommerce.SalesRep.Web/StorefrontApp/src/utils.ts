@@ -1,7 +1,9 @@
-import { ContentType, globals } from "@vc-frontend/core";
+import { useMemoize } from "@vueuse/core";
+import { ContentType, globals, QueryParamName, ROUTES } from "@vc-frontend/core";
 import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
 import type { MoneyType, SalesRepCustomerOrdersQuery, SalesRepOrdersQuery } from "./api/graphql/types";
 import type {
+  SalesRepActivityItemType,
   SalesRepCustomerOrderRowType,
   SalesRepDocumentType,
   SalesRepOrderRowType,
@@ -135,8 +137,11 @@ export function buildStatisticsWindows(now: Date = new Date()): StatisticsWindow
 // backend converted to the same currency.
 const EMPTY_STAT_VALUE = "0";
 
+// Built once per culture: the activity surfaces format a count per row and per badge.
+const statCountFormatterFor = useMemoize((cultureName: string) => new Intl.NumberFormat(cultureName));
+
 export function formatStatCount(value?: number | null): string {
-  return new Intl.NumberFormat(globals.cultureName).format(value ?? 0);
+  return statCountFormatterFor(globals.cultureName).format(value ?? 0);
 }
 
 // Client-side currency formatting follows <VcTotalDisplay>, so an absent amount reads as a currency
@@ -156,6 +161,97 @@ export function formatStatMoney(money?: Pick<MoneyType, "formattedAmount"> | nul
   }
 
   return new Intl.NumberFormat(globals.cultureName, { style: "currency", currency }).format(0);
+}
+
+// Icon per activity category (canonical Lucide names); unknown categories get a neutral mark so a
+// backend-added category renders instead of breaking the row.
+const ACTIVITY_CATEGORY_ICONS: Readonly<Record<string, string>> = {
+  orders: "file-text",
+  customers: "user-plus",
+  searches: "search",
+  productViews: "eye",
+  logins: "log-in",
+};
+
+export function activityCategoryIcon(category: string): string {
+  return ACTIVITY_CATEGORY_ICONS[category] ?? "activity";
+}
+
+// A row's identity: an order by its id, an analytics row by its hour, its customer and what it names.
+export function activityKey(item: SalesRepActivityItemType): string {
+  return [
+    item.category,
+    item.occurredAt,
+    item.organizationId,
+    item.orderId,
+    item.searchTerm,
+    item.productCode,
+    item.productName,
+  ].join("|");
+}
+
+// Relative "time ago" for the compact activity rows, in the active culture. Coarse on purpose:
+// analytics rows are hour-buckets, so anything finer than minutes would imply precision they lack.
+const TIME_AGO_UNITS: readonly { unit: Intl.RelativeTimeFormatUnit; seconds: number }[] = [
+  { unit: "year", seconds: 31536000 },
+  { unit: "month", seconds: 2592000 },
+  { unit: "week", seconds: 604800 },
+  { unit: "day", seconds: 86400 },
+  { unit: "hour", seconds: 3600 },
+  { unit: "minute", seconds: 60 },
+];
+
+// An hour bucket says which hour, not when within it, so it is never put closer than "this hour".
+const HOUR_BUCKET_UNITS = TIME_AGO_UNITS.filter(({ unit }) => unit !== "minute");
+
+// Intl formatters cost more to construct than to use, and this runs once per rendered row — up to a full page
+// of them on every tab switch. One per culture and mode, kept for the life of the tab.
+const timeAgoFormatterFor = useMemoize(
+  (cultureName: string, numeric: Intl.RelativeTimeFormatNumeric) =>
+    new Intl.RelativeTimeFormat(cultureName, { numeric }),
+);
+
+const MS_PER_DAY = 86400000;
+
+// Calendar days between two instants on the user's clock. Rounded, so the 23- and 25-hour days of a DST switch
+// still count as one.
+function calendarDaysBetween(earlier: Date, later: Date): number {
+  const dayStart = (date: Date) => local(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.round((dayStart(later) - dayStart(earlier)) / MS_PER_DAY);
+}
+
+type TimeAgoOptionsType = {
+  // The clock to measure against, for a caller that re-renders on its own tick; the current time by default.
+  now?: Date;
+  precision?: SalesRepActivityItemType["precision"];
+};
+
+export function formatTimeAgo(isoDate: string, options: TimeAgoOptionsType = {}): string {
+  const occurredAt = new Date(isoDate);
+  const now = options.now ?? new Date();
+  const elapsedSeconds = Math.max(0, Math.round((now.getTime() - occurredAt.getTime()) / 1000));
+  const isHourBucket = options.precision === "hour";
+
+  const match = (isHourBucket ? HOUR_BUCKET_UNITS : TIME_AGO_UNITS).find(({ seconds }) => elapsedSeconds >= seconds);
+  if (!match) {
+    // Under the smallest unit: "this minute", or "this hour" for a bucket — wording from numeric: "auto".
+    return timeAgoFormatterFor(globals.cultureName, "auto").format(0, isHourBucket ? "hour" : "minute");
+  }
+
+  // Days by the calendar, as "yesterday" reads: 26 hours back from 1 AM is the day before yesterday.
+  if (match.unit === "day") {
+    return timeAgoFormatterFor(globals.cultureName, "auto").format(-calendarDaysBetween(occurredAt, now), "day");
+  }
+
+  // The other units count back from now, not by the calendar, so they read as numbers: numeric "auto" calls 13 days
+  // ago "last week", which is the week before last.
+  const amount = -Math.floor(elapsedSeconds / match.seconds);
+  return timeAgoFormatterFor(globals.cultureName, "always").format(amount, match.unit);
+}
+
+// The catalog search results page for a tracked term, exactly as the header search navigates (VCST-5731).
+export function searchResultsRoute(term: string): RouteLocationRaw {
+  return { name: ROUTES.SEARCH.NAME, query: { [QueryParamName.SearchPhrase]: term } };
 }
 
 // Document library display helpers.
