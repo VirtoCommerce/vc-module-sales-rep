@@ -45,6 +45,9 @@ export default defineConfig({
     outDir: "../plugins/vc-frontend",
     emptyOutDir: true,
   },
+  // Vite's default `VITE_` plus this plugin's own flags (APP_SALES_REP_REPORTING_MOCK, see src/env.d.ts). Not the bare
+  // `APP_` the host uses: that would also inline APP_BACKEND_URL and any other .env value into the bundle.
+  envPrefix: ["VITE_", "APP_SALES_REP_"],
   server: { port: 3001, cors: true, origin: "http://localhost:3001" },
   preview: { cors: true },
 });
