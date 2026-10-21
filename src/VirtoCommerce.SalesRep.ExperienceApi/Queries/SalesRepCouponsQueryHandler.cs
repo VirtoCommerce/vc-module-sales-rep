@@ -57,10 +57,7 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
             return result;
         }
 
-        var coupons = await _couponSearchService.Value.SearchAllNoCloneAsync(new CouponSearchCriteria
-        {
-            PromotionIds = promotions.Select(x => x.Id).ToList(),
-        });
+        var coupons = await _couponSearchService.Value.SearchAllNoCloneAsync(BuildCouponSearchCriteria(promotions));
 
         var available = ToAvailableCoupons(coupons, promotions, request.CultureName);
 
@@ -79,6 +76,14 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
         criteria.IsPublic = true;
         // One shared code per promotion: a promotion with a generated batch of single-use codes is not listable.
         criteria.CouponCount = 1;
+
+        return criteria;
+    }
+
+    protected virtual CouponSearchCriteria BuildCouponSearchCriteria(IList<Promotion> promotions)
+    {
+        var criteria = AbstractTypeFactory<CouponSearchCriteria>.TryCreateInstance();
+        criteria.PromotionIds = promotions.Select(x => x.Id).ToList();
 
         return criteria;
     }
