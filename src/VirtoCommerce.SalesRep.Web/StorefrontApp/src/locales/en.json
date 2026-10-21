@@ -404,6 +404,19 @@
       },
       "published": "Published {date}"
     },
+    "coupons": {
+      "title": "Available coupons",
+      "empty": "No coupons available",
+      "load_failed": "Couldn't load coupons",
+      "uses_left": "{left} of {total} use left | {left} of {total} uses left",
+      "unlimited": "Unlimited",
+      "view_all": "All promotion coupons",
+      "breadcrumb": "Promotion coupons",
+      "page": {
+        "title": "Promotion coupons for {customer}",
+        "title_fallback": "Promotion coupons"
+      }
+    },
     "rules": {
       "task": {
         "filter": {

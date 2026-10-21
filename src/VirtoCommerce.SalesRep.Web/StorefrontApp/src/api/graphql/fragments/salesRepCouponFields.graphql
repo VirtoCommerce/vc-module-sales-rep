@@ -1,0 +1,17 @@
+fragment salesRepCouponFields on SalesRepCoupon {
+  id
+  couponCode
+  promotionId
+  systemName
+  name
+  label
+  description
+  startDate
+  endDate
+  promotionEndDate
+  expirationDate
+  maxUsesNumber
+  maxUsesPerUser
+  totalUsesCount
+  memberId
+}

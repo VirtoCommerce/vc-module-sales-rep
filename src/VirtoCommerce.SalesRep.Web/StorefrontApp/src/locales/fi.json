@@ -404,6 +404,19 @@
       },
       "published": "Julkaistu {date}"
     },
+    "coupons": {
+      "title": "Saatavilla olevat kupongit",
+      "empty": "Ei saatavilla olevia kuponkeja",
+      "load_failed": "Kuponkeja ei voitu ladata",
+      "uses_left": "{left}/{total} käyttökerta jäljellä | {left}/{total} käyttökertaa jäljellä",
+      "unlimited": "Rajoittamaton",
+      "view_all": "Kaikki kampanjakupongit",
+      "breadcrumb": "Kampanjakupongit",
+      "page": {
+        "title": "Kampanjakupongit: {customer}",
+        "title_fallback": "Kampanjakupongit"
+      }
+    },
     "rules": {
       "task": {
         "filter": {

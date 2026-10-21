@@ -15,6 +15,7 @@ import { computed, defineAsyncComponent } from "vue";
 import { useSharedSalesRepCustomersCount } from "./composables/useSalesRepCustomersCount";
 import {
   isSalesRepAnalyticsEnabled,
+  isSalesRepCouponsEnabled,
   isSalesRepsEnabled,
   isSalesRepTasksEnabled,
   isSalesRepUser,
@@ -39,6 +40,7 @@ import {
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
 import { layoutTypePolicies } from "./layout/cache-policies";
+import { couponsBlock } from "./layout/coupons-block";
 import { customerActivityBlock } from "./layout/customer-activity-block";
 import { documentsBlock } from "./layout/documents-block";
 import { registerBlock } from "./layout/registry";
@@ -49,6 +51,7 @@ import {
   tasksRoute,
   allCustomerOrdersRoute,
   customerActivitiesRoute,
+  customerCouponsRoute,
   customerOrderRoute,
   customerOrdersRoute,
   customerProfileRoute,
@@ -142,6 +145,7 @@ export function init(): void {
   // Activity feed (VCST-5337) -> /company/activities; one customer's, under their profile like their orders.
   router.addRoute(ROUTES.COMPANY.NAME, activitiesRoute);
   router.addRoute(ROUTES.COMPANY.NAME, customerActivitiesRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, customerCouponsRoute);
 
   const { mergeMenuSchema, registerAccountSection } = useNavigations();
   const { checkPermissions } = useUser();
@@ -164,6 +168,11 @@ export function init(): void {
   // the analytics module does.
   if (isSalesRepAnalyticsEnabled()) {
     registerBlock(CUSTOMER_PROFILE_LAYOUT_SCOPE, customerActivityBlock);
+  }
+
+  // Same seam and caveat, for the customer profile's coupons widget (VCST-6158) on vc-module-marketing.
+  if (isSalesRepCouponsEnabled()) {
+    registerBlock(CUSTOMER_PROFILE_LAYOUT_SCOPE, couponsBlock);
   }
 
   if (canReadDocuments) {

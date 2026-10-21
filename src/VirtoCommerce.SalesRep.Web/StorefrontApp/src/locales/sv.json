@@ -404,6 +404,19 @@
       },
       "published": "Publicerad {date}"
     },
+    "coupons": {
+      "title": "Tillgängliga kuponger",
+      "empty": "Inga tillgängliga kuponger",
+      "load_failed": "Det gick inte att läsa in kuponger",
+      "uses_left": "{left} av {total} användning kvar | {left} av {total} användningar kvar",
+      "unlimited": "Obegränsad",
+      "view_all": "Alla kampanjkuponger",
+      "breadcrumb": "Kampanjkuponger",
+      "page": {
+        "title": "Kampanjkuponger för {customer}",
+        "title_fallback": "Kampanjkuponger"
+      }
+    },
     "rules": {
       "task": {
         "filter": {

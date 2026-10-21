@@ -404,6 +404,19 @@
       },
       "published": "Publié le {date}"
     },
+    "coupons": {
+      "title": "Coupons disponibles",
+      "empty": "Aucun coupon disponible",
+      "load_failed": "Impossible de charger les coupons",
+      "uses_left": "{left} utilisation restante sur {total} | {left} utilisation restante sur {total} | {left} utilisations restantes sur {total}",
+      "unlimited": "Illimité",
+      "view_all": "Tous les coupons promotionnels",
+      "breadcrumb": "Coupons promotionnels",
+      "page": {
+        "title": "Coupons promotionnels pour {customer}",
+        "title_fallback": "Coupons promotionnels"
+      }
+    },
     "rules": {
       "task": {
         "filter": {

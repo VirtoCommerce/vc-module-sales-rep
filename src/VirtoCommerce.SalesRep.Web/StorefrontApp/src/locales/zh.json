@@ -404,6 +404,19 @@
       },
       "published": "发布于 {date}"
     },
+    "coupons": {
+      "title": "可用优惠券",
+      "empty": "暂无可用优惠券",
+      "load_failed": "无法加载优惠券",
+      "uses_left": "剩余 {left} / {total} 次",
+      "unlimited": "无限制",
+      "view_all": "全部促销优惠券",
+      "breadcrumb": "促销优惠券",
+      "page": {
+        "title": "{customer} 的促销优惠券",
+        "title_fallback": "促销优惠券"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
