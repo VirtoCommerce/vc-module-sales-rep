@@ -68,13 +68,14 @@ internal sealed class InProcessBackend : IAsyncDisposable
     }
 
     /// <param name="storefrontBuild">A built storefront to serve from the backend's own origin; null when there is none to serve.</param>
-    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null)
+    /// <param name="taskManagementInstalled">Whether the module list the storefront reads names VirtoCommerce.TaskManagement.</param>
+    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null, bool taskManagementInstalled = true)
     {
         WebApplication app = null;
         var gate = new SemaphoreSlim(1, 1);
 
         var context = SalesRepTestContext.Create(
-            configureOverrides: StorefrontServices.AddStorefrontShell,
+            configureOverrides: services => StorefrontServices.AddStorefrontShell(services, taskManagementInstalled),
             providerFactory: services =>
             {
                 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ApplicationName = "VirtoCommerce.SalesRep.StorefrontE2E" });

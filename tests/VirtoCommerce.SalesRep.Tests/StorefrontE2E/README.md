@@ -28,26 +28,30 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Backend host | `Infrastructure/InProcessBackend.cs` | Copies the harness registrations into a `WebApplication`, starts Kestrel on port 0, builds the schema eagerly, self-checks the `store` query; `RunExclusiveAsync` gives test-side reads a turn between requests. |
 | Shell services | `Infrastructure/StorefrontServices.cs` | Real X-API `store` handler, real profile handlers and graph types, real claim producers, the platform's `AppManifestService` for `store.plugins`; JWT bearer auth; pipeline (a built storefront's files, plugin files, one request at a time). |
 | Shell schema | `Infrastructure/StorefrontShellSchema.cs` | `pageContext`, `childCategories`, `cart`, `organization`, `menu`, `searchHistory`: real response types, empty data. |
-| Doubles | `Infrastructure/StorefrontDoubles.cs` | Store search/currency/auth schemes, module list (the module's own `module.manifest` plus two dependencies at a version the storefront's "outdated backend" check cannot flag), settings (`ReturnModuleVersion`, task types), cart methods. |
+| Doubles | `Infrastructure/StorefrontDoubles.cs` | Store search/currency/auth schemes, module list (the module's own `module.manifest` plus two dependencies at a version the storefront's "outdated backend" check cannot flag; a group can leave TaskManagement out), settings (`ReturnModuleVersion`, task types), cart methods. |
 | Hub plugin | `Infrastructure/StorefrontPlugin.cs` | The module's plugin build (`plugins/vc-frontend`) and its route; a missing build, or one older than its sources under `StorefrontApp/src`, fails the group. |
 | Package skew | `Infrastructure/StorefrontOrganizationType.cs` | The storefront selects `isLockedForCurrentUser`; the pinned profile package predates it. |
 | Tokens | `Infrastructure/TestTokenService.cs` | Production-shaped JWTs via `IUserClaimsPrincipalFactory` + `ITokenClaimProvider`s; `/connect/token`, `/revoke/token`. |
 | Storefront location | `Infrastructure/StorefrontLocation.cs` | Finds the storefront, a clone or a build (see Running); a missing or broken one fails the groups with what to do. |
 | Vite | `Infrastructure/ViteDevServer.cs` | A clone's dev server: `node node_modules/vite/bin/vite.js --port N --strictPort` with `APP_BACKEND_URL`; waits for HTTP 200; bounded kill. |
-| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + storefront (Vite for a clone) + browser per xunit collection; `OpenAsync(userId, path)` = signed-in context, in the group's `BrowserTimeZone` when it pins one; `WaitForTaskAsync` reads task rows between requests; phase log. |
-| Session | `Infrastructure/StorefrontSession.cs` | Records console errors, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message. |
+| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + storefront (Vite for a clone) + browser per xunit collection; `OpenAsync(userId, path)` = signed-in context, in the group's `BrowserTimeZone` when it pins one or in the zone a test passes, with `beforeLoad` to prepare the context (routes) before the first navigation; `WaitForTaskAsync` and `CountTasksAsync` read task rows between requests; `TaskManagementInstalled` for the module list; phase log. |
+| Session | `Infrastructure/StorefrontSession.cs` | Records console errors, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message, and a test can assert there were no GraphQL errors. |
+| Hub controls | `Infrastructure/HubControls.cs` | The task controls by role and label (dialogs, fields, rows and their actions, tabs and badges, the list header's count, the Due dates calendar), the steps the task groups repeat (pick, type a day, tick, save), the Google Calendar stand-in route, and text matching that tolerates Intl's spaces. |
+| Clock | `Infrastructure/NewYork.cs` | Today and instants in New York, the zone the time-sensitive groups pin; the next nights the clocks skip or repeat an hour. |
 | Documents | `Infrastructure/StorefrontDocuments.cs` | Loads the storefront's own `.graphql` operations from the clone (fragments inlined, `@gate` applied). |
 | Contract | `StorefrontBootContractTests.cs` | Browser-less: the backend answers the storefront's boot documents for a signed-in rep (≈4 s). |
-| Group 1 | `Customers/` | Rep with two organizations and one order: list + profile. |
+| Group 1 | `Customers/` | Rep with two organizations and one order, and an organization the rep does not serve: list, profile, the profile's quick actions, the not-found page. |
 | Group 2 | `Calendar/` | Rep with one task: complete it on the tasks page, create one from the form; both asserted on `WorkTask` rows. |
-| Group 3 | `Calls/` | Rep with calls and plain tasks due tomorrow, browser in New York time. Schedule a call from a customer's page, also adding it to Google and Apple Calendar, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. Each is asserted on the page and on `WorkTask` rows. |
+| Group 3 | `Calls/` | Browser in New York time. Carl (`CallsTests`) has calls and plain tasks due tomorrow: schedule a call from a customer's page, also adding it to Google and Apple Calendar, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. Dana (`CallTimesTests`): the edges of a day, the nights the clocks skip and repeat an hour, Los Angeles, a time off the select's steps, the select itself. Erin (`CallSavesTests`): a call without a customer, a save refused because the customer is no longer hers (with the Google tab; without it, skipped until VCST-6455), the Google tab blocked, a double click, a cancelled draft. Each rep has rows of their own, as the task list pages at 15. Each test is asserted on the page and on `WorkTask` rows. |
+| Group 4 | `Tasks/` | Rep with plain tasks, browser in New York time: overdue, today, later, completed, canceled and dateless ones. An edit that changes only the date, a canceled and a completed task edited, a dateless one opened and dated, a delete, completing and reopening, and every tab's badge against its list. |
+| Group 5 | `WithoutTaskManagement/` | A module list without TaskManagement: the customer page offers "Schedule call" disabled, the hub menu has no Tasks, and the tasks page sends the rep to a dashboard without the tasks widget. |
 
 Groups are xunit collections with `DisableParallelization = true`: each runs alone, so one backend, at most one Vite
 and one browser exist at a time. Tests inside a group share the environment and its seed; each test gets its own
 browser context (fresh localStorage, fresh Apollo cache). Each test carries a 5-minute timeout.
 
-Measured on the workstation that produced this draft: the contract test and the three groups run in about two
-minutes; a group's environment is up in about 7 seconds; the first page load of a group costs ≈20 seconds (Vite
+Measured on the workstation that produced this draft: the contract test and the five groups run in about four and a
+half minutes; a group's environment is up in about 7 seconds; the first page load of a group costs ≈20 seconds (Vite
 compiles on demand, then the storefront loads the hub plugin), later loads ≈2 seconds.
 
 ## Running
@@ -116,6 +120,18 @@ group), `vite-<port>.log` (a clone's dev server output), `<TestName>.png` (full-
   so the scenario proves the Google link and the `.ics`, not a browser's pop-up policy. The tab opens blank and gets
   Google's page after the save, so the test waits on its URL (`ToHaveURLAsync`), not on a load, and routes Google to a
   stand-in page. `VcCheckbox` draws its box over the real input, so a test ticks it by its label, as a rep does.
+- That stand-in route, registered on the context once the page was up while the hub plugin still loaded, left the
+  page blank in two runs, with no failed request and no error. It is registered before the first navigation now
+  (`OpenAsync`'s `beforeLoad`).
+- The task list pages at 15 rows. Tests that add tasks to a shared rep push the seeded ones to page 2, so the second
+  and third calls classes sign in as reps of their own.
+- The tabs' badges read 0 until their one counts request returns, so a test reads them once a badge the rep's seed
+  makes non-zero is.
+- A second full load in the same page (`GotoAsync` after `OpenAsync`) can leave the page blank on a clone: its module
+  requests failed with `net::ERR_INSUFFICIENT_RESOURCES` or were aborted. A test that needs another page by URL opens a
+  session of its own.
+- Two saves within five seconds leave two "Task saved" toasts on screen. A save is proved by its dialog closing; any of
+  the toasts then does.
 
 ## Known gaps (draft)
 

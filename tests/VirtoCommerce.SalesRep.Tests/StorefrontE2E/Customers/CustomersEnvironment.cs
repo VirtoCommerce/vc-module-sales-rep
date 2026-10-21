@@ -6,7 +6,9 @@ using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Customers;
 
-/// <summary>Group 1: a rep serving two organizations, one of which they already sold to.</summary>
+/// <summary>
+/// Group 1: a rep serving two organizations, one of which they already sold to, and an organization they do not serve.
+/// </summary>
 public sealed class CustomersEnvironment : StorefrontEnvironment
 {
     public const string FabrikamId = "e2e-org-fabrikam";
@@ -16,6 +18,7 @@ public sealed class CustomersEnvironment : StorefrontEnvironment
     public const string FabrikamOwnerPhone = "+1 555 0100";
     public const string ContosoId = "e2e-org-contoso";
     public const string ContosoName = "Contoso Ltd";
+    public const string AdventureWorksId = "e2e-org-adventure-works";
     public const string OrderId = "e2e-order-1001";
     public const string OrderNumber = "ORD-1001";
 
@@ -41,6 +44,7 @@ public sealed class CustomersEnvironment : StorefrontEnvironment
             contact.Organizations = [FabrikamId];
         });
         await context.SeedOrganizationAsync(ContosoId, org => org.Name = ContosoName);
+        await context.SeedOrganizationAsync(AdventureWorksId, org => org.Name = "Adventure Works");
 
         var rep = await context.CreateRepInStoreAsync("Rita", "Rep", "rita.rep@e2e.local", InProcessBackend.StoreId, FabrikamId, ContosoId);
         RepUserId = rep.UserId;
@@ -50,7 +54,7 @@ public sealed class CustomersEnvironment : StorefrontEnvironment
         OrderSeeder.Seed(context, OrderId, FabrikamId, OrderNumber, DateTime.UtcNow.AddDays(-3),
             organizationName: FabrikamName, createdByUserId: rep.UserId, itemsCount: 2);
         await context.IndexOrdersAsync(OrderId);
-        await context.IndexMembersAsync(FabrikamId, ContosoId);
+        await context.IndexMembersAsync(FabrikamId, ContosoId, AdventureWorksId);
     }
 }
 

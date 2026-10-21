@@ -59,11 +59,11 @@ internal sealed class PasswordOnlyStoreAuthenticationService : IStoreAuthenticat
 /// The module list the store query reports to the storefront, and the one the platform's AppManifestService walks for
 /// store.plugins. The module under test comes from its own module.manifest, the file the platform reads, so its id,
 /// version and apps are the real ones; two of its dependencies stand in. Task management opens the storefront's tasks
-/// pages (a presence check on the module id, the way the real module list reaches it with ReturnModuleVersion on);
-/// X-Frontend declares the storefront app whose plugins store.plugins lists. White labeling is absent so the
-/// storefront drops its @gate'd field client-side.
+/// pages (a presence check on the module id, the way the real module list reaches it with ReturnModuleVersion on), and
+/// a group can leave it out; X-Frontend declares the storefront app whose plugins store.plugins lists. White labeling
+/// is absent so the storefront drops its @gate'd field client-side.
 /// </summary>
-internal sealed class StorefrontModuleService : IModuleService
+internal sealed class StorefrontModuleService(bool taskManagementInstalled) : IModuleService
 {
     /// <summary>
     /// What the two stand-ins report: a version no storefront expects to exceed. The storefront compares each module's
@@ -73,7 +73,7 @@ internal sealed class StorefrontModuleService : IModuleService
     /// </summary>
     private const string StandInVersion = "999.0.0";
 
-    private static readonly IList<ManifestModuleInfo> _installed = CreateInstalledModules();
+    private readonly IList<ManifestModuleInfo> _installed = CreateInstalledModules(taskManagementInstalled);
 
     public IList<ManifestModuleInfo> GetModules() => _installed;
     public IList<ManifestModuleInfo> GetInstalledModules() => _installed;
@@ -82,7 +82,7 @@ internal sealed class StorefrontModuleService : IModuleService
     public bool IsInstalled(string moduleId, string minVersion) => IsInstalled(moduleId);
     public ManifestModuleInfo GetModule(string moduleId) => _installed.FirstOrDefault(x => x.Id.EqualsIgnoreCase(moduleId));
 
-    private static IList<ManifestModuleInfo> CreateInstalledModules()
+    private static List<ManifestModuleInfo> CreateInstalledModules(bool taskManagementInstalled)
     {
         var manifest = ManifestReader.Read(Path.Combine(StorefrontPlugin.ModuleDirectory, "module.manifest"));
 
@@ -90,13 +90,19 @@ internal sealed class StorefrontModuleService : IModuleService
         // Where the platform looks for the hub plugin's build (plugins/vc-frontend).
         salesRep.FullPhysicalPath = StorefrontPlugin.ModuleDirectory;
 
-        return
+        List<ManifestModuleInfo> modules =
         [
             salesRep,
-            StandIn(manifest, "VirtoCommerce.TaskManagement"),
             // X-Frontend's own manifest ships only in its module zip, so its app declaration is restated here.
             StandIn(manifest, "VirtoCommerce.XFrontend", new ManifestApp { Id = "vc-frontend" }),
         ];
+
+        if (taskManagementInstalled)
+        {
+            modules.Add(StandIn(manifest, "VirtoCommerce.TaskManagement"));
+        }
+
+        return modules;
     }
 
     private static ManifestModuleInfo StandIn(ModuleManifest manifest, string id, params ManifestApp[] apps)

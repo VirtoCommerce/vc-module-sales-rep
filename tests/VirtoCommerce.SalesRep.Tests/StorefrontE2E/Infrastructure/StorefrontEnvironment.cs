@@ -43,7 +43,7 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         StorefrontPlugin.EnsureBuilt();
 
         Log("backend starting");
-        Backend = await InProcessBackend.StartAsync(storefront.BuildDirectory);
+        Backend = await InProcessBackend.StartAsync(storefront.BuildDirectory, TaskManagementInstalled);
         Log($"backend ready at {Backend.Url}");
 
         await SeedAsync(Backend.Context);
@@ -81,6 +81,9 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
     /// <summary>The browser's IANA time zone; null keeps the machine's. A group that checks times of day pins it.</summary>
     private protected virtual string BrowserTimeZone => null;
 
+    /// <summary>Whether the module list the storefront reads names VirtoCommerce.TaskManagement.</summary>
+    private protected virtual bool TaskManagementInstalled => true;
+
     /// <summary>The first matching task row, or null after ten seconds, read between requests.</summary>
     internal async Task<WorkTaskEntity> WaitForTaskAsync(Expression<Func<WorkTaskEntity, bool>> predicate)
     {
@@ -103,11 +106,21 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         }
     }
 
+    /// <summary>How many task rows match, read between requests.</summary>
+    internal Task<int> CountTasksAsync(Expression<Func<WorkTaskEntity, bool>> predicate)
+        => Backend.RunExclusiveAsync(async context =>
+        {
+            using var db = context.NewTaskManagementDbContext();
+            return await db.Set<WorkTaskEntity>().CountAsync(predicate);
+        });
+
     /// <summary>
     /// A fresh browser context signed in as the account (a token minted by the backend from the real claim
-    /// producers, stored the way the storefront's useAuth.ts stores it), landed on the storefront path.
+    /// producers, stored the way the storefront's useAuth.ts stores it), landed on the storefront path. The browser
+    /// runs in <paramref name="timeZoneId"/> when given, else in the group's zone. <paramref name="beforeLoad"/>
+    /// prepares the context before the first navigation, routes included.
     /// </summary>
-    internal async Task<StorefrontSession> OpenAsync(string userId, string path, string organizationId = null)
+    internal async Task<StorefrontSession> OpenAsync(string userId, string path, string organizationId = null, string timeZoneId = null, Func<IBrowserContext, Task> beforeLoad = null)
     {
         Log($"opening {path} as {userId}");
         var token = await Backend.Tokens.IssueAsync(userId, organizationId);
@@ -117,12 +130,17 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
             BaseURL = StorefrontUrl,
             IgnoreHTTPSErrors = true,
             ViewportSize = new ViewportSize { Width = 1440, Height = 900 },
-            TimezoneId = BrowserTimeZone,
+            TimezoneId = timeZoneId ?? BrowserTimeZone,
         });
 
         await context.AddInitScriptAsync(
             $"localStorage.setItem('auth', {JsonSerializer.Serialize(token.ToLocalStorageJson())});" +
             $"localStorage.setItem('user-id', {JsonSerializer.Serialize(userId)});");
+
+        if (beforeLoad != null)
+        {
+            await beforeLoad(context);
+        }
 
         var page = await context.NewPageAsync();
         page.SetDefaultTimeout(30_000);

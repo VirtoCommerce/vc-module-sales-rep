@@ -60,7 +60,7 @@ internal static class StorefrontServices
         ["/api", "/graphql", "/ucp", "/connect", "/revoke", "/.well-known", "/cms-content", "/modules", "/externalsignin", "/signin-oidc", "/signin-google"];
 
     /// <summary>Applied as the harness's last-wins overrides, so the component tests keep their own defaults.</summary>
-    public static void AddStorefrontShell(IServiceCollection services)
+    public static void AddStorefrontShell(IServiceCollection services, bool taskManagementInstalled)
     {
         // Identity claim types as the platform configures them (OpenIddict names), so principals built by the REAL
         // CustomUserClaimsPrincipalFactory carry sub/name/role/email exactly as production tokens do.
@@ -86,7 +86,7 @@ internal static class StorefrontServices
         services.AddSingleton<IStoreSearchService, EmptyStoreSearchService>();
         services.AddSingleton<IStoreCurrencyResolver, CurrencyServiceStoreCurrencyResolver>();
         services.AddSingleton<IStoreAuthenticationService, PasswordOnlyStoreAuthenticationService>();
-        services.AddSingleton<IModuleService, StorefrontModuleService>();
+        services.AddSingleton<IModuleService>(new StorefrontModuleService(taskManagementInstalled));
         services.AddSingleton<ISettingsManager, StorefrontSettingsManager>();
         // store.plugins: the platform's own discovery over the module list double, so the storefront finds the hub
         // plugin the way it does in production.
