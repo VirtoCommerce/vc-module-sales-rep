@@ -202,7 +202,7 @@ public class SalesRepCouponsQueryHandlerTests
         ExpirationDate = expiration,
     };
 
-    private static IList<T> Page<T>(IList<T> items, SearchCriteriaBase criteria) =>
+    private static List<T> Page<T>(IList<T> items, SearchCriteriaBase criteria) =>
         items.Skip(criteria.Skip).Take(criteria.Take).ToList();
 
     private sealed class StubPromotionSearchService(IList<Promotion> promotions) : IPromotionSearchService
