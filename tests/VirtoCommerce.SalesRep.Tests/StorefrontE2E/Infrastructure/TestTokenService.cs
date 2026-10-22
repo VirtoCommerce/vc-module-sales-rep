@@ -4,17 +4,13 @@ using System.Linq;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Tokens;
 using OpenIddict.Abstractions;
-using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Security.OpenIddict;
 
@@ -105,46 +101,5 @@ internal sealed class TestTokenService(IServiceProvider services)
         _refreshTokens[refreshToken] = user.Id;
 
         return new TokenResponse(accessToken, refreshToken, (int)Lifetime.TotalSeconds);
-    }
-}
-
-internal sealed record TokenResponse(string AccessToken, string RefreshToken, int ExpiresIn)
-{
-    /// <summary>The storefront's localStorage.auth shape (what useAuth.ts stores after /connect/token).</summary>
-    public string ToLocalStorageJson() => JsonSerializer.Serialize(new
-    {
-        expires_at = DateTime.UtcNow.AddSeconds(ExpiresIn).ToString("O"),
-        token_type = "Bearer",
-        access_token = AccessToken,
-        refresh_token = RefreshToken,
-    });
-}
-
-/// <summary>
-/// The two auth endpoints the storefront calls: the password and refresh grants of /connect/token (form-encoded,
-/// exactly what useAuth.ts posts) and /revoke/token. Enough for the sign-in page; not an OAuth server.
-/// </summary>
-internal static class TestTokenEndpoints
-{
-    public static void Map(WebApplication app)
-    {
-        app.MapPost("/connect/token", async (HttpRequest request, TestTokenService tokens) =>
-        {
-            var form = await request.ReadFormAsync();
-            var organizationId = form["organization_id"].ToString().EmptyToNull();
-
-            var token = form["grant_type"].ToString() switch
-            {
-                "password" => await tokens.IssueByPasswordAsync(form["username"].ToString(), form["password"].ToString(), organizationId),
-                "refresh_token" => await tokens.RefreshAsync(form["refresh_token"].ToString()),
-                _ => null,
-            };
-
-            return token == null
-                ? Results.BadRequest(new { error = "invalid_grant" })
-                : Results.Json(new { access_token = token.AccessToken, refresh_token = token.RefreshToken, token_type = "Bearer", expires_in = token.ExpiresIn });
-        });
-
-        app.MapPost("/revoke/token", () => Results.Ok());
     }
 }

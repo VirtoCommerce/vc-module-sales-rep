@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading.Tasks;
 using GraphQL;
 using GraphQL.Resolvers;
@@ -13,13 +12,11 @@ using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.Xapi.Core.Models;
 using VirtoCommerce.Xapi.Core.Queries;
-using VirtoCommerce.Xapi.Core.Schemas;
 using VirtoCommerce.XCart.Core.Queries;
 using VirtoCommerce.XCart.Core.Schemas;
 using VirtoCommerce.XCatalog.Core.Models;
 using VirtoCommerce.XCatalog.Core.Queries;
 using VirtoCommerce.XCatalog.Core.Schemas;
-using ProfileUserType = VirtoCommerce.ProfileExperienceApiModule.Data.Schemas.UserType;
 using XapiModuleConstants = VirtoCommerce.Xapi.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
@@ -106,71 +103,5 @@ internal sealed class StorefrontShellSchemaBuilder : ISchemaBuilder
             Arguments = arguments,
             Resolver = new FuncFieldResolver<object>(context => new ValueTask<object>(resolve(context))),
         });
-    }
-}
-
-internal sealed class PageContextResponse
-{
-    public StoreResponse Store { get; set; }
-    public ApplicationUser User { get; set; }
-    public SlugInfoResponse SlugInfo { get; set; }
-}
-
-internal sealed class PageContextResponseType : ObjectGraphType<PageContextResponse>
-{
-    public PageContextResponseType()
-    {
-        Name = "PageContextResponseType";
-        Field<StoreResponseType>("store").Resolve(context => context.Source.Store);
-        Field<SlugInfoResponseType>("slugInfo").Resolve(context => context.Source.SlugInfo);
-        Field<ProfileUserType>("user").Resolve(context => context.Source.User);
-    }
-}
-
-internal sealed class MenuLinkList
-{
-    public string Name { get; set; }
-    public IList<MenuLink> Items { get; set; } = [];
-}
-
-internal sealed class MenuLink
-{
-    public string Title { get; set; }
-    public string Url { get; set; }
-    public IList<MenuLink> ChildItems { get; set; } = [];
-}
-
-internal sealed class MenuLinkListType : ObjectGraphType<MenuLinkList>
-{
-    public MenuLinkListType()
-    {
-        Name = "MenuLinkListType";
-        Field<NonNullGraphType<StringGraphType>>("name").Resolve(context => context.Source.Name);
-        Field<NonNullGraphType<ListGraphType<NonNullGraphType<MenuLinkType>>>>("items").Resolve(context => context.Source.Items);
-    }
-}
-
-internal sealed class MenuLinkType : ObjectGraphType<MenuLink>
-{
-    public MenuLinkType()
-    {
-        Name = "MenuLinkType";
-        Field<StringGraphType>("title").Resolve(context => context.Source.Title);
-        Field<StringGraphType>("url").Resolve(context => context.Source.Url);
-        Field<NonNullGraphType<ListGraphType<NonNullGraphType<MenuLinkType>>>>("childItems").Resolve(context => context.Source.ChildItems);
-    }
-}
-
-internal sealed class SearchHistoryResult
-{
-    public IList<string> Queries { get; set; } = [];
-}
-
-internal sealed class SearchHistoryResultType : ObjectGraphType<SearchHistoryResult>
-{
-    public SearchHistoryResultType()
-    {
-        Name = "SearchHistoryResultType";
-        Field<ListGraphType<StringGraphType>>("queries").Resolve(context => context.Source.Queries);
     }
 }
