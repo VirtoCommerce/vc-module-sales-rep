@@ -73,6 +73,33 @@ internal static class HubControls
         return Dialog(page, "New task");
     }
 
+    /// <summary>A quick action on a customer's page, by its label.</summary>
+    public static ILocator QuickAction(IPage page, string label) => page.GetByRole(AriaRole.Button, new() { Name = label, Exact = true });
+
+    /// <summary>"Schedule call" on a customer's page.</summary>
+    public static async Task<ILocator> ScheduleCallAsync(IPage page)
+    {
+        await QuickAction(page, "Schedule call").ClickAsync(new() { Timeout = 60_000 });
+        return Dialog(page, "Schedule call");
+    }
+
+    /// <summary>The draft "Schedule call" opens: a call about the customer, its day left to pick, at 9:00 AM, Normal.</summary>
+    public static async Task ExpectNewCallDraftAsync(ILocator dialog, string customer)
+    {
+        await Expect(dialog.GetByLabel("Title")).ToHaveValueAsync("Call");
+        await Expect(Field(dialog, "Customer")).ToHaveValueAsync(customer);
+        await Expect(DueDate(dialog)).ToHaveValueAsync(string.Empty);
+        await Expect(Field(dialog, "Time")).ToHaveValueAsync(Exactly("9:00 AM"));
+        await Expect(Field(dialog, "Priority")).ToHaveValueAsync("Normal");
+    }
+
+    /// <summary>Both calendars offered, neither ticked.</summary>
+    public static async Task ExpectCalendarsUntickedAsync(ILocator dialog)
+    {
+        await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox)).ToHaveCountAsync(2);
+        await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox, new() { Checked = true })).ToHaveCountAsync(0);
+    }
+
     public static async Task<ILocator> EditAsync(IPage page, string name, string title)
     {
         await page.GetByRole(AriaRole.Button, new() { Name = $"Edit “{name}”", Exact = true }).ClickAsync();
@@ -110,10 +137,7 @@ internal static class HubControls
         await Expect(dialog.GetByRole(AriaRole.Checkbox, new() { Name = label, Exact = true })).ToBeCheckedAsync();
     }
 
-    /// <summary>
-    /// Saves, and waits for the dialog to close, which it does once the save went through. A toast from an earlier save
-    /// may still be on screen beside this one's, so any of them will do.
-    /// </summary>
+    /// <summary>Saves, and waits for the dialog to close, which it does once the save went through.</summary>
     public static async Task SaveAsync(IPage page, ILocator dialog)
     {
         await SaveButton(dialog).ClickAsync();
@@ -123,7 +147,7 @@ internal static class HubControls
 
     /// <summary>
     /// The success toast of a save. Exact: "Task saved, but it could not be added to the calendar" is a warning, not
-    /// this. Last: two saves in a row show two toasts.
+    /// this. Last: the toast it replaces stays in the page for its leave animation.
     /// </summary>
     public static ILocator SavedToast(IPage page) => page.GetByText("Task saved", new() { Exact = true }).Last;
 

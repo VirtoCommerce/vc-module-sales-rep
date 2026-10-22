@@ -45,7 +45,7 @@ public sealed class TasksPageTests(TasksEnvironment env)
         });
 
         // The update replaces the task: every field the form did not touch has to come back as it was.
-        var task = await env.WaitForTaskAsync(x => x.Name == TasksEnvironment.TaskToRedate && x.DueDate == NewYork.At(day, 10, 20, 15));
+        var task = await env.WaitForTaskAsync(x => x.Name == TasksEnvironment.TaskToRedate && x.DueDate == NewYork.At(day + TasksEnvironment.TaskToRedateTime));
         task.Should().NotBeNull();
         task.Type.Should().Be("Other");
         task.Priority.Should().Be("High");

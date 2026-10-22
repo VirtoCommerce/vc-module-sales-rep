@@ -28,7 +28,7 @@ public sealed class MyCustomersTests(CustomersEnvironment env)
         });
 
         // The same facts, read straight from the database the storefront just rendered from.
-        var memberships = await env.Context.GetMembershipsAsync(env.RepUserId);
+        var memberships = await env.Backend.RunExclusiveAsync(context => context.GetMembershipsAsync(env.RepUserId));
         memberships.Select(x => x.OrganizationId).Should().BeEquivalentTo([CustomersEnvironment.FabrikamId, CustomersEnvironment.ContosoId]);
     }
 
@@ -87,6 +87,4 @@ public sealed class MyCustomersTests(CustomersEnvironment env)
             await Expect(QuickAction(page, "Schedule call")).ToHaveCountAsync(0);
         });
     }
-
-    private static ILocator QuickAction(IPage page, string label) => page.GetByRole(AriaRole.Button, new() { Name = label, Exact = true });
 }

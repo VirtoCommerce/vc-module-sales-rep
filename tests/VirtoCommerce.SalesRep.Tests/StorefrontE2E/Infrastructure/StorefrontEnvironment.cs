@@ -1,13 +1,18 @@
 using System;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.TaskManagement.Data.Models;
 using Xunit;
+using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
@@ -43,7 +48,7 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         StorefrontPlugin.EnsureBuilt();
 
         Log("backend starting");
-        Backend = await InProcessBackend.StartAsync(storefront.BuildDirectory, TaskManagementInstalled);
+        Backend = await InProcessBackend.StartAsync(storefront.BuildDirectory, ConfigureServices);
         Log($"backend ready at {Backend.Url}");
 
         await SeedAsync(Backend.Context);
@@ -81,8 +86,27 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
     /// <summary>The browser's IANA time zone; null keeps the machine's. A group that checks times of day pins it.</summary>
     private protected virtual string BrowserTimeZone => null;
 
-    /// <summary>Whether the module list the storefront reads names VirtoCommerce.TaskManagement.</summary>
-    private protected virtual bool TaskManagementInstalled => true;
+    /// <summary>A group's own doubles, registered after the storefront shell's, so they win: another module list, say.</summary>
+    private protected virtual void ConfigureServices(IServiceCollection services)
+    {
+    }
+
+    /// <summary>A task the rep creates through the real mutation the storefront uses; the due date goes in to the second.</summary>
+    private protected static async Task<string> CreateTaskAsync(SalesRepTestContext context, SalesRepDetails rep, string name, DateTime dueDate,
+        string type = null, string customerId = null, string priority = null, string description = null)
+    {
+        var due = dueDate.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
+        var fields = new (string Name, string Value)[] { ("type", type), ("customerId", customerId), ("priority", priority), ("description", description) }
+            .Where(x => x.Value != null)
+            .Select(x => $", {x.Name}: \"{x.Value}\"");
+        var json = await ExecuteAsRepAsync(context, rep, $"mutation {{ createSalesRepTask(command: {{ name: \"{name}\", dueDate: \"{due}\"{string.Concat(fields)} }}) {{ id }} }}");
+
+        return SalesRepTestContext.Node(json, "createSalesRepTask").GetProperty("id").GetString();
+    }
+
+    /// <summary>A GraphQL operation as the rep, who holds the permission every hub operation requires.</summary>
+    private protected static Task<string> ExecuteAsRepAsync(SalesRepTestContext context, SalesRepDetails rep, string operation)
+        => context.ExecuteGraphQlAsync(operation, userId: rep.UserId, memberId: rep.Id, permissions: [SalesRepModuleConstants.Security.Permissions.Access]);
 
     /// <summary>The first matching task row, or null after ten seconds, read between requests.</summary>
     internal async Task<WorkTaskEntity> WaitForTaskAsync(Expression<Func<WorkTaskEntity, bool>> predicate)

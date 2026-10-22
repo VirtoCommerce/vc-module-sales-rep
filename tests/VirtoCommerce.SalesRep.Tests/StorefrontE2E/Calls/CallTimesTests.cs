@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Playwright;
@@ -14,7 +13,7 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
 
 /// <summary>
 /// A call's time of day: the edges of a day, the nights the clocks change, another time zone, a time off the time
-/// select's steps, and the select itself. Dana's calls, so the task list's first page stays Carl's.
+/// select's steps, and the select itself. Signed in as Dana.
 /// </summary>
 [Collection(CallsCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
@@ -135,7 +134,7 @@ public sealed class CallTimesTests(CallsEnvironment env)
         // 1:00 AM in New York is the evening before in Los Angeles.
         var there = TimeZoneInfo.ConvertTimeFromUtc(instant, TimeZoneInfo.FindSystemTimeZoneById(losAngeles));
 
-        await using var session = await env.OpenAsync(env.DanaUserId, "/company/tasks", CallsEnvironment.NorthwindId, losAngeles);
+        await using var session = await env.OpenAsync(env.Dana.UserId, "/company/tasks", CallsEnvironment.NorthwindId, losAngeles);
 
         await session.RunAsync(nameof(Call_SeenFromAnotherTimeZone_ShowsTheSameInstant), async page =>
         {
@@ -194,14 +193,11 @@ public sealed class CallTimesTests(CallsEnvironment env)
 
         await session.RunAsync(nameof(TimeField_OffersEveryQuarterHour_AndCannotBeEmptied), async page =>
         {
-            await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-            var dialog = Dialog(page, "Schedule call");
+            var dialog = await ScheduleCallAsync(page);
             var time = Field(dialog, "Time");
 
             await time.ClickAsync();
-            await Expect(page.GetByRole(AriaRole.Option)).ToHaveCountAsync(quarterHours.Count);
-            var options = await page.GetByRole(AriaRole.Option).AllInnerTextsAsync();
-            options.Select(x => Regex.Replace(x, @"\s+", " ").Trim()).Should().Equal(quarterHours);
+            await Expect(page.GetByRole(AriaRole.Option)).ToHaveTextAsync(quarterHours, new() { UseInnerText = true });
             await time.PressAsync("Escape");
 
             // Required: no Clear, and the keys that empty a field leave it as it was.
@@ -213,7 +209,7 @@ public sealed class CallTimesTests(CallsEnvironment env)
         });
     }
 
-    private Task<StorefrontSession> OpenAsync(string path) => env.OpenAsync(env.DanaUserId, path, CallsEnvironment.NorthwindId);
+    private Task<StorefrontSession> OpenAsync(string path) => env.OpenAsync(env.Dana.UserId, path, CallsEnvironment.NorthwindId);
 
     /// <summary>A call about Contoso from the task form, at a day and time.</summary>
     private static async Task BookCallAsync(IPage page, string name, DateTime day, string time)

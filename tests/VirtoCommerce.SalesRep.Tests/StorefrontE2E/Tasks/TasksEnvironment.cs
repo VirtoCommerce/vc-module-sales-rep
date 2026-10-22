@@ -1,12 +1,10 @@
 using System;
-using System.Globalization;
 using System.Threading.Tasks;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using VirtoCommerce.TaskManagement.Core.Services;
 using Xunit;
-using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Tasks;
 
@@ -29,12 +27,10 @@ public sealed class TasksEnvironment : StorefrontEnvironment
     public const string TodaysTask = "Visit the showroom";
     public const string LaterTask = "Plan the trade show";
 
-    /// <summary>When "Review the contract" is due: tomorrow, off the quarter hours and to the second.</summary>
-    public static DateTime TaskToRedateDue { get; } = NewYork.At(NewYork.Today.AddDays(1), 10, 20, 15);
+    /// <summary>When "Review the contract" is due on its day: off the quarter hours and to the second.</summary>
+    public static TimeSpan TaskToRedateTime { get; } = new(10, 20, 15);
 
     public string RepUserId { get; private set; }
-
-    public string RepMemberId { get; private set; }
 
     private protected override string BrowserTimeZone => NewYork.TimeZoneId;
 
@@ -44,38 +40,25 @@ public sealed class TasksEnvironment : StorefrontEnvironment
 
         var rep = await context.CreateRepInStoreAsync("Tom", "Rep", "tom.rep@e2e.local", InProcessBackend.StoreId, NorthwindId);
         RepUserId = rep.UserId;
-        RepMemberId = rep.Id;
 
         var today = NewYork.Today;
-        await CreateTaskAsync(context, TaskToRedate, TaskToRedateDue, $"type: \"Other\", priority: \"High\", description: \"{TaskToRedateNotes}\"");
-        await CreateTaskAsync(context, OverdueTask, NewYork.At(today.AddDays(-1), 12));
-        await CreateTaskAsync(context, TodaysTask, NewYork.At(today, 12));
-        await CreateTaskAsync(context, LaterTask, NewYork.At(today.AddDays(2), 12));
+        await CreateTaskAsync(context, rep, TaskToRedate, NewYork.At(today.AddDays(1) + TaskToRedateTime), type: "Other", priority: "High", description: TaskToRedateNotes);
+        await CreateTaskAsync(context, rep, OverdueTask, NewYork.At(today.AddDays(-1), 12));
+        await CreateTaskAsync(context, rep, TodaysTask, NewYork.At(today, 12));
+        await CreateTaskAsync(context, rep, LaterTask, NewYork.At(today.AddDays(2), 12));
 
-        var completed = await CreateTaskAsync(context, CompletedTask, NewYork.At(today.AddDays(4), 12));
-        SalesRepTestContext.Node(await ExecuteAsync(context, $"mutation {{ changeSalesRepTaskStatus(command: {{ id: \"{completed}\", completed: true }}) {{ id }} }}"), "changeSalesRepTaskStatus");
+        var completed = await CreateTaskAsync(context, rep, CompletedTask, NewYork.At(today.AddDays(4), 12));
+        SalesRepTestContext.Node(await ExecuteAsRepAsync(context, rep, $"mutation {{ changeSalesRepTaskStatus(command: {{ id: \"{completed}\", completed: true }}) {{ id }} }}"), "changeSalesRepTaskStatus");
 
         // Closed without being completed: canceled, which only task management itself can do.
         var tasks = context.GetRequiredService<IWorkTaskService>();
-        await tasks.FinishAsync(await CreateTaskAsync(context, CanceledTask, NewYork.At(today.AddDays(5), 12)), completed: false, result: null);
+        await tasks.FinishAsync(await CreateTaskAsync(context, rep, CanceledTask, NewYork.At(today.AddDays(5), 12)), completed: false, result: null);
 
         // The storefront's inputs require a due date; the admin app's do not.
-        var dateless = await tasks.GetByIdAsync(await CreateTaskAsync(context, DatelessTask, NewYork.At(today.AddDays(1), 12)));
+        var dateless = await tasks.GetByIdAsync(await CreateTaskAsync(context, rep, DatelessTask, NewYork.At(today.AddDays(1), 12)));
         dateless.DueDate = null;
         await tasks.SaveChangesAsync([dateless]);
     }
-
-    private async Task<string> CreateTaskAsync(SalesRepTestContext context, string name, DateTime dueDate, string fields = null)
-    {
-        var due = dueDate.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-        var more = fields == null ? string.Empty : $", {fields}";
-        var json = await ExecuteAsync(context, $"mutation {{ createSalesRepTask(command: {{ name: \"{name}\", dueDate: \"{due}\"{more} }}) {{ id }} }}");
-
-        return SalesRepTestContext.Node(json, "createSalesRepTask").GetProperty("id").GetString();
-    }
-
-    private Task<string> ExecuteAsync(SalesRepTestContext context, string mutation)
-        => context.ExecuteGraphQlAsync(mutation, userId: RepUserId, memberId: RepMemberId, permissions: [SalesRepModuleConstants.Security.Permissions.Access]);
 }
 
 [CollectionDefinition(Name, DisableParallelization = true)]

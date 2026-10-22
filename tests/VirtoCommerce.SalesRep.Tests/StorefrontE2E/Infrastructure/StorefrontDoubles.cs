@@ -63,7 +63,7 @@ internal sealed class PasswordOnlyStoreAuthenticationService : IStoreAuthenticat
 /// a group can leave it out; X-Frontend declares the storefront app whose plugins store.plugins lists. White labeling
 /// is absent so the storefront drops its @gate'd field client-side.
 /// </summary>
-internal sealed class StorefrontModuleService(bool taskManagementInstalled) : IModuleService
+internal sealed class StorefrontModuleService(bool taskManagementInstalled = true) : IModuleService
 {
     /// <summary>
     /// What the two stand-ins report: a version no storefront expects to exceed. The storefront compares each module's

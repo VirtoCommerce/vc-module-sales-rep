@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -14,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.VCShellAppE2E.Infrastructure;
 
@@ -28,9 +28,9 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
     public const string StoreId = "B2B-store";
 
     private readonly WebApplication _app;
-    private readonly SemaphoreSlim _gate;
+    private readonly RequestGate _gate;
 
-    private InProcessVCShellBackend(WebApplication app, SemaphoreSlim gate, SalesRepTestContext context, string url)
+    private InProcessVCShellBackend(WebApplication app, RequestGate gate, SalesRepTestContext context, string url)
     {
         _app = app;
         _gate = gate;
@@ -52,23 +52,12 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
     /// connection, which is not thread-safe, so the host answers one request at a time and a test's reads take the
     /// same turn: the blade may still be refreshing after the save or block it waited for.
     /// </summary>
-    public async Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work)
-    {
-        await _gate.WaitAsync();
-        try
-        {
-            return await work(Context);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
+    public Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work) => _gate.RunAsync(() => work(Context));
 
     public static async Task<InProcessVCShellBackend> StartAsync(string appDirectory)
     {
         WebApplication app = null;
-        var gate = new SemaphoreSlim(1, 1);
+        var gate = new RequestGate();
 
         var context = SalesRepTestContext.Create(
             configureOverrides: VCShellServices.AddVCShellOverrides,

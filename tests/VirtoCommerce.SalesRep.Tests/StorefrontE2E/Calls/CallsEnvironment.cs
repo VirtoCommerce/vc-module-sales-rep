@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.CustomerModule.Core.Model;
@@ -23,8 +22,6 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
 /// </summary>
 public sealed class CallsEnvironment : StorefrontEnvironment
 {
-    public const string TimeZoneId = NewYork.TimeZoneId;
-
     public const string NorthwindId = "e2e-org-northwind";
     public const string NorthwindName = "Northwind Traders";
     public const string ContosoId = "e2e-org-contoso";
@@ -50,6 +47,8 @@ public sealed class CallsEnvironment : StorefrontEnvironment
     public const string CallFromNewYork = "Call from New York";
     public const string CallOffTheQuarterHour = "Call off the quarter hour";
 
+    private const string Call = SalesRepModuleConstants.Tasks.CallType;
+
     /// <summary>Tomorrow in New York: Carl's seeded tasks are due then, and most tests book their calls for it.</summary>
     public static DateTime Tomorrow { get; } = NewYork.Today.AddDays(1);
 
@@ -72,15 +71,11 @@ public sealed class CallsEnvironment : StorefrontEnvironment
 
     public string RepMemberId { get; private set; }
 
-    public string DanaUserId { get; private set; }
+    public SalesRepDetails Dana { get; private set; }
 
-    public string DanaMemberId { get; private set; }
+    public SalesRepDetails Erin { get; private set; }
 
-    public string ErinUserId { get; private set; }
-
-    public string ErinMemberId { get; private set; }
-
-    private protected override string BrowserTimeZone => TimeZoneId;
+    private protected override string BrowserTimeZone => NewYork.TimeZoneId;
 
     /// <summary>The instant of a New York time of day tomorrow.</summary>
     public static DateTime At(int hour, int minute = 0) => NewYork.At(Tomorrow, hour, minute);
@@ -117,46 +112,26 @@ public sealed class CallsEnvironment : StorefrontEnvironment
         var carl = await context.CreateRepInStoreAsync("Carl", "Rep", "carl.rep@e2e.local", InProcessBackend.StoreId, NorthwindId, ContosoId, FabrikamId);
         RepUserId = carl.UserId;
         RepMemberId = carl.Id;
-
-        var dana = await context.CreateRepInStoreAsync("Dana", "Rep", "dana.rep@e2e.local", InProcessBackend.StoreId, NorthwindId, ContosoId);
-        DanaUserId = dana.UserId;
-        DanaMemberId = dana.Id;
-
-        var erin = await context.CreateRepInStoreAsync("Erin", "Rep", "erin.rep@e2e.local", InProcessBackend.StoreId, NorthwindId, ContosoId, WideWorldId, TailspinId);
-        ErinUserId = erin.UserId;
-        ErinMemberId = erin.Id;
+        Dana = await context.CreateRepInStoreAsync("Dana", "Rep", "dana.rep@e2e.local", InProcessBackend.StoreId, NorthwindId, ContosoId);
+        Erin = await context.CreateRepInStoreAsync("Erin", "Rep", "erin.rep@e2e.local", InProcessBackend.StoreId, NorthwindId, ContosoId, WideWorldId, TailspinId);
 
         // The customer picker lists the rep's customers through the index.
         await context.IndexMembersAsync(NorthwindId, ContosoId, FabrikamId, AdventureWorksId, WideWorldId, TailspinId);
 
-        await CreateTaskAsync(context, carl, ListedCall, At(10, 15), SalesRepModuleConstants.Tasks.CallType, ContosoId);
-        await CreateTaskAsync(context, carl, ListedCallWithoutCustomer, At(11), SalesRepModuleConstants.Tasks.CallType);
+        await CreateTaskAsync(context, carl, ListedCall, At(10, 15), Call, ContosoId);
+        await CreateTaskAsync(context, carl, ListedCallWithoutCustomer, At(11), Call);
         await CreateTaskAsync(context, carl, ListedTask, At(12), "Other");
-        await CreateTaskAsync(context, carl, CallToEdit, At(10), SalesRepModuleConstants.Tasks.CallType, ContosoId);
-        await CreateTaskAsync(context, carl, CallToUnlink, At(13), SalesRepModuleConstants.Tasks.CallType, NorthwindId);
+        await CreateTaskAsync(context, carl, CallToEdit, At(10), Call, ContosoId);
+        await CreateTaskAsync(context, carl, CallToUnlink, At(13), Call, NorthwindId);
         await CreateTaskAsync(context, carl, TaskToTurnIntoCall, At(12), "Other");
-        await CreateTaskAsync(context, carl, CallAboutFormerCustomer, At(15), SalesRepModuleConstants.Tasks.CallType, FabrikamId);
+        await CreateTaskAsync(context, carl, CallAboutFormerCustomer, At(15), Call, FabrikamId);
 
-        await CreateTaskAsync(context, dana, CallOnTheRepeatedHour, SecondOneThirty, SalesRepModuleConstants.Tasks.CallType, ContosoId);
-        await CreateTaskAsync(context, dana, CallFromNewYork, At(1), SalesRepModuleConstants.Tasks.CallType, NorthwindId);
-        await CreateTaskAsync(context, dana, CallOffTheQuarterHour, OffTheQuarterHour, SalesRepModuleConstants.Tasks.CallType, ContosoId);
+        await CreateTaskAsync(context, Dana, CallOnTheRepeatedHour, SecondOneThirty, Call, ContosoId);
+        await CreateTaskAsync(context, Dana, CallFromNewYork, At(1), Call, NorthwindId);
+        await CreateTaskAsync(context, Dana, CallOffTheQuarterHour, OffTheQuarterHour, Call, ContosoId);
 
         // Then Carl stops serving Fabrikam: the call stays his, the customer is no longer his to see.
-        var membership = (await context.GetMembershipsAsync(RepUserId)).Single(x => x.OrganizationId == FabrikamId);
-        await context.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
-    }
-
-    private static async Task CreateTaskAsync(SalesRepTestContext context, SalesRepDetails rep, string name, DateTime dueDate, string type, string customerId = null)
-    {
-        var due = dueDate.ToString("yyyy-MM-ddTHH:mm:ssZ", CultureInfo.InvariantCulture);
-        var customer = customerId == null ? string.Empty : $", customerId: \"{customerId}\"";
-        var json = await context.ExecuteGraphQlAsync(
-            $"mutation {{ createSalesRepTask(command: {{ name: \"{name}\", dueDate: \"{due}\", type: \"{type}\"{customer} }}) {{ id }} }}",
-            userId: rep.UserId,
-            memberId: rep.Id,
-            permissions: [SalesRepModuleConstants.Security.Permissions.Access]);
-
-        SalesRepTestContext.Node(json, "createSalesRepTask");
+        await StopServingAsync(RepUserId, FabrikamId);
     }
 }
 

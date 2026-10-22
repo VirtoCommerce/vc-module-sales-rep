@@ -34,15 +34,9 @@ public sealed class CallsTests(CallsEnvironment env)
 
         await session.RunAsync(nameof(ScheduleCall_FromCustomerProfile_CreatesACallForThatCustomer), async page =>
         {
-            await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-
             // A call about this customer, its day left to pick.
-            var dialog = Dialog(page, "Schedule call");
-            await Expect(dialog.GetByLabel("Title")).ToHaveValueAsync("Call");
-            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.NorthwindName);
-            await Expect(DueDate(dialog)).ToHaveValueAsync(string.Empty);
-            await Expect(Field(dialog, "Time")).ToHaveValueAsync(Exactly("9:00 AM"));
-            await Expect(Field(dialog, "Priority")).ToHaveValueAsync("Normal");
+            var dialog = await ScheduleCallAsync(page);
+            await ExpectNewCallDraftAsync(dialog, CallsEnvironment.NorthwindName);
             await Expect(Field(dialog, "Type")).ToHaveCountAsync(0);
             await Expect(SaveButton(dialog)).ToBeDisabledAsync();
 
@@ -75,14 +69,12 @@ public sealed class CallsTests(CallsEnvironment env)
 
         await session.RunAsync(nameof(ScheduleCall_TickingBothCalendars_OpensGoogleAndDownloadsTheEvent), async page =>
         {
-            await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-            var dialog = Dialog(page, "Schedule call");
+            var dialog = await ScheduleCallAsync(page);
             await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
             await PickAsync(page, Field(dialog, "Time"), "11:45 AM");
 
             // Both offered unticked, every time.
-            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox)).ToHaveCountAsync(2);
-            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox, new() { Checked = true })).ToHaveCountAsync(0);
+            await ExpectCalendarsUntickedAsync(dialog);
 
             await TickAsync(dialog, "Google Calendar");
             await TickAsync(dialog, "Apple Calendar");
@@ -138,8 +130,7 @@ public sealed class CallsTests(CallsEnvironment env)
 
             await PickAsync(page, Field(dialog, "Type"), Call);
             await Expect(Field(dialog, "Time")).ToHaveValueAsync(Exactly("9:00 AM"));
-            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox)).ToHaveCountAsync(2);
-            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox, new() { Checked = true })).ToHaveCountAsync(0);
+            await ExpectCalendarsUntickedAsync(dialog);
 
             // Only the rep's own customers are offered: not the one they stopped serving, not one they never did.
             await Field(dialog, "Customer").ClickAsync();

@@ -1,4 +1,6 @@
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
@@ -15,7 +17,8 @@ public sealed class WithoutTaskManagementEnvironment : StorefrontEnvironment
 
     public string RepUserId { get; private set; }
 
-    private protected override bool TaskManagementInstalled => false;
+    private protected override void ConfigureServices(IServiceCollection services)
+        => services.AddSingleton<IModuleService>(new StorefrontModuleService(taskManagementInstalled: false));
 
     private protected override async Task SeedAsync(SalesRepTestContext context)
     {

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
@@ -16,21 +15,26 @@ internal static class NewYork
 
     public static DateTime Today { get; } = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, Zone).Date;
 
+    /// <summary>The instant of a New York local time.</summary>
+    public static DateTime At(DateTime localTime) => TimeZoneInfo.ConvertTimeToUtc(localTime, Zone);
+
     /// <summary>The instant of a New York time of day.</summary>
-    public static DateTime At(DateTime day, int hour, int minute = 0, int second = 0)
-        => TimeZoneInfo.ConvertTimeToUtc(day.Add(new TimeSpan(hour, minute, second)), Zone);
+    public static DateTime At(DateTime day, int hour, int minute = 0, int second = 0) => At(day.Add(new TimeSpan(hour, minute, second)));
+
+    // The two below throw unless the time happens twice that day; the larger offset gives the earlier instant.
 
     /// <summary>The instant of a time of day the clocks pass twice, on its first pass: still daylight time.</summary>
-    public static DateTime AtFirstPass(DateTime day, int hour, int minute) => AtPass(day, hour, minute, Enumerable.Max);
+    public static DateTime AtFirstPass(DateTime day, int hour, int minute)
+    {
+        var local = day.Add(new TimeSpan(hour, minute, 0));
+        return DateTime.SpecifyKind(local - Zone.GetAmbiguousTimeOffsets(local).Max(), DateTimeKind.Utc);
+    }
 
     /// <summary>The instant of a time of day the clocks pass twice, on its second pass: standard time.</summary>
-    public static DateTime AtSecondPass(DateTime day, int hour, int minute) => AtPass(day, hour, minute, Enumerable.Min);
-
-    private static DateTime AtPass(DateTime day, int hour, int minute, Func<IEnumerable<TimeSpan>, TimeSpan> pickOffset)
+    public static DateTime AtSecondPass(DateTime day, int hour, int minute)
     {
-        // Throws unless the time happens twice that day; the larger offset is the earlier instant.
         var local = day.Add(new TimeSpan(hour, minute, 0));
-        return DateTime.SpecifyKind(local - pickOffset(Zone.GetAmbiguousTimeOffsets(local)), DateTimeKind.Utc);
+        return DateTime.SpecifyKind(local - Zone.GetAmbiguousTimeOffsets(local).Min(), DateTimeKind.Utc);
     }
 
     /// <summary>The next day on which a time of day does not exist: the clocks skip the hour it falls in.</summary>
