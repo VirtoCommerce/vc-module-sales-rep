@@ -1096,8 +1096,6 @@ Common prerequisites: the .NET 10 SDK and Playwright's Chromium for the referenc
 
 **Combining the two surfaces** in one test — create a rep in the VC-Shell app, then sign in as that rep on the storefront — is possible on one host: register both surfaces on one container, select the authentication scheme per request the way the platform does (bearer header → JWT, otherwise the cookie), and give the environment an `Open…` method per UI. The two UIs live on different origins, so a test holds one browser context per UI; the data behind them is the same database. The storefront's own sign-in page can serve the second half, because the host's `/connect/token` implements the password grant. Not built yet.
 
-The storefront could also be served the VC-Shell way, as a built theme from the test host, which would remove Vite and the checkout from the prerequisites and shorten the first page load to about a second; today's group drives the dev server.
-
 ## Documentation
 
 * Epic: [VCST-5142 — Sales Rep Hub](https://virtocommerce.atlassian.net/browse/VCST-5142)
