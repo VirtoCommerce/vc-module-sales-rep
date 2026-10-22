@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Json;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -20,17 +19,17 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 /// <summary>
 /// The component harness hosted as a real HTTP backend inside the test process: the same
 /// <see cref="SalesRepTestContext"/> (in-memory SQLite databases, RAM Lucene, hand-written doubles) behind Kestrel on
-/// a random loopback port, so the real storefront can talk to it while the tests seed and assert through the very
-/// same DbContexts. No second dotnet process, nothing read from <c>back/modules</c>.
+/// a loopback port, so the real storefront can talk to it while the tests seed and assert through the very same
+/// DbContexts. No second dotnet process, nothing read from <c>back/modules</c>.
 /// </summary>
 internal sealed class InProcessBackend : IAsyncDisposable
 {
     public const string StoreId = "B2B-store";
 
     private readonly WebApplication _app;
-    private readonly SemaphoreSlim _gate;
+    private readonly RequestGate _gate;
 
-    private InProcessBackend(WebApplication app, SemaphoreSlim gate, SalesRepTestContext context, string url)
+    private InProcessBackend(WebApplication app, RequestGate gate, SalesRepTestContext context, string url)
     {
         _app = app;
         _gate = gate;
@@ -54,33 +53,27 @@ internal sealed class InProcessBackend : IAsyncDisposable
     /// connection, which is not thread-safe, so the host answers one request at a time and a test's reads take the
     /// same turn: the page may still be refetching after it confirms a save.
     /// </summary>
-    public async Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work)
-    {
-        await _gate.WaitAsync();
-        try
-        {
-            return await work(Context);
-        }
-        finally
-        {
-            _gate.Release();
-        }
-    }
+    public Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work) => _gate.RunAsync(() => work(Context));
 
     /// <param name="storefrontBuild">A built storefront to serve from the backend's own origin; null when there is none to serve.</param>
-    /// <param name="taskManagementInstalled">Whether the module list the storefront reads names VirtoCommerce.TaskManagement.</param>
-    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null, bool taskManagementInstalled = true)
+    /// <param name="configureServices">A group's own registrations, applied after the shell's: the last one wins.</param>
+    /// <param name="port">The loopback port to listen on; 0 takes any free one.</param>
+    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null, Action<IServiceCollection> configureServices = null, int port = 0)
     {
         WebApplication app = null;
-        var gate = new SemaphoreSlim(1, 1);
+        var gate = new RequestGate();
 
         var context = SalesRepTestContext.Create(
-            configureOverrides: services => StorefrontServices.AddStorefrontShell(services, taskManagementInstalled),
+            configureOverrides: services =>
+            {
+                StorefrontServices.AddStorefrontShell(services);
+                configureServices?.Invoke(services);
+            },
             providerFactory: services =>
             {
                 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ApplicationName = "VirtoCommerce.SalesRep.StorefrontE2E" });
                 builder.Logging.SetMinimumLevel(LogLevel.Warning);
-                builder.WebHost.UseUrls("http://127.0.0.1:0");
+                builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
                 // The harness registers its own IConfiguration (the order full-text flag). The host already owns one,
                 // so the key moves into the host configuration and the harness descriptor stays out.

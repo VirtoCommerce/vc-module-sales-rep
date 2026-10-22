@@ -1,7 +1,6 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using GraphQL;
 using GraphQL.Types;
 using MediatR;
@@ -60,7 +59,7 @@ internal static class StorefrontServices
         ["/api", "/graphql", "/ucp", "/connect", "/revoke", "/.well-known", "/cms-content", "/modules", "/externalsignin", "/signin-oidc", "/signin-google"];
 
     /// <summary>Applied as the harness's last-wins overrides, so the component tests keep their own defaults.</summary>
-    public static void AddStorefrontShell(IServiceCollection services, bool taskManagementInstalled)
+    public static void AddStorefrontShell(IServiceCollection services)
     {
         // Identity claim types as the platform configures them (OpenIddict names), so principals built by the REAL
         // CustomUserClaimsPrincipalFactory carry sub/name/role/email exactly as production tokens do.
@@ -86,7 +85,7 @@ internal static class StorefrontServices
         services.AddSingleton<IStoreSearchService, EmptyStoreSearchService>();
         services.AddSingleton<IStoreCurrencyResolver, CurrencyServiceStoreCurrencyResolver>();
         services.AddSingleton<IStoreAuthenticationService, PasswordOnlyStoreAuthenticationService>();
-        services.AddSingleton<IModuleService>(new StorefrontModuleService(taskManagementInstalled));
+        services.AddSingleton<IModuleService>(new StorefrontModuleService());
         services.AddSingleton<ISettingsManager, StorefrontSettingsManager>();
         // store.plugins: the platform's own discovery over the module list double, so the storefront finds the hub
         // plugin the way it does in production.
@@ -162,7 +161,7 @@ internal static class StorefrontServices
             .AddErrorInfoProvider(options => options.ExposeExceptionDetails = true));
     }
 
-    public static void ConfigurePipeline(WebApplication app, SemaphoreSlim gate, string storefrontBuild)
+    public static void ConfigurePipeline(WebApplication app, RequestGate gate, string storefrontBuild)
     {
         // The hub plugin's build, on the platform's route for it; the storefront's dev proxy forwards that path here.
         // Without a build there is nothing to serve, and the groups that need one say so (StorefrontPlugin).
@@ -193,21 +192,8 @@ internal static class StorefrontServices
             app.UseStaticFiles(new StaticFileOptions { FileProvider = storefrontFiles, ServeUnknownFileTypes = true });
         }
 
-        // The harness keeps each in-memory SQLite database on one connection, which is not thread-safe, and the
-        // storefront sends its queries in parallel ("database is locked", races in the connection's command list).
-        // Everything past the static files takes its turn at the gate (InProcessBackend.RunExclusiveAsync).
-        app.Use(async (context, next) =>
-        {
-            await gate.WaitAsync(context.RequestAborted);
-            try
-            {
-                await next(context);
-            }
-            finally
-            {
-                gate.Release();
-            }
-        });
+        // Everything past the static files takes its turn at the gate: the storefront sends its queries in parallel.
+        gate.Use(app);
 
         app.UseAuthentication();
         app.UseAuthorization();

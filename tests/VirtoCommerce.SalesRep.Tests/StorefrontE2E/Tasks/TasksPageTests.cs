@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Playwright;
+using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
@@ -11,7 +12,8 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Tasks;
 
 /// <summary>
 /// The tasks page around a plain task: an edit that changes only the date, a canceled, a completed and a dateless task
-/// edited, a delete, and the tabs' badges against their lists. Each test checks the page and the row.
+/// edited, a delete, and the tabs' badges against their lists. Each test checks the page and the row. The edits are
+/// Tom's; a test that adds a task signs in as a rep of its own.
 /// </summary>
 [Collection(TasksCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
@@ -45,7 +47,7 @@ public sealed class TasksPageTests(TasksEnvironment env)
         });
 
         // The update replaces the task: every field the form did not touch has to come back as it was.
-        var task = await env.WaitForTaskAsync(x => x.Name == TasksEnvironment.TaskToRedate && x.DueDate == NewYork.At(day, 10, 20, 15));
+        var task = await env.WaitForTaskAsync(x => x.Name == TasksEnvironment.TaskToRedate && x.DueDate == NewYork.At(day + TasksEnvironment.TaskToRedateTime));
         task.Should().NotBeNull();
         task.Type.Should().Be("Other");
         task.Priority.Should().Be("High");
@@ -77,7 +79,7 @@ public sealed class TasksPageTests(TasksEnvironment env)
             var dialog = await EditAsync(page, TasksEnvironment.CanceledTask, "Edit task");
             await TypeDayAsync(dialog, canceledDay);
             await SaveAsync(page, dialog);
-            await Expect(Row(page, TasksEnvironment.CanceledTask)).ToContainTextAsync(Containing($"Due {Listed(canceledDay)}"));
+            await Expect(Row(page, TasksEnvironment.CanceledTask)).ToContainTextAsync($"Due {Listed(canceledDay)}");
             await ExpectStatusAsync(page, TasksEnvironment.CanceledTask, "Canceled", action: null);
 
             // In no status tab. Where the tab's list could still be the previous one, a task of its own shows it loaded.
@@ -95,7 +97,7 @@ public sealed class TasksPageTests(TasksEnvironment env)
             dialog = await EditAsync(page, TasksEnvironment.CompletedTask, "Edit task");
             await TypeDayAsync(dialog, completedDay);
             await SaveAsync(page, dialog);
-            await Expect(Row(page, TasksEnvironment.CompletedTask)).ToContainTextAsync(Containing($"Due {Listed(completedDay)}"));
+            await Expect(Row(page, TasksEnvironment.CompletedTask)).ToContainTextAsync($"Due {Listed(completedDay)}");
             await ExpectStatusAsync(page, TasksEnvironment.CompletedTask, "Completed", action: "Reopen");
         });
 
@@ -131,7 +133,7 @@ public sealed class TasksPageTests(TasksEnvironment env)
             dialog = await EditAsync(page, TasksEnvironment.DatelessTask, "Edit task");
             await TypeDayAsync(dialog, day);
             await SaveAsync(page, dialog);
-            await Expect(Row(page, TasksEnvironment.DatelessTask)).ToContainTextAsync(Containing($"Due {Listed(day)}"));
+            await Expect(Row(page, TasksEnvironment.DatelessTask)).ToContainTextAsync($"Due {Listed(day)}");
         });
 
         session.GraphQlErrors.Should().BeEmpty();
@@ -147,7 +149,8 @@ public sealed class TasksPageTests(TasksEnvironment env)
         const string name = "Task to delete";
         string id = null;
 
-        await using var session = await OpenAsync();
+        var rep = await NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId);
 
         await session.RunAsync(nameof(DeleteTask_RemovesTheRowAndUpdatesTheBadges), async page =>
         {
@@ -199,7 +202,8 @@ public sealed class TasksPageTests(TasksEnvironment env)
     {
         const string name = "Task to complete";
 
-        await using var session = await OpenAsync();
+        var rep = await NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId);
 
         await session.RunAsync(nameof(CompleteThenReopen_RestoresTheCounts), async page =>
         {
@@ -233,10 +237,20 @@ public sealed class TasksPageTests(TasksEnvironment env)
         task.Completed.Should().NotBe(true);
     }
 
-    private Task<StorefrontSession> OpenAsync() => env.OpenAsync(env.RepUserId, "/company/tasks", TasksEnvironment.NorthwindId);
+    private Task<StorefrontSession> OpenAsync() => OpenAsync(env.RepUserId);
+
+    private Task<StorefrontSession> OpenAsync(string userId) => env.OpenAsync(userId, "/company/tasks", TasksEnvironment.NorthwindId);
+
+    /// <summary>A rep of the test's own, with one task already, so that <see cref="ReadBadgesAsync"/> can tell the badges loaded.</summary>
+    private async Task<SalesRepDetails> NewRepAsync()
+    {
+        var rep = await env.NewRepAsync(TasksEnvironment.NorthwindId);
+        await env.AddTaskAsync(rep, "Plan the next visit", NewYork.At(NewYork.Today.AddDays(10), 12));
+        return rep;
+    }
 
     /// <summary>
-    /// Every tab's badge. The badges read 0 until their one request returns, and this rep always has a task, so a
+    /// Every tab's badge. The badges read 0 until their one request returns, and every rep here has a task, so a
     /// non-zero All says they have.
     /// </summary>
     private static async Task<Dictionary<string, int>> ReadBadgesAsync(IPage page)

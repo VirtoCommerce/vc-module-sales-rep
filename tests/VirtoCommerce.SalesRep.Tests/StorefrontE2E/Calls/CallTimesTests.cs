@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Playwright;
@@ -14,7 +13,7 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
 
 /// <summary>
 /// A call's time of day: the edges of a day, the nights the clocks change, another time zone, a time off the time
-/// select's steps, and the select itself. Dana's calls, so the task list's first page stays Carl's.
+/// select's steps, and the select itself. The edits are Carl's; a test that books a call signs in as a rep of its own.
 /// </summary>
 [Collection(CallsCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
@@ -31,7 +30,8 @@ public sealed class CallTimesTests(CallsEnvironment env)
         var tomorrow = CallsEnvironment.Tomorrow;
         var dayAfter = tomorrow.AddDays(1);
 
-        await using var session = await OpenAsync("/company/tasks");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(NewCall_AtTheEdgesOfTheDay_StaysOnItsOwnDay), async page =>
         {
@@ -39,8 +39,8 @@ public sealed class CallTimesTests(CallsEnvironment env)
             await BookCallAsync(page, midnight, dayAfter, "12:00 AM");
 
             await ShowAllAsync(page);
-            await Expect(Row(page, late)).ToContainTextAsync(Containing($"Due {Listed(tomorrow)}, 11:45 PM · {CallsEnvironment.ContosoName} · Call"));
-            await Expect(Row(page, midnight)).ToContainTextAsync(Containing($"Due {Listed(dayAfter)}, 12:00 AM · {CallsEnvironment.ContosoName} · Call"));
+            await Expect(Row(page, late)).ToContainTextAsync($"Due {Listed(tomorrow)}, 11:45 PM · {CallsEnvironment.ContosoName} · Call");
+            await Expect(Row(page, midnight)).ToContainTextAsync($"Due {Listed(dayAfter)}, 12:00 AM · {CallsEnvironment.ContosoName} · Call");
 
             // Each day lists its own call only. The other call goes first: its absence waits for the day's own list.
             await PickDueDayAsync(page, tomorrow, NewYork.Today);
@@ -63,14 +63,15 @@ public sealed class CallTimesTests(CallsEnvironment env)
         // The time select offers 2:30 AM on the night the clocks go forward too, when it does not exist.
         var day = NewYork.NextDaySkipping(2, 30);
 
-        await using var session = await OpenAsync("/company/tasks");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(NewCall_InTheSkippedHour_MovesForward), async page =>
         {
             await BookCallAsync(page, name, day, "2:30 AM");
 
             await ShowAllAsync(page);
-            await Expect(Row(page, name)).ToContainTextAsync(Containing($"Due {Listed(day)}, 3:30 AM · {CallsEnvironment.ContosoName} · Call"));
+            await Expect(Row(page, name)).ToContainTextAsync($"Due {Listed(day)}, 3:30 AM · {CallsEnvironment.ContosoName} · Call");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == name);
@@ -84,14 +85,15 @@ public sealed class CallTimesTests(CallsEnvironment env)
         const string name = "Call booked on the repeated hour";
         var day = CallsEnvironment.RepeatedHourDay;
 
-        await using var session = await OpenAsync("/company/tasks");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(NewCall_OnTheRepeatedHour_TakesTheFirstOne), async page =>
         {
             await BookCallAsync(page, name, day, "1:30 AM");
 
             await ShowAllAsync(page);
-            await Expect(Row(page, name)).ToContainTextAsync(Containing($"Due {Listed(day)}, 1:30 AM · {CallsEnvironment.ContosoName} · Call"));
+            await Expect(Row(page, name)).ToContainTextAsync($"Due {Listed(day)}, 1:30 AM · {CallsEnvironment.ContosoName} · Call");
         });
 
         // 1:30 AM happens twice that night. The browser reads a time of day with the offset from before the change, the
@@ -135,13 +137,13 @@ public sealed class CallTimesTests(CallsEnvironment env)
         // 1:00 AM in New York is the evening before in Los Angeles.
         var there = TimeZoneInfo.ConvertTimeFromUtc(instant, TimeZoneInfo.FindSystemTimeZoneById(losAngeles));
 
-        await using var session = await env.OpenAsync(env.DanaUserId, "/company/tasks", CallsEnvironment.NorthwindId, losAngeles);
+        await using var session = await env.OpenAsync(env.RepUserId, "/company/tasks", CallsEnvironment.NorthwindId, losAngeles);
 
         await session.RunAsync(nameof(Call_SeenFromAnotherTimeZone_ShowsTheSameInstant), async page =>
         {
             await ShowAllAsync(page);
             await Expect(Row(page, CallsEnvironment.CallFromNewYork))
-                .ToContainTextAsync(Containing($"Due {Listed(there.Date)}, {TimeOfDay(there)} · {CallsEnvironment.NorthwindName} · Call"));
+                .ToContainTextAsync($"Due {Listed(there.Date)}, {TimeOfDay(there)} · {CallsEnvironment.NorthwindName} · Call");
 
             var dialog = await EditAsync(page, CallsEnvironment.CallFromNewYork, "Edit call");
             await Expect(DueDate(dialog)).ToHaveValueAsync(Typed(there.Date));
@@ -174,7 +176,7 @@ public sealed class CallTimesTests(CallsEnvironment env)
             await SaveAsync(page, dialog);
 
             await Expect(Row(page, CallsEnvironment.CallOffTheQuarterHour))
-                .ToContainTextAsync(Containing($"Due {CallsEnvironment.ListedTomorrow}, 10:07 AM · {CallsEnvironment.ContosoName} · Call"));
+                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 10:07 AM · {CallsEnvironment.ContosoName} · Call");
         });
 
         // The update replaces the task, so the time, seconds included, and the customer have to go back as they were.
@@ -194,14 +196,11 @@ public sealed class CallTimesTests(CallsEnvironment env)
 
         await session.RunAsync(nameof(TimeField_OffersEveryQuarterHour_AndCannotBeEmptied), async page =>
         {
-            await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-            var dialog = Dialog(page, "Schedule call");
+            var dialog = await ScheduleCallAsync(page);
             var time = Field(dialog, "Time");
 
             await time.ClickAsync();
-            await Expect(page.GetByRole(AriaRole.Option)).ToHaveCountAsync(quarterHours.Count);
-            var options = await page.GetByRole(AriaRole.Option).AllInnerTextsAsync();
-            options.Select(x => Regex.Replace(x, @"\s+", " ").Trim()).Should().Equal(quarterHours);
+            await Expect(page.GetByRole(AriaRole.Option)).ToHaveTextAsync(quarterHours, new() { UseInnerText = true });
             await time.PressAsync("Escape");
 
             // Required: no Clear, and the keys that empty a field leave it as it was.
@@ -213,7 +212,9 @@ public sealed class CallTimesTests(CallsEnvironment env)
         });
     }
 
-    private Task<StorefrontSession> OpenAsync(string path) => env.OpenAsync(env.DanaUserId, path, CallsEnvironment.NorthwindId);
+    private Task<StorefrontSession> OpenAsync(string path) => OpenAsync(env.RepUserId, path);
+
+    private Task<StorefrontSession> OpenAsync(string userId, string path) => env.OpenAsync(userId, path, CallsEnvironment.NorthwindId);
 
     /// <summary>A call about Contoso from the task form, at a day and time.</summary>
     private static async Task BookCallAsync(IPage page, string name, DateTime day, string time)

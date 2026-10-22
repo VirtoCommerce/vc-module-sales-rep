@@ -54,7 +54,7 @@ public sealed class SalesRepsTests(SalesRepsEnvironment env)
 
         // The module wrote the account, the contact and the membership; the tests read them back from the harness,
         // between the blade's requests.
-        var account = await env.Backend.RunExclusiveAsync(async context =>
+        var account = await env.RunExclusiveAsync(async context =>
         {
             using var userManager = context.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
             return await userManager.FindByEmailAsync(email);
@@ -62,12 +62,12 @@ public sealed class SalesRepsTests(SalesRepsEnvironment env)
         account.Should().NotBeNull();
         account.MemberId.Should().NotBeNullOrEmpty();
 
-        var contact = await env.Backend.RunExclusiveAsync(async context => await context.GetRequiredService<IMemberService>().GetByIdAsync(account.MemberId) as Contact);
+        var contact = await env.RunExclusiveAsync(async context => await context.GetRequiredService<IMemberService>().GetByIdAsync(account.MemberId) as Contact);
         contact.Should().NotBeNull();
         contact.FirstName.Should().Be("Sam");
         contact.LastName.Should().Be("Seller");
 
-        var memberships = await env.Backend.RunExclusiveAsync(context => context.GetMembershipsAsync(account.Id));
+        var memberships = await env.RunExclusiveAsync(context => context.GetMembershipsAsync(account.Id));
         memberships.Should().ContainSingle(membership => membership.OrganizationId == SalesRepsEnvironment.FabrikamId);
     }
 
@@ -86,7 +86,7 @@ public sealed class SalesRepsTests(SalesRepsEnvironment env)
             (await blocked).Status.Should().Be(204);
         });
 
-        var lockedOut = await env.Backend.RunExclusiveAsync(async context =>
+        var lockedOut = await env.RunExclusiveAsync(async context =>
         {
             using var userManager = context.GetRequiredService<Func<UserManager<ApplicationUser>>>()();
             var account = await userManager.FindByIdAsync(env.Rita.UserId);

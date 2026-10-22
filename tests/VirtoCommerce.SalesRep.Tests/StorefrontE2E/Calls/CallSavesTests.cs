@@ -3,7 +3,6 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Playwright;
-using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
@@ -14,7 +13,8 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
 
 /// <summary>
 /// Saving a call: without a customer, refused because the customer is no longer the rep's, with the Google tab blocked,
-/// double-clicked, and abandoned. Erin's calls, so the task list's first page stays Carl's.
+/// double-clicked, and abandoned. Each test signs in as a rep of its own, so what it saves, and the customer it takes
+/// away, is nobody else's.
 /// </summary>
 [Collection(CallsCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
@@ -28,7 +28,8 @@ public sealed class CallSavesTests(CallsEnvironment env)
     {
         const string name = "Call the new prospect";
 
-        await using var session = await OpenAsync("/company/tasks");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(NewTask_CallWithoutCustomer_SavesAsNotAssigned), async page =>
         {
@@ -39,7 +40,7 @@ public sealed class CallSavesTests(CallsEnvironment env)
             await SaveAsync(page, dialog);
 
             await ShowAllAsync(page);
-            await Expect(Row(page, name)).ToContainTextAsync(Containing($"Due {CallsEnvironment.ListedTomorrow}, 9:00 AM · Customer not assigned · Call"));
+            await Expect(Row(page, name)).ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 9:00 AM · Customer not assigned · Call");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == name);
@@ -53,63 +54,51 @@ public sealed class CallSavesTests(CallsEnvironment env)
     [Fact(Timeout = 300_000)]
     public async Task ScheduleCall_RefusedWithGoogleTicked_ClosesTheTab()
     {
-        OrganizationMembership removed = null;
+        var rep = await env.NewRepAsync();
+        await using var session = await env.OpenAsync(rep.UserId, $"/company/my-customers/{CallsEnvironment.ContosoId}", CallsEnvironment.NorthwindId, beforeLoad: StandInForGoogleAsync);
 
-        await using var session = await env.OpenAsync(env.ErinUserId, $"/company/my-customers/{CallsEnvironment.WideWorldId}", CallsEnvironment.NorthwindId, beforeLoad: StandInForGoogleAsync);
-
-        try
+        await session.RunAsync(nameof(ScheduleCall_RefusedWithGoogleTicked_ClosesTheTab), async page =>
         {
-            await session.RunAsync(nameof(ScheduleCall_RefusedWithGoogleTicked_ClosesTheTab), async page =>
-            {
-                await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-                var dialog = Dialog(page, "Schedule call");
-                await TickAsync(dialog, "Google Calendar");
-                await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
+            var dialog = await ScheduleCallAsync(page);
+            await TickAsync(dialog, "Google Calendar");
+            await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
 
-                // By the time Erin saves, the customer is no longer hers: the call is refused.
-                removed = await env.StopServingAsync(env.ErinUserId, CallsEnvironment.WideWorldId);
-                var blank = page.WaitForPopupAsync();
-                await SaveButton(dialog).ClickAsync();
+            // By the time the rep saves, the customer is no longer theirs: the call is refused.
+            var removed = await env.StopServingAsync(rep.UserId, CallsEnvironment.ContosoId);
+            var blank = page.WaitForPopupAsync();
+            await SaveButton(dialog).ClickAsync();
 
-                // The tab the click opened for Google closes again, and the draft stays to retry.
-                await WaitUntilClosedAsync(await blank);
-                await Expect(dialog.GetByLabel("Title")).ToHaveValueAsync("Call");
-                await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.WideWorldName);
-                await Expect(DueDate(dialog)).ToHaveValueAsync(CallsEnvironment.TypedTomorrow);
-                await Expect(dialog.GetByRole(AriaRole.Checkbox, new() { Name = "Google Calendar", Exact = true })).ToBeCheckedAsync();
-                (await env.CountTasksAsync(x => x.ObjectId == CallsEnvironment.WideWorldId)).Should().Be(0);
+            // The tab the click opened for Google closes again, and the draft stays to retry.
+            await WaitUntilClosedAsync(await blank);
+            await Expect(dialog.GetByLabel("Title")).ToHaveValueAsync("Call");
+            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.ContosoName);
+            await Expect(DueDate(dialog)).ToHaveValueAsync(CallsEnvironment.TypedTomorrow);
+            await Expect(dialog.GetByRole(AriaRole.Checkbox, new() { Name = "Google Calendar", Exact = true })).ToBeCheckedAsync();
+            (await env.CountTasksAsync(x => x.ResponsibleId == rep.Id)).Should().Be(0);
 
-                await env.ServeAgainAsync(removed);
-                removed = null;
+            await env.ServeAgainAsync(removed);
 
-                var google = page.WaitForPopupAsync();
-                await SaveAsync(page, dialog);
-                await Expect(await google).ToHaveURLAsync(new Regex("^https://calendar\\.google\\.com/"));
-            });
-        }
-        finally
-        {
-            if (removed != null)
-            {
-                await env.ServeAgainAsync(removed);
-            }
-        }
+            var google = page.WaitForPopupAsync();
+            await SaveAsync(page, dialog);
+            await Expect(await google).ToHaveURLAsync(new Regex("^https://calendar\\.google\\.com/"));
+        });
 
-        var task = await env.WaitForTaskAsync(x => x.ObjectId == CallsEnvironment.WideWorldId);
+        var task = await env.WaitForTaskAsync(x => x.ResponsibleId == rep.Id);
         task.Should().NotBeNull();
         task.Type.Should().Be(Call);
+        task.ObjectId.Should().Be(CallsEnvironment.ContosoId);
         task.DueDate.Should().Be(CallsEnvironment.At(9));
     }
 
     [Fact(Timeout = 300_000)]
     public async Task ScheduleCall_GoogleTabBlocked_SavesAndWarns()
     {
-        await using var session = await OpenAsync($"/company/my-customers/{CallsEnvironment.ContosoId}");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, $"/company/my-customers/{CallsEnvironment.ContosoId}");
 
         await session.RunAsync(nameof(ScheduleCall_GoogleTabBlocked_SavesAndWarns), async page =>
         {
-            await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-            var dialog = Dialog(page, "Schedule call");
+            var dialog = await ScheduleCallAsync(page);
             await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
             await PickAsync(page, Field(dialog, "Time"), "7:15 AM");
             await TickAsync(dialog, "Google Calendar");
@@ -119,11 +108,11 @@ public sealed class CallSavesTests(CallsEnvironment env)
             await SaveButton(dialog).ClickAsync();
 
             await Expect(page.GetByText("Task saved, but it could not be added to the calendar", new() { Exact = true })).ToBeVisibleAsync();
-            await Expect(page.GetByText("Task saved", new() { Exact = true })).ToHaveCountAsync(0);
+            await Expect(SavedToast(page)).ToHaveCountAsync(0);
             await Expect(dialog).ToHaveCountAsync(0);
         });
 
-        var task = await env.WaitForTaskAsync(x => x.ResponsibleId == env.ErinMemberId && x.ObjectId == CallsEnvironment.ContosoId && x.DueDate == CallsEnvironment.At(7, 15));
+        var task = await env.WaitForTaskAsync(x => x.ResponsibleId == rep.Id && x.ObjectId == CallsEnvironment.ContosoId && x.DueDate == CallsEnvironment.At(7, 15));
         task.Should().NotBeNull();
         task.Type.Should().Be(Call);
     }
@@ -131,37 +120,25 @@ public sealed class CallSavesTests(CallsEnvironment env)
     [Fact(Timeout = 300_000, Skip = "VCST-6455: a refused save shows the generic error toast, and the server's reason is dropped.")]
     public async Task ScheduleCall_Refused_ShowsTheReason()
     {
-        OrganizationMembership removed = null;
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, $"/company/my-customers/{CallsEnvironment.ContosoId}");
 
-        await using var session = await OpenAsync($"/company/my-customers/{CallsEnvironment.TailspinId}");
-
-        try
+        await session.RunAsync(nameof(ScheduleCall_Refused_ShowsTheReason), async page =>
         {
-            await session.RunAsync(nameof(ScheduleCall_Refused_ShowsTheReason), async page =>
-            {
-                await page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
-                var dialog = Dialog(page, "Schedule call");
-                await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
+            var dialog = await ScheduleCallAsync(page);
+            await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
 
-                removed = await env.StopServingAsync(env.ErinUserId, CallsEnvironment.TailspinId);
-                await SaveButton(dialog).ClickAsync();
+            await env.StopServingAsync(rep.UserId, CallsEnvironment.ContosoId);
+            await SaveButton(dialog).ClickAsync();
 
-                // The rep is told why. Retrying the same draft gets the same answer, so "try again later" is no reason.
-                await Expect(page.GetByText(Containing("Customer not found"))).ToBeVisibleAsync();
-                await Expect(page.GetByText("Something went wrong. Please try again later.")).ToHaveCountAsync(0);
-                await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.TailspinName);
-                await Expect(DueDate(dialog)).ToHaveValueAsync(CallsEnvironment.TypedTomorrow);
-            });
-        }
-        finally
-        {
-            if (removed != null)
-            {
-                await env.ServeAgainAsync(removed);
-            }
-        }
+            // The rep is told why. Retrying the same draft gets the same answer, so "try again later" is no reason.
+            await Expect(page.GetByText("Customer not found")).ToBeVisibleAsync();
+            await Expect(page.GetByText("Something went wrong. Please try again later.")).ToHaveCountAsync(0);
+            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.ContosoName);
+            await Expect(DueDate(dialog)).ToHaveValueAsync(CallsEnvironment.TypedTomorrow);
+        });
 
-        (await env.CountTasksAsync(x => x.ObjectId == CallsEnvironment.TailspinId)).Should().Be(0);
+        (await env.CountTasksAsync(x => x.ResponsibleId == rep.Id)).Should().Be(0);
     }
 
     [Fact(Timeout = 300_000)]
@@ -169,7 +146,8 @@ public sealed class CallSavesTests(CallsEnvironment env)
     {
         const string name = "Call about the double click";
 
-        await using var session = await OpenAsync("/company/tasks");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(SaveDoubleClicked_CreatesOneCall), async page =>
         {
@@ -193,15 +171,12 @@ public sealed class CallSavesTests(CallsEnvironment env)
     [Fact(Timeout = 300_000)]
     public async Task ScheduleCall_CancelledAfterEdits_ReopensFresh()
     {
-        var before = await env.CountTasksAsync(x => x.ResponsibleId == env.ErinMemberId);
-
-        await using var session = await OpenAsync($"/company/my-customers/{CallsEnvironment.NorthwindId}");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, $"/company/my-customers/{CallsEnvironment.NorthwindId}");
 
         await session.RunAsync(nameof(ScheduleCall_CancelledAfterEdits_ReopensFresh), async page =>
         {
-            var scheduleCall = page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true });
-            await scheduleCall.ClickAsync(new() { Timeout = 60_000 });
-            var dialog = Dialog(page, "Schedule call");
+            var dialog = await ScheduleCallAsync(page);
             await PickAsync(page, Field(dialog, "Time"), "3:45 PM");
             await PickAsync(page, Field(dialog, "Priority"), "High");
             await dialog.GetByLabel("Notes").FillAsync("Bring the catalog");
@@ -211,21 +186,16 @@ public sealed class CallSavesTests(CallsEnvironment env)
             await Expect(dialog).ToHaveCountAsync(0);
 
             // Nothing of the abandoned draft carries over.
-            await scheduleCall.ClickAsync();
-            await Expect(dialog.GetByLabel("Title")).ToHaveValueAsync("Call");
-            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.NorthwindName);
-            await Expect(DueDate(dialog)).ToHaveValueAsync(string.Empty);
-            await Expect(Field(dialog, "Time")).ToHaveValueAsync(Exactly("9:00 AM"));
-            await Expect(Field(dialog, "Priority")).ToHaveValueAsync("Normal");
+            await ScheduleCallAsync(page);
+            await ExpectNewCallDraftAsync(dialog, CallsEnvironment.NorthwindName);
             await Expect(dialog.GetByLabel("Notes")).ToHaveValueAsync(string.Empty);
-            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox)).ToHaveCountAsync(2);
-            await Expect(Calendars(dialog).GetByRole(AriaRole.Checkbox, new() { Checked = true })).ToHaveCountAsync(0);
+            await ExpectCalendarsUntickedAsync(dialog);
         });
 
-        (await env.CountTasksAsync(x => x.ResponsibleId == env.ErinMemberId)).Should().Be(before);
+        (await env.CountTasksAsync(x => x.ResponsibleId == rep.Id)).Should().Be(0);
     }
 
-    private Task<StorefrontSession> OpenAsync(string path) => env.OpenAsync(env.ErinUserId, path, CallsEnvironment.NorthwindId);
+    private Task<StorefrontSession> OpenAsync(string userId, string path) => env.OpenAsync(userId, path, CallsEnvironment.NorthwindId);
 
     /// <summary>Waits for a tab to close; one that closed before the wait began counts too.</summary>
     private static async Task WaitUntilClosedAsync(IPage tab)

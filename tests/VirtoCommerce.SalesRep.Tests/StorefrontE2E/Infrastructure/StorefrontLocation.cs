@@ -25,8 +25,8 @@ internal sealed class StorefrontLocation
     private static readonly Lazy<StorefrontLocation> _current = new(() => Resolve(
         Environment.GetEnvironmentVariable(BuildVariable),
         Environment.GetEnvironmentVariable(SourceVariable),
-        // bin/Debug/net10.0 -> tests project -> tests -> repo
-        Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."))));
+        // the module's Web project -> src -> repo
+        Path.GetFullPath(Path.Combine(StorefrontPlugin.ModuleDirectory, "..", ".."))));
 
     private StorefrontLocation(string buildDirectory, string sourceDirectory)
     {
@@ -53,20 +53,21 @@ internal sealed class StorefrontLocation
                 return new StorefrontLocation(configuredBuild, null);
             }
 
-            RequireClone(configuredSource, runsOnVite: false);
+            RequireClone(configuredSource);
             return new StorefrontLocation(configuredBuild, configuredSource);
         }
 
         if (!string.IsNullOrEmpty(configuredSource))
         {
-            RequireClone(configuredSource, runsOnVite: true);
+            RequireClone(configuredSource);
+            RequireInstalled(configuredSource);
             return new StorefrontLocation(null, configuredSource);
         }
 
         var clone = Path.GetFullPath(Path.Combine(repositoryDirectory, "..", "vc-frontend"));
         if (File.Exists(Path.Combine(clone, "package.json")))
         {
-            RequireClone(clone, runsOnVite: true);
+            RequireInstalled(clone);
             return new StorefrontLocation(null, clone);
         }
 
@@ -90,14 +91,18 @@ internal sealed class StorefrontLocation
         }
     }
 
-    private static void RequireClone(string directory, bool runsOnVite)
+    private static void RequireClone(string directory)
     {
         if (!File.Exists(Path.Combine(directory, "package.json")))
         {
             throw new InvalidOperationException($"{SourceVariable} names {directory}, which is not a vc-frontend clone: it has no package.json.");
         }
+    }
 
-        if (runsOnVite && !File.Exists(ViteDevServer.EntryPoint(directory)))
+    /// <summary>A clone runs on its own Vite dev server, which needs the clone's packages.</summary>
+    private static void RequireInstalled(string directory)
+    {
+        if (!File.Exists(ViteDevServer.EntryPoint(directory)))
         {
             throw new InvalidOperationException($"The vc-frontend clone at {directory} has no node_modules: run `yarn install` there.");
         }

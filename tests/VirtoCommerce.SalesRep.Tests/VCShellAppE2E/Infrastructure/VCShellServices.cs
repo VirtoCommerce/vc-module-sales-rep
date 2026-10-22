@@ -1,6 +1,5 @@
 using System;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -93,7 +92,7 @@ internal static class VCShellServices
         services.AddDataProtection().UseEphemeralDataProtectionProvider();
     }
 
-    public static void ConfigurePipeline(WebApplication app, string appDirectory, SemaphoreSlim gate)
+    public static void ConfigurePipeline(WebApplication app, string appDirectory, RequestGate gate)
     {
         // What the platform's ApiErrorWrappingMiddleware does: an unhandled exception answers 500 with its message,
         // which the session recorder then carries into the failing test's report.
@@ -114,21 +113,9 @@ internal static class VCShellServices
         var appFiles = new PhysicalFileProvider(appDirectory);
         app.UseStaticFiles(new StaticFileOptions { FileProvider = appFiles, RequestPath = AppPath });
 
-        // The harness keeps each in-memory SQLite database on one connection, which is not thread-safe, and a blade
-        // loads in parallel ("database is locked" on GET /api/sales-rep/{id}). Everything past the static files takes
-        // its turn at the gate (InProcessVCShellBackend.RunExclusiveAsync), as on the storefront host.
-        app.Use(async (context, next) =>
-        {
-            await gate.WaitAsync(context.RequestAborted);
-            try
-            {
-                await next(context);
-            }
-            finally
-            {
-                gate.Release();
-            }
-        });
+        // Everything past the static files takes its turn at the gate: a blade loads in parallel ("database is locked"
+        // on GET /api/sales-rep/{id}).
+        gate.Use(app);
 
         app.UseAuthentication();
         app.UseAuthorization();

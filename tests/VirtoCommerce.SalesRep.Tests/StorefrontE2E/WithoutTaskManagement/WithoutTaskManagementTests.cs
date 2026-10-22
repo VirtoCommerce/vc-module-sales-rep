@@ -4,6 +4,7 @@ using Microsoft.Playwright;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
+using static VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure.HubControls;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.WithoutTaskManagement;
 
@@ -24,8 +25,8 @@ public sealed class WithoutTaskManagementTests(WithoutTaskManagementEnvironment 
             await session.RunAsync(nameof(WithoutTaskManagement_ScheduleCallIsDisabled), async page =>
             {
                 // Send email waits for the customer as Schedule call does: only the missing module keeps the second disabled.
-                await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Send email", Exact = true })).ToBeEnabledAsync(new() { Timeout = 60_000 });
-                await Expect(page.GetByRole(AriaRole.Button, new() { Name = "Schedule call", Exact = true })).ToBeDisabledAsync();
+                await Expect(QuickAction(page, "Send email")).ToBeEnabledAsync(new() { Timeout = 60_000 });
+                await Expect(QuickAction(page, "Schedule call")).ToBeDisabledAsync();
 
                 // The hub's menu goes from My customers to My activity, with no Tasks between them.
                 await Expect(page.GetByRole(AriaRole.Link, new() { Name = "My activity", Exact = true })).ToBeVisibleAsync();

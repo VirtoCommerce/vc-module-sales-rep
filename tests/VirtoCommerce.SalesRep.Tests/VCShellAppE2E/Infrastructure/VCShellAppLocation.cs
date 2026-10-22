@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.VCShellAppE2E.Infrastructure;
 
@@ -29,9 +30,7 @@ internal static class VCShellAppLocation
                 : throw new InvalidOperationException($"{Variable} names {configured}, which is not a built VC-Shell app: it has no index.html with an index*.js bundle.");
         }
 
-        // bin/Debug/net10.0 -> tests project -> tests -> repo
-        var repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-        var web = Path.Combine(repo, "src", "VirtoCommerce.SalesRep.Web");
+        var web = StorefrontPlugin.ModuleDirectory;
         var app = Path.Combine(web, "App");
 
         return new[] { Path.Combine(app, "dist"), Path.Combine(web, "Content", "vc-sales-rep") }.FirstOrDefault(IsBuiltApp)
