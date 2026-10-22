@@ -1,11 +1,10 @@
 import type { SalesRepCouponType } from "./composables/useSalesRepCoupons";
-
-type TranslateType = (key: string, params?: Record<string, unknown>, plural?: number) => string;
+import type { ComposerTranslation } from "vue-i18n";
 
 // The line under a coupon's description, on both the profile widget and the all-coupons page.
 export function couponUsesLabel(
   coupon: Pick<SalesRepCouponType, "maxUsesNumber" | "totalUsesCount">,
-  t: TranslateType,
+  t: ComposerTranslation,
 ): string {
   // MaxUsesNumber 0 means no cap in vc-module-marketing.
   if (!coupon.maxUsesNumber) {

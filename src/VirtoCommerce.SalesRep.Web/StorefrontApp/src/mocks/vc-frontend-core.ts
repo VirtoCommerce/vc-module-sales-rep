@@ -377,7 +377,7 @@ export const OrderStatus = defineComponent({
   setup: (props) => () => h("span", props.displayValue || props.status),
 });
 
-// The host's coupon card: only the code and the description-append slot, which is all a plugin contributes.
+// The host's coupon card: only the code and the after-description slot, which is all a plugin contributes.
 export const CouponItem = defineComponent({
   name: "CouponItem",
   props: { coupon: { type: Object, required: true }, compact: { type: Boolean, default: false } },
@@ -386,7 +386,7 @@ export const CouponItem = defineComponent({
     () =>
       h("div", { class: "coupon-item", "data-compact": String(props.compact) }, [
         h("span", { class: "coupon-item__code-value" }, String(props.coupon.couponCode ?? "")),
-        slots["description-append"]?.(),
+        slots["after-description"]?.(),
       ]),
 });
 

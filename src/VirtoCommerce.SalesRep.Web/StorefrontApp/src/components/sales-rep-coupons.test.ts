@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 describe("SalesRepCoupons", () => {
-  it("asks for the block's row cap", () => {
+  it("asks for the default row cap when rendered outside a layout", () => {
     createWrapper();
 
     const [{ first }] = state.useSalesRepCoupons.mock.calls[0] as [{ first: () => number }];

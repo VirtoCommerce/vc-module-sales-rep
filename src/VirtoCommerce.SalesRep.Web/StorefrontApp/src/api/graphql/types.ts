@@ -1607,8 +1607,6 @@ export type QuerySalesRepCouponsArgs = {
   after?: InputMaybe<Scalars['String']['input']>;
   cultureName?: InputMaybe<Scalars['String']['input']>;
   first?: InputMaybe<Scalars['Int']['input']>;
-  keyword?: InputMaybe<Scalars['String']['input']>;
-  sort?: InputMaybe<Scalars['String']['input']>;
   storeId: Scalars['String']['input'];
 };
 
@@ -2025,7 +2023,7 @@ export type SalesRepCoupon = {
   couponCode: Scalars['String']['output'];
   /** Localized promotion description, falling back to its description. */
   description?: Maybe<Scalars['String']['output']>;
-  /** When the coupon stops working: its own expiration, else the promotion's end. */
+  /** When the coupon stops working: the earlier of its own expiration and the promotion's end. */
   endDate?: Maybe<Scalars['DateTime']['output']>;
   /** The coupon's own expiration, if it has one. */
   expirationDate?: Maybe<Scalars['DateTime']['output']>;
@@ -2037,8 +2035,6 @@ export type SalesRepCoupon = {
   maxUsesNumber: Scalars['Int']['output'];
   /** Uses allowed per buyer; 0 means unlimited. */
   maxUsesPerUser: Scalars['Int']['output'];
-  /** Customer or organization the coupon is registered to, if any. */
-  memberId?: Maybe<Scalars['String']['output']>;
   /** Localized promotion display name, falling back to its name. */
   name?: Maybe<Scalars['String']['output']>;
   /** When the promotion ends. */

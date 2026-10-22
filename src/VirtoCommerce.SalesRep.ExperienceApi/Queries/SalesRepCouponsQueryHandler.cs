@@ -18,17 +18,20 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
 {
     private readonly IOptionalDependency<IPromotionSearchService> _promotionSearchService;
     private readonly IOptionalDependency<ICouponSearchService> _couponSearchService;
+    private readonly IOptionalDependency<IPromotionUsageSearchService> _promotionUsageSearchService;
     private readonly ISalesRepStoreAccessService _storeAccessService;
 
     public SalesRepCouponsQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
         IOptionalDependency<IPromotionSearchService> promotionSearchService,
         IOptionalDependency<ICouponSearchService> couponSearchService,
+        IOptionalDependency<IPromotionUsageSearchService> promotionUsageSearchService,
         ISalesRepStoreAccessService storeAccessService)
         : base(organizationAccessService)
     {
         _promotionSearchService = promotionSearchService;
         _couponSearchService = couponSearchService;
+        _promotionUsageSearchService = promotionUsageSearchService;
         _storeAccessService = storeAccessService;
     }
 
@@ -37,7 +40,8 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
         var result = AbstractTypeFactory<SalesRepCouponSearchResult>.TryCreateInstance();
 
         // Optional dependency: with vc-module-marketing absent every read is simply empty.
-        if (!_promotionSearchService.HasValue || !_couponSearchService.HasValue || !await IsSalesRepAsync(request.UserId))
+        if (!_promotionSearchService.HasValue || !_couponSearchService.HasValue || !_promotionUsageSearchService.HasValue ||
+            !await IsSalesRepAsync(request.UserId))
         {
             return result;
         }
@@ -57,9 +61,11 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
             return result;
         }
 
-        var coupons = await _couponSearchService.Value.SearchAllNoCloneAsync(BuildCouponSearchCriteria(promotions));
+        // Cloned: the uses count is overwritten below, and the cached coupons must stay as they are.
+        var coupons = await _couponSearchService.Value.SearchAllAsync(BuildCouponSearchCriteria(promotions));
+        await RefreshTotalUsesCountAsync(coupons);
 
-        var promotionsById = promotions.ToDictionary(x => x.Id);
+        var promotionsById = promotions.ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
         var available = ToAvailableCoupons(coupons, promotionsById);
 
         // Mapped after paging: only the returned page gets localized.
@@ -73,7 +79,7 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
         return result;
     }
 
-    // The same set as xAPI promotionCoupons, so a rep sees what the customer sees on their Promotion coupons page.
+    // The same promotions as xAPI promotionCoupons; expired, used-up and member-only coupons are dropped below.
     protected virtual PromotionSearchCriteria BuildPromotionSearchCriteria(SalesRepCouponsQuery request)
     {
         var criteria = AbstractTypeFactory<PromotionSearchCriteria>.TryCreateInstance();
@@ -94,6 +100,22 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
         return criteria;
     }
 
+    // A coupon's TotalUsesCount is computed when it loads and then cached, and recording a use doesn't evict it.
+    // Recount capped coupons the way checkout does (DynamicPromotion.GetUsageCount): the usage search's cache is
+    // evicted on every usage write.
+    protected virtual async Task RefreshTotalUsesCountAsync(IList<Coupon> coupons)
+    {
+        foreach (var coupon in coupons.Where(x => x.MaxUsesNumber > 0))
+        {
+            var criteria = AbstractTypeFactory<PromotionUsageSearchCriteria>.TryCreateInstance();
+            criteria.PromotionId = coupon.PromotionId;
+            criteria.CouponCode = coupon.Code;
+            criteria.Take = 0;
+
+            coupon.TotalUsesCount = (await _promotionUsageSearchService.Value.SearchAsync(criteria)).TotalCount;
+        }
+    }
+
     protected virtual IList<Coupon> ToAvailableCoupons(IList<Coupon> coupons, IDictionary<string, Promotion> promotionsById)
     {
         var now = DateTime.UtcNow;
@@ -101,9 +123,11 @@ public class SalesRepCouponsQueryHandler : SalesRepQueryHandlerBase, IQueryHandl
         return coupons
             .Where(x => x.ExpirationDate == null || x.ExpirationDate > now)
             .Where(x => x.MaxUsesNumber == 0 || x.TotalUsesCount < x.MaxUsesNumber)
-            // Soonest to expire first, like the storefront's own coupon list (the card's end date: the coupon's
-            // expiration, else the promotion's end); the id keeps pages stable.
-            .OrderBy(x => x.ExpirationDate ?? promotionsById[x.PromotionId].EndDate ?? DateTime.MaxValue)
+            // Checkout accepts a coupon registered to a member only from that contact or organization, and this list
+            // isn't scoped to one customer.
+            .Where(x => string.IsNullOrWhiteSpace(x.MemberId))
+            // Soonest to expire first, like the storefront's own coupon list; the id keeps pages stable.
+            .OrderBy(x => SalesRepCoupon.GetEndDate(x, promotionsById[x.PromotionId]) ?? DateTime.MaxValue)
             .ThenBy(x => x.Id)
             .ToList();
     }

@@ -9,7 +9,7 @@ import type { MaybeRefOrGetter } from "vue";
  * that frames the page (heading, breadcrumbs, and whether the rep serves them at all).
  */
 export function useSalesRepCustomerCoupons(organizationId: MaybeRefOrGetter<string>) {
-  const { customer, notFound } = useSalesRepCustomer(organizationId);
+  const { customer, failed: customerFailed, notFound } = useSalesRepCustomer(organizationId);
 
   const page = ref(1);
   const { coupons, totalCount, loading, failed } = useSalesRepCoupons({
@@ -26,5 +26,5 @@ export function useSalesRepCustomerCoupons(organizationId: MaybeRefOrGetter<stri
     }
   });
 
-  return { customer, notFound, coupons, loading, failed, page, pages };
+  return { customer, customerFailed, notFound, coupons, loading, failed, page, pages };
 }

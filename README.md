@@ -40,7 +40,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 
 ## XAPI Specification
 
-The storefront queries are exposed on a dedicated scoped schema at `POST /graphql/sales-rep` (with a GraphiQL UI at `/ui/graphiql/sales-rep`). Every query requires an authenticated caller and is store- and membership-scoped, so a rep only sees the customers they serve and a buyer only sees their own reps.
+The storefront queries are exposed on a dedicated scoped schema at `POST /graphql/sales-rep` (with a GraphiQL UI at `/ui/graphiql/sales-rep`). Every query requires an authenticated caller and is store- and membership-scoped, so a rep only sees the customers they serve and a buyer only sees their own reps. The one store-wide read is `salesRepCoupons`: a store's public coupons, the same for every rep of that store.
 
 > **Authentication.** Every query needs a bearer token. When the rep's login account is **store-bound**, the `POST /connect/token` password grant must include the `storeId` form parameter (e.g. `storeId=B2B-store`) — otherwise the grant fails with `400 invalid_grant`.
 
@@ -664,6 +664,38 @@ read, and every mutation of an existing task, follows with no call site to chang
 seam** — it stamps the caller directly, so it can only ever produce a task they own; creating on someone's behalf
 needs its own change. Returning an empty list means "nothing", never "everything".
 
+#### Promotion coupons
+
+The coupons a rep can hand to any customer of the store, read from **`VirtoCommerce.Marketing`** — an **optional**
+dependency. With that module absent or disabled the query answers empty. The caller must be a sales rep allowed in
+`storeId`; an empty `storeId` is refused rather than read as "every store".
+
+The set is xAPI `promotionCoupons`' (active public promotions of the store with one shared code), minus what a
+customer could not redeem today:
+
+- expired coupons;
+- used-up coupons. The uses are counted the way checkout counts them, not taken from the cached coupon, whose
+  `totalUsesCount` is not refreshed when a coupon is used;
+- coupons registered to a contact or organization: checkout accepts those only from that member, and the list isn't
+  scoped to one customer.
+
+Ordered by `endDate`, soonest first. `endDate` is when the coupon stops working: the earlier of the coupon's own
+expiration and the promotion's end.
+
+```graphql
+{
+  # `cultureName` localizes the promotion's name, label and description; omit it for the invariant values.
+  salesRepCoupons(storeId: "B2B-store", cultureName: "en-US", first: 20, after: "0") {
+    totalCount
+    items {
+      id couponCode promotionId name label description
+      startDate endDate promotionEndDate expirationDate
+      maxUsesNumber maxUsesPerUser totalUsesCount
+    }
+  }
+}
+```
+
 ### Mutation
 
 Send a communication — a storefront push notification and/or an email — to the members of one or more customer organizations the rep serves (the "My customers" contact action and its multi-select "Send message" popup):
@@ -1021,6 +1053,7 @@ Two limits are worth knowing. A write that runs inside an `EventSuppressor` scop
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 | `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
+| `VirtoCommerce.Marketing` | **Optional.** Promotion coupons for `salesRepCoupons` (`IPromotionSearchService`, `ICouponSearchService`, `IPromotionUsageSearchService`, all in its `.Core`, shipped through `module.keep`). Consumed through `IOptionalDependency<T>`: absent or disabled, the query answers empty. |
 | `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |
 
 ## Documentation
@@ -1034,7 +1067,7 @@ Two limits are worth knowing. A write that runs inside an `EventSuppressor` scop
   * [VCST-5332: Publish a shopping list to a customer organization](https://virtocommerce.atlassian.net/browse/VCST-5332)
   * [#12 — VCST-5730: Sales Rep documents library](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/12)
 
-> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
+> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers and list management) is built on top of this module in the frontend and is not part of this repository.
 
 ## References
 

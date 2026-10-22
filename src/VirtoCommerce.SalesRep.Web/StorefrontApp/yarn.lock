@@ -2705,7 +2705,7 @@ __metadata:
 
 "@vc-frontend/core@file:./facade/vc-frontend-core-0.2.5.tgz::locator=sales-rep%40workspace%3A.":
   version: 0.2.5
-  resolution: "@vc-frontend/core@file:./facade/vc-frontend-core-0.2.5.tgz#./facade/vc-frontend-core-0.2.5.tgz::hash=6f5644&locator=sales-rep%40workspace%3A."
+  resolution: "@vc-frontend/core@file:./facade/vc-frontend-core-0.2.5.tgz#./facade/vc-frontend-core-0.2.5.tgz::hash=38af86&locator=sales-rep%40workspace%3A."
   peerDependencies:
     "@apollo/client": ^3.14.0
     "@floating-ui/vue": ^2.0.1
@@ -2731,7 +2731,7 @@ __metadata:
       optional: true
     tw-elements:
       optional: true
-  checksum: 10c0/7e0e96b83adbd4641c8baa377db688e5f215f201ec7190bdfee81cb253ef1fc66e266e757533b2938d0a7b8209c787289f07926f3b5c4e323033342734de519e
+  checksum: 10c0/4d1a707eaa39352a3ce3713ff83e7b5975bedd241f00b99531ee9b719d8b2ee0d09912577b4d5ce6230a8cc6b80288ad4c47f10a17de92439dba50c38e079b0e
   languageName: node
   linkType: hard
 

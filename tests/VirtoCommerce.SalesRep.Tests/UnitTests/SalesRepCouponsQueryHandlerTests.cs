@@ -18,8 +18,9 @@ namespace VirtoCommerce.SalesRep.Tests.UnitTests;
 
 /// <summary>
 /// The salesRepCoupons contract over stub marketing services: the promotion set matches xAPI promotionCoupons,
-/// expired and used-up coupons are dropped BEFORE paging (so totalCount and pages stay exact), the card's endDate is
-/// the coupon's expiration else the promotion's end, and a missing module or a non-rep caller reads empty.
+/// expired, used-up (counted fresh, not from the cached coupon) and member-only coupons are dropped BEFORE paging (so
+/// totalCount and pages stay exact), the card's endDate is the earlier of the coupon's expiration and the promotion's
+/// end, and a missing module or a non-rep caller reads empty.
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepCouponsQueryHandlerTests
@@ -69,6 +70,59 @@ public class SalesRepCouponsQueryHandlerTests
         result.Results[1].PromotionEndDate.Should().Be(_later);
     }
 
+    // Marketing caches a coupon with the uses count it had when it loaded, and recording a use doesn't evict it.
+    [Fact]
+    public async Task Handle_CountsUsesFresh_NotFromTheCachedCoupon()
+    {
+        var cached = new[] { Coupon("c1", "p1", maxUses: 2), Coupon("c2", "p2", maxUses: 5), Coupon("c3", "p3") };
+        var handler = Handler(
+            new StubPromotionSearchService([Promotion("p1"), Promotion("p2"), Promotion("p3")]),
+            new StubCouponSearchService(cached),
+            uses: new Dictionary<string, int> { ["CODE-c1"] = 2, ["CODE-c2"] = 3 });
+
+        var result = await handler.Handle(Query(), CancellationToken.None);
+
+        result.Results.Select(x => x.Id).Should().Equal("c2", "c3");
+        result.Results[0].TotalUsesCount.Should().Be(3);
+        cached.Should().OnlyContain(x => x.TotalUsesCount == 0, "the cached coupons must not be written to");
+    }
+
+    // Checkout accepts a member's coupon only from that contact or organization; the list isn't per customer.
+    [Fact]
+    public async Task Handle_DropsCouponsRegisteredToAMember()
+    {
+        var handler = Handler(
+            new StubPromotionSearchService([Promotion("p1"), Promotion("p2")]),
+            new StubCouponSearchService([Coupon("c1", "p1", memberId: "org-z"), Coupon("c2", "p2")]));
+
+        var result = await handler.Handle(Query(), CancellationToken.None);
+
+        result.TotalCount.Should().Be(1);
+        result.Results.Select(x => x.Id).Should().Equal("c2");
+    }
+
+    // Checkout evaluates only active promotions, so a coupon expiring after its promotion stops at the promotion's end.
+    [Fact]
+    public async Task Handle_EndDate_IsTheEarlierOfTheCouponsExpirationAndThePromotionsEnd()
+    {
+        var handler = Handler(
+            new StubPromotionSearchService([Promotion("p1", _future), Promotion("p2", _later)]),
+            new StubCouponSearchService([Coupon("c1", "p1", expiration: _later.AddDays(30)), Coupon("c2", "p2", expiration: _later.AddDays(-1))]));
+
+        var result = await handler.Handle(Query(), CancellationToken.None);
+
+        result.Results.Select(x => x.Id).Should().Equal("c1", "c2");
+        result.Results[0].EndDate.Should().Be(_future);
+        result.Results[1].EndDate.Should().Be(_later.AddDays(-1));
+    }
+
+    // The list has one fixed order and no search, so it doesn't publish arguments it would ignore.
+    [Fact]
+    public void Arguments_DoNotIncludeKeywordOrSort()
+    {
+        new SalesRepCouponsQuery().GetArguments().Select(x => x.Name).Should().Equal("StoreId", "CultureName");
+    }
+
     [Fact]
     public async Task Handle_PagesAfterFiltering()
     {
@@ -113,6 +167,7 @@ public class SalesRepCouponsQueryHandlerTests
             new FakeOrganizationAccessService(isRep: true),
             new StubOptionalDependency<IPromotionSearchService>(null),
             new StubOptionalDependency<ICouponSearchService>(null),
+            new StubOptionalDependency<IPromotionUsageSearchService>(null),
             new FakeStoreAccessService(allowed: true));
 
         var result = await handler.Handle(Query(), CancellationToken.None);
@@ -169,11 +224,15 @@ public class SalesRepCouponsQueryHandlerTests
         StubPromotionSearchService promotions,
         StubCouponSearchService coupons,
         bool isRep = true,
-        FakeStoreAccessService storeAccess = null) =>
+        FakeStoreAccessService storeAccess = null,
+        IDictionary<string, int> uses = null) =>
         new(
             new FakeOrganizationAccessService(isRep),
             new StubOptionalDependency<IPromotionSearchService>(promotions),
             new StubOptionalDependency<ICouponSearchService>(coupons),
+            // By default the recorded uses agree with the cached coupons.
+            new StubOptionalDependency<IPromotionUsageSearchService>(
+                new StubPromotionUsageSearchService(uses ?? coupons.Coupons.ToDictionary(x => x.Code, x => (int)x.TotalUsesCount))),
             storeAccess ?? new FakeStoreAccessService(allowed: true));
 
     private static SalesRepCouponsQuery Query(int skip = 0, int take = 20, string cultureName = null, string storeId = StoreId) => new()
@@ -192,7 +251,7 @@ public class SalesRepCouponsQueryHandlerTests
         EndDate = endDate,
     };
 
-    private static Coupon Coupon(string id, string promotionId, int maxUses = 0, long used = 0, DateTime? expiration = null) => new()
+    private static Coupon Coupon(string id, string promotionId, int maxUses = 0, long used = 0, DateTime? expiration = null, string memberId = null) => new()
     {
         Id = id,
         Code = $"CODE-{id}",
@@ -200,6 +259,7 @@ public class SalesRepCouponsQueryHandlerTests
         MaxUsesNumber = maxUses,
         TotalUsesCount = used,
         ExpirationDate = expiration,
+        MemberId = memberId,
     };
 
     private static List<T> Page<T>(IList<T> items, SearchCriteriaBase criteria) =>
@@ -216,13 +276,25 @@ public class SalesRepCouponsQueryHandlerTests
         }
     }
 
+    // Clones on request like the real search, so a handler that writes to cached coupons shows up.
     private sealed class StubCouponSearchService(IList<Coupon> coupons) : ICouponSearchService
     {
+        public IList<Coupon> Coupons => coupons;
+
         public Task<CouponSearchResult> SearchAsync(CouponSearchCriteria criteria, bool clone = true)
         {
-            var matches = coupons.Where(x => criteria.PromotionIds?.Contains(x.PromotionId) != false).ToList();
+            var matches = coupons
+                .Where(x => criteria.PromotionIds?.Contains(x.PromotionId) != false)
+                .Select(x => clone ? (Coupon)x.Clone() : x)
+                .ToList();
             return Task.FromResult(new CouponSearchResult { TotalCount = matches.Count, Results = Page(matches, criteria) });
         }
+    }
+
+    private sealed class StubPromotionUsageSearchService(IDictionary<string, int> usesByCode) : IPromotionUsageSearchService
+    {
+        public Task<PromotionUsageSearchResult> SearchAsync(PromotionUsageSearchCriteria criteria, bool clone = true) =>
+            Task.FromResult(new PromotionUsageSearchResult { TotalCount = usesByCode.TryGetValue(criteria.CouponCode, out var uses) ? uses : 0 });
     }
 
     private sealed class StubOptionalDependency<T>(T value) : IOptionalDependency<T>

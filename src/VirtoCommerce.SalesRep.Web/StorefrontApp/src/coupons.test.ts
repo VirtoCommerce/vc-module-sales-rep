@@ -7,8 +7,9 @@ import ptMessages from "./locales/pt.json";
 // Real messages through vue-i18n's own plural rule: the host's CLDR rule defers to it for messages with fewer than
 // four forms, which is every language below.
 function translate(locale: "en" | "pt") {
-  const i18n = createI18n({ legacy: false, locale, messages: { en: enMessages, pt: ptMessages } });
-  return i18n.global.t as (key: string, params?: Record<string, unknown>, plural?: number) => string;
+  // Keyed by any locale, as the app's own messages are: literal keys would narrow `t` to these two locales.
+  const messages: Record<string, typeof enMessages> = { en: enMessages, pt: ptMessages };
+  return createI18n({ legacy: false, locale, messages }).global.t;
 }
 
 describe("couponUsesLabel", () => {

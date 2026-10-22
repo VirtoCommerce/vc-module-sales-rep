@@ -24,7 +24,7 @@ public class SalesRepCoupon
 
     public DateTime? StartDate { get; set; }
 
-    // What the card shows as "Expires": the coupon's own expiration, else the promotion's end.
+    // What the card shows as "Expires": see GetEndDate.
     public DateTime? EndDate { get; set; }
 
     public DateTime? PromotionEndDate { get; set; }
@@ -37,8 +37,6 @@ public class SalesRepCoupon
     public int MaxUsesPerUser { get; set; }
 
     public int TotalUsesCount { get; set; }
-
-    public string MemberId { get; set; }
 
     public static SalesRepCoupon FromCoupon(Coupon coupon, Promotion promotion, string cultureName)
     {
@@ -57,13 +55,24 @@ public class SalesRepCoupon
         Label = Localize(promotion.LocalizedLabel, cultureName);
         Description = Localize(promotion.LocalizedDescription, cultureName, promotion.Description);
         StartDate = promotion.StartDate;
-        EndDate = coupon.ExpirationDate ?? promotion.EndDate;
+        EndDate = GetEndDate(coupon, promotion);
         PromotionEndDate = promotion.EndDate;
         ExpirationDate = coupon.ExpirationDate;
         MaxUsesNumber = coupon.MaxUsesNumber;
         MaxUsesPerUser = coupon.MaxUsesPerUser;
         TotalUsesCount = (int)Math.Min(coupon.TotalUsesCount, int.MaxValue);
-        MemberId = coupon.MemberId;
+    }
+
+    // When the coupon stops working: the earlier of its own expiration and the promotion's end, since checkout
+    // evaluates only active promotions whatever the coupon's expiration.
+    public static DateTime? GetEndDate(Coupon coupon, Promotion promotion)
+    {
+        if (coupon.ExpirationDate == null || promotion.EndDate == null)
+        {
+            return coupon.ExpirationDate ?? promotion.EndDate;
+        }
+
+        return coupon.ExpirationDate < promotion.EndDate ? coupon.ExpirationDate : promotion.EndDate;
     }
 
     // Same fallback as xAPI promotionCoupons: the culture's value, else the invariant field.

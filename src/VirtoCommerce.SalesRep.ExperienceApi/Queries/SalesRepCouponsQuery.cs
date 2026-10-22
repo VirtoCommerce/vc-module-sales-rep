@@ -15,13 +15,9 @@ public class SalesRepCouponsQuery : SearchQuery<SalesRepCouponSearchResult>
 
     public string UserId { get; set; }
 
+    // Not the base keyword and sort: the list has one fixed order and no search. Paging comes from the connection.
     public override IEnumerable<QueryArgument> GetArguments()
     {
-        foreach (var argument in base.GetArguments())
-        {
-            yield return argument;
-        }
-
         yield return Argument<NonNullGraphType<StringGraphType>>(nameof(StoreId), "Store whose promotion coupons to list.");
         yield return Argument<StringGraphType>(nameof(CultureName), "Culture for the promotion's label, name and description. Omit for the invariant values.");
     }

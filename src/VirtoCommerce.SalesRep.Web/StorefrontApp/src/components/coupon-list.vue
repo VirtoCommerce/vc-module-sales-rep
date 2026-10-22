@@ -19,7 +19,7 @@
     <ul v-else class="coupon-list__items">
       <li v-for="coupon in coupons" :key="coupon.id">
         <CouponItem :coupon="coupon" :compact="compact">
-          <template #description-append>
+          <template #after-description>
             <span class="coupon-list__uses">{{ couponUsesLabel(coupon, t) }}</span>
           </template>
         </CouponItem>
