@@ -5,9 +5,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Playwright;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Security;
-using VirtoCommerce.SalesRep.Tests.VCShellAppE2E.Infrastructure;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.VCShellAppE2E.SalesReps;

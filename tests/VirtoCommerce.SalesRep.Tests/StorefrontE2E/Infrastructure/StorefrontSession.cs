@@ -171,5 +171,3 @@ internal sealed class StorefrontSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync() => await _context.CloseAsync();
 }
-
-internal sealed class StorefrontTestException(string message, Exception inner) : Exception(message, inner);

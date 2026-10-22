@@ -7,7 +7,6 @@ using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
-using Xunit;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
@@ -120,10 +119,4 @@ public sealed class CallsEnvironment : StorefrontEnvironment
         // Then Carl stops serving Fabrikam: the call stays his, the customer is no longer his to see.
         await StopServingAsync(RepUserId, FabrikamId);
     }
-}
-
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class CallsCollection : ICollectionFixture<CallsEnvironment>
-{
-    public const string Name = "Storefront E2E: calls";
 }

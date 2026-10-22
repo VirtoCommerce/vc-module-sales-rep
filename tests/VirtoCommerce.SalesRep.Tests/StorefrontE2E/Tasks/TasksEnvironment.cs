@@ -4,7 +4,6 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using VirtoCommerce.TaskManagement.Core.Services;
-using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Tasks;
 
@@ -59,10 +58,4 @@ public sealed class TasksEnvironment : StorefrontEnvironment
         dateless.DueDate = null;
         await tasks.SaveChangesAsync([dateless]);
     }
-}
-
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class TasksCollection : ICollectionFixture<TasksEnvironment>
-{
-    public const string Name = "Storefront E2E: tasks";
 }

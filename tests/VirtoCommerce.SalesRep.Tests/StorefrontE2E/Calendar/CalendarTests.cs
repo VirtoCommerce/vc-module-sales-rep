@@ -1,7 +1,6 @@
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Playwright;
-using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using Xunit;
 using static Microsoft.Playwright.Assertions;
 

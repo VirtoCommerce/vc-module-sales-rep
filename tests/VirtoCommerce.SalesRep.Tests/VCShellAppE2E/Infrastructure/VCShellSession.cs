@@ -163,5 +163,3 @@ internal sealed class VCShellSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync() => await _context.CloseAsync();
 }
-
-internal sealed class VCShellAppTestException(string message, Exception inner) : Exception(message, inner);

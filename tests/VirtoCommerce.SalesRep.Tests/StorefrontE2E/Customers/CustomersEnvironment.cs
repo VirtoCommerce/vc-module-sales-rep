@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
-using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Customers;
 
@@ -56,10 +55,4 @@ public sealed class CustomersEnvironment : StorefrontEnvironment
         await context.IndexOrdersAsync(OrderId);
         await context.IndexMembersAsync(FabrikamId, ContosoId, AdventureWorksId);
     }
-}
-
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class CustomersCollection : ICollectionFixture<CustomersEnvironment>
-{
-    public const string Name = "Storefront E2E: my customers";
 }
