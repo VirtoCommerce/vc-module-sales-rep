@@ -2,7 +2,6 @@ using System;
 using System.Threading.Tasks;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
-using Xunit;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calendar;
@@ -35,10 +34,4 @@ public sealed class CalendarEnvironment : StorefrontEnvironment
 
         SeededTaskId = SalesRepTestContext.Node(json, "createSalesRepTask").GetProperty("id").GetString();
     }
-}
-
-[CollectionDefinition(Name, DisableParallelization = true)]
-public sealed class CalendarCollection : ICollectionFixture<CalendarEnvironment>
-{
-    public const string Name = "Storefront E2E: calendar";
 }
