@@ -3,12 +3,13 @@
 The Sales Rep Hub as a Module Federation remote for the VC storefront (`vc-frontend`):
 the hub dashboard, My customers, the customer profile with its orders, all customer orders,
 the activity feed with the customer insights (Activities), tasks, the document library, list
-sharing to customers, and the buyer-facing "My Sales Reps" page (`/company/sales-reps`). Data
-comes from this module's Experience API; tasks also need `VirtoCommerce.TaskManagement`, and the
-tracked half of Activities (searches, product views, sign-ins) `VirtoCommerce.GoogleEcommerceAnalytics`
-— both optional dependencies. Without the first the tasks surfaces stay hidden; without the second —
-absent, or disabled in the admin UI — the hub leaves its tracked parts out: the tracked tabs and their
-marks, and the customer activity widget.
+sharing to customers, the promotion coupons (a customer profile widget and its all-coupons page), and
+the buyer-facing "My Sales Reps" page (`/company/sales-reps`). Data comes from this module's Experience
+API; tasks also need `VirtoCommerce.TaskManagement`, coupons `VirtoCommerce.Marketing`, and the tracked
+half of Activities (searches, product views, sign-ins) `VirtoCommerce.GoogleEcommerceAnalytics` — all
+optional dependencies. Without the first two their surfaces stay hidden; without the third — absent, or
+disabled in the admin UI — the hub leaves its tracked parts out: the tracked tabs and their marks, and
+the customer activity widget.
 
 The code started as a copy of the host's in-repo `client-app/modules/sales-rep` (vc-frontend
 `dev` at `1ae6a0318`). Hub features land here only since: the in-repo module does not boot by default
@@ -55,7 +56,7 @@ commit a `file:.yalc/...` dependency.
 version does not satisfy it refuse to load this plugin (clean skip instead of a runtime
 error). When you adopt an export added in a newer facade version, bump
 `requiredHostVersion` **and** the pinned tarball URL together. This plugin requires
-**^0.2.4**.
+**^0.2.5**.
 
 ## GraphQL codegen
 

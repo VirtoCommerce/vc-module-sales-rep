@@ -22,6 +22,7 @@
          component harness doubles, so these tests run the analytics module rather than restate it. -->
     <PackageReference Include="VirtoCommerce.GoogleEcommerceAnalyticsModule.Data" Version="4.1006.0" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
+    <PackageReference Include="VirtoCommerce.MarketingModule.Data" Version="3.1009.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1083.0" />
     <PackageReference Include="VirtoCommerce.Platform.DistributedLock" Version="3.1083.0" />

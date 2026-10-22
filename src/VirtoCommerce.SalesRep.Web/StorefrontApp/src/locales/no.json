@@ -404,6 +404,19 @@
       },
       "published": "Publisert {date}"
     },
+    "coupons": {
+      "title": "Tilgjengelige kuponger",
+      "empty": "Ingen tilgjengelige kuponger",
+      "load_failed": "Kunne ikke laste inn kuponger",
+      "uses_left": "{left} av {total} bruk igjen",
+      "unlimited": "Ubegrenset",
+      "view_all": "Alle kampanjekuponger",
+      "breadcrumb": "Kampanjekuponger",
+      "page": {
+        "title": "Kampanjekuponger for {customer}",
+        "title_fallback": "Kampanjekuponger"
+      }
+    },
     "rules": {
       "task": {
         "filter": {

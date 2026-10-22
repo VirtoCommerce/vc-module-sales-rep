@@ -404,6 +404,19 @@
       },
       "published": "Veröffentlicht {date}"
     },
+    "coupons": {
+      "title": "Verfügbare Gutscheine",
+      "empty": "Keine Gutscheine verfügbar",
+      "load_failed": "Gutscheine konnten nicht geladen werden",
+      "uses_left": "{left} Einlösung von {total} übrig | {left} Einlösungen von {total} übrig",
+      "unlimited": "Unbegrenzt",
+      "view_all": "Alle Aktionsgutscheine",
+      "breadcrumb": "Aktionsgutscheine",
+      "page": {
+        "title": "Aktionsgutscheine für {customer}",
+        "title_fallback": "Aktionsgutscheine"
+      }
+    },
     "rules": {
       "task": {
         "filter": {

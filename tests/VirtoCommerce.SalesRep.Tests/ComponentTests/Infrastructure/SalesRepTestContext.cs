@@ -30,6 +30,7 @@ using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
+using VirtoCommerce.MarketingModule.Data.Repositories;
 using VirtoCommerce.OrdersModule.Core.Events;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.OrdersModule.Data.Search.Indexed;
@@ -80,6 +81,7 @@ internal sealed class SalesRepTestContext : IDisposable
     private readonly SqliteConnection _assetsConnection;
     private readonly SqliteConnection _salesRepConnection;
     private readonly SqliteConnection _taskConnection;
+    private readonly SqliteConnection _marketingConnection;
     private readonly ServiceProvider _provider;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
     private readonly DbContextOptions<CustomerDbContext> _customerOptions;
@@ -98,6 +100,7 @@ internal sealed class SalesRepTestContext : IDisposable
         SqliteConnection assetsConnection,
         SqliteConnection salesRepConnection,
         SqliteConnection taskConnection,
+        SqliteConnection marketingConnection,
         ServiceProvider provider,
         DbContextOptions<SecurityDbContext> securityOptions,
         DbContextOptions<CustomerDbContext> customerOptions,
@@ -115,6 +118,7 @@ internal sealed class SalesRepTestContext : IDisposable
         _assetsConnection = assetsConnection;
         _salesRepConnection = salesRepConnection;
         _taskConnection = taskConnection;
+        _marketingConnection = marketingConnection;
         _provider = provider;
         _securityOptions = securityOptions;
         _customerOptions = customerOptions;
@@ -130,7 +134,8 @@ internal sealed class SalesRepTestContext : IDisposable
     /// with a project-override double (e.g. <see cref="OrderFilterRuleOverride.WithCompositeInactiveStatus"/> to
     /// exercise composite order-status resolution). Omit for the default (real-service) harness.
     /// </param>
-    public static SalesRepTestContext Create(Action<IServiceCollection> configureOverrides = null, bool withTaskManagement = true)
+    /// <param name="withMarketing">Adds vc-module-marketing for salesRepCoupons; off by default, only the coupon tests need it.</param>
+    public static SalesRepTestContext Create(Action<IServiceCollection> configureOverrides = null, bool withTaskManagement = true, bool withMarketing = false)
     {
         // The platform resolves the current user id from these claim types; they are configured at platform
         // startup, so set them here for the GraphQL current-user resolution to work in tests.
@@ -153,6 +158,7 @@ internal sealed class SalesRepTestContext : IDisposable
         var assetsOptions = SqliteTestDbContextFactory.CreateOptions<AssetsDbContext>(assetsConnection);
         var salesRepOptions = SqliteTestDbContextFactory.CreateOptions<SalesRepDbContext>(salesRepConnection);
         var taskConnection = withTaskManagement ? SqliteTestDbContextFactory.CreateConnection() : null;
+        var marketingConnection = withMarketing ? SqliteTestDbContextFactory.CreateConnection() : null;
 
         var services = new ServiceCollection()
             .AddSecuritySlice(securityOptions)
@@ -172,6 +178,11 @@ internal sealed class SalesRepTestContext : IDisposable
             services.AddTaskManagementSlice(SqliteTestDbContextFactory.CreateOptions<TaskManagementDbContext>(
                 taskConnection,
                 builder => builder.ReplaceService<IModelCustomizer, WorkTaskNumberSqliteModelCustomizer>()));
+        }
+
+        if (withMarketing)
+        {
+            services.AddMarketingSlice(SqliteTestDbContextFactory.CreateOptions<MarketingDbContext>(marketingConnection));
         }
 
         // Per-test last-wins overrides (e.g. a composite order-status resolver), applied after the defaults.
@@ -208,7 +219,7 @@ internal sealed class SalesRepTestContext : IDisposable
 
         return new SalesRepTestContext(
             securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
-            assetsConnection, salesRepConnection, taskConnection,
+            assetsConnection, salesRepConnection, taskConnection, marketingConnection,
             provider, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions,
             assetsOptions, salesRepOptions);
     }
@@ -750,5 +761,6 @@ internal sealed class SalesRepTestContext : IDisposable
         _assetsConnection.Dispose();
         _salesRepConnection.Dispose();
         _taskConnection?.Dispose();
+        _marketingConnection?.Dispose();
     }
 }

@@ -1,6 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ENABLED_KEY, GOOGLE_ANALYTICS_MODULE_ID, MODULE_ID, SALES_REP_ACCESS_PERMISSION } from "../constants";
-import { isSalesRepAnalyticsEnabled, isSalesRepsEnabled, isSalesRepUser } from "./useSalesRepsConfig";
+import {
+  ENABLED_KEY,
+  GOOGLE_ANALYTICS_MODULE_ID,
+  MARKETING_MODULE_ID,
+  MODULE_ID,
+  SALES_REP_ACCESS_PERMISSION,
+} from "../constants";
+import {
+  isSalesRepAnalyticsEnabled,
+  isSalesRepCouponsEnabled,
+  isSalesRepsEnabled,
+  isSalesRepUser,
+} from "./useSalesRepsConfig";
 
 // The store's module list: an id is in it while that module is installed and enabled.
 const { isEnabled, installedModules, useModuleSettings } = vi.hoisted(() => {
@@ -94,6 +105,31 @@ describe("useSalesRepsConfig", () => {
       checkPermissions.mockReturnValue(false);
 
       expect(isSalesRepAnalyticsEnabled()).toBe(false);
+    });
+  });
+
+  describe("isSalesRepCouponsEnabled", () => {
+    beforeEach(() => {
+      isEnabled.mockReturnValue(true);
+      checkPermissions.mockReturnValue(true);
+    });
+
+    it("is on for a rep while the marketing module is in the store's module list", () => {
+      installedModules.add(MARKETING_MODULE_ID);
+
+      expect(isSalesRepCouponsEnabled()).toBe(true);
+      expect(useModuleSettings).toHaveBeenCalledWith(MARKETING_MODULE_ID);
+    });
+
+    it("is off when the marketing module is not in the list", () => {
+      expect(isSalesRepCouponsEnabled()).toBe(false);
+    });
+
+    it("is off for a user who is not a rep", () => {
+      installedModules.add(MARKETING_MODULE_ID);
+      checkPermissions.mockReturnValue(false);
+
+      expect(isSalesRepCouponsEnabled()).toBe(false);
     });
   });
 });

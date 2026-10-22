@@ -404,6 +404,19 @@
       },
       "published": "Opublikowano {date}"
     },
+    "coupons": {
+      "title": "Dostępne kupony",
+      "empty": "Brak dostępnych kuponów",
+      "load_failed": "Nie udało się wczytać kuponów",
+      "uses_left": "Pozostało {left} użyć z {total} | Pozostało {left} użycie z {total} | Pozostały {left} użycia z {total} | Pozostało {left} użyć z {total}",
+      "unlimited": "Bez limitu",
+      "view_all": "Wszystkie kupony promocyjne",
+      "breadcrumb": "Kupony promocyjne",
+      "page": {
+        "title": "Kupony promocyjne dla {customer}",
+        "title_fallback": "Kupony promocyjne"
+      }
+    },
     "rules": {
       "task": {
         "filter": {

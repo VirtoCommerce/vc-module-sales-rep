@@ -404,6 +404,19 @@
       },
       "published": "公開日: {date}"
     },
+    "coupons": {
+      "title": "利用可能なクーポン",
+      "empty": "利用可能なクーポンはありません",
+      "load_failed": "クーポンを読み込めませんでした",
+      "uses_left": "残り {left} / {total} 回",
+      "unlimited": "無制限",
+      "view_all": "すべてのプロモーションクーポン",
+      "breadcrumb": "プロモーションクーポン",
+      "page": {
+        "title": "{customer} のプロモーションクーポン",
+        "title_fallback": "プロモーションクーポン"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
