@@ -13,6 +13,6 @@ export function couponUsesLabel(
 
   const left = Math.max(coupon.maxUsesNumber - coupon.totalUsesCount, 0);
 
-  // Plural on `left`: it is what the noun agrees with ("1 of 5 use left", "2 of 5 uses left").
+  // Plural on `left`: the messages keep the noun next to `left` ("1 use left out of 5", "2 uses left out of 5").
   return t("sales_rep.coupons.uses_left", { left, total: coupon.maxUsesNumber }, left);
 }

@@ -408,7 +408,7 @@
       "title": "Available coupons",
       "empty": "No coupons available",
       "load_failed": "Couldn't load coupons",
-      "uses_left": "{left} of {total} use left | {left} of {total} uses left",
+      "uses_left": "{left} use left out of {total} | {left} uses left out of {total}",
       "unlimited": "Unlimited",
       "view_all": "All promotion coupons",
       "breadcrumb": "Promotion coupons",

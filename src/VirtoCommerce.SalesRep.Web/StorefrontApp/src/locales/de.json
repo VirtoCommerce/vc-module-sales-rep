@@ -408,7 +408,7 @@
       "title": "Verfügbare Gutscheine",
       "empty": "Keine Gutscheine verfügbar",
       "load_failed": "Gutscheine konnten nicht geladen werden",
-      "uses_left": "{left} von {total} Einlösung übrig | {left} von {total} Einlösungen übrig",
+      "uses_left": "{left} Einlösung von {total} übrig | {left} Einlösungen von {total} übrig",
       "unlimited": "Unbegrenzt",
       "view_all": "Alle Aktionsgutscheine",
       "breadcrumb": "Aktionsgutscheine",

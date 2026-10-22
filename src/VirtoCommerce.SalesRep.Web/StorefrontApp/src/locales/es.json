@@ -408,7 +408,7 @@
       "title": "Cupones disponibles",
       "empty": "No hay cupones disponibles",
       "load_failed": "No se pudieron cargar los cupones",
-      "uses_left": "Queda {left} de {total} uso | Quedan {left} de {total} usos",
+      "uses_left": "Queda {left} uso de {total} | Quedan {left} usos de {total}",
       "unlimited": "Ilimitado",
       "view_all": "Todos los cupones promocionales",
       "breadcrumb": "Cupones promocionales",
