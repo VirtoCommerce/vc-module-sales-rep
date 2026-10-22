@@ -10,6 +10,7 @@ vi.mock("vue-i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key),
     d: () => "Oct 15",
+    locale: { value: "en-US" },
   }),
 }));
 

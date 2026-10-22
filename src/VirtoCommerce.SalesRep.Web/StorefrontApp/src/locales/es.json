@@ -256,6 +256,7 @@
         "expired": "Venció {date}",
         "due": "Vence {date}"
       },
+      "customer_not_assigned": "Cliente no asignado",
       "legend": {
         "upcoming": "Próximas",
         "overdue": "Vencidas",
@@ -264,17 +265,28 @@
       "form": {
         "create_title": "Nueva tarea",
         "edit_title": "Editar tarea",
+        "create_call_title": "Programar llamada",
+        "edit_call_title": "Editar llamada",
         "name_label": "Título",
         "due_date_label": "Fecha de vencimiento",
+        "time_label": "Hora",
+        "customer_label": "Cliente",
+        "customer_placeholder": "Buscar clientes por nombre",
+        "customer_error": "No se pudo cargar la lista de clientes. Inténtelo de nuevo.",
+        "call_name": "Llamada",
         "priority_label": "Prioridad",
         "type_label": "Tipo",
         "description_label": "Notas",
+        "calendars_label": "Añadir al calendario",
+        "google_calendar": "Google Calendar",
+        "apple_calendar": "Calendario de Apple",
         "save_button": "Guardar",
         "cancel_button": "Cancelar",
         "delete_button": "Eliminar",
         "delete_title": "Eliminar tarea",
         "delete_confirm": "Esta tarea se eliminará de forma permanente. ¿Continuar?",
         "saved": "Tarea guardada",
+        "calendar_failed": "Tarea guardada, pero no se pudo añadir al calendario",
         "deleted": "Tarea eliminada"
       }
     },
