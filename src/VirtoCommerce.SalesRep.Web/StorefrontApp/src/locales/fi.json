@@ -69,11 +69,9 @@
           "items_unit": "tuote | tuotetta",
           "not_for_checkout": "{count} ei kassalle",
           "items_this_week": "{count} tuote tällä viikolla | {count} tuotetta tällä viikolla",
-          "mtd_of_ytd": "{percent}% vuodesta",
-          "load_failed": "Lataus epäonnistui"
+          "mtd_of_ytd": "{percent}% vuodesta"
         }
       }
-
     },
     "customer_profile": {
       "loading": "Ladataan…",

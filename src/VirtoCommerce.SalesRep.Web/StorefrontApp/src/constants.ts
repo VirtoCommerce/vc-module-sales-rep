@@ -110,7 +110,7 @@ export const RANKED_ACTIVITY_CATEGORIES = new Set<string>([ACTIVITY_CATEGORY.sea
 // checks for the read permission itself (an admin/writer also carries it through checkPermissions'
 // isAdministrator shortcut or the role that grants access).
 export const SALES_REP_DOCUMENTS_READ_PERMISSION = "sales-rep-documents:read";
-// Layout block id — persisted as block.type in saved layouts, so it is load-bearing (see LAYOUT_SCOPE notes).
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
 export const DOCUMENTS_BLOCK_ID = "documents";
 export const DOCUMENTS_ROUTE_NAME = "SalesRepDocuments";
 export const DOCUMENTS_ROUTE_SEGMENT = "documents";
@@ -129,7 +129,7 @@ export const GOOGLE_ANALYTICS_MODULE_ID = "VirtoCommerce.GoogleEcommerceAnalytic
 export const TASKS_ROUTE_NAME = "SalesRepTasks";
 export const TASKS_ROUTE_SEGMENT = "tasks";
 export const TASKS_NAV_LINK_ID = "sales-rep-tasks";
-// Layout block id — persisted as block.type in saved layouts, so it is load-bearing (see LAYOUT_SCOPE notes).
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
 export const TASKS_BLOCK_ID = "tasks";
 // Page size for the Tasks page's task table (offset-as-cursor, like useSalesRepDocuments).
 export const TASKS_PAGE_SIZE = 15;

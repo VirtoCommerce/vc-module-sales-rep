@@ -6,7 +6,7 @@ import type { SalesRepCustomerOrderRowType } from "./types";
 // Pinned so the expectations don't depend on the runtime's default locale.
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  globals: { cultureName: "en-US", currencyCode: "USD" },
+  globals: { cultureName: "en-US" },
 }));
 
 describe("salesRepOrderRoute", () => {

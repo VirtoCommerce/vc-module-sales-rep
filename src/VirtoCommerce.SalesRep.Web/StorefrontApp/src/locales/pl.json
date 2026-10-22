@@ -69,11 +69,9 @@
           "items_unit": "pozycji | pozycja | pozycje | pozycji",
           "not_for_checkout": "{count} nie do kasy",
           "items_this_week": "{count} pozycji w tym tygodniu | {count} pozycja w tym tygodniu | {count} pozycje w tym tygodniu | {count} pozycji w tym tygodniu",
-          "mtd_of_ytd": "{percent}% roku",
-          "load_failed": "Nie udało się wczytać"
+          "mtd_of_ytd": "{percent}% roku"
         }
       }
-
     },
     "customer_profile": {
       "loading": "Ładowanie…",

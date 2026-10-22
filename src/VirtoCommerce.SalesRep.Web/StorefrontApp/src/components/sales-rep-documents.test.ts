@@ -254,4 +254,5 @@ describe("SalesRepDocuments non-inline documents", () => {
   });
 });
 
-// The security invariant behind VCST-5730 §4.5: a hidden widget must issue ZERO document requests.
+// The security invariant behind VCST-5730 §4.5 (a hidden widget issues ZERO document requests) holds because the
+// host's layout never mounts a hidden block; vc-frontend's layout-surface.test.ts covers it.

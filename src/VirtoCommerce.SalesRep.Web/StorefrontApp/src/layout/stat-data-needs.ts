@@ -63,11 +63,11 @@ export function needsCustomerCounts(needs: ReadonlySet<StatDataNeedType>): boole
 }
 
 /** The three statistics queries a card can be fed by. */
-export type StatQueryKeyType = "orders" | "carts" | "counts";
+type StatQueryKeyType = "orders" | "carts" | "counts";
 
 // The query fields are nullable, so `NonNullable` keeps the `?` as the only source of undefined —
 // otherwise the two say the same thing twice (Sonar S4782).
-export type StatDataSourcesType = {
+type StatDataSourcesType = {
   orders?: NonNullable<SalesRepCustomerOrderStatisticsQuery["salesRepCustomerOrderStatistics"]>;
   carts?: NonNullable<SalesRepCustomerCartStatisticsQuery["salesRepCustomerCartStatistics"]>;
   counts?: NonNullable<SalesRepCustomerCountsQuery["salesRepCustomerCounts"]>;

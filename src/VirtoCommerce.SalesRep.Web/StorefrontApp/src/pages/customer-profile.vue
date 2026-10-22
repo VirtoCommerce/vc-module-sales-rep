@@ -40,7 +40,7 @@
       <LayoutSurface
         :layout="layout"
         :cards="cards"
-        :block-props="{ organizationId }"
+        :block-props="blockProps"
         :edit-button-placement="isCompact ? 'end' : 'mainColumn'"
       />
     </template>
@@ -70,7 +70,17 @@ const isCompact = useBreakpoints(breakpointsTailwind).smaller("xl");
 
 const { t } = useI18n();
 const { customer, loading, failed, notFound } = useSalesRepCustomer(() => props.organizationId);
-const { cards } = useSalesRepCustomerWidgets(layout, () => props.organizationId);
+// A customer that is missing or failed to load gets no cards (the surface is not rendered), so nothing is fetched
+// for them either.
+const { cards } = useSalesRepCustomerWidgets(
+  {
+    settled: computed(() => layout.settled.value && !failed.value && !notFound.value),
+    editing: layout.editing,
+    visibleIn: layout.visibleIn,
+  },
+  () => props.organizationId,
+);
+const blockProps = computed(() => ({ organizationId: props.organizationId }));
 
 const myCustomersRouteName = MY_CUSTOMERS_ROUTE_NAME;
 

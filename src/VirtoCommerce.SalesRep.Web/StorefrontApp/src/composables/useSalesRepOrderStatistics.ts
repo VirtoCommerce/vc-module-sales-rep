@@ -4,23 +4,13 @@ import { SalesRepCustomerOrderStatisticsDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY, NEW_ORDERS_FILTER } from "../constants";
 import { needsOrderStatistics, orderStatisticsFlags } from "../layout/stat-data-needs";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
-import type { StatDataNeedType } from "../types/widgets";
-import type { StatDataNeedsType } from "@vc-frontend/core";
-import type { Ref } from "vue";
-
-type UseSalesRepOrderStatisticsOptionsType = {
-  /** What the surface's visible cards need fetched, read off its layout (`useStatDataNeeds`). */
-  needs: StatDataNeedsType<StatDataNeedType>;
-  // Scope to one customer (the customer profile); omit for the cross-customer dashboard.
-  // Expanded union (not MaybeRefOrGetter<… | undefined>) to avoid the redundant "undefined" — Sonar S4782.
-  organizationId?: string | Ref<string | undefined> | (() => string | undefined);
-};
+import type { HubStatisticsOptionsType } from "../types/widgets";
 
 // One composable owns the salesRepCustomerOrderStatistics op; all period/comparison slices are aliased
 // into a single query shared by the dashboard and customer mappers. Which of them it actually asks for
 // comes from the cards the rep can see, so the two surfaces no longer pay for each other's slices
 // (VCST-5647) — and with none of them needed, the query does not run.
-export function useSalesRepOrderStatistics(options: UseSalesRepOrderStatisticsOptionsType) {
+export function useSalesRepOrderStatistics(options: HubStatisticsOptionsType) {
   const { needs, ready } = options.needs;
 
   const variables = computed(() => ({

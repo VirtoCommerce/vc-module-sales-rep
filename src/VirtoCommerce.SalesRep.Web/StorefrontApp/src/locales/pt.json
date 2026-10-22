@@ -69,11 +69,9 @@
           "items_unit": "item | itens",
           "not_for_checkout": "{count} fora do checkout",
           "items_this_week": "{count} item esta semana | {count} itens esta semana",
-          "mtd_of_ytd": "{percent}% do ano",
-          "load_failed": "Falha ao carregar"
+          "mtd_of_ytd": "{percent}% do ano"
         }
       }
-
     },
     "customer_profile": {
       "loading": "Carregando…",

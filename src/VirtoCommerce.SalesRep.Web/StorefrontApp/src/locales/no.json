@@ -69,11 +69,9 @@
           "items_unit": "vare | varer",
           "not_for_checkout": "{count} ikke til kassen",
           "items_this_week": "{count} vare denne uken | {count} varer denne uken",
-          "mtd_of_ytd": "{percent}% av året",
-          "load_failed": "Kunne ikke laste"
+          "mtd_of_ytd": "{percent}% av året"
         }
       }
-
     },
     "customer_profile": {
       "loading": "Laster…",

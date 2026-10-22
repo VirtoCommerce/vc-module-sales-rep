@@ -17,7 +17,14 @@
 import { parseDate } from "@internationalized/date";
 import { computed, defineComponent, h, ref, unref } from "vue";
 import type { CalendarDate } from "@internationalized/date";
-import type { PropType, Ref } from "vue";
+import type {
+  IStatCardDefType,
+  LayoutVisibilityType,
+  SignedPercentType,
+  StatNeedResultType,
+  StatQueryStateType,
+} from "@vc-frontend/core";
+import type { PropType } from "vue";
 
 /** The context key the host's error link reads to skip its generic toast. */
 export const SUPPRESS_ERROR_NOTIFICATIONS_CONTEXT = { suppressErrorNotifications: true };
@@ -46,7 +53,6 @@ export const usePageHead = () => {};
 export const useNavigations = () => ({ mergeMenuSchema: () => {}, registerAccountSection: () => {} });
 export const useExtensionRegistry = () => ({ register: () => {}, registerContribution: () => {} });
 export const useWishlistSharingScopes = () => ({ registerSharingScope: () => {} });
-export const registerCacheTypePolicies = () => {};
 export const registerLocaleLoader = () => {};
 /** The host's `getProductRoute` (core/utilities/product) without its loyalty-catalog branch: a slug becomes the
  *  path, an id alone the "Product" route. */
@@ -277,7 +283,6 @@ export const VcWidget = defineComponent({
         slots["footer-container"]?.() ?? slots.footer?.(),
       ]),
 });
-export const VcWidgetSkeleton = passthrough("VcWidgetSkeleton", "vc-widget-skeleton");
 export const VcModal = passthrough("VcModal", "vc-modal");
 
 /** Renders `text` where the real one does, unless the default slot replaces it. */
@@ -379,21 +384,12 @@ export const OrderStatus = defineComponent({
 
 // ---- The host's dashboard layout engine (VCST-6078) ---------------------------------------------------------
 // Working defaults, since the engine is the host's and specs still run the hub's code on top of it: the pure
-// helpers mirror `client-app/shared/dashboard` in the host, the controller reads as a settled layout with
-// nothing hidden, and the two components render through so a spec keeps asserting on the hub's own content.
+// helpers mirror `client-app/shared/dashboard` in the host, the controller reads as a settled layout that
+// shows nothing, and the two components render through so a spec keeps asserting on the hub's own content.
 
 export const MIN_ROWS = 1;
 
-type StatCardDefLikeType<TNeed extends string = string> = { key: string; labelKey: string; needs: readonly TNeed[] };
-type StatNeedResultLikeType<TQuery extends string> = { query: TQuery; arrived: boolean };
-type StatQueryStateLikeType = { loading: boolean; failed: boolean };
-type LayoutVisibilityLikeType = {
-  settled: Readonly<Ref<boolean>>;
-  editing: Readonly<Ref<boolean>>;
-  visibleIn: (regionId: "statistics" | "mainLeft" | "mainRight") => readonly string[];
-};
-
-export function statBlocks(cards: readonly StatCardDefLikeType[]) {
+export function statBlocks(cards: readonly IStatCardDefType[]) {
   return cards.map((card, index) => ({
     id: card.key,
     region: "statistics" as const,
@@ -403,7 +399,7 @@ export function statBlocks(cards: readonly StatCardDefLikeType[]) {
 }
 
 export function statDataNeeds<TNeed extends string>(
-  cards: readonly StatCardDefLikeType<TNeed>[],
+  cards: readonly IStatCardDefType<TNeed>[],
   cardIds: Iterable<string>,
 ): ReadonlySet<TNeed> {
   const wanted = new Set(cardIds);
@@ -422,9 +418,9 @@ export function statDataNeeds<TNeed extends string>(
 
 function statCardState<TNeed extends string, TQuery extends string>(
   needs: readonly TNeed[],
-  table: Readonly<Record<TNeed, StatNeedResultLikeType<TQuery>>>,
-  states: Readonly<Record<TQuery, StatQueryStateLikeType>>,
-): StatQueryStateLikeType {
+  table: Readonly<Record<TNeed, StatNeedResultType<TQuery>>>,
+  states: Readonly<Record<TQuery, StatQueryStateType>>,
+): StatQueryStateType {
   let loading = false;
   let failed = false;
 
@@ -447,13 +443,13 @@ function statCardState<TNeed extends string, TQuery extends string>(
 export function buildStatCards<
   TNeed extends string,
   TQuery extends string,
-  TDefs extends readonly StatCardDefLikeType<TNeed>[],
+  TDefs extends readonly IStatCardDefType<TNeed>[],
 >(
   defs: TDefs,
   data: Record<TDefs[number]["key"], Record<string, unknown>>,
   queries: {
-    table: Readonly<Record<TNeed, StatNeedResultLikeType<TQuery>>>;
-    states: Readonly<Record<TQuery, StatQueryStateLikeType>>;
+    table: Readonly<Record<TNeed, StatNeedResultType<TQuery>>>;
+    states: Readonly<Record<TQuery, StatQueryStateType>>;
   },
 ) {
   return defs.map((def) => ({
@@ -464,8 +460,8 @@ export function buildStatCards<
 }
 
 export function useStatDataNeeds<TNeed extends string>(
-  layout: LayoutVisibilityLikeType,
-  cards: readonly StatCardDefLikeType<TNeed>[],
+  layout: LayoutVisibilityType,
+  cards: readonly IStatCardDefType<TNeed>[],
 ) {
   const needs = computed<ReadonlySet<TNeed>>(() => {
     if (!layout.settled.value) {
@@ -553,9 +549,7 @@ export function formatStatMoney(money?: { formattedAmount: string } | null): str
   return new Intl.NumberFormat(globals.cultureName, { style: "currency", currency }).format(0);
 }
 
-export function formatSignedPercent(
-  percent?: number | null,
-): { text: string; tone: "positive" | "negative" | "neutral"; icon: string } | undefined {
+export function formatSignedPercent(percent?: number | null): SignedPercentType | undefined {
   if (percent == null) {
     return undefined;
   }
@@ -570,56 +564,10 @@ export function formatSignedPercent(
   return { text: "0%", tone: "neutral", icon: "minus" };
 }
 
-/** In-memory block registry, scope-keyed like the host's; `getBlockRegistry` is test-only (the facade has none). */
-const blockRegistries = new Map<string, { id: string }[]>();
+export const registerBlock = () => {};
 
-export function registerBlock(scope: string, block: { id: string }): void {
-  const blocks = blockRegistries.get(scope) ?? [];
-  if (!blocks.some((registered) => registered.id === block.id)) {
-    blockRegistries.set(scope, [...blocks, block]);
-  }
-}
-
-export function unregisterBlock(scope: string, id: string): void {
-  const blocks = blockRegistries.get(scope) ?? [];
-  blockRegistries.set(
-    scope,
-    blocks.filter((block) => block.id !== id),
-  );
-}
-
-export function getBlockRegistry(scope: string): readonly { id: string }[] {
-  return blockRegistries.get(scope) ?? [];
-}
-
-/** A settled layout with nothing hidden and no edit in progress; specs that need more mock this. */
-export function useLayout(scope: string) {
-  const empty = () => ({ visible: [] as string[], hidden: [] as string[] });
-  return {
-    scope,
-    state: ref({ regions: { statistics: empty(), mainLeft: empty(), mainRight: empty() }, settings: {} }),
-    loading: ref(false),
-    saving: ref(false),
-    editing: ref(false),
-    canEdit: ref(true),
-    loadFailed: ref(false),
-    saveFailed: ref(false),
-    settled: ref(true),
-    visibleIn: (): readonly string[] => [],
-    hiddenIn: (): readonly string[] => [],
-    settingsOf: () => ({ hiddenTabs: [] as readonly string[] }),
-    persistedSettingsOf: () => ({ hiddenTabs: [] as readonly string[] }),
-    updateSettings: () => {},
-    startEdit: () => {},
-    cancel: () => {},
-    reset: () => {},
-    reorderVisible: () => {},
-    reorderHidden: () => {},
-    setHidden: () => {},
-    save: async () => true,
-    restoreDefaults: async () => true,
-  };
-}
+/** A settled layout that shows nothing and is not being edited: the three fields the hub's own code reads. */
+export const useLayout = () => ({ settled: ref(true), editing: ref(false), visibleIn: (): readonly string[] => [] });
 
 /** `undefined`, as for a widget rendered outside a layout; a spec that needs chrome mocks this. */
 export const useBlockChrome = (): undefined => undefined;
@@ -635,12 +583,17 @@ export const LayoutSurface = defineComponent({
   setup: () => () => h("div", { class: "layout-surface" }),
 });
 
-/** Renders through the widget mock with every slot, so a spec finds the hub's content where it renders. */
+/** Renders through the widget mock with the slots the host's LayoutWidget forwards, so a spec finds the hub's
+ *  content where it renders and nothing the host would drop. */
 export const LayoutWidget = defineComponent({
   name: "LayoutWidget",
   props: { title: { type: String, default: undefined }, size: { type: String, default: "md" } },
   setup:
     (props, { slots }) =>
     () =>
-      h(VcWidget, { class: "layout-widget", title: props.title }, slots),
+      h(
+        VcWidget,
+        { class: "layout-widget", title: props.title },
+        { append: slots.append, "default-container": slots["default-container"], default: slots.default },
+      ),
 });

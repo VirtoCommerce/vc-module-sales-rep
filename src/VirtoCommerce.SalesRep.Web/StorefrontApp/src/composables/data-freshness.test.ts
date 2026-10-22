@@ -2,7 +2,6 @@ import { ApolloClient, ApolloLink, InMemoryCache, Observable } from "@apollo/cli
 import { provideApolloClient } from "@vue/apollo-composable";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { effectScope, nextTick, ref } from "vue";
-import { useStatDataNeeds } from "@vc-frontend/core";
 import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_LAYOUT_SCOPE } from "../constants";
 import { STAT_CARDS } from "../layout/stat-cards";
 import { useSalesRepCartStatistics } from "./useSalesRepCartStatistics";
@@ -256,14 +255,11 @@ async function waitFor(condition: () => boolean, description: string): Promise<v
 }
 
 /**
- * Stands in for a page whose layout has been read and shows every card, which is what the statistics
- * composables wait for: they shape their queries from the visible cards, so before the layout settles they
- * would (correctly) never fetch at all.
+ * Every need of the surface's cards, ready to fetch: what the statistics composables receive once the page's
+ * layout has been read and shows every card. Before that they would (correctly) never fetch at all.
  */
 function everyCardNeeds(scope: SalesRepLayoutScopeType) {
-  const cards = STAT_CARDS[scope];
-  const layout = { settled: ref(true), editing: ref(false), visibleIn: () => cards.map((card) => card.key) };
-  return useStatDataNeeds(layout, cards);
+  return { needs: ref(new Set(STAT_CARDS[scope].flatMap((card) => card.needs))), ready: ref(true) };
 }
 
 beforeEach(async () => {

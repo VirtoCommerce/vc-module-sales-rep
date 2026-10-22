@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ref } from "vue";
-import { CUSTOMER_PROFILE_STAT_CARDS, DASHBOARD_STAT_CARDS } from "../layout/stat-cards";
+import { useLayout } from "@vc-frontend/core";
+import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_LAYOUT_SCOPE } from "../constants";
 import { useSalesRepCustomerWidgets } from "./useSalesRepCustomerWidgets";
 import { useSalesRepDashboardWidgets } from "./useSalesRepDashboardWidgets";
 import type {
@@ -79,14 +79,9 @@ beforeEach(() => {
   sources.countsLoading.value = false;
 });
 
-// A page whose layout has been read and shows every card; the mocked queries above decide the figures.
-const everyCardShown = (cards: readonly { key: string }[]) => ({
-  settled: ref(true),
-  editing: ref(false),
-  visibleIn: () => cards.map((card) => card.key),
-});
-const dashboardLayout = () => everyCardShown(DASHBOARD_STAT_CARDS);
-const profileLayout = () => everyCardShown(CUSTOMER_PROFILE_STAT_CARDS);
+// The pages' own call; the mocked queries above decide the figures, so the layout only has to be settled.
+const dashboardLayout = () => useLayout(DASHBOARD_LAYOUT_SCOPE);
+const profileLayout = () => useLayout(CUSTOMER_PROFILE_LAYOUT_SCOPE);
 
 const money = (amount: number, formattedAmount: string) => ({ amount, formattedAmount });
 const zeroMoney = money(0, "$0.00");

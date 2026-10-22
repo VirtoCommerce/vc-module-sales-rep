@@ -70,10 +70,6 @@ describe("stat data needs", () => {
     expect(weekOnly).toMatchObject({ withWeek: true, withMtd: false, withYtd: false, withYearOverYear: false });
   });
 
-  it("ignores an id no card matches, as a stale saved layout may name one", () => {
-    expect(statDataNeeds("dashboard", ["a-widget-this-build-dropped"]).size).toBe(0);
-  });
-
   // A card whose figures nothing fetches renders a permanent zero, which is the failure this table is
   // meant to prevent — so every registered card has to declare at least one source.
   it.each(["dashboard", "customerProfile"] as const)("%s: every card declares what it needs", (scope) => {

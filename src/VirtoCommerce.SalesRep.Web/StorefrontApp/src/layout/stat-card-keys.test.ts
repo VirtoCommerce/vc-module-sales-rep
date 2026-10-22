@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { ref } from "vue";
+import { useLayout } from "@vc-frontend/core";
 import { useSalesRepCustomerWidgets } from "../composables/useSalesRepCustomerWidgets";
 import { useSalesRepDashboardWidgets } from "../composables/useSalesRepDashboardWidgets";
 import { customerProfileBlocks, dashboardBlocks } from "./blocks";
@@ -32,13 +32,6 @@ const BLOCKS: Record<SalesRepLayoutScopeType, readonly BlockType[]> = {
 };
 const statBlocks = (scope: SalesRepLayoutScopeType) => BLOCKS[scope].filter((block) => block.region === "statistics");
 
-// A page whose layout has been read and shows every card.
-const settledLayout = (scope: SalesRepLayoutScopeType) => ({
-  settled: ref(true),
-  editing: ref(false),
-  visibleIn: () => statBlocks(scope).map((block) => block.id),
-});
-
 const byKey = (entries: readonly { key: string; label: string }[]) =>
   [...entries].sort((a, b) => a.key.localeCompare(b.key));
 
@@ -50,8 +43,8 @@ const byKey = (entries: readonly { key: string; label: string }[]) =>
  */
 describe("stat cards and layout registry", () => {
   it.each([
-    ["dashboard", () => useSalesRepDashboardWidgets(settledLayout("dashboard")).cards.value],
-    ["customerProfile", () => useSalesRepCustomerWidgets(settledLayout("customerProfile"), () => "org-1").cards.value],
+    ["dashboard", () => useSalesRepDashboardWidgets(useLayout("dashboard")).cards.value],
+    ["customerProfile", () => useSalesRepCustomerWidgets(useLayout("customerProfile"), () => "org-1").cards.value],
   ] as const)("%s: cards and blocks agree on every id and caption", (scope, getCards) => {
     const cards = byKey(getCards().map((card) => ({ key: card.key, label: card.labelKey })));
     const blocks = byKey(statBlocks(scope).map((block) => ({ key: block.id, label: block.titleKey })));
@@ -64,10 +57,10 @@ describe("stat cards and layout registry", () => {
   it("emits every card before any statistics have arrived", () => {
     apolloMock.result.value = undefined;
 
-    expect(useSalesRepDashboardWidgets(settledLayout("dashboard")).cards.value).toHaveLength(
+    expect(useSalesRepDashboardWidgets(useLayout("dashboard")).cards.value).toHaveLength(
       statBlocks("dashboard").length,
     );
-    expect(useSalesRepCustomerWidgets(settledLayout("customerProfile"), () => "org-1").cards.value).toHaveLength(
+    expect(useSalesRepCustomerWidgets(useLayout("customerProfile"), () => "org-1").cards.value).toHaveLength(
       statBlocks("customerProfile").length,
     );
   });

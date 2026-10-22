@@ -4,19 +4,11 @@ import { SalesRepCustomerCountsDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
 import { needsCustomerCounts } from "../layout/stat-data-needs";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
-import type { StatDataNeedType } from "../types/widgets";
-import type { StatDataNeedsType } from "@vc-frontend/core";
-import type { Ref } from "vue";
-
-type UseSalesRepCustomerCountsOptionsType = {
-  /** What the surface's visible cards need fetched, read off its layout (`useStatDataNeeds`). */
-  needs: StatDataNeedsType<StatDataNeedType>;
-  organizationId?: string | Ref<string | undefined> | (() => string | undefined);
-};
+import type { HubStatisticsOptionsType } from "../types/widgets";
 
 // Owns the salesRepCustomerCounts op: served/ordered/new customer counts, backing the "My customers" card.
 // That one card is the whole reason for the round trip, so with it hidden the query does not run.
-export function useSalesRepCustomerCounts(options: UseSalesRepCustomerCountsOptionsType) {
+export function useSalesRepCustomerCounts(options: HubStatisticsOptionsType) {
   const { needs, ready } = options.needs;
 
   const variables = computed(() => {
