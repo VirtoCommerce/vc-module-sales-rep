@@ -17,7 +17,7 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Calls;
 /// <summary>
 /// Calls in the hub: booking one from a customer's page or from the task form, adding a new one to the rep's calendars,
 /// editing calls and tasks, what the task list shows of a call, and a call about a customer the rep no longer serves.
-/// Each test checks the page and the row.
+/// Each test checks the page and the row. The edits are Carl's; a test that books a call signs in as a rep of its own.
 /// </summary>
 [Collection(CallsCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
@@ -30,7 +30,8 @@ public sealed class CallsTests(CallsEnvironment env)
     [Fact(Timeout = 300_000)]
     public async Task ScheduleCall_FromCustomerProfile_CreatesACallForThatCustomer()
     {
-        await using var session = await OpenAsync($"/company/my-customers/{CallsEnvironment.NorthwindId}");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, $"/company/my-customers/{CallsEnvironment.NorthwindId}");
 
         await session.RunAsync(nameof(ScheduleCall_FromCustomerProfile_CreatesACallForThatCustomer), async page =>
         {
@@ -54,7 +55,7 @@ public sealed class CallsTests(CallsEnvironment env)
         task.ObjectType.Should().Be(CustomerLink);
         task.DueDate.Should().Be(CallsEnvironment.At(14, 30));
         task.Priority.Should().Be("Normal");
-        task.ResponsibleId.Should().Be(env.RepMemberId);
+        task.ResponsibleId.Should().Be(rep.Id);
     }
 
     [Fact(Timeout = 300_000)]
@@ -64,8 +65,10 @@ public sealed class CallsTests(CallsEnvironment env)
         string icsFileName = null;
         string ics = null;
 
+        var rep = await env.NewRepAsync();
+
         // Google itself is never reached: its tab gets a stand-in page.
-        await using var session = await env.OpenAsync(env.RepUserId, $"/company/my-customers/{CallsEnvironment.ContosoId}", CallsEnvironment.NorthwindId, beforeLoad: StandInForGoogleAsync);
+        await using var session = await env.OpenAsync(rep.UserId, $"/company/my-customers/{CallsEnvironment.ContosoId}", CallsEnvironment.NorthwindId, beforeLoad: StandInForGoogleAsync);
 
         await session.RunAsync(nameof(ScheduleCall_TickingBothCalendars_OpensGoogleAndDownloadsTheEvent), async page =>
         {
@@ -116,7 +119,8 @@ public sealed class CallsTests(CallsEnvironment env)
     {
         const string name = "Call about the spring order";
 
-        await using var session = await OpenAsync("/company/tasks");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(NewTask_PickingCall_AddsCustomerAndTime_AndSavesACall), async page =>
         {
@@ -132,7 +136,7 @@ public sealed class CallsTests(CallsEnvironment env)
             await Expect(Field(dialog, "Time")).ToHaveValueAsync(Exactly("9:00 AM"));
             await ExpectCalendarsUntickedAsync(dialog);
 
-            // Only the rep's own customers are offered: not the one they stopped serving, not one they never did.
+            // Only the rep's own customers are offered.
             await Field(dialog, "Customer").ClickAsync();
             await Expect(Option(page, CallsEnvironment.NorthwindName)).ToBeVisibleAsync();
             await Expect(Option(page, CallsEnvironment.ContosoName)).ToBeVisibleAsync();
@@ -158,7 +162,8 @@ public sealed class CallsTests(CallsEnvironment env)
     {
         const string name = "Ask about the catalog";
 
-        await using var session = await OpenAsync("/company/tasks");
+        var rep = await env.NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(NewTask_LeavingCall_SavesAPlainTask), async page =>
         {
@@ -196,12 +201,12 @@ public sealed class CallsTests(CallsEnvironment env)
             await ShowAllAsync(page);
 
             await Expect(Row(page, CallsEnvironment.ListedCall))
-                .ToContainTextAsync(Containing($"Due {day}, 10:15 AM · {CallsEnvironment.ContosoName} · Call"));
+                .ToContainTextAsync($"Due {day}, 10:15 AM · {CallsEnvironment.ContosoName} · Call");
             await Expect(Row(page, CallsEnvironment.ListedCallWithoutCustomer))
-                .ToContainTextAsync(Containing($"Due {day}, 11:00 AM · Customer not assigned · Call"));
+                .ToContainTextAsync($"Due {day}, 11:00 AM · Customer not assigned · Call");
 
             // A plain task is due on a day: no time, and no customer line.
-            await Expect(Row(page, CallsEnvironment.ListedTask)).ToContainTextAsync(Containing($"Due {day} · Other"));
+            await Expect(Row(page, CallsEnvironment.ListedTask)).ToContainTextAsync($"Due {day} · Other");
         });
     }
 
@@ -229,7 +234,7 @@ public sealed class CallsTests(CallsEnvironment env)
             await SaveAsync(page, dialog);
 
             await Expect(Row(page, CallsEnvironment.CallToEdit))
-                .ToContainTextAsync(Containing($"Due {CallsEnvironment.ListedTomorrow}, 11:30 AM · {CallsEnvironment.NorthwindName} · Call"));
+                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 11:30 AM · {CallsEnvironment.NorthwindName} · Call");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == CallsEnvironment.CallToEdit && x.ObjectId == CallsEnvironment.NorthwindId);
@@ -255,7 +260,7 @@ public sealed class CallsTests(CallsEnvironment env)
             await Expect(Field(dialog, "Customer")).ToHaveValueAsync(string.Empty);
             await SaveAsync(page, dialog);
 
-            await Expect(Row(page, CallsEnvironment.CallToUnlink)).ToContainTextAsync(Containing("· Customer not assigned · Call"));
+            await Expect(Row(page, CallsEnvironment.CallToUnlink)).ToContainTextAsync("· Customer not assigned · Call");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == CallsEnvironment.CallToUnlink && x.ObjectId == null);
@@ -304,7 +309,7 @@ public sealed class CallsTests(CallsEnvironment env)
 
             // The call is still the rep's; the customer no longer is, so the list does not name it.
             await Expect(Row(page, CallsEnvironment.CallAboutFormerCustomer))
-                .ToContainTextAsync(Containing($"Due {CallsEnvironment.ListedTomorrow}, 3:00 PM · Customer not assigned · Call"));
+                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 3:00 PM · Customer not assigned · Call");
             await Expect(page.GetByRole(AriaRole.Main)).Not.ToContainTextAsync(CallsEnvironment.FabrikamName);
 
             var dialog = await EditAsync(page, CallsEnvironment.CallAboutFormerCustomer, "Edit call");
@@ -325,7 +330,9 @@ public sealed class CallsTests(CallsEnvironment env)
         task.ObjectId.Should().Be(CallsEnvironment.FabrikamId);
     }
 
-    private Task<StorefrontSession> OpenAsync(string path) => env.OpenAsync(env.RepUserId, path, CallsEnvironment.NorthwindId);
+    private Task<StorefrontSession> OpenAsync(string path) => OpenAsync(env.RepUserId, path);
+
+    private Task<StorefrontSession> OpenAsync(string userId, string path) => env.OpenAsync(userId, path, CallsEnvironment.NorthwindId);
 
     /// <summary>An instant as a calendar event carries it: UTC, to the second.</summary>
     private static string Stamp(DateTime utc) => utc.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);

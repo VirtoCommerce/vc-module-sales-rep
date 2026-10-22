@@ -39,7 +39,9 @@ public sealed class CalendarTests(CalendarEnvironment env)
     {
         const string name = "Send the Q4 price list";
 
-        await using var session = await env.OpenAsync(env.RepUserId, "/company/tasks");
+        // Like every test that adds a task, this one signs in as a rep of its own.
+        var rep = await env.NewRepAsync(CalendarEnvironment.NorthwindId);
+        await using var session = await env.OpenAsync(rep.UserId, "/company/tasks");
 
         await session.RunAsync(nameof(Calendar_CreatingATaskFromTheForm_WritesTheWorkTaskRow), async page =>
         {
@@ -54,7 +56,7 @@ public sealed class CalendarTests(CalendarEnvironment env)
 
         var task = await env.WaitForTaskAsync(x => x.Name == name);
         task.Should().NotBeNull();
-        task.ResponsibleId.Should().Be(env.RepMemberId);
+        task.ResponsibleId.Should().Be(rep.Id);
         task.Completed.Should().NotBe(true);
     }
 }

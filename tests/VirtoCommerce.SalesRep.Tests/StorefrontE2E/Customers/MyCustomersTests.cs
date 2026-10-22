@@ -28,7 +28,7 @@ public sealed class MyCustomersTests(CustomersEnvironment env)
         });
 
         // The same facts, read straight from the database the storefront just rendered from.
-        var memberships = await env.Backend.RunExclusiveAsync(context => context.GetMembershipsAsync(env.RepUserId));
+        var memberships = await env.RunExclusiveAsync(context => context.GetMembershipsAsync(env.RepUserId));
         memberships.Select(x => x.OrganizationId).Should().BeEquivalentTo([CustomersEnvironment.FabrikamId, CustomersEnvironment.ContosoId]);
     }
 

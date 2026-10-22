@@ -17,10 +17,7 @@ public abstract class VCShellAppEnvironment : IAsyncLifetime
 {
     private IPlaywright _playwright;
     private IBrowser _browser;
-
-    internal InProcessVCShellBackend Backend { get; private set; }
-
-    internal SalesRepTestContext Context => Backend.Context;
+    private InProcessVCShellBackend _backend;
 
     /// <summary>Timestamped phases of this environment's life, so a hang or a slow step is attributable.</summary>
     public string PhaseLog { get; } = Path.Combine(DiagnosticsDirectory, $"environment-{DateTime.Now:HHmmss}.log");
@@ -33,10 +30,10 @@ public abstract class VCShellAppEnvironment : IAsyncLifetime
         var appDirectory = VCShellAppLocation.AppDirectory;
 
         Log("backend starting");
-        Backend = await InProcessVCShellBackend.StartAsync(appDirectory);
-        Log($"backend ready at {Backend.Url}, app at {Backend.AppUrl}");
+        _backend = await InProcessVCShellBackend.StartAsync(appDirectory);
+        Log($"backend ready at {_backend.Url}, app at {_backend.AppUrl}");
 
-        await SeedAsync(Backend.Context);
+        await SeedAsync(_backend.Context);
         Log("seeded");
 
         _playwright = await Playwright.CreateAsync();
@@ -59,6 +56,12 @@ public abstract class VCShellAppEnvironment : IAsyncLifetime
     private protected abstract Task SeedAsync(SalesRepTestContext context);
 
     /// <summary>
+    /// Test-side work against the harness, between requests: the blade may still be fetching, and each in-memory
+    /// database takes one caller at a time.
+    /// </summary>
+    internal Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work) => _backend.RunExclusiveAsync(work);
+
+    /// <summary>
     /// A fresh browser context signed in as the account, landed on the app route (<c>sales-reps</c> is the list
     /// blade). The framework authenticates with the platform's Identity cookie and nothing else, so the context's
     /// request client (it shares the cookie jar) obtains that cookie from the backend before the first navigation;
@@ -70,7 +73,7 @@ public abstract class VCShellAppEnvironment : IAsyncLifetime
 
         var context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {
-            BaseURL = Backend.Url,
+            BaseURL = _backend.Url,
             ViewportSize = new ViewportSize { Width = 1440, Height = 900 },
         });
 
@@ -93,7 +96,7 @@ public abstract class VCShellAppEnvironment : IAsyncLifetime
 
     public async ValueTask DisposeAsync()
     {
-        if (Backend == null)
+        if (_backend == null)
         {
             return;
         }
@@ -108,7 +111,7 @@ public abstract class VCShellAppEnvironment : IAsyncLifetime
         _playwright?.Dispose();
         Log("browser closed");
 
-        await Backend.DisposeAsync();
+        await _backend.DisposeAsync();
         Log("backend stopped");
     }
 }

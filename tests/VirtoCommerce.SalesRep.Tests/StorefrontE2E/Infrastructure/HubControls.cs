@@ -177,11 +177,9 @@ internal static class HubControls
     /// <summary>A time of day as the time select and the task list print it.</summary>
     public static string TimeOfDay(DateTime time) => time.ToString("h:mm tt", CultureInfo.InvariantCulture);
 
-    /// <summary>The text exactly. Intl puts a narrow no-break space before AM/PM, so every space matches any.</summary>
-    public static Regex Exactly(string text) => new($"^{Spaced(text)}$");
-
-    /// <summary>The text anywhere, spaces matched as in <see cref="Exactly"/>.</summary>
-    public static Regex Containing(string text) => new(Spaced(text));
-
-    private static string Spaced(string text) => Regex.Escape(text).Replace(@"\ ", @"\s");
+    /// <summary>
+    /// The text exactly, for an input's value or an option's name. Intl puts a narrow no-break space before AM/PM, so
+    /// every space matches any; a text assertion given a string collapses whitespace itself, that space included.
+    /// </summary>
+    public static Regex Exactly(string text) => new($"^{Regex.Escape(text).Replace(@"\ ", @"\s")}$");
 }

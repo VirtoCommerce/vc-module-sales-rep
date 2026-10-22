@@ -15,8 +15,6 @@ public sealed class CalendarEnvironment : StorefrontEnvironment
 
     public string RepUserId { get; private set; }
 
-    public string RepMemberId { get; private set; }
-
     public string SeededTaskId { get; private set; }
 
     private protected override async Task SeedAsync(SalesRepTestContext context)
@@ -25,7 +23,6 @@ public sealed class CalendarEnvironment : StorefrontEnvironment
 
         var rep = await context.CreateRepInStoreAsync("Carl", "Rep", "carl.rep@e2e.local", InProcessBackend.StoreId, NorthwindId);
         RepUserId = rep.UserId;
-        RepMemberId = rep.Id;
 
         // Noon today in the machine's local time, as an instant: the calendar opens on the browser's local day, and
         // the browser runs on this machine, so the task lands on the selected day whatever the UTC offset.

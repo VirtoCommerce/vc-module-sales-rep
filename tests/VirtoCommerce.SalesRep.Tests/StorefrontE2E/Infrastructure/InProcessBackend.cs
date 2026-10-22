@@ -19,8 +19,8 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 /// <summary>
 /// The component harness hosted as a real HTTP backend inside the test process: the same
 /// <see cref="SalesRepTestContext"/> (in-memory SQLite databases, RAM Lucene, hand-written doubles) behind Kestrel on
-/// a random loopback port, so the real storefront can talk to it while the tests seed and assert through the very
-/// same DbContexts. No second dotnet process, nothing read from <c>back/modules</c>.
+/// a loopback port, so the real storefront can talk to it while the tests seed and assert through the very same
+/// DbContexts. No second dotnet process, nothing read from <c>back/modules</c>.
 /// </summary>
 internal sealed class InProcessBackend : IAsyncDisposable
 {
@@ -57,7 +57,8 @@ internal sealed class InProcessBackend : IAsyncDisposable
 
     /// <param name="storefrontBuild">A built storefront to serve from the backend's own origin; null when there is none to serve.</param>
     /// <param name="configureServices">A group's own registrations, applied after the shell's: the last one wins.</param>
-    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null, Action<IServiceCollection> configureServices = null)
+    /// <param name="port">The loopback port to listen on; 0 takes any free one.</param>
+    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null, Action<IServiceCollection> configureServices = null, int port = 0)
     {
         WebApplication app = null;
         var gate = new RequestGate();
@@ -72,7 +73,7 @@ internal sealed class InProcessBackend : IAsyncDisposable
             {
                 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ApplicationName = "VirtoCommerce.SalesRep.StorefrontE2E" });
                 builder.Logging.SetMinimumLevel(LogLevel.Warning);
-                builder.WebHost.UseUrls("http://127.0.0.1:0");
+                builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
                 // The harness registers its own IConfiguration (the order full-text flag). The host already owns one,
                 // so the key moves into the host configuration and the harness descriptor stays out.

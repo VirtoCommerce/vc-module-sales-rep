@@ -12,22 +12,26 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 /// <summary>
 /// The real storefront (vc-theme-b2b-vue) as its own Vite dev server, pointed at the in-process backend through the
 /// theme's own proxy: <c>APP_BACKEND_URL</c> in the process environment wins over <c>.env.local</c>. One per test
-/// group; killed with its whole process tree on dispose.
+/// run (<see cref="SharedViteDevServer"/>); killed with its whole process tree on dispose.
 /// </summary>
 internal sealed class ViteDevServer : IAsyncDisposable
 {
     private readonly Process _process;
     private readonly StringBuilder _output;
+    private readonly string _logFile;
 
-    private ViteDevServer(Process process, StringBuilder output, string url)
+    private ViteDevServer(Process process, StringBuilder output, string logFile, string url)
     {
         _process = process;
         _output = output;
+        _logFile = logFile;
         Url = url;
     }
 
     /// <summary><c>https://localhost:port</c> (the theme's dev server is HTTPS through vite-plugin-mkcert).</summary>
     public string Url { get; }
+
+    public bool HasExited => _process.HasExited;
 
     /// <summary>Everything the dev server printed so far, for failure diagnostics.</summary>
     public string Output
@@ -75,7 +79,7 @@ internal sealed class ViteDevServer : IAsyncDisposable
         process.BeginErrorReadLine();
 
         var url = $"https://localhost:{port}";
-        var server = new ViteDevServer(process, output, url);
+        var server = new ViteDevServer(process, output, logFile, url);
 
         try
         {
@@ -126,7 +130,7 @@ internal sealed class ViteDevServer : IAsyncDisposable
         throw new TimeoutException($"The Vite dev server did not answer on {Url} within {timeout}:\n{Output}");
     }
 
-    private static int GetFreePort()
+    public static int GetFreePort()
     {
         using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
@@ -182,5 +186,6 @@ internal sealed class ViteDevServer : IAsyncDisposable
         }
 
         _process.Dispose();
+        Append(_output, _logFile, "[e2e] dev server stopped");
     }
 }
