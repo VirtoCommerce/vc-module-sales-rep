@@ -1,12 +1,9 @@
-import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
+import { enableAutoUnmount, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DOCUMENTS_BLOCK_ID, DOCUMENTS_DEFAULT_ROWS } from "../constants";
-import { documentsBlock } from "../layout/documents-block";
-import { getBlockRegistry, registerBlock } from "../layout/registry";
-import LayoutSurface from "./layout-surface.vue";
+import { DOCUMENTS_DEFAULT_ROWS } from "../constants";
 import SalesRepDocuments from "./sales-rep-documents.vue";
 import type { SalesRepDocumentType } from "../types";
-import { VcButton, VcEmptyView, VcWidget, VcWidgetSkeleton } from "@vc-frontend/core";
+import { VcButton } from "@vc-frontend/core";
 
 const state = await vi.hoisted(async () => {
   const { ref } = await import("vue");
@@ -39,26 +36,6 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   Logger: { error: vi.fn(), warn: vi.fn() },
 }));
 
-// The layout query behind <LayoutSurface>; the widget's own data query is the mocked composable above.
-const apolloMock = await vi.hoisted(async () => {
-  const { ref, shallowRef } = await import("vue");
-  return {
-    result: shallowRef<unknown>(undefined),
-    loading: ref(false),
-    error: ref<Error | undefined>(),
-    mutate: vi.fn(),
-  };
-});
-
-vi.mock("@vue/apollo-composable", () => ({
-  useQuery: () => ({
-    result: apolloMock.result,
-    loading: apolloMock.loading,
-    error: apolloMock.error,
-    onError: vi.fn(),
-  }),
-  useMutation: () => ({ mutate: apolloMock.mutate, loading: apolloMock.loading }),
-}));
 vi.mock("vue-i18n", () => ({
   useI18n: () => ({
     t: (key: string) => key,
@@ -66,13 +43,6 @@ vi.mock("vue-i18n", () => ({
     n: (value: number, options?: { unit?: string }) => `${value} ${options?.unit ?? ""}`.trim(),
   }),
 }));
-vi.mock("sortablejs", () => ({
-  default: class {
-    option = vi.fn();
-    destroy = vi.fn();
-  },
-}));
-
 function makeDocument(overrides: Partial<SalesRepDocumentType> = {}): SalesRepDocumentType {
   return {
     id: "doc-1",
@@ -125,8 +95,6 @@ beforeEach(() => {
     loading: state.loading,
     error: state.error,
   }));
-  apolloMock.loading.value = false;
-  apolloMock.result.value = { salesRepLayout: null };
 });
 
 describe("SalesRepDocuments states", () => {
@@ -286,64 +254,5 @@ describe("SalesRepDocuments non-inline documents", () => {
   });
 });
 
-// The security invariant behind VCST-5730 §4.5: a hidden widget must issue ZERO document requests.
-// The mechanism is the layout render path itself — <LayoutSurface> mounts only a region's visible
-// blocks (the hidden tray renders titles, never components) — so the proof is that the composable
-// (the only caller of the documents query) never runs while the block is hidden.
-describe("hidden documents widget", () => {
-  async function mountDashboardWithEverythingHidden() {
-    // The block registers at init behind the permission check; tests register it themselves.
-    registerBlock("dashboard", documentsBlock);
-
-    // Every dashboard block hidden — no widget mounts, so no widget query can fire.
-    apolloMock.result.value = {
-      salesRepLayout: {
-        regions: [{ blocks: getBlockRegistry("dashboard").map(({ id }) => ({ type: id, hidden: true })) }],
-      },
-    };
-
-    const wrapper = mount(LayoutSurface, {
-      props: { scope: "dashboard" as const, cards: [] },
-      attachTo: document.body,
-      global: {
-        // VcEmptyView is real here: the layout's empty state renders first, and its buttons live in slots
-        // a stub does not render.
-        components: { VcButton, VcEmptyView, VcWidget, VcWidgetSkeleton },
-        stubs: {
-          VcIcon: true,
-          VcShape: true,
-          VcAlert: true,
-          VcLoaderOverlay: true,
-          VcLink: true,
-          VcImage: true,
-          VcInput: true,
-          // `i18n-t` because vue-i18n is mocked down to `useI18n`.
-          VcTypography: true,
-          "i18n-t": true,
-        },
-      },
-    });
-    await flushPromises();
-
-    return wrapper;
-  }
-
-  it("never runs the documents composable while the block is hidden, and runs it once restored", async () => {
-    const wrapper = await mountDashboardWithEverythingHidden();
-
-    expect(state.useSalesRepDocuments).not.toHaveBeenCalled();
-
-    // Enter edit mode and restore the widget from the tray: only then may the query exist. With every
-    // block hidden the surface shows its empty state, whose own button is the way into edit mode.
-    await wrapper.find("[data-layout-empty-edit]").trigger("click");
-    await flushPromises();
-    expect(state.useSalesRepDocuments).not.toHaveBeenCalled();
-
-    await wrapper.find(`[data-restore-id="${DOCUMENTS_BLOCK_ID}"]`).trigger("click");
-    // Two rounds: the restore re-renders, then the async widget chunk resolves and mounts.
-    await flushPromises();
-    await flushPromises();
-
-    expect(state.useSalesRepDocuments).toHaveBeenCalledTimes(1);
-  });
-});
+// The security invariant behind VCST-5730 §4.5 (a hidden widget issues ZERO document requests) is the host's to keep:
+// its layout surface mounts only visible blocks and lists hidden ones in the edit tray by title.

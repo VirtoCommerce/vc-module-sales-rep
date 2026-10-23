@@ -17,13 +17,14 @@ export default defineConfig({
       createRemoteFederationOptions({
         name: "sales-rep",
         // CONTRACT GATE: the facade version this plugin is built against.
-        requiredHostVersion: "^0.2.4",
+        requiredHostVersion: "^0.2.5",
         // No sharedOverrides: the host's set is exactly what this plugin needs. Apollo and
         // @vue/apollo-composable are imported DIRECTLY here (useSalesRepHubQuery), so bundling
         // a second copy would give the plugin its own client and cache instead of the host's;
         // @vueuse/core carries the extension registry's createGlobalState, which must be the
-        // host's instance or a registration lands in a store nothing reads. sortablejs is a
-        // leaf DOM library with no cross-copy state, so it rides along in the bundle.
+        // host's instance or a registration lands in a store nothing reads. The dashboard layout
+        // engine (surface, widget wrapper, controller) is the host's, through the facade, so
+        // this plugin bundles no copy of it and no drag-and-drop library of its own.
       }),
     ),
   ],

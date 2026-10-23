@@ -42,10 +42,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
+import { formatStatCount } from "@vc-frontend/core";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
 import { useSalesRepSearchHistory } from "../composables/useSalesRepSearchHistory";
 import { HUB_ACTIVITY_PERIOD, INSIGHTS_DEFAULT_ROWS, INSIGHTS_SORT_BY_DATE } from "../constants";
-import { formatStatCount, searchResultsRoute } from "../utils";
+import { searchResultsRoute } from "../utils";
 import CustomerInsightsPanel from "./customer-insights-panel.vue";
 
 interface IProps {

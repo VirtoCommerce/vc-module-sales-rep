@@ -15,8 +15,15 @@
 //     globals: { storeId: "test-store", cultureName: "en-US" },
 //   }));
 import { parseDate } from "@internationalized/date";
-import { computed, defineComponent, h, unref } from "vue";
+import { computed, defineComponent, h, ref, unref } from "vue";
 import type { CalendarDate } from "@internationalized/date";
+import type {
+  IStatCardDefType,
+  LayoutVisibilityType,
+  SignedPercentType,
+  StatNeedResultType,
+  StatQueryStateType,
+} from "@vc-frontend/core";
 import type { PropType } from "vue";
 
 /** The context key the host's error link reads to skip its generic toast. */
@@ -46,7 +53,6 @@ export const usePageHead = () => {};
 export const useNavigations = () => ({ mergeMenuSchema: () => {}, registerAccountSection: () => {} });
 export const useExtensionRegistry = () => ({ register: () => {}, registerContribution: () => {} });
 export const useWishlistSharingScopes = () => ({ registerSharingScope: () => {} });
-export const registerCacheTypePolicies = () => {};
 export const registerLocaleLoader = () => {};
 /** The host's `getProductRoute` (core/utilities/product) without its loyalty-catalog branch: a slug becomes the
  *  path, an id alone the "Product" route. */
@@ -277,7 +283,6 @@ export const VcWidget = defineComponent({
         slots["footer-container"]?.() ?? slots.footer?.(),
       ]),
 });
-export const VcWidgetSkeleton = passthrough("VcWidgetSkeleton", "vc-widget-skeleton");
 export const VcModal = passthrough("VcModal", "vc-modal");
 
 /** Renders `text` where the real one does, unless the default slot replaces it. */
@@ -375,4 +380,220 @@ export const OrderStatus = defineComponent({
   name: "OrderStatus",
   props: { status: { type: String, default: "" }, displayValue: { type: String, default: "" } },
   setup: (props) => () => h("span", props.displayValue || props.status),
+});
+
+// ---- The host's dashboard layout engine (VCST-6078) ---------------------------------------------------------
+// Working defaults, since the engine is the host's and specs still run the hub's code on top of it: the pure
+// helpers mirror `client-app/shared/dashboard` in the host, the controller reads as a settled layout that
+// shows nothing, and the two components render through so a spec keeps asserting on the hub's own content.
+
+export const MIN_ROWS = 1;
+
+export function statBlocks(cards: readonly IStatCardDefType[]) {
+  return cards.map((card, index) => ({
+    id: card.key,
+    region: "statistics" as const,
+    titleKey: card.labelKey,
+    order: (index + 1) * 10,
+  }));
+}
+
+export function statDataNeeds<TNeed extends string>(
+  cards: readonly IStatCardDefType<TNeed>[],
+  cardIds: Iterable<string>,
+): ReadonlySet<TNeed> {
+  const wanted = new Set(cardIds);
+  const needs = new Set<TNeed>();
+
+  for (const card of cards) {
+    if (wanted.has(card.key)) {
+      for (const need of card.needs) {
+        needs.add(need);
+      }
+    }
+  }
+
+  return needs;
+}
+
+function statCardState<TNeed extends string, TQuery extends string>(
+  needs: readonly TNeed[],
+  table: Readonly<Record<TNeed, StatNeedResultType<TQuery>>>,
+  states: Readonly<Record<TQuery, StatQueryStateType>>,
+): StatQueryStateType {
+  let loading = false;
+  let failed = false;
+
+  for (const need of needs) {
+    const { query, arrived } = table[need];
+    const state = states[query];
+
+    if (state.failed) {
+      failed = true;
+    }
+
+    if (state.loading && !arrived) {
+      loading = true;
+    }
+  }
+
+  return { loading, failed };
+}
+
+export function buildStatCards<
+  TNeed extends string,
+  TQuery extends string,
+  TDefs extends readonly IStatCardDefType<TNeed>[],
+>(
+  defs: TDefs,
+  data: Record<TDefs[number]["key"], Record<string, unknown>>,
+  queries: {
+    table: Readonly<Record<TNeed, StatNeedResultType<TQuery>>>;
+    states: Readonly<Record<TQuery, StatQueryStateType>>;
+  },
+) {
+  return defs.map((def) => ({
+    ...def,
+    ...data[def.key as TDefs[number]["key"]],
+    ...statCardState(def.needs, queries.table, queries.states),
+  }));
+}
+
+export function useStatDataNeeds<TNeed extends string>(
+  layout: LayoutVisibilityType,
+  cards: readonly IStatCardDefType<TNeed>[],
+) {
+  const needs = computed<ReadonlySet<TNeed>>(() => {
+    if (!layout.settled.value) {
+      return new Set<TNeed>();
+    }
+
+    const shown = layout.editing.value ? cards.map((card) => card.key) : layout.visibleIn("statistics");
+    return statDataNeeds(cards, shown);
+  });
+
+  return { needs, ready: layout.settled };
+}
+
+export function visibleTabRules<T extends { name: string }>(rules: readonly T[], hiddenTabs: readonly string[]): T[] {
+  return rules.filter((rule) => !hiddenTabs.includes(rule.name));
+}
+
+export function knownHiddenTabs(rules: readonly { name: string }[], hiddenTabs: readonly string[]): string[] {
+  if (!rules.length) {
+    return [...hiddenTabs];
+  }
+
+  const known = new Set(rules.map((rule) => rule.name));
+  return [...new Set(hiddenTabs.filter((name) => known.has(name)))];
+}
+
+export function toggleTabRule(hiddenTabs: readonly string[], name: string): readonly string[] {
+  return hiddenTabs.includes(name) ? hiddenTabs.filter((hidden) => hidden !== name) : [...hiddenTabs, name];
+}
+
+/** The host's statistics windows (shared/dashboard/statistics.ts): the user's calendar days as UTC instants. */
+const local = (year: number, month: number, day: number, hours = 0, minutes = 0, seconds = 0, ms = 0): number =>
+  new Date(year, month, day, hours, minutes, seconds, ms).getTime();
+const eod = (year: number, month: number, day: number): number => local(year, month, day, 23, 59, 59, 999);
+const iso = (ms: number): string => new Date(ms).toISOString();
+
+export function buildStatisticsWindows(now: Date = new Date()) {
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const nowIso = iso(eod(year, month, day));
+  const monthStart = local(year, month, 1);
+  const prevMonthStart = local(year, month - 1, 1);
+  const yearStart = local(year, 0, 1);
+  const prevYearStart = local(year - 1, 0, 1);
+  const recentStart = local(year, month, day - 6);
+  const daysSinceMonday = (now.getDay() + 6) % 7;
+  const weekStart = local(year, month, day - daysSinceMonday);
+  const prevWeekStart = local(year, month, day - daysSinceMonday - 7);
+  const matched = (prevEnd: number, currentStart: number): string => iso(Math.min(prevEnd, currentStart));
+
+  return {
+    mtdFrom: iso(monthStart),
+    mtdTo: nowIso,
+    prevFrom: iso(prevMonthStart),
+    prevTo: matched(eod(year, month - 1, day), monthStart),
+    ytdFrom: iso(yearStart),
+    ytdTo: nowIso,
+    lastYearFrom: iso(prevYearStart),
+    lastYearTo: matched(eod(year - 1, month, day), yearStart),
+    weekFrom: iso(weekStart),
+    weekTo: nowIso,
+    prevWeekFrom: iso(prevWeekStart),
+    prevWeekTo: matched(eod(year, month, day - 7), weekStart),
+    recentFrom: iso(recentStart),
+    recentTo: nowIso,
+  };
+}
+
+/** The host's stat formatting seam: an absent metric reads as 0 in the globals' culture and currency. */
+export function formatStatCount(value?: number | null): string {
+  return new Intl.NumberFormat(globals.cultureName).format(value ?? 0);
+}
+
+export function formatStatMoney(money?: { formattedAmount: string } | null): string {
+  if (money?.formattedAmount) {
+    return money.formattedAmount;
+  }
+
+  const currency: string | undefined = globals.currencyCode;
+  if (!currency) {
+    return "0";
+  }
+
+  return new Intl.NumberFormat(globals.cultureName, { style: "currency", currency }).format(0);
+}
+
+export function formatSignedPercent(percent?: number | null): SignedPercentType | undefined {
+  if (percent == null) {
+    return undefined;
+  }
+
+  const rounded = Math.round(percent);
+  if (rounded > 0) {
+    return { text: `+${rounded}%`, tone: "positive", icon: "chevron-up" };
+  }
+  if (rounded < 0) {
+    return { text: `${rounded}%`, tone: "negative", icon: "chevron-down" };
+  }
+  return { text: "0%", tone: "neutral", icon: "minus" };
+}
+
+export const registerBlock = () => {};
+
+/** A settled layout that shows nothing and is not being edited: the three fields the hub's own code reads. */
+export const useLayout = () => ({ settled: ref(true), editing: ref(false), visibleIn: (): readonly string[] => [] });
+
+/** `undefined`, as for a widget rendered outside a layout; a spec that needs chrome mocks this. */
+export const useBlockChrome = (): undefined => undefined;
+
+export const LayoutSurface = defineComponent({
+  name: "LayoutSurface",
+  props: {
+    layout: { type: Object, required: true },
+    cards: { type: Array, default: () => [] },
+    blockProps: { type: Object, default: undefined },
+    editButtonPlacement: { type: String, default: "end" },
+  },
+  setup: () => () => h("div", { class: "layout-surface" }),
+});
+
+/** Renders through the widget mock with the slots the host's LayoutWidget forwards, so a spec finds the hub's
+ *  content where it renders and nothing the host would drop. */
+export const LayoutWidget = defineComponent({
+  name: "LayoutWidget",
+  props: { title: { type: String, default: undefined }, size: { type: String, default: "md" } },
+  setup:
+    (props, { slots }) =>
+    () =>
+      h(
+        VcWidget,
+        { class: "layout-widget", title: props.title },
+        { append: slots.append, "default-container": slots["default-container"], default: slots.default },
+      ),
 });

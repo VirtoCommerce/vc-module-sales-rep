@@ -2335,13 +2335,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/sortablejs@npm:^1.15.9":
-  version: 1.15.9
-  resolution: "@types/sortablejs@npm:1.15.9"
-  checksum: 10c0/d8ddf3da28a84a023d3003aa64b6495a7112e3945ac05d937afdb7c182b04a1025f126b2977ed8d5a9ede229b4bab85f037efbc97fde8a71128e056ac3122fa9
-  languageName: node
-  linkType: hard
-
 "@types/web-bluetooth@npm:^0.0.21":
   version: 0.0.21
   resolution: "@types/web-bluetooth@npm:0.0.21"
@@ -2703,9 +2696,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vc-frontend/core@https://github.com/VirtoCommerce/vc-frontend/releases/download/core-v0.2.4/vc-frontend-core-0.2.4.tgz":
-  version: 0.2.4
-  resolution: "@vc-frontend/core@https://github.com/VirtoCommerce/vc-frontend/releases/download/core-v0.2.4/vc-frontend-core-0.2.4.tgz"
+"@vc-frontend/core@file:./facade/vc-frontend-core-0.2.5.tgz::locator=sales-rep%40workspace%3A.":
+  version: 0.2.5
+  resolution: "@vc-frontend/core@file:./facade/vc-frontend-core-0.2.5.tgz#./facade/vc-frontend-core-0.2.5.tgz::hash=df0b1a&locator=sales-rep%40workspace%3A."
   peerDependencies:
     "@apollo/client": ^3.14.0
     "@floating-ui/vue": ^2.0.1
@@ -2731,7 +2724,7 @@ __metadata:
       optional: true
     tw-elements:
       optional: true
-  checksum: 10c0/cad664930adfbd9ea1bfc5c6c203f23f97cedc98f70c6bc70bd3c85021886ebcf58a898069cc46652ee78ce5ca5b68e73eccfaa54b37dc87bb98638471f82442
+  checksum: 10c0/47477c98c41b69fb1caba7b63d49c8d2fd3fafa3e964585dd6f5501f0a09166d89329b0231221b3645130cf63225aa435362437b265655ae766063fe7153c18a
   languageName: node
   linkType: hard
 
@@ -7211,9 +7204,8 @@ __metadata:
     "@testing-library/jest-dom": "npm:^6.9.1"
     "@testing-library/vue": "npm:^8.1.0"
     "@types/lodash-es": "npm:^4.17.12"
-    "@types/sortablejs": "npm:^1.15.9"
     "@unhead/vue": "npm:^3.2.1"
-    "@vc-frontend/core": "https://github.com/VirtoCommerce/vc-frontend/releases/download/core-v0.2.4/vc-frontend-core-0.2.4.tgz"
+    "@vc-frontend/core": "file:./facade/vc-frontend-core-0.2.5.tgz"
     "@vee-validate/yup": "npm:^4.15.1"
     "@vitejs/plugin-vue": "npm:^6.0.8"
     "@vue/apollo-composable": "npm:^4.2.2"
@@ -7236,7 +7228,6 @@ __metadata:
     postcss-import: "npm:^16.1.1"
     prettier: "npm:^3.9.5"
     sass: "npm:^1.101.0"
-    sortablejs: "npm:^1.15.7"
     tailwindcss: "npm:^3.4.19"
     tw-elements: "npm:^1.1.0"
     typescript: "npm:5.9.3"
@@ -7463,13 +7454,6 @@ __metadata:
     dot-case: "npm:^3.0.4"
     tslib: "npm:^2.0.3"
   checksum: 10c0/ab19a913969f58f4474fe9f6e8a026c8a2142a01f40b52b79368068343177f818cdfef0b0c6b9558f298782441d5ca8ed5932eb57822439fad791d866e62cecd
-  languageName: node
-  linkType: hard
-
-"sortablejs@npm:^1.15.7":
-  version: 1.15.7
-  resolution: "sortablejs@npm:1.15.7"
-  checksum: 10c0/6bfec9876bb66cb401377a52d5b4f832b8841ea55e3d290e4a885e129233558e91253f1e539a3a6374fb0a4575d6fb91567d6f46ebcb3613a808a6562dea4a76
   languageName: node
   linkType: hard
 

@@ -1,8 +1,8 @@
 import { mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toValue } from "vue";
+import { buildStatisticsWindows } from "@vc-frontend/core";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
-import { buildStatisticsWindows } from "../utils";
 import MyActivity from "./my-activity.vue";
 import type { SalesRepActivityItemType } from "../types";
 import type { MaybeRefOrGetter } from "vue";

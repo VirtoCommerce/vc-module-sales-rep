@@ -61,11 +61,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { getProductRoute } from "@vc-frontend/core";
+import { formatStatCount, getProductRoute } from "@vc-frontend/core";
 import { useSalesRepBrowseHistory } from "../composables/useSalesRepBrowseHistory";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
 import { HUB_ACTIVITY_PERIOD, INSIGHTS_DEFAULT_ROWS, INSIGHTS_SORT_BY_DATE } from "../constants";
-import { formatStatCount } from "../utils";
 import CustomerInsightsPanel from "./customer-insights-panel.vue";
 import type { SalesRepBrowsedProductRowType } from "../types/insights";
 

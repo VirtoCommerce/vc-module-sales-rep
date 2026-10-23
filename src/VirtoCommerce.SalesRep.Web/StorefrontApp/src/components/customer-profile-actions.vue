@@ -60,10 +60,9 @@
 
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { useModal } from "@vc-frontend/core";
+import { LayoutWidget, useModal } from "@vc-frontend/core";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import CustomerCommunicationModal from "./customer-communication-modal.vue";
-import LayoutWidget from "./layout-widget.vue";
 
 interface IProps {
   organizationId: string;

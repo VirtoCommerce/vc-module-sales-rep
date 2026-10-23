@@ -110,7 +110,7 @@ export const RANKED_ACTIVITY_CATEGORIES = new Set<string>([ACTIVITY_CATEGORY.sea
 // checks for the read permission itself (an admin/writer also carries it through checkPermissions'
 // isAdministrator shortcut or the role that grants access).
 export const SALES_REP_DOCUMENTS_READ_PERMISSION = "sales-rep-documents:read";
-// Layout block id — persisted as block.type in saved layouts, so it is load-bearing (see LAYOUT_SCOPE notes).
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
 export const DOCUMENTS_BLOCK_ID = "documents";
 export const DOCUMENTS_ROUTE_NAME = "SalesRepDocuments";
 export const DOCUMENTS_ROUTE_SEGMENT = "documents";
@@ -129,7 +129,7 @@ export const GOOGLE_ANALYTICS_MODULE_ID = "VirtoCommerce.GoogleEcommerceAnalytic
 export const TASKS_ROUTE_NAME = "SalesRepTasks";
 export const TASKS_ROUTE_SEGMENT = "tasks";
 export const TASKS_NAV_LINK_ID = "sales-rep-tasks";
-// Layout block id — persisted as block.type in saved layouts, so it is load-bearing (see LAYOUT_SCOPE notes).
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
 export const TASKS_BLOCK_ID = "tasks";
 // Page size for the Tasks page's task table (offset-as-cursor, like useSalesRepDocuments).
 export const TASKS_PAGE_SIZE = 15;
@@ -162,29 +162,9 @@ export const TOP_SELLERS_DEFAULT_TAKE = 5;
 // backend caches these criteria. The rule lists in useSalesRepRules stay cache-first: static data.
 export const HUB_FETCH_POLICY: WatchQueryFetchPolicy = "cache-and-network";
 
-// Saved layout (VCST-5367). The backend types `scope` and `region.id` as free-form `String`, not
-// enums — an unrecognized value does not error, it silently addresses a different (empty) document.
-// So these literals are load-bearing: changing one strands every layout already saved under the old
-// value. `layout/document.test.ts` and `composables/useSalesRepLayout.test.ts` pin them.
-export const LAYOUT_SCHEMA_VERSION = 1;
-export const DASHBOARD_LAYOUT_SCOPE = "dashboard";
-export const CUSTOMER_PROFILE_LAYOUT_SCOPE = "customerProfile";
-// Ordered so serialization always emits regions in a stable sequence.
-export const LAYOUT_REGION_IDS = ["statistics", "mainLeft", "mainRight"] as const;
-// What a widget can be dragged by: its whole header. `.vc-widget__header-container` is a VcWidget
-// internal, not a published contract, so a rename there silently kills header drags —
-// `layout-block-widget.test.ts` mounts a real widget against this to catch it.
-export const WIDGET_DRAG_HANDLE_SELECTOR = ".vc-widget__header-container";
-// Controls that sit inside that header, so without this a mousedown on ✕ or in the rows field starts
-// a drag instead. SortableJS `filter` takes a comma-separated selector list.
-export const WIDGET_DRAG_FILTER_SELECTOR = ".layout-widget__hide, .layout-widget__rows";
+export const DASHBOARD_LAYOUT_SCOPE = "salesRepDashboard";
+export const CUSTOMER_PROFILE_LAYOUT_SCOPE = "salesRepCustomerProfile";
 
-// Per-widget settings (VCST-5649), persisted as scalars in each block's `settings` list. Like the
-// scope and region ids above these strings are load-bearing: renaming one strands every saved value.
-export const SETTING_MAX_ROWS = "maxRows";
-// One sibling key per rule the rep unchecked; a checked rule writes nothing, so a status the backend
-// adds later shows up checked without a migration.
-export const SETTING_HIDDEN_TAB_PREFIX = "tab.";
 // Default row caps, per the design. Below the widgets' own page sizes, which stay the fallback for a
 // widget rendered outside a layout.
 export const ORDERS_DEFAULT_ROWS = 5;
@@ -195,8 +175,6 @@ export const TOP_SELLERS_MAX_ROWS = 10;
 // Documents widget row cap (VCST-5730) — follows top-sellers: default 5, max 10.
 export const DOCUMENTS_DEFAULT_ROWS = 5;
 export const DOCUMENTS_MAX_ROWS = 10;
-export const MIN_ROWS = 1;
-
 // salesRepCustomerInsights sort names: "count" ranks by occurrences (Top), "date" by the latest hour bucket (Recent).
 export const INSIGHTS_DEFAULT_ROWS = 5;
 export const INSIGHTS_MAX_ROWS = 20;
