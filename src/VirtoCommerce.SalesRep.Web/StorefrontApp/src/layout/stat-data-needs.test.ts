@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { statDataNeeds as needsOf } from "@vc-frontend/core";
+import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_LAYOUT_SCOPE } from "../constants";
 import { STAT_CARDS } from "./stat-cards";
 import {
   needsCartStatistics,
@@ -17,7 +18,7 @@ const allStatDataNeeds = (scope: SalesRepLayoutScopeType) => statDataNeeds(scope
 
 describe("stat data needs", () => {
   it("asks for nothing when no card is visible, so the queries do not run", () => {
-    const needs = statDataNeeds("dashboard", []);
+    const needs = statDataNeeds(DASHBOARD_LAYOUT_SCOPE, []);
 
     expect(needsOrderStatistics(needs)).toBe(false);
     expect(needsCartStatistics(needs)).toBe(false);
@@ -25,13 +26,13 @@ describe("stat data needs", () => {
   });
 
   it("drops a whole query when the only card it feeds is hidden", () => {
-    const withoutCarts = everyCard("dashboard").filter((key) => key !== "active_carts");
-    const withoutCounts = everyCard("dashboard").filter((key) => key !== "my_customers");
+    const withoutCarts = everyCard(DASHBOARD_LAYOUT_SCOPE).filter((key) => key !== "active_carts");
+    const withoutCounts = everyCard(DASHBOARD_LAYOUT_SCOPE).filter((key) => key !== "my_customers");
 
-    expect(needsCartStatistics(statDataNeeds("dashboard", withoutCarts))).toBe(false);
-    expect(needsCustomerCounts(statDataNeeds("dashboard", withoutCounts))).toBe(false);
+    expect(needsCartStatistics(statDataNeeds(DASHBOARD_LAYOUT_SCOPE, withoutCarts))).toBe(false);
+    expect(needsCustomerCounts(statDataNeeds(DASHBOARD_LAYOUT_SCOPE, withoutCounts))).toBe(false);
     // The order statistics still have four cards to feed, so that query stays.
-    expect(needsOrderStatistics(statDataNeeds("dashboard", withoutCarts))).toBe(true);
+    expect(needsOrderStatistics(statDataNeeds(DASHBOARD_LAYOUT_SCOPE, withoutCarts))).toBe(true);
   });
 
   /**
@@ -39,7 +40,7 @@ describe("stat data needs", () => {
    * bucket, its previous-week baseline and the previous-month baseline for cards it does not have.
    */
   it("leaves the week and month-over-month slices out of the customer profile", () => {
-    const flags = orderStatisticsFlags(allStatDataNeeds("customerProfile"));
+    const flags = orderStatisticsFlags(allStatDataNeeds(CUSTOMER_PROFILE_LAYOUT_SCOPE));
 
     expect(flags.withWeek).toBe(false);
     expect(flags.withMonthOverMonth).toBe(false);
@@ -54,7 +55,7 @@ describe("stat data needs", () => {
   });
 
   it("leaves the average out of the dashboard, which has no avg-order-value card", () => {
-    const flags = orderStatisticsFlags(allStatDataNeeds("dashboard"));
+    const flags = orderStatisticsFlags(allStatDataNeeds(DASHBOARD_LAYOUT_SCOPE));
 
     expect(flags.withAverageOrderValue).toBe(false);
     expect(flags).toMatchObject({ withWeek: true, withMonthOverMonth: true, withYearOverYear: true });
@@ -62,28 +63,34 @@ describe("stat data needs", () => {
 
   it("keeps a period when only its comparison card is hidden, and vice versa", () => {
     // "Purchased · MTD" is gone but "Orders placed · YTD" remains: no mtd slice, ytd intact.
-    const ytdOnly = orderStatisticsFlags(statDataNeeds("customerProfile", ["orders_ytd"]));
+    const ytdOnly = orderStatisticsFlags(statDataNeeds(CUSTOMER_PROFILE_LAYOUT_SCOPE, ["orders_ytd"]));
     expect(ytdOnly).toMatchObject({ withMtd: false, withYtd: true, withYearOverYear: true });
 
     // The dashboard's week card alone: its own bucket and baseline, nothing else.
-    const weekOnly = orderStatisticsFlags(statDataNeeds("dashboard", ["orders_placed_week"]));
+    const weekOnly = orderStatisticsFlags(statDataNeeds(DASHBOARD_LAYOUT_SCOPE, ["orders_placed_week"]));
     expect(weekOnly).toMatchObject({ withWeek: true, withMtd: false, withYtd: false, withYearOverYear: false });
   });
 
   // A card whose figures nothing fetches renders a permanent zero, which is the failure this table is
   // meant to prevent — so every registered card has to declare at least one source.
-  it.each(["dashboard", "customerProfile"] as const)("%s: every card declares what it needs", (scope) => {
-    for (const card of STAT_CARDS[scope]) {
-      expect(card.needs.length, `${scope}/${card.key}`).toBeGreaterThan(0);
-    }
-  });
+  it.each([DASHBOARD_LAYOUT_SCOPE, CUSTOMER_PROFILE_LAYOUT_SCOPE] as const)(
+    "%s: every card declares what it needs",
+    (scope) => {
+      for (const card of STAT_CARDS[scope]) {
+        expect(card.needs.length, `${scope}/${card.key}`).toBeGreaterThan(0);
+      }
+    },
+  );
 
   // Guards the enabled/flag split: a surface asking for a query must also select something in it.
-  it.each(["dashboard", "customerProfile"] as const)("%s: asks for at least one order slice", (scope) => {
-    const needs = allStatDataNeeds(scope);
-    const flags = orderStatisticsFlags(needs);
+  it.each([DASHBOARD_LAYOUT_SCOPE, CUSTOMER_PROFILE_LAYOUT_SCOPE] as const)(
+    "%s: asks for at least one order slice",
+    (scope) => {
+      const needs = allStatDataNeeds(scope);
+      const flags = orderStatisticsFlags(needs);
 
-    expect(needsOrderStatistics(needs)).toBe(true);
-    expect(Object.values(flags).some(Boolean)).toBe(true);
-  });
+      expect(needsOrderStatistics(needs)).toBe(true);
+      expect(Object.values(flags).some(Boolean)).toBe(true);
+    },
+  );
 });

@@ -4,6 +4,7 @@
 // figures come from, so the statistics queries are shaped from the visible cards instead of a hand-kept
 // union (`layout/stat-data-needs.ts`): declare what the card *renders* — a token is not implied by another,
 // so a card showing a period and its comparison names both.
+import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_LAYOUT_SCOPE } from "../constants";
 import type { IStatCardDefType } from "@vc-frontend/core";
 import type { SalesRepLayoutScopeType } from "../types/layout";
 import type { StatDataNeedType } from "../types/widgets";
@@ -98,6 +99,6 @@ export const CUSTOMER_PROFILE_STAT_CARDS = [
 ] as const satisfies readonly IStatCardDefType<StatDataNeedType>[];
 
 export const STAT_CARDS: Record<SalesRepLayoutScopeType, readonly IStatCardDefType<StatDataNeedType>[]> = {
-  dashboard: DASHBOARD_STAT_CARDS,
-  customerProfile: CUSTOMER_PROFILE_STAT_CARDS,
+  [DASHBOARD_LAYOUT_SCOPE]: DASHBOARD_STAT_CARDS,
+  [CUSTOMER_PROFILE_LAYOUT_SCOPE]: CUSTOMER_PROFILE_STAT_CARDS,
 };

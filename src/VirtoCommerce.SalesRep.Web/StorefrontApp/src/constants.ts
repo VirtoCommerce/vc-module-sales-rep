@@ -162,8 +162,8 @@ export const TOP_SELLERS_DEFAULT_TAKE = 5;
 // backend caches these criteria. The rule lists in useSalesRepRules stay cache-first: static data.
 export const HUB_FETCH_POLICY: WatchQueryFetchPolicy = "cache-and-network";
 
-export const DASHBOARD_LAYOUT_SCOPE = "dashboard";
-export const CUSTOMER_PROFILE_LAYOUT_SCOPE = "customerProfile";
+export const DASHBOARD_LAYOUT_SCOPE = "salesRepDashboard";
+export const CUSTOMER_PROFILE_LAYOUT_SCOPE = "salesRepCustomerProfile";
 
 // Default row caps, per the design. Below the widgets' own page sizes, which stay the fallback for a
 // widget rendered outside a layout.
