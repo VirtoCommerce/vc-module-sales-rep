@@ -69,7 +69,7 @@
           "items_unit": "件商品",
           "not_for_checkout": "{count} 件不结账",
           "items_this_week": "本周 {count} 件商品",
-          "mtd_of_ytd": "占年初至今 {percent}%"
+          "mtd_of_ytd": "占年初至今 {percent}"
         }
       }
     },

@@ -69,7 +69,7 @@
           "items_unit": "vare | varer",
           "not_for_checkout": "{count} ikke til kassen",
           "items_this_week": "{count} vare denne uken | {count} varer denne uken",
-          "mtd_of_ytd": "{percent}% av året"
+          "mtd_of_ytd": "{percent} av året"
         }
       }
     },

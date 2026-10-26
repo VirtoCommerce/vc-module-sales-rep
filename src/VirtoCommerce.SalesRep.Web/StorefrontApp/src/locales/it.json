@@ -69,7 +69,7 @@
           "items_unit": "articolo | articoli",
           "not_for_checkout": "{count} fuori dal checkout",
           "items_this_week": "{count} articolo questa settimana | {count} articoli questa settimana",
-          "mtd_of_ytd": "{percent}% dell'anno"
+          "mtd_of_ytd": "{percent} dell'anno"
         }
       }
     },

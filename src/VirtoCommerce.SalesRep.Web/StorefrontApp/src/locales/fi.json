@@ -69,7 +69,7 @@
           "items_unit": "tuote | tuotetta",
           "not_for_checkout": "{count} ei kassalle",
           "items_this_week": "{count} tuote tällä viikolla | {count} tuotetta tällä viikolla",
-          "mtd_of_ytd": "{percent}% vuodesta"
+          "mtd_of_ytd": "{percent} vuodesta"
         }
       }
     },

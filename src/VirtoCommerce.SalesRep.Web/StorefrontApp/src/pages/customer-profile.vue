@@ -70,11 +70,12 @@ const isCompact = useBreakpoints(breakpointsTailwind).smaller("xl");
 
 const { t } = useI18n();
 const { customer, loading, failed, notFound } = useSalesRepCustomer(() => props.organizationId);
-// A customer that is missing or failed to load gets no cards (the surface is not rendered), so nothing is fetched
-// for them either.
+// The cards' figures wait for the customer: the read decides whether the organization is the rep's, so an unserved
+// or unknown one, or one that failed to load, never gets a statistics request. The query keeps no previous result,
+// so the customer of the page left behind does not open the gate for the next one.
 const { cards } = useSalesRepCustomerWidgets(
   {
-    settled: computed(() => layout.settled.value && !failed.value && !notFound.value),
+    settled: computed(() => layout.settled.value && Boolean(customer.value)),
     editing: layout.editing,
     visibleIn: layout.visibleIn,
   },

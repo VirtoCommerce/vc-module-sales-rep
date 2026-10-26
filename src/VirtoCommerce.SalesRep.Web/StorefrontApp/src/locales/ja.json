@@ -69,7 +69,7 @@
           "items_unit": "点",
           "not_for_checkout": "{count} 点 レジ対象外",
           "items_this_week": "今週 {count} 点",
-          "mtd_of_ytd": "年初来の {percent}%"
+          "mtd_of_ytd": "年初来の {percent}"
         }
       }
     },

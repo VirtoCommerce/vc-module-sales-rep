@@ -123,6 +123,15 @@ describe("CustomerProfile statistics", () => {
     expect(widgets.settled?.value).toBe(true);
   });
 
+  // The read decides whether the organization is the rep's, so nothing is asked for an unserved or unknown one.
+  it("are held back while the customer is still loading", () => {
+    state.loading.value = true;
+
+    createWrapper();
+
+    expect(widgets.settled?.value).toBe(false);
+  });
+
   it("are held back for a customer that failed to load", () => {
     state.failed.value = true;
 

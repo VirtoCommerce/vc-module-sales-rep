@@ -25,7 +25,7 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   globals: { storeId: "B2B-store", cultureName: "en-US" },
   Logger: { error: vi.fn(), warn: vi.fn() },
 }));
-vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
+vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key, n: (value: number) => String(value) }) }));
 
 const BLOCKS: Record<SalesRepLayoutScopeType, readonly BlockType[]> = {
   [DASHBOARD_LAYOUT_SCOPE]: dashboardBlocks,

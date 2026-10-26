@@ -69,7 +69,7 @@
           "items_unit": "товаров | товар | товара | товаров",
           "not_for_checkout": "{count} не к оформлению",
           "items_this_week": "{count} товаров за неделю | {count} товар за неделю | {count} товара за неделю | {count} товаров за неделю",
-          "mtd_of_ytd": "{percent}% от года"
+          "mtd_of_ytd": "{percent} от года"
         }
       }
     },

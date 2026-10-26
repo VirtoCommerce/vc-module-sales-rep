@@ -58,15 +58,23 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   globals: { cultureName: "en-US", currencyCode: "USD" },
 }));
 
+// Switches the locale of the instance the mock below builds; replaced once it is built.
+const i18nLocale = vi.hoisted(() => ({ set: (locale: "en" | "de"): void => void locale }));
+
 // Real messages, so the assertions are the text a rep actually reads.
 vi.mock("vue-i18n", async () => {
   const { createI18n } = await vi.importActual<typeof import("vue-i18n")>("vue-i18n");
   const en = await vi.importActual<typeof import("../locales/en.json")>("../locales/en.json");
-  const i18n = createI18n({ locale: "en", legacy: false, messages: { en }, missingWarn: false });
-  return { useI18n: () => ({ t: i18n.global.t }) };
+  const de = await vi.importActual<typeof import("../locales/de.json")>("../locales/de.json");
+  const i18n = createI18n({ locale: "en", legacy: false, messages: { en, de }, missingWarn: false });
+  i18nLocale.set = (locale) => {
+    i18n.global.locale.value = locale;
+  };
+  return { useI18n: () => ({ t: i18n.global.t, n: i18n.global.n }) };
 });
 
 beforeEach(() => {
+  i18nLocale.set("en");
   // Reset the data refs too, or a later test silently inherits the previous one's payload.
   sources.orders.value = undefined;
   sources.carts.value = undefined;
@@ -232,6 +240,22 @@ describe("stat cards for a customer with partial data", () => {
     expect(byKey(profile.cards.value, "aov")).toMatchObject({ value: "$46.02" });
     // MTD is absent while YTD is not: the share is 0, not a dropped row.
     expect(byKey(profile.cards.value, "mtd")).toMatchObject({ value: "$0.00", delta: "0% of YTD" });
+  });
+});
+
+describe("the customer profile's month-to-date share", () => {
+  // A share, not a change: no sign, but the user's number format, like the changes beside it.
+  it("is written in the user's locale", () => {
+    i18nLocale.set("de");
+    sources.orders.value = {
+      currencyCode: "USD",
+      mtd: { count: 1, total: money(35, "35,00 $") },
+      ytd: { count: 4, total: money(100, "100,00 $"), average: money(25, "25,00 $") },
+    } satisfies OrderStatsType;
+
+    const { cards } = useSalesRepCustomerWidgets(profileLayout(), "org-1");
+
+    expect(cards.value.find((card) => card.key === "mtd")?.delta).toBe("35 % des Jahres");
   });
 });
 

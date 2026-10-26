@@ -22,7 +22,7 @@ import type { MaybeRefOrGetter } from "vue";
 // This surface has no week card and no month-over-month delta, so its layout keeps the queries from
 // fetching the three buckets behind them — what VCST-5647 found it discarding.
 export function useSalesRepCustomerWidgets(layout: LayoutVisibilityType, organizationId: MaybeRefOrGetter<string>) {
-  const { t } = useI18n();
+  const { t, n } = useI18n();
   const orgId = (): string => toValue(organizationId);
   const needs = useStatDataNeeds(layout, CUSTOMER_PROFILE_STAT_CARDS);
 
@@ -72,8 +72,9 @@ export function useSalesRepCustomerWidgets(layout: LayoutVisibilityType, organiz
         active_cart: buildActiveCartsCardData(carts, t),
         mtd: {
           value: formatStatMoney(mtd?.total),
-          // Informational ratio (gray, no chevron): how much of the year's revenue landed this month.
-          delta: t("sales_rep.hub.dashboard.stats.mtd_of_ytd", { percent: mtdShare }),
+          // Informational ratio (gray, no chevron): how much of the year's revenue landed this month. Unsigned, but in
+          // the user's number format like the changes beside it ("35 %" in German).
+          delta: t("sales_rep.hub.dashboard.stats.mtd_of_ytd", { percent: n(mtdShare / 100, { style: "percent" }) }),
           deltaTone: "neutral",
         },
         orders_ytd: {

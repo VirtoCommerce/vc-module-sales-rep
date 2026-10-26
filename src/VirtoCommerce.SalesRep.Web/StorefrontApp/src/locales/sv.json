@@ -69,7 +69,7 @@
           "items_unit": "artikel | artiklar",
           "not_for_checkout": "{count} inte till kassan",
           "items_this_week": "{count} artikel denna vecka | {count} artiklar denna vecka",
-          "mtd_of_ytd": "{percent}% av året"
+          "mtd_of_ytd": "{percent} av året"
         }
       }
     },
