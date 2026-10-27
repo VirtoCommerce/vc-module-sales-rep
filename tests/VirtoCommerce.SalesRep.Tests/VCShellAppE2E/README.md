@@ -42,7 +42,8 @@ up in about 3 seconds; each test takes about one second (the built app loads fro
 The tests run wherever the built app is, and anywhere else they fail with the command that builds it. The module CI
 never runs them: every class also carries the `IntegrationTest` category, which `vc-build Test` leaves out by default.
 That runner would have no built app either: both output folders are gitignored, and `vc-build Compress`, the step
-that builds the app into `Content/vc-sales-rep`, runs after `vc-build Test`.
+that builds the app into `Content/vc-sales-rep`, runs after `vc-build Test`. In GitHub, the `E2E tests` workflow
+builds the app and runs them on demand (see the module README).
 
 Prerequisites: the built app, produced once with `yarn build:app` in `src/VirtoCommerce.SalesRep.Web/App` (the
 output `App/dist` is found automatically, as is `Content/vc-sales-rep`, which vc-build fills; `VC_VCSHELL_APP_DIR`
