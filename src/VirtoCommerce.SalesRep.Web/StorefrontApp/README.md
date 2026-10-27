@@ -55,7 +55,7 @@ commit a `file:.yalc/...` dependency.
 version does not satisfy it refuse to load this plugin (clean skip instead of a runtime
 error). When you adopt an export added in a newer facade version, bump
 `requiredHostVersion` **and** the pinned tarball URL together. This plugin requires
-**^0.2.5**, the facade that exports the dashboard layout engine.
+**^0.2.6**, the facade that exports the dashboard layout engine.
 
 The dashboard layout engine is the host's: `LayoutSurface` and `LayoutWidget`, the `useLayout`
 controller, `registerBlock`, the stat-card and widget-settings helpers all come from

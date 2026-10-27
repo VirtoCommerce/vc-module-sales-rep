@@ -2696,9 +2696,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@vc-frontend/core@file:./facade/vc-frontend-core-0.2.5.tgz::locator=sales-rep%40workspace%3A.":
-  version: 0.2.5
-  resolution: "@vc-frontend/core@file:./facade/vc-frontend-core-0.2.5.tgz#./facade/vc-frontend-core-0.2.5.tgz::hash=df0b1a&locator=sales-rep%40workspace%3A."
+"@vc-frontend/core@file:./facade/vc-frontend-core-0.2.6.tgz::locator=sales-rep%40workspace%3A.":
+  version: 0.2.6
+  resolution: "@vc-frontend/core@file:./facade/vc-frontend-core-0.2.6.tgz#./facade/vc-frontend-core-0.2.6.tgz::hash=44ab62&locator=sales-rep%40workspace%3A."
   peerDependencies:
     "@apollo/client": ^3.14.0
     "@floating-ui/vue": ^2.0.1
@@ -2724,7 +2724,7 @@ __metadata:
       optional: true
     tw-elements:
       optional: true
-  checksum: 10c0/47477c98c41b69fb1caba7b63d49c8d2fd3fafa3e964585dd6f5501f0a09166d89329b0231221b3645130cf63225aa435362437b265655ae766063fe7153c18a
+  checksum: 10c0/715029780c1ef82d2fabc2098b32aa121d1d90963dd5a57b0bb29b22f224a35a197850d8a6a805b04a34a6e088477811db10ccab0b42384774b7245256de294f
   languageName: node
   linkType: hard
 
@@ -7205,7 +7205,7 @@ __metadata:
     "@testing-library/vue": "npm:^8.1.0"
     "@types/lodash-es": "npm:^4.17.12"
     "@unhead/vue": "npm:^3.2.1"
-    "@vc-frontend/core": "file:./facade/vc-frontend-core-0.2.5.tgz"
+    "@vc-frontend/core": "file:./facade/vc-frontend-core-0.2.6.tgz"
     "@vee-validate/yup": "npm:^4.15.1"
     "@vitejs/plugin-vue": "npm:^6.0.8"
     "@vue/apollo-composable": "npm:^4.2.2"

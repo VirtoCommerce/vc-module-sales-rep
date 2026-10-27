@@ -18,7 +18,7 @@
     "generate:graphql-types": "graphql-codegen --config codegen.ts"
   },
   "dependencies": {
-    "@vc-frontend/core": "file:./facade/vc-frontend-core-0.2.5.tgz"
+    "@vc-frontend/core": "file:./facade/vc-frontend-core-0.2.6.tgz"
   },
   "devDependencies": {
     "@apollo/client": "^3.14.1",
