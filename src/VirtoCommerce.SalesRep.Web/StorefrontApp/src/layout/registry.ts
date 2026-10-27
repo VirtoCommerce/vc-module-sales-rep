@@ -21,6 +21,9 @@ const CustomerProfileActions = markRaw(
   defineAsyncComponent(() => import("../components/customer-profile-actions.vue")),
 );
 const CustomerProfileInfo = markRaw(defineAsyncComponent(() => import("../components/customer-profile-info.vue")));
+// Shown with or without the analytics module: orders and customer assignments are platform data, and the card
+// leaves the tracked half out when the module is absent. The customer activity widget is registered on its own.
+const MyActivity = markRaw(defineAsyncComponent(() => import("../components/my-activity.vue")));
 
 // From the shared card table: the stat row renders these by key, not by component, so they carry none.
 // Order follows the table; a saved document overrides it.
@@ -45,8 +48,6 @@ const topSellersSettings: SalesRepBlockSettingType[] = [
 
 const dashboardBlocks: SalesRepBlockType[] = [
   ...statBlocks("dashboard"),
-  // The dashboard has no right rail yet — `mainRight` stays empty and the row collapses to one
-  // column until a widget registers into it.
   {
     id: "orders",
     region: "mainLeft",
@@ -63,6 +64,13 @@ const dashboardBlocks: SalesRepBlockType[] = [
     order: 20,
     component: TopSellers,
     settings: topSellersSettings,
+  },
+  {
+    id: "my_activity",
+    region: "mainRight",
+    titleKey: "sales_rep.activity.my_activity.title",
+    order: 10,
+    component: MyActivity,
   },
 ];
 

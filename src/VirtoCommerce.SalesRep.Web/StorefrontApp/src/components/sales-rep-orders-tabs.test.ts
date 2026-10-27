@@ -59,6 +59,7 @@ const global = {
     VcTableColumn: true,
     VcIcon: true,
     VcLink: true,
+    VcTooltip: true,
   },
 };
 

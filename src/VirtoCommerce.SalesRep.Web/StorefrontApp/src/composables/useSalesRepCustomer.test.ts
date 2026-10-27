@@ -47,6 +47,16 @@ function passedVariables(): { organizationId: string } {
   return variables.value;
 }
 
+/** The reactive `enabled` option the composable handed to useQuery. */
+function passedEnabled(): { value: boolean } {
+  const call = (queryMock.useQuery.mock.calls.at(-1) ?? []) as unknown[];
+  const options = call[2] as { enabled?: { value: boolean } } | undefined;
+  if (!options?.enabled) {
+    throw new Error("useQuery was not called with an enabled option");
+  }
+  return options.enabled;
+}
+
 beforeEach(() => {
   queryMock.result.value = undefined;
   queryMock.loading.value = false;
@@ -131,6 +141,23 @@ describe("useSalesRepCustomer", () => {
     expect(notFound.value).toBe(true);
   });
 
+  // The Activities page serves the rep-wide feed and one customer's with one component, so it passes
+  // "" while the feed is unscoped. No id means nothing to read - and nothing to call "not found" either.
+  it("does not read, or answer notFound, without an organization id", () => {
+    const organizationId = ref("");
+    const { notFound } = useSalesRepCustomer(() => organizationId.value);
+
+    expect(passedEnabled().value).toBe(false);
+
+    queryMock.loading.value = false;
+    queryMock.result.value = { salesRepCustomer: null };
+    queryMock.settle();
+    expect(notFound.value).toBe(false);
+
+    organizationId.value = "org-1";
+    expect(passedEnabled().value).toBe(true);
+  });
+
   // A failed read says nothing about whether the rep serves this customer, so the page must not
   // present it as "not found" (VCST-5682).
   it("keeps a failed read out of notFound", () => {
@@ -141,6 +168,31 @@ describe("useSalesRepCustomer", () => {
 
     expect(failed.value).toBe(true);
     expect(notFound.value).toBe(false);
+  });
+
+  // Apollo's stop() keeps `error`, and this mock does the same. Unscoped, a failure outlived the id that
+  // caused it: the Activities page stayed on its error view after the rep went back to their own feed.
+  it("stops reporting a failure once the id is cleared", () => {
+    const organizationId = ref("org-1");
+    const { failed } = useSalesRepCustomer(() => organizationId.value);
+
+    queryMock.error.value = new Error("Failed to fetch");
+    expect(failed.value).toBe(true);
+
+    organizationId.value = "";
+    expect(failed.value).toBe(false);
+  });
+
+  // stop() keeps the last result as well: the rep's own feed must not go on naming the customer just left.
+  it("stops reporting the customer once the id is cleared", () => {
+    const organizationId = ref("org-1");
+    const { customer } = useSalesRepCustomer(() => organizationId.value);
+
+    queryMock.result.value = { salesRepCustomer: { organizationId: "org-1", organizationName: "Acme" } };
+    expect(customer.value?.organizationName).toBe("Acme");
+
+    organizationId.value = "";
+    expect(customer.value).toBeUndefined();
   });
 
   it("passes loading through and registers an error handler", () => {

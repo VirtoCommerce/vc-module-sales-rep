@@ -1,10 +1,19 @@
-import { describe, expect, it, vi } from "vitest";
-import { ENABLED_KEY, MODULE_ID, SALES_REP_ACCESS_PERMISSION } from "../constants";
-import { isSalesRepsEnabled, isSalesRepUser } from "./useSalesRepsConfig";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ENABLED_KEY, GOOGLE_ANALYTICS_MODULE_ID, MODULE_ID, SALES_REP_ACCESS_PERMISSION } from "../constants";
+import { isSalesRepAnalyticsEnabled, isSalesRepsEnabled, isSalesRepUser } from "./useSalesRepsConfig";
 
-const { isEnabled, useModuleSettings } = vi.hoisted(() => {
+// The store's module list: an id is in it while that module is installed and enabled.
+const { isEnabled, installedModules, useModuleSettings } = vi.hoisted(() => {
   const isEnabledFn = vi.fn();
-  return { isEnabled: isEnabledFn, useModuleSettings: vi.fn(() => ({ isEnabled: isEnabledFn })) };
+  const installed = new Set<string>();
+  return {
+    isEnabled: isEnabledFn,
+    installedModules: installed,
+    useModuleSettings: vi.fn((moduleId: string) => ({
+      isEnabled: isEnabledFn,
+      hasModuleSettings: { value: installed.has(moduleId) },
+    })),
+  };
 });
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -13,6 +22,10 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
 }));
 
 const { checkPermissions } = vi.hoisted(() => ({ checkPermissions: vi.fn() }));
+
+beforeEach(() => {
+  installedModules.clear();
+});
 
 describe("useSalesRepsConfig", () => {
   it("is enabled only when the SalesRep.Enabled storefront setting is on", () => {
@@ -55,6 +68,32 @@ describe("useSalesRepsConfig", () => {
       isSalesRepUser();
 
       expect(checkPermissions).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("isSalesRepAnalyticsEnabled", () => {
+    beforeEach(() => {
+      isEnabled.mockReturnValue(true);
+      checkPermissions.mockReturnValue(true);
+    });
+
+    it("is on for a rep while the analytics module is in the store's module list", () => {
+      installedModules.add(GOOGLE_ANALYTICS_MODULE_ID);
+
+      expect(isSalesRepAnalyticsEnabled()).toBe(true);
+      expect(useModuleSettings).toHaveBeenCalledWith(GOOGLE_ANALYTICS_MODULE_ID);
+    });
+
+    // Not installed and disabled from the admin UI look the same here: the module is not in the list.
+    it("is off when the analytics module is not in the list", () => {
+      expect(isSalesRepAnalyticsEnabled()).toBe(false);
+    });
+
+    it("is off for a user who is not a rep", () => {
+      installedModules.add(GOOGLE_ANALYTICS_MODULE_ID);
+      checkPermissions.mockReturnValue(false);
+
+      expect(isSalesRepAnalyticsEnabled()).toBe(false);
     });
   });
 });

@@ -15,7 +15,7 @@ function mountChip(props: { modelValue?: string; count?: number } = {}) {
   return mount(SalesRepRuleChip, {
     props: { value: "overdue", modelValue: undefined, label: "Overdue", ...props },
     slots: { append: '<span class="append" />' },
-    global: { components: { VcTabSwitch }, stubs: { VcIcon: true } },
+    global: { components: { VcTabSwitch }, stubs: { VcIcon: true, VcTooltip: true } },
   });
 }
 

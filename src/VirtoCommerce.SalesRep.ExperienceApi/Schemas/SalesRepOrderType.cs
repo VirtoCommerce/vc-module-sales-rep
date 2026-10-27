@@ -1,10 +1,6 @@
-using System;
-using System.Linq;
-using GraphQL;
 using GraphQL.DataLoader;
 using GraphQL.Types;
 using VirtoCommerce.CoreModule.Core.Currency;
-using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
@@ -40,34 +36,6 @@ public class SalesRepOrderType : ExtendableGraphType<SalesRepOrder>
         Field(x => x.ItemsCount, nullable: false).Description("Number of distinct line items in the order.");
         Field(x => x.ItemsQuantity, nullable: false).Description("Total number of units in the order (sum of line-item quantities) — the \"N units\" figure.");
 
-        Field<StringGraphType>("organizationName")
-            .Description("Organization (customer) name.")
-            .Resolve(context =>
-            {
-                if (!string.IsNullOrEmpty(context.Source.OrganizationName))
-                {
-                    return context.Source.OrganizationName;
-                }
-
-                var organizationId = context.Source.OrganizationId;
-                if (string.IsNullOrEmpty(organizationId))
-                {
-                    return null;
-                }
-
-                var loader = dataLoaderContextAccessor.Context.GetOrAddBatchLoader<string, string>(
-                    $"{nameof(SalesRepOrderType)}.OrganizationNameById",
-                    async organizationIds =>
-                    {
-                        var organizations = await memberService.GetByIdsAsync(
-                            organizationIds.ToArray(),
-                            nameof(MemberResponseGroup.Default),
-                            [nameof(Organization)]);
-
-                        return organizations.ToDictionary(x => x.Id, x => x.Name, StringComparer.OrdinalIgnoreCase);
-                    });
-
-                return loader.LoadAsync(organizationId);
-            });
+        this.AddOrganizationNameField(dataLoaderContextAccessor, memberService, x => x.OrganizationName, x => x.OrganizationId);
     }
 }
