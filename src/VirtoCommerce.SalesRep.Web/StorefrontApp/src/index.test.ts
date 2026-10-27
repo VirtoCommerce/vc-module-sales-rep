@@ -8,7 +8,7 @@ const mergeMenuSchema = vi.hoisted(() => vi.fn<(schema: DeepPartial<MenuType>) =
 
 vi.mock("./composables/useSalesRepsConfig", () => ({
   isSalesRepsEnabled: () => true,
-  isSalesRepUser: () => true,
+  isSalesRepUser: () => config.isSalesRep,
   isSalesRepTasksEnabled: () => false,
   isSalesRepAnalyticsEnabled: () => config.analyticsEnabled,
 }));
@@ -23,8 +23,6 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
     i18n: { global: { locale: "en", getLocaleMessage: () => ({}), setLocaleMessage: vi.fn() } },
   },
   useNavigations: () => ({ mergeMenuSchema, registerAccountSection: () => {} }),
-  // One switch for every permission init() checks: a rep holds the hub's, a buyer none of them.
-  useUser: () => ({ checkPermissions: () => config.isSalesRep }),
 }));
 
 // init() registers once per module instance (the MF loader re-invokes the entry on HMR), so each case loads a fresh
@@ -45,10 +43,11 @@ async function headerRowLinksAfterInit() {
 
   init();
 
-  return mergeMenuSchema.mock.calls.flatMap(([schema]) => [
-    ...(schema.header?.desktop?.main ?? []),
-    ...(schema.header?.mobile?.main ?? []),
-  ]);
+  const headers = mergeMenuSchema.mock.calls.map(([schema]) => schema.header);
+  return {
+    desktop: headers.flatMap((header) => header?.desktop?.main ?? []),
+    mobile: headers.flatMap((header) => header?.mobile?.main ?? []),
+  };
 }
 
 beforeEach(() => {
@@ -76,20 +75,19 @@ describe("plugin init: the customer activity widget", () => {
 // The host does not filter the header icon row by permissions, so init() adds the hub link only for reps.
 describe("plugin init: the Sales Rep Hub header link", () => {
   it("opens the hub dashboard from the header icon row, ahead of Bulk order, and the mobile menu", async () => {
-    const links = await headerRowLinksAfterInit();
+    const { desktop, mobile } = await headerRowLinksAfterInit();
+    const hubLink = { id: HUB_HEADER_LINK_ID, route: { name: DASHBOARD_ROUTE_NAME } };
 
-    expect(links).toHaveLength(2);
-    for (const link of links) {
-      expect(link).toMatchObject({ id: HUB_HEADER_LINK_ID, route: { name: DASHBOARD_ROUTE_NAME } });
-      // Bulk order, the row's first host item, has priority 0.
-      expect(link?.priority).toBeLessThan(0);
-    }
+    expect(desktop).toMatchObject([hubLink]);
+    expect(mobile).toMatchObject([hubLink]);
+    // Only the desktop row sorts by priority, and Bulk order, its first host item, has 0.
+    expect(desktop[0].priority).toBeLessThan(0);
   });
 
   it("is not added for a user without the Sales Rep role", async () => {
     config.isSalesRep = false;
 
-    expect(await headerRowLinksAfterInit()).toEqual([]);
+    expect(await headerRowLinksAfterInit()).toEqual({ desktop: [], mobile: [] });
     // init() did run: the Corporate "Sales reps" link is merged for every user.
     expect(mergeMenuSchema).toHaveBeenCalled();
   });

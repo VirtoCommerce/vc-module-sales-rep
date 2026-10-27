@@ -36,8 +36,9 @@ const hubRoute = (path: string, name: string) => ({ path, parent: "Company" as c
 
 // What the storefront learns before any of this plugin's code is fetched. init() still registers all of it.
 //
-// The hub's left-rail section is not declared: a declared entry renders its title key before this plugin's
-// locales have merged, so the rail would show `sales_rep.hub.title` until they arrive.
+// The hub's left-rail section and its header icon-row link are not declared: a declared entry renders its title
+// key before this plugin's locales have merged, so they would show `sales_rep.hub.title` /
+// `sales_rep.hub.header_link` until those arrive. init() adds both, for reps only.
 export default definePluginManifest({
   when: settingEnabled(MODULE_ID, ENABLED_KEY),
   routes: [

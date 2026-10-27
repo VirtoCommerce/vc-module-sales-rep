@@ -187,7 +187,7 @@ export function init(): void {
   // "Sales reps" contact-info link for buyers (VCST-5409) — stays in the Corporate widget.
   mergeMenuSchema(salesRepMenuSchema);
 
-  if (checkPermissions(SALES_REP_ACCESS_PERMISSION)) {
+  if (isSalesRepUser()) {
     mergeMenuSchema(salesRepHubHeaderMenuSchema);
   }
 
