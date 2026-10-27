@@ -42,6 +42,7 @@
     },
     "hub": {
       "title": "Centrum przedstawiciela handlowego",
+      "header_link": "Centrum przedstawiciela handlowego",
       "dashboard": {
         "navigation": {
           "link": "Panel"

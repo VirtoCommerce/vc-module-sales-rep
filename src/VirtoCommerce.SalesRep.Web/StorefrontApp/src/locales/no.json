@@ -42,6 +42,7 @@
     },
     "hub": {
       "title": "Salgsrepresentant-hub",
+      "header_link": "Salgsrepresentant-hub",
       "dashboard": {
         "navigation": {
           "link": "Dashbord"

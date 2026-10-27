@@ -42,6 +42,7 @@
     },
     "hub": {
       "title": "Säljrepresentant-hub",
+      "header_link": "Säljrepresentant-hub",
       "dashboard": {
         "navigation": {
           "link": "Instrumentpanel"
