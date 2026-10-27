@@ -18,25 +18,25 @@ vi.mock("vue-i18n", () => ({
 }));
 
 function slot(month: number, state: ReportingMonthSlotType["state"] = "closed"): ReportingMonthSlotType {
-  return { year: 2026, month, state, from: "", to: "", lyFrom: "", lyTo: "", daysPassed: 30, daysInMonth: 30 };
+  return { year: 2026, month, state, from: "", to: "", lyFrom: "", lyTo: "", daysPassed: 15, daysInMonth: 30 };
 }
 
 const MONTHS = [
-  toReportingMonth(slot(0), { all: { amount: 1200, count: 3 }, lastYear: { amount: 1000, count: 2 } }),
-  toReportingMonth(slot(1), { all: { amount: 800, count: 2 }, lastYear: { amount: 1000, count: 2 } }),
-  toReportingMonth(slot(2), { all: { amount: 500, count: 1 } }),
+  toReportingMonth(slot(0), { totals: { amount: 1200, count: 3 }, lastYear: { amount: 1000, count: 2 } }),
+  toReportingMonth(slot(1), { totals: { amount: 800, count: 2 }, lastYear: { amount: 1000, count: 2 } }),
+  toReportingMonth(slot(2, "current"), { totals: { amount: 500, count: 1 } }),
   toReportingMonth(slot(3, "upcoming"), {}),
 ];
 
-function mountChart() {
+function mountChart(props: { kind?: "sales" | "aov"; withLastYear?: boolean } = {}) {
   return mount(ReportingChart, {
-    props: { kind: "sales", title: "Sales", months: MONTHS, currencyCode: "USD", testId: "chart" },
+    props: { kind: "sales", title: "Sales", months: MONTHS, currencyCode: "USD", testId: "chart", ...props },
     global: {
       stubs: {
-        VcWidget: { template: "<div><slot name='header' /><slot /></div>" },
         VcBadge: { props: ["color"], template: "<span class='badge-stub' :data-color='color'><slot /></span>" },
         VcTooltip: { template: "<div class='tooltip-stub'><slot :trigger-props='{}' /><slot name='content' /></div>" },
-        VcSwitch: true,
+        VcSwitch: { props: ["ariaLabel"], template: "<button class='switch-stub' :aria-label='ariaLabel' />" },
+        VcPriceDisplay: { props: ["value"], template: "<span>{{ value.formattedAmount }}</span>" },
         VcTypography: true,
         VcLoaderOverlay: true,
         VcIcon: true,
@@ -46,13 +46,40 @@ function mountChart() {
 }
 
 describe("ReportingChart", () => {
-  it("shows the YoY change as kit badges, green up and red down, only where last year has a baseline", () => {
-    const pills = mountChart().findAll(".reporting-chart__pill");
+  it("shows the YoY change as badges, green up and red down, only where last year has a baseline", () => {
+    const badges = mountChart().findAll(".sales-rep-chart__annotation .badge-stub");
 
-    expect(pills.map((pill) => pill.attributes("data-color"))).toEqual(["success", "danger"]);
+    expect(badges.map((badge) => badge.attributes("data-color"))).toEqual(["success", "danger"]);
   });
 
-  it("puts a kit tooltip on every month with data and none on upcoming months", () => {
-    expect(mountChart().findAll(".reporting-chart__hit")).toHaveLength(3);
+  it("draws the current month inside its projected month-end outline, and upcoming months as placeholders", () => {
+    const chart = mountChart();
+
+    expect(chart.findAll(".sales-rep-chart__bar--dashed")).toHaveLength(1);
+    expect(chart.findAll(".sales-rep-chart__placeholder")).toHaveLength(1);
+    expect(chart.find(".sales-rep-chart__placeholder-caption").text()).toBe("sales_rep.reporting.upcoming");
+  });
+
+  it("puts a tooltip on every month with data and none on upcoming months", () => {
+    expect(mountChart().findAll(".sales-rep-chart__hit-area")).toHaveLength(3);
+  });
+
+  it("draws last year as a line only while the switch is on", () => {
+    expect(mountChart().find(".sales-rep-chart__line").exists()).toBe(false);
+    expect(mountChart({ withLastYear: true }).find(".sales-rep-chart__line").exists()).toBe(true);
+  });
+
+  it("has no projection on the AOV chart", () => {
+    expect(mountChart({ kind: "aov" }).findAll(".sales-rep-chart__bar--dashed")).toHaveLength(0);
+  });
+
+  it("shows last year's figure as a dash when last year had no sales that month", () => {
+    const rows = mountChart().findAll(".reporting-chart__tooltip-rows").at(2);
+
+    expect(rows?.findAll("dd").at(-1)?.text()).toBe("—");
+  });
+
+  it("names each Last year switch after its chart", () => {
+    expect(mountChart().find(".switch-stub").attributes("aria-label")).toBe("sales_rep.reporting.last_year_toggle");
   });
 });

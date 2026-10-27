@@ -6,3 +6,5 @@ yalc.lock
 !.yarn/patches
 .pnp.*
 .env
+.env.local
+.env.*.local

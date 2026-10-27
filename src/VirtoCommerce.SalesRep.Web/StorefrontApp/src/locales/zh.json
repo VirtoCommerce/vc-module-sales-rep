@@ -455,86 +455,89 @@
     },
     "reporting": {
       "navigation": {
-        "link": "Reporting"
+        "link": "报表"
       },
-      "title": "Reporting",
-      "subtitle": "Sales, orders and average order value for your customers, compared with last year",
-      "period_label": "Period",
+      "title": "报表",
+      "subtitle": "您客户的销售额、订单数和平均订单金额，与去年对比",
+      "period_label": "期间",
       "periods": {
-        "six_months": "6 months",
-        "twelve_months": "12 months",
-        "year": "Current year",
+        "six_months": "6 个月",
+        "twelve_months": "12 个月",
+        "year": "今年",
         "q1": "Q1",
         "q2": "Q2",
         "q3": "Q3",
         "q4": "Q4"
       },
-      "customer_label": "Customer",
-      "all_customers": "All my customers ({count})",
-      "customers_failed": "Couldn't load your customers",
-      "load_failed": "Couldn't load the report. Try again later.",
-      "last_year": "Last year",
-      "upcoming": "Upcoming",
-      "cancelled_excluded": "Cancelled orders excluded",
+      "customer_label": "客户",
+      "all_customers": "我的全部客户（{count}）",
+      "all_customers_plain": "我的全部客户",
+      "customers_failed": "无法加载客户",
+      "load_failed": "无法加载报表。请稍后重试。",
+      "last_year": "去年",
+      "last_year_toggle": "在“{chart}”中显示去年数据",
+      "upcoming": "未开始",
+      "cancelled_excluded": "不含已取消订单",
       "sales_chart": {
-        "title": "Monthly sales · {period}",
-        "subtitle": "Average {value} / closed month"
+        "title": "月度销售额 · {period}",
+        "subtitle": "已结束月份月均 {value}"
       },
       "aov_chart": {
-        "title": "Average order value",
-        "subtitle_period": "AOV {aov} over the period"
+        "title": "平均订单金额",
+        "subtitle_period": "整个期间平均订单金额 {aov}"
       },
       "legend": {
-        "sales_closed": "Sales, closed months",
-        "aov_closed": "AOV, closed months",
-        "current": "This month, to date",
-        "projection": "Projected month end",
-        "last_year": "Last year",
-        "vs_last_year": "vs same month last year",
-        "up": "up",
-        "down": "down"
+        "sales_closed": "销售额（已结束月份）",
+        "aov_closed": "平均订单金额（已结束月份）",
+        "current": "本月至今",
+        "projection": "月末预测",
+        "last_year": "去年",
+        "vs_last_year": "较去年同月",
+        "up": "上升",
+        "down": "下降"
       },
       "tooltip": {
-        "revenue": "Revenue",
-        "revenue_to_date": "Revenue to date",
-        "projection": "Projected month end",
-        "aov": "AOV",
-        "vs_month": "vs {month}",
-        "last_year_revenue": "Revenue, {month}",
-        "last_year_aov": "AOV, {month}"
+        "revenue": "收入",
+        "revenue_to_date": "截至今日收入",
+        "projection": "月末预测",
+        "aov": "平均订单金额",
+        "vs_month": "较 {month}",
+        "last_year_revenue": "{month} 收入",
+        "last_year_aov": "{month} 平均订单金额"
       },
-      "card_title": "My sales",
-      "all_orders": "All orders",
+      "card_title": "我的销售额",
+      "all_orders": "全部订单",
       "kpi": {
-        "sales": "Sales · {period}",
-        "orders": "Orders · {period}",
-        "aov": "Average order value · {period}",
-        "month_to_date": "{month} to date · day {day} of {days}",
-        "projected": "{share} of the month · projected {value}",
-        "vs_last_year": "{change} vs last year"
+        "sales": "销售额 · {period}",
+        "orders": "订单数 · {period}",
+        "aov": "平均订单金额 · {period}",
+        "month_to_date": "{month}至今 · 第 {day} 天，共 {days} 天",
+        "projected": "本月已过 {share} · 预计 {value}",
+        "vs_last_year": "较去年 {change}"
       },
       "chart_periods": {
-        "six_months": "last 6 months",
-        "twelve_months": "last 12 months",
-        "year": "{year}",
-        "quarter": "{period} {year}"
+        "six_months": "近 6 个月",
+        "twelve_months": "近 12 个月",
+        "year": "{year} 年",
+        "quarter": "{year} 年 {period}"
       },
       "axis": {
-        "aov": "AOV, {currency}"
+        "aov": "平均订单金额（{currency}）"
       },
       "table": {
-        "toggle": "Show as table",
-        "description": "Monthly sales, orders and average order value",
-        "month": "Month",
-        "sales": "Sales",
-        "orders": "Orders",
-        "aov": "AOV",
-        "last_year": "Same month last year",
-        "change": "vs last year"
+        "toggle": "以表格显示",
+        "description": "月度销售额、订单数和平均订单金额",
+        "month": "月份",
+        "sales": "销售额",
+        "orders": "订单数",
+        "aov": "平均订单金额",
+        "last_year": "去年同月",
+        "change": "较去年"
       },
-      "footnote": "{from} – {to}, current month to {today}. Sales are net, by order date; cancelled orders are excluded.",
-      "footnote_empty": "No orders in this period.",
-      "example_data": "Example data"
+      "footnote": "{from} – {to}，本月截至 {today}。销售额为净额，按订单日期统计；不含已取消订单。",
+      "footnote_closed": "{from} – {to}。销售额为净额，按订单日期统计；不含已取消订单。",
+      "footnote_upcoming": "此期间尚未开始。",
+      "example_data": "示例数据"
     }
   }
 }

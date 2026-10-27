@@ -5,6 +5,19 @@ export const REPORTING_PERIODS = ["6m", "12m", "year", "q1", "q2", "q3", "q4"] a
 export type ReportingPeriodType = (typeof REPORTING_PERIODS)[number];
 export const REPORTING_DEFAULT_PERIOD: ReportingPeriodType = "year";
 
+export function isReportingPeriod(value: unknown): value is ReportingPeriodType {
+  return REPORTING_PERIODS.includes(value as ReportingPeriodType);
+}
+
+/** Every percent on the page is printed with this many decimals. */
+export const REPORTING_PERCENT_DIGITS = 1;
+
+/** Shown for a figure that has no value (no orders, no baseline), never as 0 or NaN. */
+export const REPORTING_NO_VALUE = "—";
+
+/** The `?customer=` value for all the rep's customers. */
+export const REPORTING_ALL_CUSTOMERS = "";
+
 /** The query carries this many month slots; no period is longer. */
 export const REPORTING_MONTH_SLOTS = 12;
 
@@ -31,16 +44,14 @@ export type ReportingMonthSlotType = {
 
 export type ReportingPeriodTotalsType = { amount: number; count: number };
 
-/** One month slot's raw figures, and the Cancelled share to take out of them should the statistics include it. */
+/** One month slot's figures as the statistics return them, Cancelled orders already left out. */
 export type ReportingRawMonthType = {
-  all?: ReportingPeriodTotalsType;
-  cancelled?: ReportingPeriodTotalsType;
+  totals?: ReportingPeriodTotalsType;
   lastYear?: ReportingPeriodTotalsType;
-  lastYearCancelled?: ReportingPeriodTotalsType;
 };
 
 export type ReportingMonthType = ReportingMonthSlotType & {
-  /** Net of cancelled orders; null for an upcoming month. */
+  /** null for an upcoming month. */
   revenue: number | null;
   orders: number | null;
   /** null when there are no orders (shown as "—", never as 0 or NaN). */
@@ -137,19 +148,21 @@ export function buildReportingMonths(period: ReportingPeriodType, now: Date = ne
   });
 }
 
-function net(all?: ReportingPeriodTotalsType, cancelled?: ReportingPeriodTotalsType): ReportingPeriodTotalsType | null {
-  if (!all) {
-    return null;
-  }
-  // Clamped: the two slices are separate aggregations, so a status change between them must not go negative.
-  return {
-    amount: Math.max(0, all.amount - (cancelled?.amount ?? 0)),
-    count: Math.max(0, all.count - (cancelled?.count ?? 0)),
-  };
+function average(totals: ReportingPeriodTotalsType | null | undefined): number | null {
+  return totals && totals.count > 0 ? totals.amount / totals.count : null;
 }
 
-function average(totals: ReportingPeriodTotalsType | null): number | null {
-  return totals && totals.count > 0 ? totals.amount / totals.count : null;
+export type ReportingChangeDirectionType = "up" | "down" | "flat";
+
+/** The direction of a percent change as printed, so a change that reads "0.0%" is flat rather than up or down. */
+export function changeDirection(percent: number): ReportingChangeDirectionType {
+  const scale = 10 ** REPORTING_PERCENT_DIGITS;
+  // Half away from zero, as Intl rounds the printed figure.
+  const printed = (Math.sign(percent) * Math.round(Math.abs(percent) * scale)) / scale;
+  if (printed === 0) {
+    return "flat";
+  }
+  return printed > 0 ? "up" : "down";
 }
 
 /** Percent change, or null when there is no positive baseline to compare with. */
@@ -162,8 +175,8 @@ export function percentChange(current: number | null, previous: number | null): 
 
 export function toReportingMonth(slot: ReportingMonthSlotType, raw: ReportingRawMonthType): ReportingMonthType {
   const isUpcoming = slot.state === "upcoming";
-  const current = isUpcoming ? null : net(raw.all, raw.cancelled);
-  const lastYear = net(raw.lastYear, raw.lastYearCancelled);
+  const current = isUpcoming ? null : (raw.totals ?? null);
+  const lastYear = raw.lastYear ?? null;
 
   const canProject = slot.state === "current" && slot.daysPassed > 0 && current !== null;
   const factor = slot.daysInMonth / slot.daysPassed;
@@ -202,11 +215,10 @@ export function previousMonthWindow(period: ReportingPeriodType, now: Date = new
 /** Fills the "vs previous month" figures; `before` is the month preceding the first one. */
 export function withMonthChanges(
   months: ReportingMonthType[],
-  before: ReportingRawMonthType = {},
+  before?: ReportingPeriodTotalsType,
 ): ReportingMonthType[] {
-  const baseline = net(before.all, before.cancelled);
-  let previousRevenue = baseline?.amount ?? null;
-  let previousAov = average(baseline);
+  let previousRevenue = before?.amount ?? null;
+  let previousAov = average(before);
 
   return months.map((month) => {
     const result = {
@@ -220,15 +232,31 @@ export function withMonthChanges(
   });
 }
 
+export type ReportingMetricType = "sales" | "aov";
+
+/** Last year's figure as a baseline: null when last year had no sales that month, so it reads "—", not a real $0. */
+export function lastYearBaseline(month: ReportingMonthType, metric: ReportingMetricType): number | null {
+  if (metric === "aov") {
+    return month.lastYearAov;
+  }
+  return (month.lastYearRevenue ?? 0) > 0 ? month.lastYearRevenue : null;
+}
+
 export function summarizeReporting(months: ReportingMonthType[]): ReportingSummaryType {
   const closed = months.filter((month) => month.state === "closed");
   const withData = months.filter((month) => month.state !== "upcoming");
 
   const sum = (items: ReportingMonthType[], pick: (month: ReportingMonthType) => number | null): number =>
     items.reduce((total, month) => total + (pick(month) ?? 0), 0);
-  // Last year's figure for the same span: the current month only up to the same day.
-  const share = (month: ReportingMonthType): number =>
-    month.state === "current" ? month.daysPassed / month.daysInMonth : 1;
+  // Last year's figure for the same span: the current month only up to the same day of last year's month, whose
+  // length can differ (February in and after a leap year).
+  const share = (month: ReportingMonthType): number => {
+    if (month.state !== "current") {
+      return 1;
+    }
+    const lastYearDays = daysIn(month.year - 1, month.month);
+    return Math.min(month.daysPassed, lastYearDays) / lastYearDays;
+  };
   const hasLastYear = withData.some((month) => month.lastYearRevenue !== null);
 
   const revenue = sum(withData, (month) => month.revenue);
@@ -259,84 +287,4 @@ export function summarizeReporting(months: ReportingMonthType[]): ReportingSumma
         }
       : null,
   };
-}
-
-const NICE_STEPS = [1, 2, 2.5, 5, 10];
-
-/** Axis ticks from 0 to a round maximum that covers `max`, `count` intervals. */
-export function niceTicks(max: number, count = 4): number[] {
-  if (!Number.isFinite(max) || max <= 0) {
-    return Array.from({ length: count + 1 }, (_, i) => i);
-  }
-  const rawStep = max / count;
-  const magnitude = 10 ** Math.floor(Math.log10(rawStep));
-  const step = (NICE_STEPS.find((nice) => nice * magnitude >= rawStep) ?? 10) * magnitude;
-  return Array.from({ length: count + 1 }, (_, i) => i * step);
-}
-
-export type ChartPointType = { x: number; y: number };
-
-const SVG_PRECISION = 100;
-
-function round(value: number): number {
-  return Math.round(value * SVG_PRECISION) / SVG_PRECISION;
-}
-
-/**
- * SVG path through every point as a smooth curve (monotone cubic, Fritsch–Carlson): peaks and dips are rounded with a
- * flat tangent, and the curve never overshoots a point, so it can't suggest a value the data doesn't have.
- */
-export function smoothLinePath(points: ChartPointType[]): string {
-  if (points.length === 0) {
-    return "";
-  }
-  const [first] = points;
-  if (points.length === 1) {
-    return `M${round(first.x)},${round(first.y)}`;
-  }
-
-  const slopes = points.slice(0, -1).map((point, i) => {
-    const next = points[i + 1];
-    return (next.y - point.y) / (next.x - point.x);
-  });
-
-  const tangents = points.map((_, i) => {
-    if (i === 0) {
-      return slopes[0];
-    }
-    if (i === points.length - 1) {
-      return slopes[i - 1];
-    }
-    const before = slopes[i - 1];
-    const after = slopes[i];
-    // A peak or a dip (the slope changes sign): a flat tangent rounds it off.
-    return before * after <= 0 ? 0 : (before + after) / 2;
-  });
-
-  slopes.forEach((slope, i) => {
-    if (slope === 0) {
-      tangents[i] = 0;
-      tangents[i + 1] = 0;
-      return;
-    }
-    const a = tangents[i] / slope;
-    const b = tangents[i + 1] / slope;
-    const length = a * a + b * b;
-    // Keeps each segment monotone, so the curve stays between its two points.
-    if (length > 9) {
-      const scale = 3 / Math.sqrt(length);
-      tangents[i] = scale * a * slope;
-      tangents[i + 1] = scale * b * slope;
-    }
-  });
-
-  const segments = points.slice(0, -1).map((point, i) => {
-    const next = points[i + 1];
-    const third = (next.x - point.x) / 3;
-    const c1 = { x: point.x + third, y: point.y + tangents[i] * third };
-    const c2 = { x: next.x - third, y: next.y - tangents[i + 1] * third };
-    return `C${round(c1.x)},${round(c1.y)} ${round(c2.x)},${round(c2.y)} ${round(next.x)},${round(next.y)}`;
-  });
-
-  return `M${round(first.x)},${round(first.y)} ${segments.join(" ")}`;
 }

@@ -4,17 +4,9 @@
 
     <strong class="reporting-kpi-tile__value">{{ value }}</strong>
 
-    <VcBadge
-      v-if="change !== null && change !== undefined"
-      class="reporting-kpi-tile__change"
-      :color="change < 0 ? 'danger' : 'success'"
-      variant="soft"
-      size="sm"
-      rounded
-      nowrap
-    >
-      {{ t("sales_rep.reporting.kpi.vs_last_year", { change: formatChange(change) }) }}
-    </VcBadge>
+    <ReportingChangeBadge v-slot="{ text }" class="reporting-kpi-tile__change" :change="change ?? null">
+      {{ t("sales_rep.reporting.kpi.vs_last_year", { change: text }) }}
+    </ReportingChangeBadge>
 
     <span v-if="caption" class="reporting-kpi-tile__caption">{{ caption }}</span>
 
@@ -35,6 +27,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import ReportingChangeBadge from "./reporting-change-badge.vue";
 
 interface IProps {
   label: string;
@@ -49,14 +42,9 @@ interface IProps {
 
 const props = defineProps<IProps>();
 
-const { t, n } = useI18n();
+const { t } = useI18n();
 
 const clampedProgress = computed(() => Math.min(1, Math.max(0, props.progress ?? 0)));
-
-function formatChange(value: number): string {
-  const percent = n(Math.abs(value) / 100, { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
-  return `${value < 0 ? "↓" : "↑"} ${percent}`;
-}
 </script>
 
 <style lang="scss">

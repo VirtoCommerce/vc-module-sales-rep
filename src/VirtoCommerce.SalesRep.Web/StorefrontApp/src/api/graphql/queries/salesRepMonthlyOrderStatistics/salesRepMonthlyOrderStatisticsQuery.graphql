@@ -1,15 +1,11 @@
 # Reporting (VCST-6255): one bucket per month of the selected period (up to 12), each with the same month last
-# year. The statistics already leave Cancelled orders out; the Cancelled rule slice is fetched beside each period and
-# subtracted client-side as a safety net (the API has no "all but cancelled" filter). `use<N>` switches off the slots a
-# shorter period does not fill; `noCancelled` drops the cancelled slices while the rep has no
-# cancelled orders (the rule is data-derived and then does not exist).
+# year, plus the month before the period for the first month's "vs previous month". The statistics leave Cancelled
+# orders out. `use<N>` switches off the slots a shorter period does not fill and the months that have not started.
 query SalesRepMonthlyOrderStatistics(
   $organizationId: String
   $storeId: String
   $currencyCode: String
   $cultureName: String
-  $cancelledFilter: String
-  $noCancelled: Boolean!
   $prevFrom: DateTime
   $prevTo: DateTime
   $use0: Boolean!
@@ -80,14 +76,7 @@ query SalesRepMonthlyOrderStatistics(
     cultureName: $cultureName
   ) {
     currencyCode
-    # The month before the first one, so the first month also gets its "vs previous month" figure.
     prev: period(from: $prevFrom, to: $prevTo) {
-      total {
-        amount
-      }
-      count
-    }
-    prevc: period(from: $prevFrom, to: $prevTo, filter: $cancelledFilter) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -99,19 +88,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc0: period(from: $from0, to: $to0, filter: $cancelledFilter) @include(if: $use0) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly0: period(from: $lyFrom0, to: $lyTo0) @include(if: $use0) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc0: period(from: $lyFrom0, to: $lyTo0, filter: $cancelledFilter) @include(if: $use0) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -123,19 +100,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc1: period(from: $from1, to: $to1, filter: $cancelledFilter) @include(if: $use1) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly1: period(from: $lyFrom1, to: $lyTo1) @include(if: $use1) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc1: period(from: $lyFrom1, to: $lyTo1, filter: $cancelledFilter) @include(if: $use1) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -147,19 +112,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc2: period(from: $from2, to: $to2, filter: $cancelledFilter) @include(if: $use2) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly2: period(from: $lyFrom2, to: $lyTo2) @include(if: $use2) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc2: period(from: $lyFrom2, to: $lyTo2, filter: $cancelledFilter) @include(if: $use2) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -171,19 +124,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc3: period(from: $from3, to: $to3, filter: $cancelledFilter) @include(if: $use3) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly3: period(from: $lyFrom3, to: $lyTo3) @include(if: $use3) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc3: period(from: $lyFrom3, to: $lyTo3, filter: $cancelledFilter) @include(if: $use3) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -195,19 +136,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc4: period(from: $from4, to: $to4, filter: $cancelledFilter) @include(if: $use4) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly4: period(from: $lyFrom4, to: $lyTo4) @include(if: $use4) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc4: period(from: $lyFrom4, to: $lyTo4, filter: $cancelledFilter) @include(if: $use4) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -219,19 +148,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc5: period(from: $from5, to: $to5, filter: $cancelledFilter) @include(if: $use5) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly5: period(from: $lyFrom5, to: $lyTo5) @include(if: $use5) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc5: period(from: $lyFrom5, to: $lyTo5, filter: $cancelledFilter) @include(if: $use5) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -243,19 +160,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc6: period(from: $from6, to: $to6, filter: $cancelledFilter) @include(if: $use6) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly6: period(from: $lyFrom6, to: $lyTo6) @include(if: $use6) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc6: period(from: $lyFrom6, to: $lyTo6, filter: $cancelledFilter) @include(if: $use6) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -267,19 +172,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc7: period(from: $from7, to: $to7, filter: $cancelledFilter) @include(if: $use7) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly7: period(from: $lyFrom7, to: $lyTo7) @include(if: $use7) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc7: period(from: $lyFrom7, to: $lyTo7, filter: $cancelledFilter) @include(if: $use7) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -291,19 +184,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc8: period(from: $from8, to: $to8, filter: $cancelledFilter) @include(if: $use8) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly8: period(from: $lyFrom8, to: $lyTo8) @include(if: $use8) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc8: period(from: $lyFrom8, to: $lyTo8, filter: $cancelledFilter) @include(if: $use8) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -315,19 +196,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc9: period(from: $from9, to: $to9, filter: $cancelledFilter) @include(if: $use9) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly9: period(from: $lyFrom9, to: $lyTo9) @include(if: $use9) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc9: period(from: $lyFrom9, to: $lyTo9, filter: $cancelledFilter) @include(if: $use9) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -339,19 +208,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc10: period(from: $from10, to: $to10, filter: $cancelledFilter) @include(if: $use10) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly10: period(from: $lyFrom10, to: $lyTo10) @include(if: $use10) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc10: period(from: $lyFrom10, to: $lyTo10, filter: $cancelledFilter) @include(if: $use10) @skip(if: $noCancelled) {
       total {
         amount
       }
@@ -363,19 +220,7 @@ query SalesRepMonthlyOrderStatistics(
       }
       count
     }
-    mc11: period(from: $from11, to: $to11, filter: $cancelledFilter) @include(if: $use11) @skip(if: $noCancelled) {
-      total {
-        amount
-      }
-      count
-    }
     ly11: period(from: $lyFrom11, to: $lyTo11) @include(if: $use11) {
-      total {
-        amount
-      }
-      count
-    }
-    lyc11: period(from: $lyFrom11, to: $lyTo11, filter: $cancelledFilter) @include(if: $use11) @skip(if: $noCancelled) {
       total {
         amount
       }

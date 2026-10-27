@@ -14,9 +14,8 @@ describe("buildReportingMock", () => {
       if (months[i].state === "upcoming") {
         expect(month).toEqual({});
       } else {
-        expect(month.all?.amount).toBeGreaterThan(0);
+        expect(month.totals?.amount).toBeGreaterThan(0);
         expect(month.lastYear?.amount).toBeGreaterThanOrEqual(0);
-        expect(month.cancelled?.amount).toBeLessThan(month.all?.amount ?? 0);
       }
     });
   });
@@ -48,7 +47,7 @@ describe("buildReportingMock: the empty month last year", () => {
 
       expect(raw[march].lastYear).toEqual({ amount: 0, count: 0 });
       expect(toReportingMonth(months[march], raw[march]).revenueChange).toBeNull();
-      expect(raw[march].all?.amount).toBeGreaterThan(0);
+      expect(raw[march].totals?.amount).toBeGreaterThan(0);
     }
   });
 });
