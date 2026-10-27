@@ -1,44 +1,51 @@
 import { computed, toValue } from "vue";
 import { useI18n } from "vue-i18n";
-import { CUSTOMER_PROFILE_LAYOUT_SCOPE } from "../constants";
+import {
+  buildStatCards,
+  formatSignedPercent,
+  formatStatCount,
+  formatStatMoney,
+  useStatDataNeeds,
+} from "@vc-frontend/core";
 import { buildActiveCartsCardData } from "../layout/active-carts-card";
 import { newOrdersCardData } from "../layout/stat-card-data";
-import { buildStatCards, CUSTOMER_PROFILE_STAT_CARDS } from "../layout/stat-cards";
-import { formatSignedPercent, formatStatCount, formatStatMoney } from "../utils";
+import { CUSTOMER_PROFILE_STAT_CARDS } from "../layout/stat-cards";
+import { statNeedResults } from "../layout/stat-data-needs";
 import { useSalesRepCartStatistics } from "./useSalesRepCartStatistics";
 import { useSalesRepOrderStatistics } from "./useSalesRepOrderStatistics";
-import type { StatWidgetCardType } from "../types/widgets";
+import type { LayoutVisibilityType, StatCardType } from "@vc-frontend/core";
 import type { MaybeRefOrGetter } from "vue";
 
 // Per-customer KPI cards; shared cards reuse the dashboard's i18n keys (hub.dashboard.*) so both
 // surfaces stay in sync across locales.
 //
-// This surface has no week card and no month-over-month delta, so the scope keeps it from fetching the
-// three buckets behind them — what VCST-5647 found it discarding.
-export function useSalesRepCustomerWidgets(organizationId: MaybeRefOrGetter<string>) {
-  const { t } = useI18n();
-  const scope = CUSTOMER_PROFILE_LAYOUT_SCOPE;
+// This surface has no week card and no month-over-month delta, so its layout keeps the queries from
+// fetching the three buckets behind them — what VCST-5647 found it discarding.
+export function useSalesRepCustomerWidgets(layout: LayoutVisibilityType, organizationId: MaybeRefOrGetter<string>) {
+  const { t, n } = useI18n();
   const orgId = (): string => toValue(organizationId);
+  const needs = useStatDataNeeds(layout, CUSTOMER_PROFILE_STAT_CARDS);
 
   const {
     statistics: orderStatistics,
     loading: ordersLoading,
     error: ordersError,
-  } = useSalesRepOrderStatistics({ scope, organizationId: orgId });
+  } = useSalesRepOrderStatistics({ needs, organizationId: orgId });
   const {
     statistics: cartStatistics,
     loading: cartsLoading,
     error: cartsError,
-  } = useSalesRepCartStatistics({ scope, organizationId: orgId });
+  } = useSalesRepCartStatistics({ needs, organizationId: orgId });
 
-  const cards = computed<StatWidgetCardType[]>(() => {
+  const cards = computed<StatCardType[]>(() => {
     const orders = orderStatistics.value;
     const carts = cartStatistics.value;
 
     // buildStatCards derives each card's pending/failed state from the card's own `needs`, so a card
-    // whose slice already arrived keeps rendering while a sibling's query is still in flight.
+    // whose slice already arrived keeps rendering while a sibling's query is still in flight. No card
+    // here reads the customer counts, so that query's state is a constant.
     const queries = {
-      sources: { orders, carts },
+      table: statNeedResults({ orders, carts }),
       states: {
         orders: { loading: ordersLoading.value, failed: Boolean(ordersError.value) },
         carts: { loading: cartsLoading.value, failed: Boolean(cartsError.value) },
@@ -55,7 +62,7 @@ export function useSalesRepCustomerWidgets(organizationId: MaybeRefOrGetter<stri
     const ytdAmount = ytd?.total.amount ?? 0;
     const mtdShare = mtd && ytdAmount > 0 ? Math.round((mtd.total.amount / ytdAmount) * 100) : 0;
 
-    // Caption, icon and accent come from the shared table; only what the queries decide is here.
+    // Caption, icon and color come from the shared table; only what the queries decide is here.
     return buildStatCards(
       CUSTOMER_PROFILE_STAT_CARDS,
       {
@@ -65,8 +72,9 @@ export function useSalesRepCustomerWidgets(organizationId: MaybeRefOrGetter<stri
         active_cart: buildActiveCartsCardData(carts, t),
         mtd: {
           value: formatStatMoney(mtd?.total),
-          // Informational ratio (gray, no chevron): how much of the year's revenue landed this month.
-          delta: t("sales_rep.hub.dashboard.stats.mtd_of_ytd", { percent: mtdShare }),
+          // Informational ratio (gray, no chevron): how much of the year's revenue landed this month. Unsigned, but in
+          // the user's number format like the changes beside it ("35 %" in German).
+          delta: t("sales_rep.hub.dashboard.stats.mtd_of_ytd", { percent: n(mtdShare / 100, { style: "percent" }) }),
           deltaTone: "neutral",
         },
         orders_ytd: {

@@ -55,7 +55,14 @@ commit a `file:.yalc/...` dependency.
 version does not satisfy it refuse to load this plugin (clean skip instead of a runtime
 error). When you adopt an export added in a newer facade version, bump
 `requiredHostVersion` **and** the pinned tarball URL together. This plugin requires
-**^0.2.4**.
+**^0.2.6**, the facade that exports the dashboard layout engine.
+
+The dashboard layout engine is the host's: `LayoutSurface` and `LayoutWidget`, the `useLayout`
+controller, `registerBlock`, the stat-card and widget-settings helpers all come from
+`@vc-frontend/core`. This plugin only registers its blocks and card tables into it
+(`src/layout/blocks.ts`, `src/layout/stat-cards.ts`) and bundles no copy of the engine. The
+saved-layout GraphQL operations are the host's as well, which is why `codegen.ts` covers only the
+sales-rep scoped schema.
 
 ## GraphQL codegen
 

@@ -1,24 +1,15 @@
 import { computed, toValue } from "vue";
-import { globals, Logger } from "@vc-frontend/core";
+import { buildStatisticsWindows, globals, Logger } from "@vc-frontend/core";
 import { SalesRepCustomerCartStatisticsDocument } from "../api/graphql/types";
 import { ACTIVE_CARTS_FILTER, HUB_FETCH_POLICY } from "../constants";
 import { needsCartStatistics } from "../layout/stat-data-needs";
-import { buildStatisticsWindows } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
-import { useStatDataNeeds } from "./useStatDataNeeds";
-import type { SalesRepLayoutScopeType } from "../types/layout";
-import type { Ref } from "vue";
-
-type UseSalesRepCartStatisticsOptionsType = {
-  /** The surface whose visible cards decide whether this runs at all. */
-  scope: SalesRepLayoutScopeType;
-  organizationId?: string | Ref<string | undefined> | (() => string | undefined);
-};
+import type { HubStatisticsOptionsType } from "../types/widgets";
 
 // Two aliased slices from one query: activeCarts backs the "Active carts" card, itemsThisWeek backs its delta.
 // That one card is the whole reason for the round trip, so with it hidden the query does not run.
-export function useSalesRepCartStatistics(options: UseSalesRepCartStatisticsOptionsType) {
-  const { needs, ready } = useStatDataNeeds(options.scope);
+export function useSalesRepCartStatistics(options: HubStatisticsOptionsType) {
+  const { needs, ready } = options.needs;
 
   const variables = computed(() => {
     const windows = buildStatisticsWindows();

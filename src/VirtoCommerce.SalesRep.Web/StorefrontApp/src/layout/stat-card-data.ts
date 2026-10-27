@@ -1,8 +1,8 @@
 // The query-driven half of the KPI cards that are identical on both surfaces — the counterpart to
 // stat-cards.ts, which owns the half no query decides. A card belongs here only once the hub dashboard
 // and the customer profile agree on it completely; the per-surface mappers keep the cards that diverge.
-import { formatStatCount, formatStatMoney } from "../utils";
-import type { StatCardDataType } from "./stat-cards";
+import { formatStatCount, formatStatMoney } from "@vc-frontend/core";
+import type { StatCardDataType } from "@vc-frontend/core";
 import type { SalesRepCustomerOrderStatisticsQuery } from "../api/graphql/types";
 import type { Composer } from "vue-i18n";
 

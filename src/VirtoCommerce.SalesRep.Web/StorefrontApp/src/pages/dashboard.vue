@@ -4,20 +4,22 @@
       {{ t("sales_rep.hub.dashboard.page.title") }}
     </VcTypography>
 
-    <LayoutSurface :scope="SCOPE" :cards="cards" />
+    <LayoutSurface :layout="layout" :cards="cards" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import LayoutSurface from "../components/layout-surface.vue";
+import { LayoutSurface, useLayout } from "@vc-frontend/core";
 import { useSalesRepDashboardWidgets } from "../composables/useSalesRepDashboardWidgets";
 import { DASHBOARD_LAYOUT_SCOPE } from "../constants";
 
-const SCOPE = DASHBOARD_LAYOUT_SCOPE;
-
 const { t } = useI18n();
-const { cards } = useSalesRepDashboardWidgets();
+
+// The page owns the layout: the host's surface renders it, and the statistics queries are shaped from the
+// same object, so the stat row and the queries behind it can never disagree on what is shown.
+const layout = useLayout(DASHBOARD_LAYOUT_SCOPE);
+const { cards } = useSalesRepDashboardWidgets(layout);
 </script>
 
 <style lang="scss">
