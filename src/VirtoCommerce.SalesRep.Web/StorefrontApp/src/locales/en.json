@@ -41,7 +41,7 @@
       }
     },
     "hub": {
-      "title": "Sales Rep hub",
+      "title": "Sales Rep Hub",
       "dashboard": {
         "navigation": {
           "link": "Dashboard"

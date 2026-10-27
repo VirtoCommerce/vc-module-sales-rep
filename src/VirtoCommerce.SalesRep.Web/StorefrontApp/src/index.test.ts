@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { CUSTOMER_PROFILE_LAYOUT_SCOPE } from "./constants";
+import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_ROUTE_NAME, HUB_HEADER_LINK_ID } from "./constants";
+import type { MenuType } from "@vc-frontend/core";
+import type { DeepPartial } from "utility-types";
 
-const config = vi.hoisted(() => ({ analyticsEnabled: true }));
+const config = vi.hoisted(() => ({ analyticsEnabled: true, isSalesRep: true }));
+const mergeMenuSchema = vi.hoisted(() => vi.fn<(schema: DeepPartial<MenuType>) => void>());
 
 vi.mock("./composables/useSalesRepsConfig", () => ({
   isSalesRepsEnabled: () => true,
-  isSalesRepUser: () => true,
+  isSalesRepUser: () => config.isSalesRep,
   isSalesRepTasksEnabled: () => false,
   isSalesRepAnalyticsEnabled: () => config.analyticsEnabled,
 }));
@@ -19,6 +22,7 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
     router: { addRoute: vi.fn() },
     i18n: { global: { locale: "en", getLocaleMessage: () => ({}), setLocaleMessage: vi.fn() } },
   },
+  useNavigations: () => ({ mergeMenuSchema, registerAccountSection: () => {} }),
 }));
 
 // init() registers once per module instance (the MF loader re-invokes the entry on HMR), so each case loads a fresh
@@ -32,8 +36,24 @@ async function profileBlocksAfterInit(): Promise<string[]> {
   return getBlockRegistry(CUSTOMER_PROFILE_LAYOUT_SCOPE).map((block) => block.id);
 }
 
+// The links a fresh init() merged into the desktop header icon row and the mobile main menu.
+async function headerRowLinksAfterInit() {
+  vi.resetModules();
+  const { init } = await import("./index");
+
+  init();
+
+  const headers = mergeMenuSchema.mock.calls.map(([schema]) => schema.header);
+  return {
+    desktop: headers.flatMap((header) => header?.desktop?.main ?? []),
+    mobile: headers.flatMap((header) => header?.mobile?.main ?? []),
+  };
+}
+
 beforeEach(() => {
   config.analyticsEnabled = true;
+  config.isSalesRep = true;
+  mergeMenuSchema.mockClear();
 });
 
 // The customer activity widget shows tracked behaviour: it exists only while the analytics module does.
@@ -49,5 +69,26 @@ describe("plugin init: the customer activity widget", () => {
 
     expect(blocks).not.toContain("customer_activity");
     expect(blocks.length).toBeGreaterThan(0);
+  });
+});
+
+// The host does not filter the header icon row by permissions, so init() adds the hub link only for reps.
+describe("plugin init: the Sales Rep Hub header link", () => {
+  it("opens the hub dashboard from the header icon row, ahead of Bulk order, and the mobile menu", async () => {
+    const { desktop, mobile } = await headerRowLinksAfterInit();
+    const hubLink = { id: HUB_HEADER_LINK_ID, route: { name: DASHBOARD_ROUTE_NAME } };
+
+    expect(desktop).toMatchObject([hubLink]);
+    expect(mobile).toMatchObject([hubLink]);
+    // Only the desktop row sorts by priority, and Bulk order, its first host item, has 0.
+    expect(desktop[0].priority).toBeLessThan(0);
+  });
+
+  it("is not added for a user without the Sales Rep role", async () => {
+    config.isSalesRep = false;
+
+    expect(await headerRowLinksAfterInit()).toEqual({ desktop: [], mobile: [] });
+    // init() did run: the Corporate "Sales reps" link is merged for every user.
+    expect(mergeMenuSchema).toHaveBeenCalled();
   });
 });
