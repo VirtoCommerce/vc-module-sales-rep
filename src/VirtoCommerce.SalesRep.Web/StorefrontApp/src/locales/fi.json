@@ -42,7 +42,6 @@
     },
     "hub": {
       "title": "Myyntiedustajan keskus",
-      "header_link": "Myyntiedustajan keskus",
       "dashboard": {
         "navigation": {
           "link": "Hallintapaneeli"

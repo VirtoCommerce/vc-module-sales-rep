@@ -42,7 +42,6 @@
     },
     "hub": {
       "title": "営業担当ハブ",
-      "header_link": "営業担当ハブ",
       "dashboard": {
         "navigation": {
           "link": "ダッシュボード"

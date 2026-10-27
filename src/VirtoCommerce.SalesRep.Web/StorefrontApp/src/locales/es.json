@@ -42,7 +42,6 @@
     },
     "hub": {
       "title": "Centro del representante de ventas",
-      "header_link": "Centro del representante de ventas",
       "dashboard": {
         "navigation": {
           "link": "Panel de control"

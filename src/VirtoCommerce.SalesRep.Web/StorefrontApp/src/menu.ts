@@ -28,7 +28,7 @@ export const salesRepMenuSchema: DeepPartial<MenuType> = {
 
 const hubHeaderLink = {
   id: HUB_HEADER_LINK_ID,
-  title: "sales_rep.hub.header_link",
+  title: "sales_rep.hub.title",
   icon: "briefcase-business",
   route: { name: DASHBOARD_ROUTE_NAME },
   priority: HUB_HEADER_LINK_PRIORITY,
