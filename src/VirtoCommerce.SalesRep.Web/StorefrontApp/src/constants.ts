@@ -1,3 +1,4 @@
+import type { SalesRepPeriodType } from "./composables/useSalesRepPeriodFilter";
 import type { WatchQueryFetchPolicy } from "@apollo/client/core";
 import type { HostRouteNameType } from "@vc-frontend/core";
 
@@ -36,6 +37,10 @@ export const CUSTOMER_ORDERS_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/
 export const CUSTOMER_ORDER_ROUTE_NAME = "SalesRepCustomerOrder";
 export const CUSTOMER_ORDER_ROUTE_SEGMENT = `${CUSTOMER_ORDERS_ROUTE_SEGMENT}/:orderId`;
 
+// One customer's activity: the Activities page narrowed to them, under their profile like their orders.
+export const CUSTOMER_ACTIVITIES_ROUTE_NAME = "SalesRepCustomerActivities";
+export const CUSTOMER_ACTIVITIES_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/activities`;
+
 // The storefront's own order page: an order the rep placed opens there, where their buyer actions still
 // work. The hub's page is read-only for everyone.
 export const BUYER_ORDER_ROUTE_NAME = "OrderDetails" satisfies HostRouteNameType;
@@ -64,6 +69,47 @@ export const REPORTING_ROUTE_NAME = "SalesRepReporting";
 export const REPORTING_ROUTE_SEGMENT = "reporting";
 export const REPORTING_NAV_LINK_ID = "sales-rep-reporting";
 
+// The rep's own activity page (VCST-5337); a sibling of the hub pages under "Company".
+export const ACTIVITIES_ROUTE_NAME = "SalesRepActivities";
+export const ACTIVITIES_ROUTE_SEGMENT = "activities";
+export const ACTIVITIES_NAV_LINK_ID = "sales-rep-activities";
+// Backend paging: take defaults to 20 and caps at 50; take 0 returns counts only (backs the tabs).
+export const ACTIVITY_PAGE_SIZE = 20;
+// The backend's paging cap (ModuleConstants.Activities.MaxSkip): past it the query returns NO rows while
+// totalCount keeps describing the whole set, so the pager stops here.
+export const ACTIVITY_MAX_SKIP = 500;
+// Compact "My activity" dashboard widget shows the latest few events across all assigned accounts.
+export const MY_ACTIVITY_TAKE = 5;
+// The window the hub's activity surfaces show and the Activities page opens on: one window, so "View all" never
+// shows less than a widget did, and the widget's analytics read is the page's first one. Labels say "this year".
+export const HUB_ACTIVITY_PERIOD: SalesRepPeriodType = "year";
+// Category vocabulary of salesRepActivities (the backend types it as free-form String).
+export const ACTIVITY_CATEGORY = {
+  orders: "orders",
+  customers: "customers",
+  searches: "searches",
+  productViews: "productViews",
+  logins: "logins",
+} as const;
+export type ActivityCategoryType = (typeof ACTIVITY_CATEGORY)[keyof typeof ACTIVITY_CATEGORY];
+// Ordered — the page renders its tabs in this order, whatever order categoryCounts arrives in.
+export const ACTIVITY_CATEGORIES: readonly ActivityCategoryType[] = [
+  ACTIVITY_CATEGORY.orders,
+  ACTIVITY_CATEGORY.customers,
+  ACTIVITY_CATEGORY.searches,
+  ACTIVITY_CATEGORY.productViews,
+  ACTIVITY_CATEGORY.logins,
+];
+// Categories sourced from tracked analytics (hour-precision buckets), named by the caveat line. Membership
+// sets, built once for the module; the array above carries the tab order.
+export const TRACKED_ACTIVITY_CATEGORIES = new Set<string>([
+  ACTIVITY_CATEGORY.searches,
+  ACTIVITY_CATEGORY.productViews,
+  ACTIVITY_CATEGORY.logins,
+]);
+// The categories salesRepCustomerInsights can rank by count — only their tabs offer Top | Recent.
+export const RANKED_ACTIVITY_CATEGORIES = new Set<string>([ACTIVITY_CATEGORY.searches, ACTIVITY_CATEGORY.productViews]);
+
 // Document library (VCST-5730). Read permission gates the widget, the page and the nav link;
 // write implies read and administrators pass — both are resolved server-side, the client only
 // checks for the read permission itself (an admin/writer also carries it through checkPermissions'
@@ -81,6 +127,10 @@ export const DOCUMENTS_PAGE_SIZE = 15;
 // Tasks (VCST-5732). Backed by vc-module-task-management, an OPTIONAL backend dependency:
 // the feature is gated on that module being installed, not on a setting of ours (see useSalesRepsConfig).
 export const TASK_MANAGEMENT_MODULE_ID = "VirtoCommerce.TaskManagement";
+
+// Tracked activity (VCST-5337). Read from Google Analytics by vc-module-google-ecommerce-analytics, an OPTIONAL
+// backend dependency: the hub's GA-based parts show only while that module is installed and enabled.
+export const GOOGLE_ANALYTICS_MODULE_ID = "VirtoCommerce.GoogleEcommerceAnalytics";
 export const TASKS_ROUTE_NAME = "SalesRepTasks";
 export const TASKS_ROUTE_SEGMENT = "tasks";
 export const TASKS_NAV_LINK_ID = "sales-rep-tasks";
@@ -151,3 +201,9 @@ export const TOP_SELLERS_MAX_ROWS = 10;
 export const DOCUMENTS_DEFAULT_ROWS = 5;
 export const DOCUMENTS_MAX_ROWS = 10;
 export const MIN_ROWS = 1;
+
+// salesRepCustomerInsights sort names: "count" ranks by occurrences (Top), "date" by the latest hour bucket (Recent).
+export const INSIGHTS_DEFAULT_ROWS = 5;
+export const INSIGHTS_MAX_ROWS = 20;
+export const INSIGHTS_SORT_BY_COUNT = "count";
+export const INSIGHTS_SORT_BY_DATE = "date";
