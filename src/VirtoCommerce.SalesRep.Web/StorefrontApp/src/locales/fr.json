@@ -217,6 +217,7 @@
         "expired": "Expirée le {date}",
         "due": "Échéance le {date}"
       },
+      "customer_not_assigned": "Client non attribué",
       "legend": {
         "upcoming": "À venir",
         "overdue": "En retard",
@@ -225,17 +226,28 @@
       "form": {
         "create_title": "Nouvelle tâche",
         "edit_title": "Modifier la tâche",
+        "create_call_title": "Planifier un appel",
+        "edit_call_title": "Modifier l'appel",
         "name_label": "Titre",
         "due_date_label": "Date d'échéance",
+        "time_label": "Heure",
+        "customer_label": "Client",
+        "customer_placeholder": "Rechercher des clients par nom",
+        "customer_error": "La liste des clients n'a pas pu être chargée. Veuillez réessayer.",
+        "call_name": "Appel",
         "priority_label": "Priorité",
         "type_label": "Type",
         "description_label": "Notes",
+        "calendars_label": "Ajouter à l'agenda",
+        "google_calendar": "Google Agenda",
+        "apple_calendar": "Calendrier Apple",
         "save_button": "Enregistrer",
         "cancel_button": "Annuler",
         "delete_button": "Supprimer",
         "delete_title": "Supprimer la tâche",
         "delete_confirm": "Cette tâche sera supprimée définitivement. Continuer ?",
         "saved": "Tâche enregistrée",
+        "calendar_failed": "Tâche enregistrée, mais elle n'a pas pu être ajoutée à l'agenda",
         "deleted": "Tâche supprimée"
       }
     },

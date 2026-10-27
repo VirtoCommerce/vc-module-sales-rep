@@ -38,6 +38,7 @@ using VirtoCommerce.SalesRep.ExperienceApi.Authorization;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.XCart.Core.Services;
+using TaskManagementSettings = VirtoCommerce.TaskManagement.Core.ModuleConstants.Settings.General;
 
 namespace VirtoCommerce.SalesRep.Web;
 
@@ -48,6 +49,9 @@ public class Module : IModule, IHasConfiguration
 
     public void Initialize(IServiceCollection serviceCollection)
     {
+        // Here, before anything can read and cache the setting.
+        SalesRepTaskTypeSeeder.AddCallType(TaskManagementSettings.TaskTypes);
+
         serviceCollection.AddDbContext<SalesRepDbContext>(options =>
         {
             var databaseProvider = Configuration.GetValue("DatabaseProvider", "SqlServer");
@@ -88,6 +92,7 @@ public class Module : IModule, IHasConfiguration
         // Scoped so the resolver's memoized granting roles are shared across a request.
         serviceCollection.AddScoped<ISalesRepRoleResolver, SalesRepRoleResolver>();
         serviceCollection.AddTransient<ISalesRepRoleSeeder, SalesRepRoleSeeder>();
+        serviceCollection.AddTransient<ISalesRepTaskTypeSeeder, SalesRepTaskTypeSeeder>();
         serviceCollection.AddTransient<ISalesRepOrganizationAccessService, SalesRepOrganizationAccessService>();
         serviceCollection.AddTransient<ISalesRepOrderVisibilityService, SalesRepOrderVisibilityService>();
         serviceCollection.AddSingleton<AbstractValidator<SalesRepDetails>, SalesRepDetailsValidator>();
@@ -166,9 +171,13 @@ public class Module : IModule, IHasConfiguration
         using var scope = serviceProvider.CreateScope();
         var roleResolver = scope.ServiceProvider.GetRequiredService<ISalesRepRoleResolver>();
         var roleSeeder = scope.ServiceProvider.GetRequiredService<ISalesRepRoleSeeder>();
+        var taskTypeSeeder = scope.ServiceProvider.GetRequiredService<ISalesRepTaskTypeSeeder>();
 #pragma warning disable S4462 // one-shot startup seeding in a sync PostInitialize — the platform's standard pattern
         roleResolver.EnsureSalesRepRoleAsync().GetAwaiter().GetResult();
         roleSeeder.EnsureDocumentRolesAsync().GetAwaiter().GetResult();
+        // TaskManagement registers the setting in its own PostInitialize, which runs first: modules are ordered by
+        // their dependencies, optional ones included.
+        taskTypeSeeder.EnsureCallTypeAsync().GetAwaiter().GetResult();
 #pragma warning restore S4462
     }
 

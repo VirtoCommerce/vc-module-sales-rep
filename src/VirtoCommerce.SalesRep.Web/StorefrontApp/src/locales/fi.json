@@ -217,6 +217,7 @@
         "expired": "Erääntyi {date}",
         "due": "Eräpäivä {date}"
       },
+      "customer_not_assigned": "Asiakasta ei ole määritetty",
       "legend": {
         "upcoming": "Tulossa",
         "overdue": "Myöhässä",
@@ -225,17 +226,28 @@
       "form": {
         "create_title": "Uusi tehtävä",
         "edit_title": "Muokkaa tehtävää",
+        "create_call_title": "Ajoita puhelu",
+        "edit_call_title": "Muokkaa puhelua",
         "name_label": "Otsikko",
         "due_date_label": "Eräpäivä",
+        "time_label": "Kellonaika",
+        "customer_label": "Asiakas",
+        "customer_placeholder": "Etsi asiakkaita nimellä",
+        "customer_error": "Asiakaslistaa ei voitu ladata. Yritä uudelleen.",
+        "call_name": "Puhelu",
         "priority_label": "Prioriteetti",
         "type_label": "Tyyppi",
         "description_label": "Muistiinpanot",
+        "calendars_label": "Lisää kalenteriin",
+        "google_calendar": "Google Kalenteri",
+        "apple_calendar": "Apple Kalenteri",
         "save_button": "Tallenna",
         "cancel_button": "Peruuta",
         "delete_button": "Poista",
         "delete_title": "Poista tehtävä",
         "delete_confirm": "Tämä tehtävä poistetaan pysyvästi. Jatketaanko?",
         "saved": "Tehtävä tallennettu",
+        "calendar_failed": "Tehtävä tallennettu, mutta sitä ei voitu lisätä kalenteriin",
         "deleted": "Tehtävä poistettu"
       }
     },

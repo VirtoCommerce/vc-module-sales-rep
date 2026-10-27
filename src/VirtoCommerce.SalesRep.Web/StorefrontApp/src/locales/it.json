@@ -217,6 +217,7 @@
         "expired": "Scaduta il {date}",
         "due": "Scade il {date}"
       },
+      "customer_not_assigned": "Cliente non assegnato",
       "legend": {
         "upcoming": "In arrivo",
         "overdue": "Scadute",
@@ -225,17 +226,28 @@
       "form": {
         "create_title": "Nuova attività",
         "edit_title": "Modifica attività",
+        "create_call_title": "Pianifica chiamata",
+        "edit_call_title": "Modifica chiamata",
         "name_label": "Titolo",
         "due_date_label": "Data di scadenza",
+        "time_label": "Ora",
+        "customer_label": "Cliente",
+        "customer_placeholder": "Cerca clienti per nome",
+        "customer_error": "Non è stato possibile caricare l'elenco dei clienti. Riprova.",
+        "call_name": "Chiamata",
         "priority_label": "Priorità",
         "type_label": "Tipo",
         "description_label": "Note",
+        "calendars_label": "Aggiungi al calendario",
+        "google_calendar": "Google Calendar",
+        "apple_calendar": "Calendario di Apple",
         "save_button": "Salva",
         "cancel_button": "Annulla",
         "delete_button": "Elimina",
         "delete_title": "Elimina attività",
         "delete_confirm": "Questa attività verrà eliminata definitivamente. Continuare?",
         "saved": "Attività salvata",
+        "calendar_failed": "Attività salvata, ma non è stato possibile aggiungerla al calendario",
         "deleted": "Attività eliminata"
       }
     },

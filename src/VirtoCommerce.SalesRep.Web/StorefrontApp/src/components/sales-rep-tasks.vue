@@ -84,7 +84,7 @@ interface IProps {
 
 withDefaults(defineProps<IProps>(), { title: undefined });
 
-const { t, d } = useI18n();
+const { t, d, locale } = useI18n();
 
 // Absent when this widget renders outside a layout.
 const chrome = useBlockChrome();
@@ -129,7 +129,7 @@ const dayCountLabel = computed(() =>
 );
 
 // Resolved once per row rather than per template read: each one formats a date through Intl.
-const sublines = computed(() => new Map(tasks.value.map((task) => [task.id, taskSubline(task, t, d)])));
+const sublines = computed(() => new Map(tasks.value.map((task) => [task.id, taskSubline(task, t, d, locale.value)])));
 </script>
 
 <style lang="scss">

@@ -2,15 +2,23 @@ import { describe, expect, it } from "vitest";
 import {
   buildDayMarkers,
   dueDateForDay,
+  dueDateForDayAndTime,
+  formatTimeOfDay,
+  isCallTask,
   localCalendarWindow,
   localDayKey,
   localDayKeyToIso,
   localDayWindow,
+  localTimeKey,
   startOfLocalDay,
   taskStatus,
+  taskSubline,
+  timeKeysOfDay,
+  timeKeyToDate,
   toMonthKey,
 } from "./tasks";
-import type { SalesRepTaskStatusType } from "./types/tasks";
+import type { SalesRepTaskStatusType, SalesRepTaskType } from "./types/tasks";
+import type { ComposerTranslation, DateTimeOptions } from "vue-i18n";
 
 // Everything here is deliberately expressed in LOCAL time and compared against locally-constructed dates, never
 // against literal ISO strings: the whole point of these helpers is that a day is a day on the viewer's calendar,
@@ -232,5 +240,149 @@ describe("dueDateForDay", () => {
     const moved = dueDateForDay("2026-05-29", localDayKeyToIso("2026-05-28"));
 
     expect(moved).toBe(localDayKeyToIso("2026-05-29"));
+  });
+});
+
+// VCST-6314: calls are due at a time of day, picked in steps on the rep's own clock.
+describe("isCallTask", () => {
+  // The type is a dictionary value, and an admin can retype it.
+  it("reads the call type in any case", () => {
+    expect(isCallTask("Call")).toBe(true);
+    expect(isCallTask("call")).toBe(true);
+  });
+
+  it("reads nothing else as a call", () => {
+    expect(isCallTask("Callback")).toBe(false);
+    expect(isCallTask("")).toBe(false);
+    expect(isCallTask(undefined)).toBe(false);
+  });
+});
+
+describe("time of day", () => {
+  it("keys a time on the user's clock", () => {
+    expect(localTimeKey(new Date(2026, 9, 15, 9, 5))).toBe("09:05");
+  });
+
+  it("puts a picked day and time back together on the user's clock", () => {
+    const due = new Date(dueDateForDayAndTime("2026-10-15", "14:45"));
+
+    expect(localDayKey(due)).toBe("2026-10-15");
+    expect([due.getHours(), due.getMinutes(), due.getSeconds()]).toEqual([14, 45, 0]);
+  });
+
+  // What the form writes is what it reads back when the call is opened again.
+  it("round-trips through the instant the API stores", () => {
+    const stored = dueDateForDayAndTime("2026-10-15", "09:00");
+
+    expect([localDayKey(stored), localTimeKey(stored)]).toEqual(["2026-10-15", "09:00"]);
+  });
+
+  // updateSalesRepTask replaces the task, so an edit that moves neither must not rewrite the instant: seconds set
+  // elsewhere would be dropped, as dueDateForDay already guards against for any other task.
+  it("gives back the stored instant, byte for byte, when neither the day nor the time moved", () => {
+    const original = new Date(2026, 9, 15, 9, 30, 15, 250).toISOString();
+
+    expect(dueDateForDayAndTime("2026-10-15", "09:30", original)).toBe(original);
+  });
+
+  it("rebuilds the instant once the time or the day moves", () => {
+    const original = new Date(2026, 9, 15, 9, 30, 15, 250).toISOString();
+
+    const later = new Date(dueDateForDayAndTime("2026-10-15", "10:00", original));
+    const nextDay = new Date(dueDateForDayAndTime("2026-10-16", "09:30", original));
+
+    expect([localDayKey(later), later.getHours(), later.getMinutes(), later.getSeconds()]).toEqual([
+      "2026-10-15",
+      10,
+      0,
+      0,
+    ]);
+    expect([localDayKey(nextDay), nextDay.getHours(), nextDay.getMinutes(), nextDay.getSeconds()]).toEqual([
+      "2026-10-16",
+      9,
+      30,
+      0,
+    ]);
+  });
+
+  // The locale decides 12- or 24-hour; the time select lists its times with this, and a call's line shows its time.
+  it("writes a time of day the way the locale does", () => {
+    const due = new Date(2026, 9, 15, 14, 30);
+
+    expect(formatTimeOfDay(due, "en-US")).toMatch(/^2:30\sPM$/);
+    expect(formatTimeOfDay(due, "fr-FR")).toBe("14:30");
+    expect(formatTimeOfDay(due.toISOString(), "fr-FR")).toBe("14:30");
+  });
+
+  it("offers every quarter hour of the day, from midnight", () => {
+    const keys = timeKeysOfDay(15);
+
+    expect(keys).toHaveLength(96);
+    expect(keys.slice(0, 3)).toEqual(["00:00", "00:15", "00:30"]);
+    expect(keys.at(-1)).toBe("23:45");
+  });
+
+  it("gives a time key a date to format the time of day from", () => {
+    const date = timeKeyToDate("09:30");
+
+    expect([date.getHours(), date.getMinutes()]).toEqual([9, 30]);
+  });
+});
+
+describe("taskSubline", () => {
+  const t = ((key: string, named?: Record<string, unknown>) =>
+    named ? `${key}(${String(named.date)})` : key) as unknown as ComposerTranslation;
+  // The host's named date only: a call's time comes from formatTimeOfDay, never from `d`, whose `short` falls back
+  // to English in every locale the host defines no formats for.
+  const d = (_value: number | Date | string, options: DateTimeOptions) => {
+    expect(options).toEqual({ key: "short" });
+    return "Oct 15";
+  };
+  // 9:00 on the rep's own clock, whatever timezone the suite runs in.
+  const CALL_DUE_DATE = new Date(2026, 9, 15, 9, 0).toISOString();
+
+  function makeTask(overrides: Partial<SalesRepTaskType> = {}): SalesRepTaskType {
+    return {
+      id: "task-1",
+      name: "Call",
+      description: "",
+      type: "",
+      priority: "Normal",
+      dueDate: localDayKeyToIso("2026-10-15"),
+      isActive: true,
+      status: "upcoming",
+      ...overrides,
+    };
+  }
+
+  it("gives a call its time of day and its customer", () => {
+    const task = makeTask({ type: "Call", dueDate: CALL_DUE_DATE, customerName: "Lakeview Outfitters" });
+
+    expect(taskSubline(task, t, d, "en-US")).toBe(
+      `sales_rep.tasks.due_relative.due(Oct 15, ${formatTimeOfDay(CALL_DUE_DATE, "en-US")}) · Lakeview Outfitters · Call`,
+    );
+  });
+
+  // The popup's time select shows 14:30 to a French rep, so the list must not say 2:30 PM.
+  it("writes a call's time as the time select does, in the rep's locale", () => {
+    const dueDate = new Date(2026, 9, 15, 14, 30).toISOString();
+    const task = makeTask({ type: "Call", dueDate, customerName: "Lakeview Outfitters" });
+
+    expect(taskSubline(task, t, d, "fr-FR")).toBe(
+      "sales_rep.tasks.due_relative.due(Oct 15, 14:30) · Lakeview Outfitters · Call",
+    );
+  });
+
+  // No customer picked, or one the rep no longer serves: the API names neither, and a call to nobody would mislead.
+  it("says a call has no customer to name", () => {
+    expect(taskSubline(makeTask({ type: "Call", dueDate: CALL_DUE_DATE }), t, d, "en-US")).toBe(
+      `sales_rep.tasks.due_relative.due(Oct 15, ${formatTimeOfDay(CALL_DUE_DATE, "en-US")}) · sales_rep.tasks.customer_not_assigned · Call`,
+    );
+  });
+
+  it("keeps any other task to its date", () => {
+    expect(taskSubline(makeTask({ type: "Other" }), t, d, "fr-FR")).toBe(
+      "sales_rep.tasks.due_relative.due(Oct 15) · Other",
+    );
   });
 });

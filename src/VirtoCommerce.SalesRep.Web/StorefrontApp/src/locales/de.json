@@ -217,6 +217,7 @@
         "expired": "Abgelaufen {date}",
         "due": "Fällig {date}"
       },
+      "customer_not_assigned": "Kein Kunde zugewiesen",
       "legend": {
         "upcoming": "Anstehend",
         "overdue": "Überfällig",
@@ -225,17 +226,28 @@
       "form": {
         "create_title": "Neue Aufgabe",
         "edit_title": "Aufgabe bearbeiten",
+        "create_call_title": "Anruf planen",
+        "edit_call_title": "Anruf bearbeiten",
         "name_label": "Titel",
         "due_date_label": "Fälligkeitsdatum",
+        "time_label": "Uhrzeit",
+        "customer_label": "Kunde",
+        "customer_placeholder": "Kunden nach Namen suchen",
+        "customer_error": "Die Kundenliste konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
+        "call_name": "Anruf",
         "priority_label": "Priorität",
         "type_label": "Typ",
         "description_label": "Notizen",
+        "calendars_label": "Zum Kalender hinzufügen",
+        "google_calendar": "Google Kalender",
+        "apple_calendar": "Apple Kalender",
         "save_button": "Speichern",
         "cancel_button": "Abbrechen",
         "delete_button": "Löschen",
         "delete_title": "Aufgabe löschen",
         "delete_confirm": "Diese Aufgabe wird endgültig gelöscht. Fortfahren?",
         "saved": "Aufgabe gespeichert",
+        "calendar_failed": "Aufgabe gespeichert, konnte aber nicht zum Kalender hinzugefügt werden",
         "deleted": "Aufgabe gelöscht"
       }
     },
