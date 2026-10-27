@@ -1,6 +1,6 @@
-import { computed, toValue } from "vue";
+import { computed, shallowRef, toValue, watch } from "vue";
 import { globals, Logger } from "@vc-frontend/core";
-import { SalesRepMonthlyOrderStatisticsDocument, SalesRepOrderFilterRulesDocument } from "../api/graphql/types";
+import { SalesRepMonthlyOrderStatisticsDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
 import {
   buildReportingMonths,
@@ -12,19 +12,16 @@ import {
 } from "../reporting";
 import { buildReportingMock, isReportingMockEnabled } from "../reporting-mock";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
+import { useToday } from "./useToday";
 import type {
   SalesRepMonthlyOrderStatisticsQuery,
   SalesRepMonthlyOrderStatisticsQueryVariables,
 } from "../api/graphql/types";
-import type { ReportingPeriodTotalsType, ReportingPeriodType, ReportingRawMonthType } from "../reporting";
+import type { ReportingMonthSlotType, ReportingPeriodTotalsType, ReportingPeriodType } from "../reporting";
 import type { MaybeRefOrGetter } from "vue";
 
 type StatisticsType = NonNullable<SalesRepMonthlyOrderStatisticsQuery["salesRepCustomerOrderStatistics"]>;
 type SlotKeyType = Exclude<keyof StatisticsType, "currencyCode">;
-type SlotValueType = StatisticsType[SlotKeyType];
-
-// The order status rules are data-derived: the Cancelled rule exists only while the scope has cancelled orders.
-const CANCELLED_RULE_PATTERN = /^cancel/i;
 
 type UseSalesRepReportingOptionsType = {
   period: MaybeRefOrGetter<ReportingPeriodType>;
@@ -32,41 +29,30 @@ type UseSalesRepReportingOptionsType = {
   organizationId: MaybeRefOrGetter<string>;
 };
 
-function totals(value: SlotValueType): ReportingPeriodTotalsType | undefined {
+function totals(statistics: StatisticsType | undefined, key: string): ReportingPeriodTotalsType | undefined {
+  const value = statistics?.[key as SlotKeyType];
   return value ? { amount: value.total.amount, count: value.count } : undefined;
 }
 
-function slotValue(statistics: StatisticsType | undefined, key: string): SlotValueType {
-  return statistics?.[key as SlotKeyType];
-}
-
-/** Monthly revenue, orders and AOV for the Reporting page, net of cancelled orders, with last year beside them. */
+/** Monthly revenue, orders and AOV for the Reporting page, with last year beside them. */
 export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
+  const today = useToday();
   const organizationId = computed(() => toValue(options.organizationId) || undefined);
-  const months = computed(() => buildReportingMonths(toValue(options.period)));
-  const previousMonth = computed(() => previousMonthWindow(toValue(options.period)));
   const isMock = isReportingMockEnabled();
 
-  const rules = useSalesRepHubQuery(
-    SalesRepOrderFilterRulesDocument,
-    computed(() => ({
-      storeId: globals.storeId,
-      cultureName: globals.cultureName,
-      organizationId: organizationId.value,
-    })),
-    { enabled: !isMock },
-  );
-
-  const cancelledFilter = computed(
-    () =>
-      rules.result.value?.salesRepOrderFilterRules?.find((rule) => CANCELLED_RULE_PATTERN.test(rule?.name ?? ""))?.name,
-  );
+  // The months the selection covers, and the month before them (the first month's "vs previous month").
+  const plan = computed(() => {
+    const period = toValue(options.period);
+    const now = new Date(today.value);
+    return { months: buildReportingMonths(period, now), previous: previousMonthWindow(period, now) };
+  });
 
   const variables = computed(() => {
+    const { months, previous } = plan.value;
     const slots: Record<string, string | boolean | undefined> = {};
     for (let i = 0; i < REPORTING_MONTH_SLOTS; i++) {
-      const month = months.value[i];
-      slots[`use${i}`] = Boolean(month) && month.state !== "upcoming";
+      const month = months.at(i);
+      slots[`use${i}`] = month !== undefined && month.state !== "upcoming";
       slots[`from${i}`] = month?.from;
       slots[`to${i}`] = month?.to;
       slots[`lyFrom${i}`] = month?.lyFrom;
@@ -77,59 +63,60 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
       storeId: globals.storeId,
       currencyCode: globals.currencyCode,
       cultureName: globals.cultureName,
-      cancelledFilter: cancelledFilter.value,
-      noCancelled: !cancelledFilter.value,
-      prevFrom: previousMonth.value.from,
-      prevTo: previousMonth.value.to,
+      prevFrom: previous.from,
+      prevTo: previous.to,
       ...slots,
     } as SalesRepMonthlyOrderStatisticsQueryVariables;
   });
 
-  // Waits for the rule list: without it, cancelled orders would be counted and then drop out a moment later.
-  const statistics = useSalesRepHubQuery(SalesRepMonthlyOrderStatisticsDocument, variables, {
+  const query = useSalesRepHubQuery(SalesRepMonthlyOrderStatisticsDocument, variables, {
     fetchPolicy: HUB_FETCH_POLICY,
-    enabled: computed(() => !isMock && !rules.loading.value),
+    enabled: !isMock,
     keepPreviousResult: true,
   });
 
-  rules.onError((error) => {
-    Logger.error("[sales-rep] salesRepOrderFilterRules (reporting) failed:", error);
-  });
-  statistics.onError((error) => {
+  query.onError((error) => {
     Logger.error("[sales-rep] salesRepCustomerOrderStatistics (reporting) failed:", error);
   });
 
-  const result = computed(() => statistics.result.value?.salesRepCustomerOrderStatistics ?? undefined);
+  // `result` keeps the previous response until the next one lands, and its month aliases are positional (m0…m11),
+  // so each response is kept together with the months it was fetched for, never read against the ones just picked.
+  const settled = shallowRef<{ months: ReportingMonthSlotType[]; statistics?: StatisticsType }>({ months: [] });
 
-  const rows = computed(() => {
+  watch(
+    query.result,
+    (value) => {
+      settled.value = {
+        months: plan.value.months,
+        statistics: value?.salesRepCustomerOrderStatistics ?? undefined,
+      };
+    },
+    { immediate: true },
+  );
+
+  const months = computed(() => {
     if (isMock) {
-      const mock = buildReportingMock(months.value, organizationId.value ?? "");
+      const mock = buildReportingMock(plan.value.months, organizationId.value ?? "");
       return withMonthChanges(
-        months.value.map((month, i) => toReportingMonth(month, mock.raw[i] ?? {})),
+        plan.value.months.map((month, i) => toReportingMonth(month, mock.raw[i] ?? {})),
         mock.before,
       );
     }
-    const current = months.value.map((month, i) => {
-      const raw: ReportingRawMonthType = {
-        all: totals(slotValue(result.value, `m${i}`)),
-        cancelled: totals(slotValue(result.value, `mc${i}`)),
-        lastYear: totals(slotValue(result.value, `ly${i}`)),
-        lastYearCancelled: totals(slotValue(result.value, `lyc${i}`)),
-      };
-      return toReportingMonth(month, raw);
-    });
-    return withMonthChanges(current, {
-      all: totals(slotValue(result.value, "prev")),
-      cancelled: totals(slotValue(result.value, "prevc")),
-    });
+    const { months: slots, statistics } = settled.value;
+    return withMonthChanges(
+      slots.map((month, i) =>
+        toReportingMonth(month, { totals: totals(statistics, `m${i}`), lastYear: totals(statistics, `ly${i}`) }),
+      ),
+      totals(statistics, "prev"),
+    );
   });
 
   return {
-    months: rows,
-    summary: computed(() => summarizeReporting(rows.value)),
-    currencyCode: computed(() => result.value?.currencyCode ?? globals.currencyCode),
-    loading: computed(() => !isMock && (rules.loading.value || statistics.loading.value)),
-    error: computed(() => (isMock ? null : (rules.error.value ?? statistics.error.value))),
+    months,
+    summary: computed(() => summarizeReporting(months.value)),
+    currencyCode: computed(() => settled.value.statistics?.currencyCode ?? globals.currencyCode),
+    loading: computed(() => !isMock && query.loading.value),
+    error: computed(() => (isMock ? null : query.error.value)),
     /** True when the page shows example figures (see reporting-mock.ts), not the backend's. */
     isMock,
   };

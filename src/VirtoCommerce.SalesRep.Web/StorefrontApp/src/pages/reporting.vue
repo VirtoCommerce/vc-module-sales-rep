@@ -29,11 +29,7 @@
 
       <div class="sales-rep-reporting__body">
         <div class="sales-rep-reporting__toolbar">
-          <VcTabSwitchGroup
-            class="sales-rep-reporting__periods"
-            variant="seg"
-            :aria-label="t('sales_rep.reporting.period_label')"
-          >
+          <div class="sales-rep-reporting__periods" role="group" :aria-label="t('sales_rep.reporting.period_label')">
             <VcTabSwitch
               v-for="option in REPORTING_PERIODS"
               :key="option"
@@ -44,7 +40,7 @@
               size="sm"
               @change="period = $event"
             />
-          </VcTabSwitchGroup>
+          </div>
 
           <div class="sales-rep-reporting__actions">
             <VcSelect
@@ -60,7 +56,7 @@
               size="sm"
               test-id-dropdown="sales-rep-reporting-customer-select"
               autocomplete
-              @change="customerId = $event ?? ALL_CUSTOMERS"
+              @change="customerId = $event ?? REPORTING_ALL_CUSTOMERS"
             />
           </div>
         </div>
@@ -69,9 +65,11 @@
 
         <template v-else>
           <div class="sales-rep-reporting__tiles">
+            <VcLoaderOverlay :visible="loading" />
+
             <ReportingKpiTile
               :label="t('sales_rep.reporting.kpi.sales', { period: periodLabel })"
-              :value="compactMoney(summary.revenue)"
+              :value="formatters.compactMoney(summary.revenue, currencyCode)"
               :change="summary.revenueChange"
               test-id="sales-rep-reporting-sales-tile"
             />
@@ -85,7 +83,7 @@
 
             <ReportingKpiTile
               :label="t('sales_rep.reporting.kpi.aov', { period: periodLabel })"
-              :value="money(summary.periodAov)"
+              :value="formatters.money(summary.periodAov, currencyCode)"
               :change="summary.aovChange"
               test-id="sales-rep-reporting-aov-tile"
             />
@@ -139,14 +137,17 @@
 import { useLocalStorage } from "@vueuse/core";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useBreadcrumbs, usePageHead, useRouteQueryParam } from "@vc-frontend/core";
+import { usePageHead } from "@vc-frontend/core";
 import ReportingChart from "../components/reporting-chart.vue";
 import ReportingKpiTile from "../components/reporting-kpi-tile.vue";
 import ReportingTable from "../components/reporting-table.vue";
+import { useReportingFormatters } from "../composables/useReportingFormatters";
+import { useReportingQueryParams } from "../composables/useReportingQueryParams";
 import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
 import { useSalesRepReporting } from "../composables/useSalesRepReporting";
-import { ALL_CUSTOMER_ORDERS_ROUTE_NAME, DASHBOARD_ROUTE_NAME } from "../constants";
-import { REPORTING_DEFAULT_PERIOD, REPORTING_PERIODS } from "../reporting";
+import { useToday } from "../composables/useToday";
+import { ALL_CUSTOMER_ORDERS_ROUTE_NAME } from "../constants";
+import { REPORTING_ALL_CUSTOMERS, REPORTING_PERIODS } from "../reporting";
 import type { ReportingPeriodType } from "../reporting";
 
 const PERIOD_LABELS: Record<ReportingPeriodType, string> = {
@@ -170,28 +171,32 @@ const CHART_PERIOD_TITLES: Record<ReportingPeriodType, string> = {
   q4: "sales_rep.reporting.chart_periods.quarter",
 };
 
-const ALL_CUSTOMERS = "";
-
 const { t, n, d } = useI18n();
+const formatters = useReportingFormatters();
+const today = useToday();
 
-const period = useRouteQueryParam<ReportingPeriodType>("period", {
-  defaultValue: REPORTING_DEFAULT_PERIOD,
-  validator: (value) => REPORTING_PERIODS.includes(value),
-  updateMethod: "replace",
-});
+const customerOptions = useSalesRepCustomerOptions();
+const {
+  options: customers,
+  totalCount: customersCount,
+  loading: customersLoading,
+  failed: customersFailed,
+} = customerOptions;
 
-const customerId = useRouteQueryParam<string>("customer", { defaultValue: ALL_CUSTOMERS, updateMethod: "replace" });
+const { period, customerId } = useReportingQueryParams(customerOptions);
 
 const salesWithLastYear = useLocalStorage("vc-sales-rep-reporting-sales-last-year", false);
 const aovWithLastYear = useLocalStorage("vc-sales-rep-reporting-aov-last-year", false);
 
-const { options: customers, loading: customersLoading, failed: customersFailed } = useSalesRepCustomerOptions();
+// No count until the list has loaded: "(0)" over a report with figures would read as "no customers".
+const allCustomersLabel = computed(() =>
+  customersLoading.value || customersFailed.value
+    ? t("sales_rep.reporting.all_customers_plain")
+    : t("sales_rep.reporting.all_customers", { count: n(customersCount.value) }),
+);
 
 const customerItems = computed(() => [
-  {
-    organizationId: ALL_CUSTOMERS,
-    organizationName: t("sales_rep.reporting.all_customers", { count: n(customers.value.length) }),
-  },
+  { organizationId: REPORTING_ALL_CUSTOMERS, organizationName: allCustomersLabel.value },
   ...customers.value,
 ]);
 
@@ -200,24 +205,12 @@ const { months, summary, currencyCode, loading, error, isMock } = useSalesRepRep
   organizationId: customerId,
 });
 
-function money(value: number | null): string {
-  return value === null ? "—" : n(value, { style: "currency", currency: currencyCode.value, maximumFractionDigits: 0 });
-}
-
-function compactMoney(value: number | null): string {
-  return value === null
-    ? "—"
-    : n(value, { style: "currency", currency: currencyCode.value, notation: "compact", maximumFractionDigits: 1 });
-}
-
 const periodLabel = computed(() => t(PERIOD_LABELS[period.value]));
-
-const firstMonth = computed(() => months.value[0]);
 
 const chartPeriodTitle = computed(() =>
   t(CHART_PERIOD_TITLES[period.value], {
     period: periodLabel.value,
-    year: firstMonth.value?.year ?? new Date().getFullYear(),
+    year: months.value[0]?.year ?? new Date(today.value).getFullYear(),
   }),
 );
 
@@ -226,60 +219,60 @@ const currentMonthTile = computed(() => {
   if (!current) {
     return undefined;
   }
-  const projected = current.projectedRevenue;
+  const share = current.daysPassed / current.daysInMonth;
   return {
-    label: t("sales_rep.reporting.kpi.month_to_date", {
-      month: d(new Date(current.year, current.month, 1), { month: "long" }),
-      day: current.daysPassed,
-      days: current.daysInMonth,
-    }),
-    value: compactMoney(current.revenue),
+    label: formatters.sentenceCase(
+      t("sales_rep.reporting.kpi.month_to_date", {
+        month: formatters.month(current.year, current.month, "long"),
+        day: current.daysPassed,
+        days: current.daysInMonth,
+      }),
+    ),
+    value: formatters.compactMoney(current.revenue, currencyCode.value),
     caption:
-      projected === null
+      current.projectedRevenue === null
         ? undefined
         : t("sales_rep.reporting.kpi.projected", {
-            share: n(current.daysPassed / current.daysInMonth, { style: "percent" }),
-            value: compactMoney(projected),
+            share: formatters.share(share),
+            value: formatters.compactMoney(current.projectedRevenue, currencyCode.value),
           }),
-    progress: current.daysPassed / current.daysInMonth,
+    progress: share,
   };
 });
 
 const salesSubtitle = computed(() =>
   summary.value.averageRevenuePerClosedMonth === null
     ? undefined
-    : t("sales_rep.reporting.sales_chart.subtitle", { value: money(summary.value.averageRevenuePerClosedMonth) }),
+    : t("sales_rep.reporting.sales_chart.subtitle", {
+        value: formatters.money(summary.value.averageRevenuePerClosedMonth, currencyCode.value),
+      }),
 );
 
 const aovSubtitle = computed(() =>
-  t("sales_rep.reporting.aov_chart.subtitle_period", { aov: money(summary.value.periodAov) }),
+  t("sales_rep.reporting.aov_chart.subtitle_period", {
+    aov: formatters.money(summary.value.periodAov, currencyCode.value),
+  }),
 );
 
 const footnote = computed(() => {
-  const withData = months.value.filter((month) => month.state !== "upcoming");
-  const first = withData[0];
-  const last = withData.at(-1);
+  const started = months.value.filter((month) => month.state !== "upcoming");
+  const first = started.at(0);
+  const last = started.at(-1);
   if (!first || !last) {
-    return t("sales_rep.reporting.footnote_empty");
+    return t("sales_rep.reporting.footnote_upcoming");
   }
-  const monthYear = (year: number, month: number): string =>
-    d(new Date(year, month, 1), { month: "short", year: "numeric" });
-  return t("sales_rep.reporting.footnote", {
-    from: monthYear(first.year, first.month),
-    to: monthYear(last.year, last.month),
-    today: d(new Date(), { month: "short", day: "numeric" }),
-  });
+  const range = {
+    from: formatters.monthYear(first.year, first.month),
+    to: formatters.monthYear(last.year, last.month),
+  };
+  return last.state === "current"
+    ? t("sales_rep.reporting.footnote", { ...range, today: d(today.value, { month: "short", day: "numeric" }) })
+    : t("sales_rep.reporting.footnote_closed", range);
 });
 
 usePageHead({
   title: computed(() => t("sales_rep.reporting.title")),
 });
-
-useBreadcrumbs(() => [
-  { title: t("common.links.account"), route: { name: "Account" } },
-  { title: t("sales_rep.hub.title"), route: { name: DASHBOARD_ROUTE_NAME } },
-  { title: t("sales_rep.reporting.title") },
-]);
 </script>
 
 <style lang="scss">
@@ -320,7 +313,10 @@ useBreadcrumbs(() => [
   }
 
   &__periods {
-    @apply max-w-full overflow-x-auto;
+    // Hover contrast, as on the hub's chips (VCST-5890).
+    --vc-tab-switch-hover-color: var(--color-neutral-900);
+
+    @apply flex max-w-full gap-1 overflow-x-auto;
   }
 
   &__actions {
@@ -340,7 +336,7 @@ useBreadcrumbs(() => [
   }
 
   &__tiles {
-    @apply grid grid-cols-2 gap-3;
+    @apply relative grid grid-cols-2 gap-3;
 
     @media (width >= theme("screens.lg")) {
       @apply grid-cols-4;

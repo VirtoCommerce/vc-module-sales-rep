@@ -471,9 +471,11 @@
       },
       "customer_label": "Customer",
       "all_customers": "All my customers ({count})",
+      "all_customers_plain": "All my customers",
       "customers_failed": "Couldn't load your customers",
       "load_failed": "Couldn't load the report. Try again later.",
       "last_year": "Last year",
+      "last_year_toggle": "Show last year on {chart}",
       "upcoming": "Upcoming",
       "cancelled_excluded": "Cancelled orders excluded",
       "sales_chart": {
@@ -533,7 +535,8 @@
         "change": "vs last year"
       },
       "footnote": "{from} – {to}, current month to {today}. Sales are net, by order date; cancelled orders are excluded.",
-      "footnote_empty": "No orders in this period.",
+      "footnote_closed": "{from} – {to}. Sales are net, by order date; cancelled orders are excluded.",
+      "footnote_upcoming": "This period hasn't started yet.",
       "example_data": "Example data"
     }
   }

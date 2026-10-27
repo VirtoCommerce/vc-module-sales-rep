@@ -68,5 +68,5 @@ export function useSalesRepCustomerOptions() {
     return options.value.find((option) => option.organizationId === organizationId);
   }
 
-  return { options, findOption, loading, failed };
+  return { options, totalCount, findOption, loading, failed };
 }
