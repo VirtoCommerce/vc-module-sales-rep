@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -914,7 +915,8 @@ public class SalesRepTasksGraphQlTests
     public async Task CreateSalesRepTask_LeavesTheStoreUnsetForAnAccountWithNoStore()
     {
         using var ctx = SalesRepTestContext.Create();
-        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        // Asked for explicitly: SeedRepAsync binds the account to the default store, as a real one is.
+        var rep = await SeedRepInStoreAsync(ctx, "Ann", "Rep", "ann@test.com", storeId: null, OrgA);
 
         // A rep whose account is not store-bound is supported configuration (SalesRepDetails.StoreId is
         // optional), so the write succeeds and the task simply carries no store.
@@ -926,6 +928,195 @@ public class SalesRepTasksGraphQlTests
         Names(await ListTasksAsync(ctx, rep, "storeId: \"B2B-store\"")).Should().BeEmpty();
     }
 
+    // -- customer link (VCST-6314) -------------------------------------------------------------------------------
+
+    [Fact]
+    public async Task CreateSalesRepTask_LinksAServedCustomer_AndEveryReadNamesIt()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        var created = await CreateTaskAsync(ctx, rep, "Call", Today, type: ModuleConstants.Tasks.CallType, customerId: OrgA);
+        var taskId = created.GetProperty("id").GetString();
+
+        // Seeded organizations are named after their ids. The mutation's own answer goes through the same resolver.
+        created.GetProperty("customerId").GetString().Should().Be(OrgA);
+        created.GetProperty("customerName").GetString().Should().Be(OrgA);
+
+        var listed = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, "salesRepTasks { items { customerId customerName } }"), "salesRepTasks").GetProperty("items")[0];
+        listed.GetProperty("customerId").GetString().Should().Be(OrgA);
+        listed.GetProperty("customerName").GetString().Should().Be(OrgA);
+
+        var byId = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, $"salesRepTask(id: \"{taskId}\") {{ customerId customerName }}"), "salesRepTask");
+        byId.GetProperty("customerId").GetString().Should().Be(OrgA);
+        byId.GetProperty("customerName").GetString().Should().Be(OrgA);
+
+        // Stored in task-management's generic object link, under this module's own object type - no new column. The
+        // literal pins the persisted value: renaming the constant would orphan every link already stored.
+        var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
+        stored.ObjectType.Should().Be("SalesRepCustomer");
+        stored.ObjectId.Should().Be(OrgA);
+    }
+
+    [Fact]
+    public async Task CreateSalesRepTask_RefusesACustomerTheRepDoesNotServe_ExactlyLikeAnUnknownOne()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        await ctx.SeedOrganizationsAsync(OrgB);
+
+        // Linking names a customer, so it is authorized against the rep's own customers - and, like the task mutations,
+        // a real organization the rep does not serve must read exactly like an id that was never issued.
+        var notServed = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"Call\", dueDate: \"{TodayIso}\", customerId: \"{OrgB}\" }}) {{ id }}");
+        var unknown = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ name: \"Call\", dueDate: \"{TodayIso}\", customerId: \"no-such-organization\" }}) {{ id }}");
+
+        notServed.Should().Contain("\"errors\"");
+        notServed.Should().Contain("Customer not found.");
+        unknown.Should().Contain("Customer not found.");
+
+        // Refused before anything is written.
+        (await ListTasksAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_MovesTheCustomer_AndOmittingItUnlinks()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+        var taskId = (await CreateTaskAsync(ctx, rep, "Call", Today, customerId: OrgA)).GetProperty("id").GetString();
+
+        var moved = SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Call", Today, customerId: OrgB), "updateSalesRepTask");
+        moved.GetProperty("customerId").GetString().Should().Be(OrgB);
+        moved.GetProperty("customerName").GetString().Should().Be(OrgB);
+
+        // Replace semantics, like every other editable field: an omitted customer is a removed one.
+        var unlinked = SalesRepTestContext.Node(
+            await MutateAsync(ctx, rep, $"updateSalesRepTask(command: {{ id: \"{taskId}\", name: \"Call\", dueDate: \"{TodayIso}\" }}) {{ customerId customerName }}"),
+            "updateSalesRepTask");
+        unlinked.GetProperty("customerId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        unlinked.GetProperty("customerName").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+
+        var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
+        stored.ObjectType.Should().BeNull();
+        stored.ObjectId.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_LeavesAnotherFeaturesObjectLinkAlone()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+
+        // A task assigned to the rep by something else (a workflow about an order) uses the same generic link.
+        var taskId = await SaveTaskDirectlyAsync(ctx, rep, "Review order", Today, isActive: true, completed: null,
+            objectType: "CustomerOrder", objectId: "order-1");
+
+        // It is not a customer, so the read does not present it as one...
+        var read = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, $"salesRepTask(id: \"{taskId}\") {{ customerId customerName }}"), "salesRepTask");
+        read.GetProperty("customerId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        read.GetProperty("customerName").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+
+        // ...and an edit without a customer must not clear that link, nor may one with a customer replace it.
+        SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Review order, renamed", Today), "updateSalesRepTask");
+        var replaced = await UpdateTaskAsync(ctx, rep, taskId, "Review order", Today, customerId: OrgA);
+        replaced.Should().Contain("cannot take a customer");
+
+        var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
+        stored.Name.Should().Be("Review order, renamed");
+        stored.ObjectType.Should().Be("CustomerOrder");
+        stored.ObjectId.Should().Be("order-1");
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_TreatsAnObjectIdWithoutAType_AsAnotherRecordsLink()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+
+        // An id with no type, as only a direct REST call or custom code would write it - here even an organization the
+        // rep serves. The read does not take it for a customer link, so the write must not either.
+        var taskId = await SaveTaskDirectlyAsync(ctx, rep, "Imported", Today, isActive: true, completed: null,
+            objectType: null, objectId: OrgA);
+
+        var read = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, $"salesRepTask(id: \"{taskId}\") {{ customerId }}"), "salesRepTask");
+        read.GetProperty("customerId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+
+        // Writing back the null it read keeps the link, and a customer cannot replace it.
+        SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Imported, renamed", Today), "updateSalesRepTask");
+        var replaced = await UpdateTaskAsync(ctx, rep, taskId, "Imported", Today, customerId: OrgB);
+        replaced.Should().Contain("cannot take a customer");
+
+        var stored = await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId);
+        stored.Name.Should().Be("Imported, renamed");
+        stored.ObjectType.Should().BeNull();
+        stored.ObjectId.Should().Be(OrgA);
+    }
+
+    [Fact]
+    public async Task Reads_StopNamingTheCustomer_OnceTheRepNoLongerServesIt()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+        var taskId = (await CreateTaskAsync(ctx, rep, "Call", Today, customerId: OrgA)).GetProperty("id").GetString();
+
+        // The task outlives the membership that let the rep link the customer. Still a rep (OrgB) and still the
+        // task's owner, but no longer entitled to OrgA - so the link is not reported, while the row stays as it was.
+        var membership = (await ctx.GetMembershipsAsync(rep.UserId)).Single(x => x.OrganizationId == OrgA);
+        await ctx.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
+
+        var read = SalesRepTestContext.Node(
+            await QueryAsync(ctx, rep, $"salesRepTask(id: \"{taskId}\") {{ name customerId customerName }}"), "salesRepTask");
+        read.GetProperty("name").GetString().Should().Be("Call");
+        read.GetProperty("customerId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        read.GetProperty("customerName").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+
+        (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgA);
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_KeepsTheLinkToACustomerTheRepNoLongerServes()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+        var taskId = (await CreateTaskAsync(ctx, rep, "Call", Today, customerId: OrgA)).GetProperty("id").GetString();
+        var membership = (await ctx.GetMembershipsAsync(rep.UserId)).Single(x => x.OrganizationId == OrgA);
+        await ctx.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
+
+        // The read shows no customer, and writing that back - the call rescheduled - must not clear a link the rep
+        // cannot see: it is still there should they serve the customer again.
+        var rescheduled = SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Call", Today.AddDays(1)), "updateSalesRepTask");
+        rescheduled.GetProperty("customerId").ValueKind.Should().Be(System.Text.Json.JsonValueKind.Null);
+        (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgA);
+
+        // A customer the rep does serve replaces it, as on any task.
+        SalesRepTestContext.Node(await UpdateTaskAsync(ctx, rep, taskId, "Call", Today, customerId: OrgB), "updateSalesRepTask");
+        (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgB);
+    }
+
+    [Fact]
+    public async Task UpdateSalesRepTask_RefusesACustomerTheRepDoesNotServe_ExactlyLikeAnUnknownOne()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        await ctx.SeedOrganizationsAsync(OrgB);
+        var taskId = (await CreateTaskAsync(ctx, rep, "Call", Today, customerId: OrgA)).GetProperty("id").GetString();
+
+        // The update enters through its own handler, so it is pinned on its own: an edit cannot link what a create could not.
+        var notServed = await UpdateTaskAsync(ctx, rep, taskId, "Call", Today, customerId: OrgB);
+        var unknown = await UpdateTaskAsync(ctx, rep, taskId, "Call", Today, customerId: "no-such-organization");
+
+        notServed.Should().Contain("\"errors\"");
+        notServed.Should().Contain("Customer not found.");
+        unknown.Should().Contain("Customer not found.");
+
+        // Refused before anything is written.
+        (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgA);
+    }
+
     // -- helpers -------------------------------------------------------------------------------------------------
 
     private sealed record Rep(string UserId, string MemberId);
@@ -935,10 +1126,13 @@ public class SalesRepTasksGraphQlTests
     private static string[] Names(System.Text.Json.JsonElement node) =>
         node.GetProperty("items").EnumerateArray().Select(x => x.GetProperty("name").GetString()).ToArray();
 
-    private static async Task<Rep> SeedRepAsync(SalesRepTestContext ctx, string firstName, string lastName, string email, params string[] organizationIds)
+    private static Task<Rep> SeedRepAsync(SalesRepTestContext ctx, string firstName, string lastName, string email, params string[] organizationIds)
+        => SeedRepInStoreAsync(ctx, firstName, lastName, email, SalesRepTestContext.DefaultStoreId, organizationIds);
+
+    private static async Task<Rep> SeedRepInStoreAsync(SalesRepTestContext ctx, string firstName, string lastName, string email, string storeId, params string[] organizationIds)
     {
         await ctx.SeedOrganizationsAsync(organizationIds);
-        var details = await ctx.CreateRepAsync(firstName, lastName, email, organizationIds);
+        var details = await ctx.CreateRepInStoreAsync(firstName, lastName, email, storeId, organizationIds);
 
         return new Rep(details.UserId, details.Id);
     }
@@ -966,13 +1160,14 @@ public class SalesRepTasksGraphQlTests
         DateTime dueDate,
         string description = "",
         string type = "",
-        string priority = "")
+        string priority = "",
+        string customerId = "")
         => MutateAsync(
             ctx,
             rep,
             $"updateSalesRepTask(command: {{ id: \"{id}\", name: \"{name}\", dueDate: \"{Iso(dueDate)}\", " +
-            $"description: \"{description}\", type: \"{type}\", priority: \"{priority}\" }}) " +
-            "{ id name description type priority dueDate }");
+            $"description: \"{description}\", type: \"{type}\", priority: \"{priority}\", customerId: \"{customerId}\" }}) " +
+            "{ id name description type priority dueDate customerId customerName }");
 
     /// <summary>Straight through the task-management service, for the shapes this API cannot create.</summary>
     private static async Task<string> SaveTaskDirectlyAsync(
@@ -982,7 +1177,9 @@ public class SalesRepTasksGraphQlTests
         DateTime? dueDate,
         bool isActive,
         bool? completed,
-        string responsibleId = null)
+        string responsibleId = null,
+        string objectType = null,
+        string objectId = null)
     {
         var task = AbstractTypeFactory<WorkTask>.TryCreateInstance();
         task.Name = name;
@@ -990,6 +1187,8 @@ public class SalesRepTasksGraphQlTests
         task.IsActive = isActive;
         task.Completed = completed;
         task.ResponsibleId = responsibleId ?? rep.MemberId;
+        task.ObjectType = objectType;
+        task.ObjectId = objectId;
 
         await ctx.GetRequiredService<IWorkTaskService>().SaveChangesAsync([task]);
 
@@ -1013,7 +1212,8 @@ public class SalesRepTasksGraphQlTests
         DateTime dueDate,
         string priority = null,
         string type = null,
-        string description = null)
+        string description = null,
+        string customerId = null)
     {
         var fields = $"name: \"{name}\", dueDate: \"{Iso(dueDate)}\"";
         if (priority != null)
@@ -1031,7 +1231,12 @@ public class SalesRepTasksGraphQlTests
             fields += $", description: \"{description}\"";
         }
 
-        var json = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ {fields} }}) {{ id name description priority dueDate isActive completed }}");
+        if (customerId != null)
+        {
+            fields += $", customerId: \"{customerId}\"";
+        }
+
+        var json = await MutateAsync(ctx, rep, $"createSalesRepTask(command: {{ {fields} }}) {{ id name description priority dueDate isActive completed customerId customerName }}");
 
         return SalesRepTestContext.Node(json, "createSalesRepTask");
     }

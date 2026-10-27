@@ -12,6 +12,9 @@ export type SalesRepTaskType = {
   isActive: boolean;
   completed?: boolean;
   status: SalesRepTaskStatusType;
+  /** The organization the task is about; absent when there is none, or the rep no longer serves it. */
+  customerId?: string;
+  customerName?: string;
 };
 
 /** What a calendar day carries: which conditions to dot, and how many tasks are due on it. */
@@ -41,4 +44,5 @@ export type SalesRepTaskInputType = {
   description?: string;
   type?: string;
   priority?: string;
+  customerId?: string;
 };

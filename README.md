@@ -24,6 +24,9 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Send a push notification and/or email to the members of a customer organization
 * Publish a shopping list (wishlist) to a customer organization the rep serves — its members open it read-only ("Recommended by your Sales Rep") and add items to their cart, with an optional email/push notification
 * Share a curated **documents library** with sales reps — a back-office manager uploads categorized sales materials (price lists, catalogs, guides), optionally pinning one and annotating summary / page count / preview; reps browse, search and download them from the storefront
+* Show a rep an **activity feed** of their customers — orders placed, customers assigned, and (from Google Analytics 4) searches, product views and sign-ins — merged newest-first with per-category counters
+* Show **customer insights** per customer or across all of them: top/recent search phrases, browsed products, last sign-in and visit count, sourced from tracked storefront activity
+* Diagnose the Google Analytics connection from the back office — a staged checklist ending in a probe that runs the real feature query
 * Toggle the storefront Sales Rep UI per store
 
 ## Screenshots
@@ -524,11 +527,69 @@ The shared documents library (gated by `sales-rep-documents:read`). `after` is t
 
 The keyword matches the **display name** (the raw file name is internal), and `url` is the authorized file-experience-api download endpoint (`/api/files/{id}`) — never a raw blob URL. The listing is **metadata-authoritative**: `totalCount` always matches the returned rows. A document whose file record is missing (out-of-band corruption — raw SQL, a mid-cascade failure) still lists with its metadata fields; the file-derived fields (`name`, `contentType`, `size`) degrade to null, while `url` stays resolvable (it is deterministic) — attempting the download yields the server's 404, uniformly with every other corruption class, and the document stays visible and deletable.
 
+#### Activity feed
+
+A merged, categorized feed of what the rep's customers did. `organizationId` omitted covers every customer they serve ("my activity"); `categories` filters the **rows** while `categoryCounts` keeps reporting every category, so selecting a tab never blanks the others' badges.
+
+```graphql
+{
+  salesRepActivities(
+    storeId: "B2B-store"
+    # optional: organizationId (one customer), categories: ["searches"], period: { from, to }
+    take: 20
+    skip: 0
+    cultureName: "en-US"
+  ) {
+    totalCount                                 # rows in the requested categories — drives the pager
+    categoryCounts { category count }          # every category, in events; only fetched when selected
+    items {
+      category                                 # orders | customers | searches | productViews | logins
+      type                                     # orderPlaced | customerAssigned | search | productView | login
+      occurredAt precision                     # precision: exact | hour (hour = UTC bucket start)
+      count                                    # >1 when an analytics hour-bucket aggregates repeats
+      organizationId organizationName
+      orderId orderNumber orderStatus orderStatusDisplayValue
+      orderTotal { amount formattedAmount }
+      searchTerm
+      productId productCode productName productImageUrl
+    }
+  }
+}
+```
+
+`take` defaults to 20 and caps at 50; `take: 0` returns counters only. The feed **pages 500 rows deep**: a merged page can only be sliced from the top (`skip + take`) rows of every requested category, so `MaxSkip` caps what one request can cost (worst case ~3,000 rows for the five-category "All" view at a full page). Past the window the query returns **no rows** rather than repeating the window's last page, while the counters keep describing the whole set. Within the window a single fetched category pages natively and costs the same at any depth; the `MaxSkip` cap itself is checked before that distinction, so it applies to a single-category request too.
+
+#### Customer insights
+
+Ranked lists over tracked activity, for one customer or aggregated across all of them:
+
+```graphql
+{
+  salesRepCustomerInsights(storeId: "B2B-store" /*, organizationId, period */) {
+    searchTerms(take: 5, sort: "count") { term count lastSearchedDate }
+    browsedProducts(take: 5, sort: "count") { productId name sku imageUrl viewCount lastViewedDate }
+  }
+
+  # Compact per-customer card: platform facts + analytics facts in one payload.
+  salesRepCustomerActivitySummary(organizationId: "…", storeId: "B2B-store" /*, period */) {
+    createdOn                                  # from the database, not GA
+    lastWebLogin visitsCount
+    lastSearchTerm lastSearchedDate
+    lastViewedProduct { code productId name imageUrl } lastViewedDate
+    isAnalyticsAvailable                       # the availability signal for the UI
+  }
+}
+```
+
+`sort` is `"count"` (top, the default) or `"date"` (most recent); `take` defaults to 5 and clamps to 1..20. Under `sort: "count"` the date fields are **null** — a ranked total has no single time. On the summary, `lastSearchedDate` and `lastViewedDate` date the row the term and the product come from: the newest one that carries the dimension. When analytics is unavailable these fields return `null` / zero rather than an error, and `isAnalyticsAvailable` is how a UI renders that state; see [Google Analytics-based metrics](#google-analytics-based-metrics) for the source and its caveats.
+
 #### Tasks
 
 The rep's own tasks, stored by **`VirtoCommerce.TaskManagement`** — an **optional** dependency. With that module
 absent or disabled every read below answers empty and every mutation errors cleanly, so the storefront can hide
 the feature without the API changing shape.
+Its `.Core` assembly ships in this module's package (`module.keep`), so a platform without TaskManagement still
+starts this one.
 
 Ownership is the whole security boundary: a task is the caller's when `WorkTask.ResponsibleId` equals their
 **contact id**, taken from the `memberId` claim. There is no organization scoping — a task belongs to a person,
@@ -550,14 +611,14 @@ not to a customer — and no dedicated permission beyond being a sales rep.
   ) {
     totalCount
     pageInfo { hasNextPage endCursor }
-    items { id name description type priority dueDate isActive completed createdDate modifiedDate }
+    items { id name description type priority dueDate isActive completed createdDate modifiedDate customerId customerName }
   }
 
   salesRepTask(id: "…") { id name dueDate }   # null when missing OR not the caller's — existence never leaks
 
   salesRepTaskFilterRules { name localizedName }                                  # upcoming / overdue / completed
   salesRepTaskSortRules { name localizedName defaultDirection supportsDirection } # due-date / recent / name
-  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text)
+  salesRepTaskTypes                                                               # the TaskManagement.TaskTypes dictionary (advisory: `type` is free text); includes "Call" unless forced by configuration
 }
 ```
 
@@ -653,7 +714,6 @@ Recipients are resolved **once** across all `organizationIds` — a member of se
 
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 
-
 Task writes. The responsible contact, its organization and the store are stamped **server-side** from the caller
 (the store is the rep's own account store) — none of the three is an input field, so a client-supplied owner is
 never honoured, and `updateSalesRepTask` / `changeSalesRepTaskStatus` / `deleteSalesRepTask` re-check ownership
@@ -669,13 +729,14 @@ mutation {
                                          # strings included, so "999" is rejected rather than stored.
     type: "Customer Support"             # free text; salesRepTaskTypes is the suggested vocabulary, not a constraint
     description: "Escalate to regional manager."
-  }) { id name priority dueDate isActive completed }
+    customerId: "7b8c..."                # optional: one of the caller's customers (an organization id)
+  }) { id name priority dueDate isActive completed customerId customerName }
 
   # REPLACES the task, so send the whole record back - an omitted field is cleared, like null or "".
   # Accepts exactly what the read returns, nulls included, so a dateless task can be written back unchanged.
   updateSalesRepTask(command: {
-    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…"
-  }) { id name description type priority dueDate }
+    id: "…", name: "…", dueDate: "…", description: "…", type: "…", priority: "…", customerId: "…"
+  }) { id name description type priority dueDate customerId }
 
   # completed: true finishes the task, false reopens it.
   changeSalesRepTaskStatus(command: { id: "…", completed: true }) { id isActive completed }
@@ -690,7 +751,7 @@ required at the database level, so every one of these is a *validation* rule, st
 
 ⚠️ `updateSalesRepTask` **replaces, it does not patch** — an omitted field is *cleared*, exactly like an explicit
 `null` or `""`. So send the whole record back, which is what the shared shape is for: **create, read and update
-carry the same five editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
+carry the same six editable fields with the same nullability**, so whatever `salesRepTask` returns, both inputs
 accept. Every column behind them is nullable, so the read is the reference; a non-null input would be an invention
 that made a task with no description — or no due date — impossible to write back.
 
@@ -704,9 +765,88 @@ editable.
 (`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
 read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
 
+**Calls and the customer link.** `customerId` links a task to one of the caller's customers. It is checked against
+the organizations they serve — one they do not serve fails with `Customer not found.`, exactly like an unknown id —
+and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the organization
+id), so there is no new column. `customerId` and `customerName` read back only while the caller still serves that
+customer; a task outlives the membership that let the rep link it, and so does the link: writing back the null such a
+task reads keeps it, while another customer replaces it. A task linked to something else (any other `ObjectType`,
+or an `ObjectId` without one; e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit
+leaves the link alone, and setting a customer on it is refused.
+
+A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the call
+editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
+page's other unavailable quick actions. The popup's customer picker offers the rep's first 100 customers by name, the
+list-sharing picker's list, filtered in the browser: a rep who serves more cannot pick the rest there until the picker
+searches on the server (VCST-5923). "Schedule call" on a customer's page fills in that customer whatever the count,
+and an edit keeps the customer already linked. So that admins can pick and filter it, the module keeps `Call` in the
+`TaskManagement.TaskTypes` dictionary, which the platform serves from ONE of two lists: the built-in one until an
+admin first saves the dictionary, the saved one after that. At startup the module adds `Call` to the built-in list
+and, if a saved list exists without it, to the saved list — it never saves the built-in list itself, which would
+freeze it. A list forced through configuration is left alone (with a warning in the log). An admin who removes `Call`
+gets it back on the next restart; existing calls keep their type either way.
+
+A new call can also go to the rep's own calendar, as the rep ticks it in the popup: Google Calendar opens its
+new-event page filled in, and Apple Calendar gets an `.ics` file, which Outlook opens too. The event is titled with the
+call and its customer, lasts 30 minutes, and carries the notes. Both are copies made once, on creation, entirely in the
+browser: the storefront cannot reach them afterwards, so editing a call offers neither, and a later change is made in
+the calendar by hand.
+
 ⚠️ Completion deliberately does **not** call `IWorkTaskService.FinishAsync`: that method publishes
 `WorkTaskCanceledEvent` even when completing, and cannot reopen. Both directions go through a plain save so the
 two transitions stay symmetric.
+
+## Google Analytics-based metrics
+
+Some metrics are **not** computed from platform data — they are read from **Google Analytics 4** (Data API `runReport`) through the `IAnalyticsService` abstraction of the optional [VirtoCommerce.GoogleEcommerceAnalytics](https://github.com/VirtoCommerce/vc-module-google-ecommerce-analytics) module. When analytics is unavailable — the module absent, the store unconfigured, or a read that failed — these fields return `null` / zero / empty and **`isAnalyticsAvailable` is `false`**, never an error. One flag covers all three on purpose: a rep can do nothing different about any of them, and the cause belongs in the server log and the diagnostics endpoint, not on a rep's screen. A null `salesRepCustomerInsights` means something else entirely — the caller may not see that customer.
+
+The storefront hub goes one step further when the analytics module is **absent or disabled**: it leaves its GA-based parts out (the tracked tabs and the customer activity widget) instead of showing them unavailable, and asks no GA-backed question. The module's `.Core` assembly ships in this module's package (`module.keep`), so a platform without the analytics module still starts this one.
+
+> **Why `lastWebLogin` comes from GA and not from the platform.** `ApplicationUser.LastLoginDate` carries the exact instant, and this module already loads `ApplicationUser` for the store claim — so reading the login date from GA costs precision (an hour bucket) and freshness (GA's 24–48 hour processing lag). It is deliberate: this wave is about what GA can answer, and taking `visitsCount` from GA while taking the login date from the database would split one card across two sources with two different freshness guarantees, where the stale half is invisible. If the exactness matters more than the consistency, moving this one field to `LastLoginDate` is a small, self-contained change.
+
+| Metric (GraphQL field) | GA4 source | Notes |
+|---|---|---|
+| `salesRepActivities` → category `searches` rows | event `search`; dimension `searchTerm`; metric `eventCount` | one row per search term per hour bucket. Only `search` is counted, as in the insights list below — the storefront also fires `view_search_results` for the same journey, and GA returns a row per event name, so asking for both would show one search twice |
+| `salesRepActivities` → category `productViews` rows | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | `itemId` holds the product **code**, resolved server-side to a catalog product |
+| `salesRepActivities` → category `logins` rows | event `login`; metric `eventCount` | |
+| `salesRepCustomerActivitySummary.visitsCount` | event `login`; metric `eventCount` over the period | a proxy for "number of visits"; only tracked sign-ins count |
+| `salesRepCustomerActivitySummary.lastWebLogin` | event `login`; latest `dateHour` bucket | hour precision |
+| `salesRepCustomerActivitySummary.lastSearchTerm`, `lastSearchedDate` | events `search`, `view_search_results`; latest `dateHour` bucket with a `searchTerm` | the date is that bucket's start; either event names the term, and only the latest is kept, so nothing double-counts |
+| `salesRepCustomerActivitySummary.lastViewedProduct`, `lastViewedDate` | event `view_item`; latest `dateHour` bucket with an `itemId` | code resolved to product id/name/image; the date is that bucket's start |
+| `salesRepCustomerInsights.searchTerms` (term, count, lastSearchedDate) | event `search`; dimension `searchTerm`; metric `eventCount` | `sort: "count"` = GA-aggregated top; `sort: "date"` = per-hour rows aggregated per term. Only `search` is counted — `view_search_results` describes the same user action and would double-count |
+| `salesRepCustomerInsights.browsedProducts` (viewCount, lastViewedDate) | event `view_item`; dimensions `itemId`, `itemName`; metric `itemsViewed` | same sort semantics; an unresolvable code keeps its `sku` and reports a null `productId` |
+
+(`salesRepCustomerActivitySummary.createdOn` and the `orders`/`customers` activity categories come from platform data, not GA.)
+
+Every rep-facing GA query is constrained by three **user-scoped custom dimensions** the storefront sends with each event (they must be registered in GA4 Admin): `customUser:organization_id` limited to the organizations the calling rep serves (server-side — the data-isolation rule applies to GA reads too); `customUser:session_kind = "self"`, so activity a rep generates while impersonating a customer is never shown as the customer's own; and `customUser:is_sales_rep = "false"`, because a rep is a member of every organization they serve, so the rep's own storefront browsing — searches, product views, sign-ins — carries that organization just like a customer's and would otherwise be reported as the customer's activity. Every reader takes these filters from one service, `ISalesRepAnalyticsScope`: override it once — to add a required filter, say — and every read follows, the diagnostics probe included.
+
+> The **diagnostics** endpoint below is the deliberate exception: it is an operator probe of a store's wiring, so its reads are store-wide and not narrowed to any rep's organizations. It returns row *counts* only, never row content, and it is gated on `sales-rep:diagnostics` — a back-office permission that no rep-facing screen requires.
+
+What the module adds on top of the raw source:
+
+* **Product codes are resolved within the store's catalog.** Analytics carries a product *code*; a code is unique
+  inside a catalog but not across them. A store on a physical catalog narrows the lookup to it. A store on a
+  **virtual** catalog (the usual B2B setup) cannot — a virtual catalog links products in rather than holding them —
+  so the lookup spans every catalog, and a code matched in several is settled by what the store shows: the one
+  product linked into the store's catalog wins. Without a `storeId` there is nothing to narrow or settle by: a code
+  carried by **more than one catalog resolves to nothing** rather than to whichever product came back first — but a
+  code carried by exactly one catalog resolves to it, so pass a `storeId` whenever the caller knows one. An
+  unresolved code — unknown, or still ambiguous — keeps the name analytics tracked and reports a null `productId`.
+* **Badges count events; the pager counts rows.** One analytics row is one (hour bucket x dimension tuple), and its
+  `count` field says how many events it aggregates. `categoryCounts` report events — three sign-ins in one hour are
+  three, as `visitsCount` counts them — while `totalCount` reports rows, which is what a page holds. A row GA returns
+  without a usable hour bucket cannot be placed on a time-ordered feed, so it leaves the page — but not the counts,
+  which keep describing the whole set; correcting them instead made a badge change value when its own tab was
+  selected. An `ISalesRepActivitySource` that leaves `EventCount` null is counted one event per row.
+* **The merged feed is bounded.** See [Activity feed](#activity-feed) for the paging window and what it costs.
+
+Caveats inherent to the source, by design:
+
+* **Latency** — GA4 processes events in up to 24–48 hours; these metrics never reflect same-day activity.
+* **Hour precision** — GA reports are aggregates; all `last*Date` values are UTC hour-bucket starts, not event timestamps. The storefront renders them as approximate.
+* **Sample, not record** — ad blockers, consent and untracked channels mean GA sees a subset of real activity; the UI carries a "based on tracked activity" caveat.
+* **Caching** — the analytics module caches its responses per store and criteria, and briefly caches failures, so a repeated read costs no Google quota and a misconfigured property cannot burn it on a hot page. A first page of the feed reads at least a default page (20 rows) per category, so over the same scope and period the badges (`take: 0`), a shorter dashboard list and the first page are one cached read, not three. The TTLs and the setting that controls them belong to that module — see its README rather than trusting numbers restated here.
+* **When reporting is unavailable** — a failed read **throws** in the analytics module (unconfigured store, refused credential, Google outage alike) rather than answering with an empty list, so this module can tell "reporting is broken" from "this customer did nothing". The activity feed asks first whether the store is configured — an unconfigured store is a state, not a failure to log — and catches a failed read per category and logs it: the analytics tabs come back empty while orders and customers keep working, because one outage must not empty a rep's whole feed.
 
 ## How it works
 
@@ -843,6 +983,14 @@ The app also carries a **Documents library** section (list, upload, edit, pin, d
 | `POST /api/sales-rep/documents/{id}/pin`, `.../unpin` | Single-pin toggle (at most one pinned document). | `sales-rep-documents:write` |
 | `DELETE /api/sales-rep/documents?ids=` | Remove documents (converging cleanup — see Delete behavior). | `sales-rep-documents:write` |
 
+It also carries an **Analytics diagnostics** blade — pick a store, run the checklist, read one row per stage with an expandable detail:
+
+| Method & route | Purpose | Permission |
+|----------------|---------|------------|
+| `POST /api/sales-rep/analytics-diagnostics?storeId={id}&includeLiveData=true` | Runs the analytics module's seven connection stages with this module's expectations, then appends a `featureQuery` stage that executes the real insight queries through the production path and reports row counts. | `sales-rep:diagnostics` |
+
+Each row is `{ stage, status, message, detail }` with `status` one of `Passed | Warning | Failed | Skipped`. Empty results are a `Warning`, not a failure — "no data yet" is the expected state until GA has processed traffic (24-48 h). `includeLiveData=false` skips the data stages to save Data API quota. Without the analytics module installed the response is a single `configuration` / `Failed` row saying so.
+
 Full REST documentation is browsable through Swagger on any running platform instance at `https://{platform-host}/docs/index.html?urls.primaryName=VirtoCommerce.SalesRep`.
 
 ## Permissions
@@ -850,12 +998,13 @@ Full REST documentation is browsable through Swagger on any running platform ins
 | Permission | Meaning |
 |------------|---------|
 | `sales-rep:access` | **Defines** a sales rep. Held by the rep via a role — globally and/or per organization. It is *not* an admin permission and does not gate the management API. |
+| `sales-rep:diagnostics` | Run the analytics diagnostics endpoint and open its back-office blade. Back-office only; it gates no storefront data. |
 | `sales-rep-documents:read` | Browse, search and download documents library files (storefront queries + admin read endpoints). |
 | `sales-rep-documents:write` | Manage the documents library (upload/register, edit metadata, pin, delete). |
 
 Permissions are granular and composed by **roles** — neither documents permission implies the other (a write-only holder cannot list or download; grant both to managers). Administrators pass every permission check.
 
-The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two documents-library roles: **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) and **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write`). Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may freely rename, edit or delete them (reps are identified by the permission, never by a role's id).
+The first time a rep is saved and no role yet grants `sales-rep:access`, the module seeds a default role named **"Sales Representative"**. On startup the module also seeds two more roles. **Advanced Sales Representative** (`sales-rep:access` + `sales-rep-documents:read`) is a *membership* role, assigned on an `OrganizationMembership` like **Sales Representative**. **Sales Rep Documents Manager** (`sales-rep-documents:read` + `sales-rep-documents:write` + `sales-rep:diagnostics`) is the single *back-office* role for whoever administers the feature: it deliberately does **not** carry `sales-rep:access`, because that permission is what turns a membership into a rep. Managing rep accounts themselves is not part of it — `SalesRepController` requires the Customer module's member permissions and the platform's security permissions, which are far broader than this feature and are not seeded here. Seeding never edits existing roles: it is suppressed when some role already carries the full permission set *or* a role with the seeded name exists, whatever its permissions — seeded roles belong to the administrator, who may edit or delete them, and may rename them as long as the permission list stays the same (reps are identified by the permission, never by a role's id). When a release **adds** a permission to a seeded role, a role renamed under an earlier release matches neither rule and a fresh role is seeded beside it; this release adds `sales-rep:diagnostics` to **Sales Rep Documents Manager**.
 
 ## Settings
 
@@ -903,6 +1052,49 @@ Two limits are worth knowing. A write that runs inside an `EventSuppressor` scop
 | `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
 | `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |
+
+## Tests
+
+`tests/VirtoCommerce.SalesRep.Tests` holds three layers, selectable by the `Category` trait:
+
+| Category | Where | What runs | Backend |
+|----------|-------|-----------|---------|
+| `Unit` | `UnitTests/` and the classes at the project root | Validators, mappers, resolvers, response groups and authorization handlers in isolation. | Mocks. |
+| `Component` | `ComponentTests/` | The module's real services, repositories, GraphQL schema and REST controllers, called in-process. | The component harness (`SalesRepTestContext`): one in-memory SQLite database per module context, created with `EnsureCreated`; a RAM Lucene index; hand-written doubles for the platform parts the module only reads (store, settings, currency). |
+| `StorefrontE2E`, `VCShellAppE2E` | `StorefrontE2E/`, `VCShellAppE2E/` | The real UIs, driven by Playwright. | The same harness, hosted on Kestrel inside the test process. |
+
+`dotnet test` runs all three. The end-to-end tests also carry the `IntegrationTest` category, which `vc-build Test`, and so the module CI, leaves out by default (see below).
+
+### End-to-end tests
+
+The idea is to keep the component-test shape — seed through the harness, exercise the module, assert on the rows — and replace the direct GraphQL or REST call with browser actions on the real UI. Nothing external takes part: no running platform, no PostgreSQL, no Redis, no background jobs; the installed platform folder is not read. A test group is one xunit collection with `DisableParallelization = true` and one environment fixture: the backend on a loopback port, the group's seed, one browser. Tests inside a group share the environment and its data and each get their own signed-in browser context; groups run one after another.
+
+| | `StorefrontE2E` | `VCShellAppE2E` |
+|---|---|---|
+| UI | The B2B storefront (`vc-theme-b2b-vue`): a vc-frontend clone on its Vite dev server, which the tests start once per run, or a build (the theme zip's `default` folder) that the test host serves. | The sales-rep VC-Shell app (`src/VirtoCommerce.SalesRep.Web/App`), served by the test host as static files under `/apps/vc-sales-rep/`. |
+| Groups | `Customers/`: the rep's customers and a customer's page. `Calendar/` and `Tasks/`: the tasks page. `Calls/`: scheduled calls, from booking to the calendars. `WithoutTaskManagement/`: the hub without the task management module. The group README below says what each covers. | `SalesReps/`: an administrator creates a rep through the details blade and blocks one. |
+| Backend surface | `/graphql` (one combined X-API schema) and `/connect/token`, plus the hub plugin's build on the platform's route for it, found through `store.plugins` as in production. | `/api/sales-rep/**` (the module's controllers, hosted as they are) plus replicas of the platform endpoints the VC-Shell framework and the blades call. |
+| Sign-in | A JWT minted from the real claim producers, placed in `localStorage` before the first navigation. | The platform's Identity cookie, obtained from the host before the first navigation. |
+| Needs on the machine | A storefront: `VC_STOREFRONT_BUILD` (a build) or `VC_STOREFRONT_DIR` (a clone), else a `vc-frontend` clone next to this repo, else a build two levels up; in a ticket folder that is `sources\vc-frontend`, then `front`. A clone needs `node_modules` and Node 22 on PATH. Plus the hub plugin built: `yarn build` in `StorefrontApp/`; a missing build, or one older than its sources, fails the groups with that command. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
+| Without it | The groups fail with what is missing. | The group fails with the command that builds the app. |
+| Run | `dotnet test --filter "Category=StorefrontE2E"` | `dotnet test --filter "Category=VCShellAppE2E"` |
+| Diagnostics | `bin/Debug/net10.0/StorefrontE2E-diagnostics/` | `bin/Debug/net10.0/VCShellAppE2E-diagnostics/` |
+| Details | [StorefrontE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/StorefrontE2E/README.md) | [VCShellAppE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/VCShellAppE2E/README.md) |
+
+Common prerequisites: the .NET 10 SDK and Playwright's Chromium for the referenced `Microsoft.Playwright` version (`pwsh bin/Debug/net10.0/playwright.ps1 install chromium`, once). `E2E_HEADED=1` shows the browser. A failing test reports the page URL and title, the start of the page text, the API or GraphQL errors, dialogs, failed requests and console errors it saw, plus a full-page screenshot in the diagnostics folder.
+
+**On CI** the module workflow runs `vc-build Test`, whose default filter (`Category!=IntegrationTest`) leaves the end-to-end tests out. Its runner has none of what they need: the storefront is a separate repository, and the hub plugin and the VC-Shell app are built only by `vc-build Compress`, after the tests.
+
+**Writing a test.** Seed in the group's environment (`SeedAsync`, through the harness helpers: organizations, contacts, reps, accounts, orders, tasks), open a signed-in context with `OpenAsync`, act with Playwright, assert through the harness (`NewSalesRepDbContext()`, `GetRequiredService<IMemberService>()`, `UserManager`, `GetMembershipsAsync`, …). What the harness does differently from a platform:
+
+* Databases are created with `EnsureCreated`, so nothing that only migrations create exists; every account, administrators included, comes from the seed (`ApplicationUser.IsAdministrator = true` makes one).
+* Nothing indexes on its own (there are no background jobs): a read that goes through the index needs `IndexMembersAsync` / `IndexOrdersAsync` in the seed. Member searches with a type filter and keyword searches are such reads.
+* Store, settings and currency are doubles; store-level configuration is set on the store double (`TestStoreService.Customize`), not by inserting rows.
+* Each in-memory SQLite database lives on one connection, which is not thread-safe, so each host answers one request at a time. The page may still be fetching when a test reads, so tests reach the harness only through the environment's `RunExclusiveAsync`, which takes the same turn.
+* Nothing is cleaned up: the databases and the index live in memory and go with the group. In the storefront groups, a test that adds tasks or takes a customer away signs in as a rep of its own (`NewRepAsync`), so what it changes is nobody else's.
+* With a clone, the run's first storefront page load takes about twenty seconds (Vite compiles on demand, then the storefront loads the hub plugin); every later one, in any group, takes about a second, as does a page from a build or the VC-Shell app.
+
+**Combining the two surfaces** in one test — create a rep in the VC-Shell app, then sign in as that rep on the storefront — is possible on one host: register both surfaces on one container, select the authentication scheme per request the way the platform does (bearer header → JWT, otherwise the cookie), and give the environment an `Open…` method per UI. The two UIs live on different origins, so a test holds one browser context per UI; the data behind them is the same database. The storefront's own sign-in page can serve the second half, because the host's `/connect/token` implements the password grant. Not built yet.
 
 ## Documentation
 

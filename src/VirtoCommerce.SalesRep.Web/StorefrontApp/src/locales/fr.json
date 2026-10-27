@@ -256,6 +256,7 @@
         "expired": "Expirée le {date}",
         "due": "Échéance le {date}"
       },
+      "customer_not_assigned": "Client non attribué",
       "legend": {
         "upcoming": "À venir",
         "overdue": "En retard",
@@ -264,17 +265,28 @@
       "form": {
         "create_title": "Nouvelle tâche",
         "edit_title": "Modifier la tâche",
+        "create_call_title": "Planifier un appel",
+        "edit_call_title": "Modifier l'appel",
         "name_label": "Titre",
         "due_date_label": "Date d'échéance",
+        "time_label": "Heure",
+        "customer_label": "Client",
+        "customer_placeholder": "Rechercher des clients par nom",
+        "customer_error": "La liste des clients n'a pas pu être chargée. Veuillez réessayer.",
+        "call_name": "Appel",
         "priority_label": "Priorité",
         "type_label": "Type",
         "description_label": "Notes",
+        "calendars_label": "Ajouter à l'agenda",
+        "google_calendar": "Google Agenda",
+        "apple_calendar": "Calendrier Apple",
         "save_button": "Enregistrer",
         "cancel_button": "Annuler",
         "delete_button": "Supprimer",
         "delete_title": "Supprimer la tâche",
         "delete_confirm": "Cette tâche sera supprimée définitivement. Continuer ?",
         "saved": "Tâche enregistrée",
+        "calendar_failed": "Tâche enregistrée, mais elle n'a pas pu être ajoutée à l'agenda",
         "deleted": "Tâche supprimée"
       }
     },
@@ -288,6 +300,95 @@
       "no_results": "Aucune vente dans cette catégorie",
       "all_categories": "Toutes catégories",
       "load_failed": "Impossible de charger les meilleures ventes"
+    },
+    "customer_insights": {
+      "top": "Top",
+      "recent": "Récents",
+      "analytics_unavailable": "L'activité web n'est pas disponible pour cette boutique pour le moment",
+      "tracked_caveat": "Basé uniquement sur l'activité suivie",
+      "search_history": {
+        "empty": "Aucune recherche suivie sur cette période",
+        "empty_this_year": "Aucune recherche suivie cette année",
+        "empty_all_time": "Aucune recherche suivie pour le moment",
+        "count": "{n} recherche | {n} recherches",
+        "last_searched": "Dernière recherche le {date}",
+        "load_failed": "Impossible de charger l'historique de recherche"
+      },
+      "browse_history": {
+        "empty": "Aucune vue de produit suivie sur cette période",
+        "empty_this_year": "Aucune vue de produit suivie cette année",
+        "empty_all_time": "Aucune vue de produit suivie pour le moment",
+        "views": "{n} vue | {n} vues",
+        "load_failed": "Impossible de charger l'historique de navigation"
+      }
+    },
+    "activity": {
+      "navigation": {
+        "link": "Mon activité"
+      },
+      "page": {
+        "title": "Mon activité",
+        "customer_title": "Activité de {customer}",
+        "title_fallback": "Activité"
+      },
+      "breadcrumb": "Activité",
+      "tabs": {
+        "all": "Toutes",
+        "orders": "Commandes",
+        "customers": "Clients",
+        "searches": "Recherches",
+        "product_views": "Vues de produit",
+        "logins": "Connexions"
+      },
+      "period": {
+        "all_time": "Toute la période",
+        "month": "Ce mois-ci",
+        "year": "Cette année"
+      },
+      "rows": {
+        "order_placed": "Commande passée",
+        "customer_assigned": "Nouveau client attribué",
+        "searched_for": "A recherché",
+        "viewed_product": "A consulté",
+        "logins": "{count} connexion | {count} connexions",
+        "count_suffix": "×{count}",
+        "unknown": "Activité"
+      },
+      "time": {
+        "during_hour": "{date}, dans l'heure de {time}"
+      },
+      "quoted_term": "« {term} »",
+      "caveat": "Les recherches, vues de produit et connexions sont basées sur l'activité suivie de la boutique et sont approximatives.",
+      "tracked_hint": "Activité suivie de la boutique : peut mettre jusqu'à 48 heures à apparaître.",
+      "empty": "Aucune activité pour le moment",
+      "empty_period": "Aucune activité suivie sur cette période",
+      "empty_period_untracked": "Aucune activité sur cette période",
+      "no_customers": "Aucun client attribué pour le moment",
+      "incomplete": "Une partie de l'activité suivie n'a pas pu être chargée, ces chiffres peuvent donc être incomplets.",
+      "counts_failed": "Impossible de charger les compteurs d'activité.",
+      "no_results": "Aucune activité dans cette catégorie",
+      "load_failed": "Impossible de charger l'activité",
+      "view_all": "Toute l'activité",
+      "my_activity": {
+        "title": "Mon activité",
+        "empty": "Aucune activité cette année"
+      },
+      "customer": {
+        "title": "Activité du client",
+        "views": {
+          "summary": "Résumé",
+          "searches": "Recherches",
+          "product_views": "Vues de produit"
+        },
+        "created_on": "Créé le",
+        "last_web_login": "Dernière connexion web",
+        "visits": "Total des visites",
+        "last_search_term": "Dernier terme recherché",
+        "last_viewed_product": "Dernier produit consulté",
+        "analytics_unavailable": "L'activité web n'est pas disponible pour le moment — le suivi n'est pas connecté pour cette boutique, ou les données n'ont pas pu être lues.",
+        "empty": "Aucune donnée d'activité",
+        "load_failed": "Impossible de charger l'activité du client"
+      }
     },
     "documents": {
       "title": "Bibliothèque de documents",
