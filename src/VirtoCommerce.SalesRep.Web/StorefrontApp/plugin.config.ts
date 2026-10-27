@@ -38,7 +38,7 @@ const hubRoute = (path: string, name: string) => ({ path, parent: "Company" as c
 //
 // The hub's left-rail section and its header icon-row link are not declared: a declared entry renders its title
 // key before this plugin's locales have merged, so they would show `sales_rep.hub.title` /
-// `sales_rep.hub.header_link` until those arrive. init() adds both, for reps only.
+// `sales_rep.hub.header_link` until those arrive. init() adds both; only reps see them.
 export default definePluginManifest({
   when: settingEnabled(MODULE_ID, ENABLED_KEY),
   routes: [
