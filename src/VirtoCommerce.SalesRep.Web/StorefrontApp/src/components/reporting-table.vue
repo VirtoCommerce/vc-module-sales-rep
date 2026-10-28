@@ -7,6 +7,7 @@
       :items="rows"
       :description="t('sales_rep.reporting.table.description')"
       :loading="loading"
+      :skeleton-rows="rows.length"
       mobile-breakpoint="md"
       bordered
     >
