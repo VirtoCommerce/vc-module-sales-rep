@@ -604,7 +604,7 @@ not to a customer — and no dedicated permission beyond being a sales rep.
   # `period` is a due-date window (a calendar month, or one day); it INTERSECTS with `filter` rather than
   # replacing it, so "this month" + "overdue" composes.
   # `storeId` narrows to the tasks stamped with that store (the creating rep's account store); omit for all.
-  # `keyword` matches the name or the notes (`description`).
+  # `keyword` matches the name or the notes (`description`), case-sensitive on PostgreSQL (the collation decides).
   # `customerIds` and `priorities` intersect as well, each matching ANY of its values: the customers the tasks are
   # linked to (only customers the caller serves count, so none served returns nothing), and priority names in any case
   # (an unrecognized name returns nothing rather than the unfiltered list).
@@ -780,7 +780,7 @@ leaves the link alone, and setting a customer on it is refused.
 
 A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the call
 editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
-page's other unavailable quick actions. The popup's customer picker offers the rep's first 100 customers by name, the
+page's other unavailable quick actions. The popup's customer picker offers the rep's first 1000 customers by name, the
 list-sharing picker's list, filtered in the browser: a rep who serves more cannot pick the rest there until the picker
 searches on the server (VCST-5923). "Schedule call" on a customer's page fills in that customer whatever the count,
 and an edit keeps the customer already linked. So that admins can pick and filter it, the module keeps `Call` in the

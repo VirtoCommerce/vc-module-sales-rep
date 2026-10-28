@@ -1196,6 +1196,9 @@ public class SalesRepTasksGraphQlTests
 
         (await NamesForAsync(ctx, rep, "priorities: [\"high\"]")).Should().Equal("High task");
         (await NamesForAsync(ctx, rep, "priorities: [\"HIGH\", \"Normal\"]")).Should().BeEquivalentTo("High task", "Normal task");
+
+        // An empty list is no filter, like an omitted one.
+        (await NamesForAsync(ctx, rep, "priorities: []")).Should().HaveCount(3);
     }
 
     // Like an unknown filter rule: a name that is no priority narrows to nothing rather than widening to every task. The
