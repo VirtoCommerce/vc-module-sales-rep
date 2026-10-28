@@ -71,11 +71,13 @@ describe("useSalesRepReporting", () => {
     period.value = "6m";
     await nextTick();
     // Still the year's response, read against the year's months: January stays January.
+    expect(reporting.reportPeriod.value).toBe("year");
     expect(reporting.months.value).toHaveLength(12);
     expect(reporting.months.value[0]).toMatchObject({ month: 0, revenue: 100 });
 
     respond({ m0: bucket(500), m5: bucket(1000) });
     await nextTick();
+    expect(reporting.reportPeriod.value).toBe("6m");
     expect(reporting.months.value).toHaveLength(6);
     expect(reporting.months.value[0]).toMatchObject({ month: 4, revenue: 500 });
     expect(reporting.months.value.at(-1)).toMatchObject({ month: 9, state: "current", revenue: 1000 });

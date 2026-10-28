@@ -200,15 +200,16 @@ const customerItems = computed(() => [
   ...customers.value,
 ]);
 
-const { months, summary, currencyCode, loading, error, isMock } = useSalesRepReporting({
+const { months, summary, currencyCode, loading, error, isMock, reportPeriod } = useSalesRepReporting({
   period,
   organizationId: customerId,
 });
 
-const periodLabel = computed(() => t(PERIOD_LABELS[period.value]));
+// The tiles and charts are labelled with the period of their figures, which trail the tabs while a new one loads.
+const periodLabel = computed(() => t(PERIOD_LABELS[reportPeriod.value]));
 
 const chartPeriodTitle = computed(() =>
-  t(CHART_PERIOD_TITLES[period.value], {
+  t(CHART_PERIOD_TITLES[reportPeriod.value], {
     period: periodLabel.value,
     year: months.value[0]?.year ?? new Date(today.value).getFullYear(),
   }),
