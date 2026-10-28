@@ -12,6 +12,7 @@ import {
   useWishlistSharingScopes,
 } from "@vc-frontend/core";
 import { computed, defineAsyncComponent } from "vue";
+import { statisticsTypePolicies } from "./api/graphql/cache-policies";
 import { useSharedSalesRepCustomersCount } from "./composables/useSalesRepCustomersCount";
 import {
   isSalesRepAnalyticsEnabled,
@@ -279,8 +280,9 @@ export function init(): void {
   });
 
   // Layout regions and blocks carry ids that repeat across surfaces, so Apollo would normalize them
-  // into entities shared by every scope. See layout/cache-policies.ts.
-  registerCacheTypePolicies(layoutTypePolicies, { owner: "sales-rep" });
+  // into entities shared by every scope. The statistics have no id, and several queries write the
+  // same entries. See layout/cache-policies.ts and api/graphql/cache-policies.ts.
+  registerCacheTypePolicies({ ...layoutTypePolicies, ...statisticsTypePolicies }, { owner: "sales-rep" });
 
   loadLocale();
 }
