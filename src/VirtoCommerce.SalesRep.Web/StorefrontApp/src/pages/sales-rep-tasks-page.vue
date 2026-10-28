@@ -130,10 +130,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId } from "vue";
+import { computed, onScopeDispose, ref, shallowRef, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useBreadcrumbs, useModal, useRouteQueryParam } from "@vc-frontend/core";
-import { refDebounced } from "@vueuse/core";
 import SalesRepFilterChips from "../components/sales-rep-filter-chips.vue";
 import SalesRepRuleAlert from "../components/sales-rep-rule-alert.vue";
 import SalesRepTaskCalendar from "../components/sales-rep-task-calendar.vue";
@@ -216,10 +215,23 @@ const { selectableRules: statusRules } = useSalesRepRuleSelection(selectedStatus
 
 /**
  * The filters as the list and the dots ask them, a beat late: a multi-select stays open for the next pick, and every
- * pick would otherwise refetch both. The selects and chips follow each pick at once. Taken after the fallback above,
- * so a linked status that rules already at hand do not offer is never asked for.
+ * pick would otherwise refetch both. The selects and chips follow each pick at once, and Reset filters skips the wait
+ * (see resetFilters). Taken after the fallback above, so a linked status that rules already at hand do not offer is
+ * never asked for.
  */
-const queryFilters = refDebounced(filters, TASKS_FILTERS_DEBOUNCE_MS);
+const queryFilters = shallowRef(filters.value);
+let pendingFilters: ReturnType<typeof setTimeout> | undefined;
+
+watch(filters, (value) => {
+  clearTimeout(pendingFilters);
+  if (value !== queryFilters.value) {
+    pendingFilters = setTimeout(() => {
+      queryFilters.value = value;
+    }, TASKS_FILTERS_DEBOUNCE_MS);
+  }
+});
+
+onScopeDispose(() => clearTimeout(pendingFilters));
 
 // Drives the dots query. The calendar owns which month is on screen and reports it back.
 const { month, setMonth } = useMonthAnchor();
@@ -332,6 +344,10 @@ function removeFilterChip(chip: TaskFilterChipType): void {
 function resetFilters(): void {
   day.value = undefined;
   filters.value = { ...emptyTaskFilters(), keyword: filters.value.keyword };
+
+  // One change, not a pick in a burst: the queries take it now, with the day, so the list refetches once.
+  clearTimeout(pendingFilters);
+  queryFilters.value = filters.value;
 }
 
 function applyKeyword(): void {

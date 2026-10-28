@@ -567,6 +567,19 @@ describe("Tasks page chips", () => {
     expect(taskOptions().filters.value).toEqual({ ...emptyTaskFilters(), keyword: "renewal" });
     expect(taskOptions().period.value).toBeUndefined();
   });
+
+  // Reset is one change, not a pick in a burst: the list and the dots take it at once, together with the day.
+  it("sends Reset filters to the list and the dots at once, with the day", async () => {
+    const wrapper = createWrapper();
+    await setFilters(wrapper, { status: "overdue", priorities: ["High"] });
+
+    wrapper.getComponent(ChipsStub).vm.$emit("reset");
+    await flushPromises();
+
+    expect(taskOptions().filters.value).toEqual(emptyTaskFilters());
+    expect(markerFilters().value).toEqual(emptyTaskFilters());
+    expect(taskOptions().period.value).toBeUndefined();
+  });
 });
 
 describe("Tasks page states", () => {

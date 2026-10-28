@@ -10,7 +10,7 @@ import type { OrganizationRowType } from "../types";
 // lists, so beyond that it needs the server-side search and paging in `VcSelect` (VCST-5923, VCST-6273).
 const OPTIONS_LIMIT = 1000;
 
-/** A customer the rep may pick, in the list-sharing picker or as a call's customer. */
+/** A customer the rep may pick: in the list-sharing picker, as a task's customer, or in the Tasks page's filter. */
 export type SalesRepCustomerOptionType = OrganizationRowType;
 
 // The rep's served customer organizations, resolved server-side from their claims. Uses its own narrow query rather

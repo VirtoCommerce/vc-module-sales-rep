@@ -769,7 +769,7 @@ editable.
 (`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
 read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
 
-**Calls and the customer link.** `customerId` links a task to one of the caller's customers. It is checked against
+**The customer link.** `customerId` links a task to one of the caller's customers. It is checked against
 the organizations they serve — one they do not serve fails with `Customer not found.`, exactly like an unknown id —
 and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the organization
 id), so there is no new column. `customerId` and `customerName` read back only while the caller still serves that
@@ -778,8 +778,8 @@ task reads keeps it, while another customer replaces it. A task linked to someth
 or an `ObjectId` without one; e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit
 leaves the link alone, and setting a customer on it is refused.
 
-A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the call
-editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
+A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show a time of
+day as well. Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
 page's other unavailable quick actions. The popup's customer picker offers the rep's first 1000 customers by name, the
 list-sharing picker's list, filtered in the browser: a rep who serves more cannot pick the rest there until the picker
 searches on the server (VCST-5923). "Schedule call" on a customer's page fills in that customer whatever the count,

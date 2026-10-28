@@ -90,7 +90,7 @@ public class SalesRepTasksQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHan
         return filteredCriteria == null ? null : await ApplyCustomersAsync(request, filteredCriteria);
     }
 
-    // Names in any case, as the writes take them. Any of the priorities matches.
+    // Names in any case, as the writes take them. Any of the priorities matches, among those a filter rule allows.
     protected virtual WorkTaskSearchCriteria ApplyPriorities(SalesRepTasksQuery request, WorkTaskSearchCriteria criteria)
     {
         if (request.Priorities.IsNullOrEmpty())
@@ -109,7 +109,18 @@ public class SalesRepTasksQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHan
             priorities.Add(priority.ToString());
         }
 
-        criteria.Priorities = priorities.Distinct().ToList();
+        // Narrowed, not assigned: a filter rule may have restricted the priorities already.
+        var allowed = criteria.Priorities;
+        var matching = priorities
+            .Distinct()
+            .Where(x => allowed.IsNullOrEmpty() || allowed.Contains(x, StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (matching.Count == 0)
+        {
+            return null;
+        }
+
+        criteria.Priorities = matching;
 
         return criteria;
     }
@@ -123,8 +134,19 @@ public class SalesRepTasksQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHan
             return criteria;
         }
 
+        // Narrowed, not assigned: a filter rule may have restricted the linked records already.
+        var linkedType = criteria.LinkedObjectType;
+        if (!linkedType.IsNullOrEmpty() && !linkedType.EqualsIgnoreCase(ModuleConstants.Tasks.CustomerObjectType))
+        {
+            return null;
+        }
+
         var servedIds = await OrganizationAccessService.GetServedOrganizationIdsAsync(request.UserId);
-        var customerIds = request.CustomerIds.Intersect(servedIds, StringComparer.OrdinalIgnoreCase).ToList();
+        var allowedIds = criteria.LinkedObjectIds;
+        var customerIds = request.CustomerIds
+            .Intersect(servedIds, StringComparer.OrdinalIgnoreCase)
+            .Where(x => allowedIds.IsNullOrEmpty() || allowedIds.Contains(x, StringComparer.OrdinalIgnoreCase))
+            .ToList();
         if (customerIds.Count == 0)
         {
             return null;
