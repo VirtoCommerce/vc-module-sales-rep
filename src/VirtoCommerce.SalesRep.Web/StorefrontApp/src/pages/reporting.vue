@@ -120,7 +120,7 @@
             test-id="sales-rep-reporting-aov"
           />
 
-          <ReportingTable :months="months" :currency-code="currencyCode" />
+          <ReportingTable :months="months" :currency-code="currencyCode" :loading="loading" />
 
           <p class="sales-rep-reporting__footnote">
             <VcIcon name="info" size="xs" />

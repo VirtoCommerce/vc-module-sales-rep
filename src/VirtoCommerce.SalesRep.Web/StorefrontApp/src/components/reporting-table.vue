@@ -6,6 +6,7 @@
       class="reporting-table__table"
       :items="rows"
       :description="t('sales_rep.reporting.table.description')"
+      :loading="loading"
       mobile-breakpoint="md"
       bordered
     >
@@ -60,6 +61,7 @@ import type { ReportingMonthType } from "../reporting";
 interface IProps {
   months: ReportingMonthType[];
   currencyCode: string;
+  loading?: boolean;
 }
 
 type RowType = {
