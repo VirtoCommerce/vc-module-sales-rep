@@ -86,10 +86,12 @@ function createWrapper(tasks: SalesRepTaskType[], busy = false) {
         VcTable: VcTableStub,
         VcTableColumn: VcTableColumnStub,
         SalesRepTaskStatus: true,
+        SalesRepTaskPriority: { props: ["priority"], template: '<span class="priority">{{ priority }}</span>' },
         SalesRepTaskAction: {
-          props: ["task", "disabled"],
+          props: { task: Object, disabled: Boolean, iconOnly: Boolean },
           emits: ["toggle"],
-          template: '<button class="action" :disabled="disabled" @click="$emit(\'toggle\')" />',
+          template:
+            '<button class="action" :data-icon-only="String(iconOnly)" :disabled="disabled" @click="$emit(\'toggle\')" />',
         },
       },
     },
@@ -103,22 +105,55 @@ const LAYOUTS = [
 
 describe("SalesRepTaskList", () => {
   // The checkbox column went with VCST-6077: completion is the row action at the end now.
-  it("lays out Task, Status, Notes and Actions", () => {
+  it("lays out Task, Priority, Customer, Status, Notes and Actions", () => {
     const wrapper = createWrapper([makeTask()]);
 
     expect(wrapper.findAll(".col").map((column) => column.attributes("data-id"))).toEqual([
       "task",
+      "priority",
+      "customer",
       "status",
       "notes",
       "actions",
     ]);
+    expect(wrapper.find(".col[data-id='priority']").text()).toBe("sales_rep.tasks.table.priority");
+    expect(wrapper.find(".col[data-id='customer']").text()).toBe("sales_rep.tasks.table.customer");
     expect(wrapper.find(".col[data-id='actions']").text()).toBe("sales_rep.tasks.table.actions");
   });
 
-  it("puts the action in the Actions cell on desktop", () => {
+  // The narrow column holds the glyph alone; the mobile card has the room for its label.
+  it("puts the action in the Actions cell on desktop, as an icon", () => {
     const wrapper = createWrapper([makeTask()]);
 
-    expect(wrapper.find(".desktop-row .cell[data-id='actions'] .action").exists()).toBe(true);
+    expect(wrapper.find(".desktop-row .cell[data-id='actions'] .action").attributes("data-icon-only")).toBe("true");
+    expect(wrapper.find(".mobile-row .action").attributes("data-icon-only")).toBe("false");
+  });
+
+  it("shows the priority in its own column on desktop, and next to the status on mobile", () => {
+    const wrapper = createWrapper([makeTask({ priority: "High" })]);
+
+    expect(wrapper.find(".desktop-row .cell[data-id='priority'] .priority").text()).toBe("High");
+    expect(wrapper.find(".mobile-row .priority").text()).toBe("High");
+  });
+
+  it("names the customer in its own column, or a dash when there is none", () => {
+    const wrapper = createWrapper([makeTask({ customerName: "ACME" }), makeTask({ id: "task-2" })]);
+
+    const customers = wrapper.findAll(".desktop-row .cell[data-id='customer']").map((cell) => cell.text());
+
+    expect(customers).toEqual(["ACME", "—"]);
+  });
+
+  // On desktop the customer has a column, so the line under the title leaves it out; the mobile card has no columns.
+  it("names the customer under the title on mobile only", () => {
+    const wrapper = createWrapper([makeTask({ customerName: "ACME" })]);
+
+    const desktopLine = wrapper.find(".desktop-row .sales-rep-task-list__meta").text();
+    const mobileLine = wrapper.find(".mobile-row .sales-rep-task-list__meta").text();
+
+    expect(desktopLine).not.toContain("ACME");
+    expect(desktopLine).toContain("Finance");
+    expect(mobileLine).toContain("ACME");
   });
 
   describe.each(LAYOUTS)("%s", (_layout, rowSelector) => {

@@ -338,8 +338,8 @@ describe("CustomerOrders", () => {
     const wrapper = createWrapper();
 
     expect(wrapper.findAll(".chip-close").map((button) => button.attributes("aria-label"))).toEqual([
-      'sales_rep.customer_orders.filters.remove_filter {"label":"New"}',
-      'sales_rep.customer_orders.filters.remove_filter {"label":"ACME"}',
+      'sales_rep.filters.remove_filter {"label":"New"}',
+      'sales_rep.filters.remove_filter {"label":"ACME"}',
     ]);
   });
 

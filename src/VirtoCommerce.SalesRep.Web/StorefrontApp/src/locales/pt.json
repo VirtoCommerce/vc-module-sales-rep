@@ -161,8 +161,7 @@
         "last_day": "Último dia",
         "last_week": "Última semana",
         "last_month": "Último mês",
-        "last_year": "Último ano",
-        "remove_filter": "Remover o filtro «{label}»"
+        "last_year": "Último ano"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "Todas as tarefas",
       "new_task": "Nova tarefa",
       "due_dates": "Prazos",
-      "today": "Hoje",
-      "all": "Todas",
-      "clear_day_aria": "Remover {date}",
-      "empty": "Nenhuma tarefa nesta aba",
+      "empty": "Ainda não há tarefas",
       "empty_day": "Nada com prazo neste dia",
+      "no_results": "Nenhuma tarefa corresponde aos filtros",
+      "search_placeholder": "Pesquisar tarefas",
+      "search_aria": "Pesquisar tarefas",
+      "reset_search": "Redefinir pesquisa",
       "load_failed": "Falha ao carregar as tarefas",
       "day_task_count": "{count} tarefas | {count} tarefa | {count} tarefas",
       "overdue_total": "{count} tarefa atrasada | {count} tarefas atrasadas",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "Tarefa",
+        "priority": "Prioridade",
+        "customer": "Cliente",
         "status": "Status",
         "notes": "Notas",
         "actions": "Ações",
@@ -238,6 +240,15 @@
         "reopen": "Reabrir",
         "action_aria": "{action}: «{name}»",
         "edit_aria": "Editar «{name}»"
+      },
+      "filters": {
+        "all_customers": "Todos os clientes",
+        "customers_label": "Clientes",
+        "all_statuses": "Todos os status",
+        "status_label": "Status",
+        "all_priorities": "Todas as prioridades",
+        "priorities_label": "Prioridades",
+        "due_today": "Vence hoje"
       },
       "status": {
         "upcoming": "Próxima",
@@ -271,7 +282,7 @@
         "due_date_label": "Data de vencimento",
         "time_label": "Hora",
         "customer_label": "Cliente",
-        "customer_placeholder": "Pesquisar clientes por nome",
+        "customer_placeholder": "Sem cliente",
         "customer_error": "Não foi possível carregar a lista de clientes. Tente novamente.",
         "call_name": "Chamada",
         "priority_label": "Prioridade",
@@ -439,6 +450,9 @@
           "All": "Todos"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Remover o filtro «{label}»"
     },
     "list_sharing": {
       "share_customers_label": "Clientes",

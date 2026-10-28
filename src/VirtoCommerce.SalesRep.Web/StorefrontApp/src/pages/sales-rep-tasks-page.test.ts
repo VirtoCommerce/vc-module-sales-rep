@@ -1,9 +1,12 @@
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ref } from "vue";
 import SalesRepTaskModal from "../components/sales-rep-task-modal.vue";
-import { localDayKey, localDayWindow } from "../tasks";
+import { emptyTaskFilters, localDayKey, localDayWindow } from "../tasks";
 import TasksPage from "./sales-rep-tasks-page.vue";
-import type { SalesRepTaskType } from "../types/tasks";
+import type { SalesRepFilterChipType } from "../types";
+import type { SalesRepTaskFiltersType, SalesRepTaskType } from "../types/tasks";
+import type { Ref } from "vue";
 import { VcButton } from "@vc-frontend/core";
 
 const state = await vi.hoisted(async () => {
@@ -12,19 +15,19 @@ const state = await vi.hoisted(async () => {
     items: ref<SalesRepTaskType[]>([]),
     loading: ref(false),
     error: ref<Error | null>(null),
-    filter: ref<string | undefined>(undefined),
     page: ref(1),
     pages: ref(1),
     totalCount: ref(0),
-    counts: ref({ today: 0, all: 0, upcoming: 0, overdue: 0, completed: 0 }),
     rules: ref<{ name: string; label: string }[]>([]),
-    filterParam: ref(""),
+    rulesLoading: ref(false),
     rulesFailed: ref(false),
+    customers: [] as { organizationId: string; organizationName: string }[],
+    filterParam: ref(""),
     month: ref("2026-10-01"),
     setMonth: vi.fn(),
     useSalesRepTasks: vi.fn(),
+    useSalesRepTaskCalendar: vi.fn(),
     refetch: vi.fn(),
-    refetchCounts: vi.fn(),
     refetchMarkers: vi.fn(),
     setCompleted: vi.fn(),
     openModal: vi.fn(),
@@ -44,29 +47,10 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   useModal: () => ({ openModal: state.openModal }),
 }));
 vi.mock("../composables/useSalesRepTasks", () => ({ useSalesRepTasks: state.useSalesRepTasks }));
-vi.mock("../composables/useSalesRepTaskCounts", async () => {
-  const { ref } = await import("vue");
-  return {
-    useSalesRepTaskCounts: () => ({
-      counts: state.counts,
-      loading: ref(false),
-      error: ref(null),
-      refetch: state.refetchCounts,
-    }),
-  };
-});
-vi.mock("../composables/useSalesRepTaskCalendar", async () => {
-  const { ref } = await import("vue");
-  return {
-    useSalesRepTaskCalendar: () => ({
-      dayMarkers: ref({}),
-      loading: ref(false),
-      error: ref(null),
-      refetch: state.refetchMarkers,
-    }),
-    useMonthAnchor: () => ({ month: state.month, setMonth: state.setMonth }),
-  };
-});
+vi.mock("../composables/useSalesRepTaskCalendar", () => ({
+  useSalesRepTaskCalendar: state.useSalesRepTaskCalendar,
+  useMonthAnchor: () => ({ month: state.month, setMonth: state.setMonth }),
+}));
 vi.mock("../composables/useSalesRepTaskMutations", async () => {
   const { ref } = await import("vue");
   return {
@@ -79,15 +63,17 @@ vi.mock("../composables/useSalesRepTaskMutations", async () => {
     }),
   };
 });
-vi.mock("../composables/useSalesRepRules", async () => {
-  const { ref } = await import("vue");
-  return {
-    useSalesRepRules: () => ({ rules: state.rules, loading: ref(false), failed: state.rulesFailed }),
-  };
-});
+vi.mock("../composables/useSalesRepRules", () => ({
+  useSalesRepRules: () => ({ rules: state.rules, loading: state.rulesLoading, failed: state.rulesFailed }),
+}));
+vi.mock("../composables/useSalesRepCustomerOptions", () => ({
+  useSalesRepCustomerOptions: () => ({
+    findOption: (id: string) => state.customers.find((customer) => customer.organizationId === id),
+  }),
+}));
 // Typed arguments, so the format a call asked for can be asserted.
 const dMock = vi.hoisted(() =>
-  vi.fn((value: unknown, format?: string) => (format === "short" ? "Oct 15, 2026" : String(value))),
+  vi.fn((value: unknown, format?: string) => (format === "short" ? "Oct 20, 2026" : String(value))),
 );
 vi.mock("vue-i18n", () => ({
   useI18n: () => ({
@@ -97,6 +83,8 @@ vi.mock("vue-i18n", () => ({
     locale: { value: "en-US" },
   }),
 }));
+
+const TODAY = localDayKey(new Date());
 
 function makeTask(overrides: Partial<SalesRepTaskType> = {}): SalesRepTaskType {
   return {
@@ -120,18 +108,27 @@ const BreadcrumbsStub = {
   template: '<nav class="crumbs" />',
 };
 
-const ChipsStub = {
-  name: "SalesRepRuleChips",
-  props: ["modelValue", "rules", "loading"],
-  // The page fills the baseline with its own Today / day / All chips.
-  template: '<div class="chips"><slot name="baseline" /></div>',
+const SearchStub = {
+  name: "VcInput",
+  props: ["modelValue", "disabled", "placeholder"],
+  emits: ["update:modelValue", "clear"],
+  template:
+    '<div class="search"><input class="search-input" :value="modelValue"' +
+    ' @input="$emit(\'update:modelValue\', $event.target.value)" /><slot name="append" /></div>',
 };
 
-const ScopeChipsStub = {
-  name: "SalesRepTaskScopeChips",
-  props: ["view", "dayLabel", "showDay", "counts"],
-  emits: ["today", "day", "all", "clearDay"],
-  template: '<div class="scope-chips" />',
+const FiltersStub = {
+  name: "SalesRepTaskFilters",
+  props: ["modelValue", "statuses"],
+  emits: ["update:modelValue"],
+  template: '<div class="filters" />',
+};
+
+const ChipsStub = {
+  name: "SalesRepFilterChips",
+  props: ["chips"],
+  emits: ["remove", "reset"],
+  template: '<div class="chips" />',
 };
 
 const ListStub = {
@@ -143,9 +140,15 @@ const ListStub = {
 
 const CalendarStub = {
   name: "SalesRepTaskCalendar",
-  props: ["modelValue", "month", "dayMarkers", "size"],
+  props: { modelValue: String, month: String, dayMarkers: Object, size: String, clearable: Boolean },
   emits: ["update:modelValue", "update:month"],
   template: '<div class="grid" />',
+};
+
+const EmptyViewStub = {
+  name: "VcEmptyView",
+  props: ["text", "variant", "icon"],
+  template: '<div class="empty" :data-text="text" :data-variant="variant"><slot name="button" /></div>',
 };
 
 // Plain mount (not createWrapperFactory): this file mocks the vue-i18n module, and the shared factory's
@@ -161,12 +164,13 @@ function createWrapper() {
         },
         VcTypography: { template: "<div><slot /></div>" },
         VcBreadcrumbs: BreadcrumbsStub,
+        VcInput: SearchStub,
         SalesRepRuleAlert: true,
-        SalesRepRuleChips: ChipsStub,
-        SalesRepTaskScopeChips: ScopeChipsStub,
+        SalesRepTaskFilters: FiltersStub,
+        SalesRepFilterChips: ChipsStub,
         SalesRepTaskList: ListStub,
         SalesRepTaskCalendar: CalendarStub,
-        VcEmptyView: true,
+        VcEmptyView: EmptyViewStub,
         VcIcon: true,
       },
       // Real buttons: the page's actions are genuine <button>s the tests click.
@@ -177,8 +181,6 @@ function createWrapper() {
 
 type WrapperType = ReturnType<typeof createWrapper>;
 
-const emptyViews = (wrapper: WrapperType) => wrapper.findAll("vc-empty-view-stub");
-
 function button(wrapper: WrapperType, key: string) {
   const found = wrapper.findAll("button").find((candidate) => candidate.text().includes(key));
   if (!found) {
@@ -187,38 +189,57 @@ function button(wrapper: WrapperType, key: string) {
   return found;
 }
 
-/** The options the page handed useSalesRepTasks — where the day scope, the tab and the sort live. */
+/** The options the page handed useSalesRepTasks: the day window, the filters and the sort. */
 function taskOptions() {
   return state.useSalesRepTasks.mock.calls.at(-1)?.[0] as {
-    period: { value: { from: string; to: string } | undefined };
-    filter: { value: string | undefined };
+    period: Ref<{ from: string; to: string } | undefined>;
+    filters: Ref<SalesRepTaskFiltersType>;
     sort: string;
   };
 }
 
-/** The page owns the tab now, so a test picks one the way the chips do. */
-async function pickTab(wrapper: WrapperType, name: string) {
-  wrapper.getComponent(ChipsStub).vm.$emit("update:modelValue", name);
+/** The filters the page hands the calendar's dots query. */
+function markerFilters() {
+  return state.useSalesRepTaskCalendar.mock.calls.at(-1)?.[1] as Ref<SalesRepTaskFiltersType>;
+}
+
+function chips(wrapper: WrapperType) {
+  return wrapper.getComponent(ChipsStub).props("chips") as SalesRepFilterChipType[];
+}
+
+async function setFilters(wrapper: WrapperType, filters: Partial<SalesRepTaskFiltersType>) {
+  wrapper.getComponent(FiltersStub).vm.$emit("update:modelValue", { ...emptyTaskFilters(), ...filters });
   await flushPromises();
+}
+
+async function pickDay(wrapper: WrapperType, day: string | undefined) {
+  wrapper.getComponent(CalendarStub).vm.$emit("update:modelValue", day);
+  await flushPromises();
+}
+
+function lastModal() {
+  return state.openModal.mock.calls.at(-1)?.[0] as {
+    component: unknown;
+    props: { task?: SalesRepTaskType; defaultDay: string; onSaved: (day?: string) => Promise<void> };
+  };
 }
 
 beforeEach(() => {
   state.items.value = [];
   state.loading.value = false;
   state.error.value = null;
-  state.filter.value = undefined;
-  state.filterParam.value = "";
   state.page.value = 1;
   state.pages.value = 1;
   state.totalCount.value = 0;
-  state.counts.value = { today: 0, all: 0, upcoming: 0, overdue: 0, completed: 0 };
   state.rules.value = [];
+  state.rulesLoading.value = false;
   state.rulesFailed.value = false;
+  state.customers = [];
+  state.filterParam.value = "";
   state.month.value = "2026-10-01";
   state.setMonth.mockClear();
   dMock.mockClear();
   state.refetch.mockClear();
-  state.refetchCounts.mockClear();
   state.refetchMarkers.mockClear();
   state.openModal.mockClear();
   state.setCompleted.mockClear().mockResolvedValue(true);
@@ -227,252 +248,273 @@ beforeEach(() => {
     items: state.items,
     loading: state.loading,
     error: state.error,
-    filter: state.filter,
     page: state.page,
     pages: state.pages,
     totalCount: state.totalCount,
     refetch: state.refetch,
   }));
+  state.useSalesRepTaskCalendar.mockClear();
+  state.useSalesRepTaskCalendar.mockImplementation(() => ({
+    dayMarkers: ref({}),
+    loading: ref(false),
+    error: ref(null),
+    refetch: state.refetchMarkers,
+  }));
 });
 
-describe("Tasks page tabs", () => {
-  // The chips come from the server's filter rules; the counts query answers by the same rule names, so the two
-  // are joined by name rather than by a hand-kept list.
-  it("badges each server-offered tab with its own count", () => {
+describe("Tasks page filters", () => {
+  it("opens on today, with every status, customer and priority", () => {
+    const wrapper = createWrapper();
+
+    expect(taskOptions().period.value).toEqual(localDayWindow(TODAY));
+    expect(taskOptions().filters.value).toEqual(emptyTaskFilters());
+    expect(wrapper.getComponent(FiltersStub).props("modelValue")).toEqual(emptyTaskFilters());
+  });
+
+  it("offers the server's status rules in the status select", () => {
     state.rules.value = [
       { name: "upcoming", label: "Upcoming" },
       { name: "overdue", label: "Overdue" },
     ];
-    state.counts.value = { today: 2, all: 12, upcoming: 7, overdue: 3, completed: 2 };
-
-    const wrapper = createWrapper();
-    const chips = wrapper.getComponent(ChipsStub);
-
-    expect(chips.props("rules")).toEqual([
-      { name: "upcoming", label: "Upcoming", count: 7 },
-      { name: "overdue", label: "Overdue", count: 3 },
-    ]);
-  });
-
-  it("badges the Today and All chips from the counts query", () => {
-    state.counts.value = { today: 2, all: 12, upcoming: 7, overdue: 3, completed: 2 };
 
     const wrapper = createWrapper();
 
-    expect(wrapper.getComponent(ScopeChipsStub).props("counts")).toEqual(state.counts.value);
+    expect(wrapper.getComponent(FiltersStub).props("statuses")).toEqual(state.rules.value);
   });
 
-  // The dashboard's overdue notice arrives as ?filter=overdue, so the page must open on that tab rather
-  // than on the day — the day it would open on is precisely the one that holds no overdue work (M-3).
-  it("opens on the tab the URL asked for", () => {
+  it("narrows the list by what the selects set", async () => {
+    const wrapper = createWrapper();
+
+    await setFilters(wrapper, { status: "overdue", customerIds: ["org-1"], priorities: ["High", "Highest"] });
+
+    expect(taskOptions().filters.value).toEqual({
+      keyword: "",
+      status: "overdue",
+      customerIds: ["org-1"],
+      priorities: ["High", "Highest"],
+    });
+  });
+
+  // The dots mark where the filtered tasks are, on any day: the day is what the rep picks by looking at them.
+  it("narrows the calendar dots by the same filters, but not by the day", async () => {
+    const wrapper = createWrapper();
+
+    await setFilters(wrapper, { customerIds: ["org-1"] });
+
+    expect(markerFilters()).toBe(taskOptions().filters);
+    expect(state.useSalesRepTaskCalendar.mock.calls.at(-1)?.[0]).toBe(state.month);
+  });
+
+  it("applies the search term from the search button, trimmed", async () => {
+    const wrapper = createWrapper();
+
+    await wrapper.get(".search-input").setValue("  renewal  ");
+    await wrapper.get('[aria-label="sales_rep.tasks.search_aria"]').trigger("click");
+
+    expect(taskOptions().filters.value.keyword).toBe("renewal");
+  });
+
+  it("applies the search term on Enter", async () => {
+    const wrapper = createWrapper();
+
+    await wrapper.get(".search-input").setValue("renewal");
+    await wrapper.get(".search").trigger("keydown", { key: "Enter" });
+
+    expect(taskOptions().filters.value.keyword).toBe("renewal");
+  });
+
+  // Typing alone asks nothing: like every other hub list, the term applies on Enter or the button.
+  it("leaves the list alone while the term is only typed", async () => {
+    const wrapper = createWrapper();
+
+    await wrapper.get(".search-input").setValue("renewal");
+
+    expect(taskOptions().filters.value.keyword).toBe("");
+  });
+
+  it("clears the search term from the field's own clear", async () => {
+    const wrapper = createWrapper();
+    await wrapper.get(".search-input").setValue("renewal");
+    await wrapper.get(".search").trigger("keydown", { key: "Enter" });
+
+    wrapper.getComponent(SearchStub).vm.$emit("clear");
+    await flushPromises();
+
+    expect(taskOptions().filters.value.keyword).toBe("");
+    expect((wrapper.get(".search-input").element as HTMLInputElement).value).toBe("");
+  });
+});
+
+describe("Tasks page deep link", () => {
+  // The dashboard's overdue notice links to ?filter=overdue. Overdue work is never due today, so it opens on every date.
+  it("opens on the linked status and every date", () => {
     state.filterParam.value = "overdue";
     state.rules.value = [{ name: "overdue", label: "Overdue" }];
 
-    const wrapper = createWrapper();
+    createWrapper();
 
-    expect(wrapper.getComponent(ChipsStub).props("modelValue")).toBe("overdue");
-    // A tab spans every date, so the day window is dropped — same as picking the tab by hand.
-    expect(state.useSalesRepTasks.mock.calls.at(-1)?.[0].period.value).toBeUndefined();
+    expect(taskOptions().filters.value.status).toBe("overdue");
+    expect(taskOptions().period.value).toBeUndefined();
   });
 
-  // Two-way: the URL keeps up with the chips, so a refresh lands back on the same view.
-  it("writes the chosen tab to the URL, and clears it when the rep returns to a day", async () => {
-    const wrapper = createWrapper();
+  // The filters live in the page, so a parameter left behind would describe a list the rep has since changed.
+  it("drops the parameter from the URL once read", () => {
+    state.filterParam.value = "overdue";
+    state.rules.value = [{ name: "overdue", label: "Overdue" }];
 
-    await pickTab(wrapper, "completed");
-    expect(state.filterParam.value).toBe("completed");
+    createWrapper();
 
-    await wrapper.getComponent(CalendarStub).vm.$emit("update:modelValue", "2026-10-20");
     expect(state.filterParam.value).toBe("");
   });
 
-  it("offers no tabs at all when the rules could not be loaded", () => {
-    state.rulesFailed.value = true;
+  it("falls back to every status when the project does not offer the linked one", () => {
+    state.filterParam.value = "overdue";
+    state.rules.value = [{ name: "upcoming", label: "Upcoming" }];
 
-    const wrapper = createWrapper();
+    createWrapper();
 
-    expect(wrapper.getComponent(ChipsStub).props("rules")).toEqual([]);
+    expect(taskOptions().filters.value.status).toBeUndefined();
+  });
+
+  // An answer still on its way is not an answer that lacks the rule.
+  it("keeps the linked status while the rules are still loading", async () => {
+    state.filterParam.value = "overdue";
+    state.rulesLoading.value = true;
+
+    createWrapper();
+    await flushPromises();
+
+    expect(taskOptions().filters.value.status).toBe("overdue");
   });
 });
 
-describe("Tasks page scope chips", () => {
-  const scopeChips = (wrapper: WrapperType) => wrapper.getComponent(ScopeChipsStub);
-
-  async function pickDay(wrapper: WrapperType, day: string) {
-    wrapper.getComponent(CalendarStub).vm.$emit("update:modelValue", day);
-    await flushPromises();
-  }
-
-  it("opens on Today, with no chip of its own for the day", () => {
-    const wrapper = createWrapper();
-
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: "today", showDay: false });
-  });
-
-  // A day other than today gets a chip labelled with its date, so the row says which day the list shows.
-  it("gives a picked day its own chip", async () => {
+describe("Tasks page day", () => {
+  it("narrows the list to the day picked on the calendar", async () => {
     const wrapper = createWrapper();
 
     await pickDay(wrapper, "2026-10-20");
 
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: "day", showDay: true, dayLabel: "Oct 15, 2026" });
-  });
-
-  // What the old header button did: the list, the tab and the grid's month all come back to today.
-  it("returns to today from the Today chip, from a picked day and a tab", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-    await pickTab(wrapper, "overdue");
-
-    scopeChips(wrapper).vm.$emit("today");
-    await flushPromises();
-
-    const today = localDayKey(new Date());
-    expect(state.filterParam.value).toBe("");
-    expect(taskOptions().period.value).toEqual(localDayWindow(today));
-    expect(state.setMonth).toHaveBeenCalledWith(today);
-    // Only its × closes the date chip (VCST-6077 mockup).
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: "today", showDay: true });
-  });
-
-  it("keeps the date chip when today is picked in the calendar", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-
-    await pickDay(wrapper, localDayKey(new Date()));
-
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: "today", showDay: true });
-  });
-
-  it("moves the date chip to the latest day picked", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-    await pickDay(wrapper, "2026-10-22");
-
-    expect(dMock).toHaveBeenLastCalledWith(new Date("2026-10-22T00:00:00"), "short");
-    expect(taskOptions().period.value).toEqual(localDayWindow("2026-10-22"));
-  });
-
-  // Closing the chip while Today is on changes nothing else.
-  it("closes the date chip from Today without leaving Today", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-    scopeChips(wrapper).vm.$emit("today");
-    await flushPromises();
-    state.setMonth.mockClear();
-
-    scopeChips(wrapper).vm.$emit("clearDay");
-    await flushPromises();
-
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: "today", showDay: false });
-    expect(state.setMonth).not.toHaveBeenCalled();
-  });
-
-  it("clears a picked day back to today from its chip", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-
-    scopeChips(wrapper).vm.$emit("clearDay");
-    await flushPromises();
-
-    const today = localDayKey(new Date());
-    expect(taskOptions().period.value).toEqual(localDayWindow(today));
-    expect(state.setMonth).toHaveBeenLastCalledWith(today);
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: "today", showDay: false });
-  });
-
-  // The day's chip stays while a tab is on, so the rep can get back to that day; clearing it leaves the tab alone,
-  // and the month the rep paged the grid to under it.
-  it("keeps the picked day's chip under a tab, and clears it without dropping the tab", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-    await pickTab(wrapper, "overdue");
-    state.setMonth.mockClear();
-
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: undefined, showDay: true });
-
-    scopeChips(wrapper).vm.$emit("clearDay");
-    await flushPromises();
-
-    expect(state.filterParam.value).toBe("overdue");
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: undefined, showDay: false });
-    expect(state.setMonth).not.toHaveBeenCalled();
-
-    // The cleared day is not left behind as the new task's default either.
-    await button(wrapper, "tasks.new_task").trigger("click");
-    const call = state.openModal.mock.calls.at(-1)?.[0] as { props: { defaultDay: string } };
-    expect(call.props.defaultDay).toBe(localDayKey(new Date()));
-  });
-
-  it("clears the picked day under All without leaving All or moving the grid", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-    scopeChips(wrapper).vm.$emit("all");
-    await flushPromises();
-    state.setMonth.mockClear();
-
-    scopeChips(wrapper).vm.$emit("clearDay");
-    await flushPromises();
-
-    expect(scopeChips(wrapper).props()).toMatchObject({ view: "all", showDay: false });
-    expect(state.setMonth).not.toHaveBeenCalled();
-  });
-
-  it("goes back to the picked day from its chip", async () => {
-    const wrapper = createWrapper();
-    await pickDay(wrapper, "2026-10-20");
-    await pickTab(wrapper, "overdue");
-
-    scopeChips(wrapper).vm.$emit("day");
-    await flushPromises();
-
-    expect(state.filterParam.value).toBe("");
     expect(taskOptions().period.value).toEqual(localDayWindow("2026-10-20"));
-    expect(state.setMonth).toHaveBeenLastCalledWith("2026-10-20");
+    expect(wrapper.getComponent(CalendarStub).props("modelValue")).toBe("2026-10-20");
   });
 
-  // Every task: no day window and no rule, so the list and the All badge count the same set.
-  it("lists every task under All", async () => {
+  // The calendar's Clear, or a second click on the picked day, keeps every other filter.
+  it("lists every date once the calendar clears the day", async () => {
+    const wrapper = createWrapper();
+    await setFilters(wrapper, { priorities: ["High"] });
+
+    await pickDay(wrapper, undefined);
+
+    expect(taskOptions().period.value).toBeUndefined();
+    expect(taskOptions().filters.value.priorities).toEqual(["High"]);
+  });
+
+  it("lets the calendar clear the day", () => {
     const wrapper = createWrapper();
 
-    scopeChips(wrapper).vm.$emit("all");
+    expect(wrapper.getComponent(CalendarStub).props("clearable")).toBe(true);
+  });
+});
+
+describe("Tasks page chips", () => {
+  it("names today's chip Due today", () => {
+    const wrapper = createWrapper();
+
+    expect(chips(wrapper)).toEqual([
+      expect.objectContaining({ id: "day", label: "sales_rep.tasks.filters.due_today" }),
+    ]);
+  });
+
+  // "short" (Oct 20, 2026), not "long": the long named format appends a time, and the chip names a DAY.
+  it("names another day's chip by its date", async () => {
+    const wrapper = createWrapper();
+
+    await pickDay(wrapper, "2026-10-20");
+
+    expect(chips(wrapper)[0].label).toBe('sales_rep.tasks.due_relative.due {"date":"Oct 20, 2026"}');
+    expect(dMock.mock.calls.every(([, format]) => format === "short")).toBe(true);
+  });
+
+  it("follows the day with a chip per customer, then the status and the priorities", async () => {
+    state.customers = [
+      { organizationId: "org-1", organizationName: "Cabin Co." },
+      { organizationId: "org-2", organizationName: "Greenleaf Garden Center" },
+    ];
+    state.rules.value = [{ name: "overdue", label: "Overdue" }];
+    const wrapper = createWrapper();
+
+    await setFilters(wrapper, { status: "overdue", customerIds: ["org-1", "org-2"], priorities: ["High"] });
+
+    expect(chips(wrapper).map((chip) => chip.label)).toEqual([
+      "sales_rep.tasks.filters.due_today",
+      "Cabin Co.",
+      "Greenleaf Garden Center",
+      "Overdue",
+      "sales_rep.tasks.priority.high",
+    ]);
+  });
+
+  it("names a customer the options do not list by its id", async () => {
+    const wrapper = createWrapper();
+
+    await setFilters(wrapper, { customerIds: ["org-9"] });
+
+    expect(chips(wrapper)[1].label).toBe("org-9");
+  });
+
+  it("removes only the filter of the chip closed", async () => {
+    const wrapper = createWrapper();
+    await setFilters(wrapper, { status: "overdue", customerIds: ["org-1", "org-2"], priorities: ["Low", "High"] });
+
+    for (const id of ["customerIds:org-1", "priorities:High", "status:overdue"]) {
+      wrapper.getComponent(ChipsStub).vm.$emit(
+        "remove",
+        chips(wrapper).find((chip) => chip.id === id),
+      );
+      await flushPromises();
+    }
+
+    expect(taskOptions().filters.value).toEqual({
+      keyword: "",
+      status: undefined,
+      customerIds: ["org-2"],
+      priorities: ["Low"],
+    });
+    expect(taskOptions().period.value).toEqual(localDayWindow(TODAY));
+  });
+
+  it("closes the day chip for every date", async () => {
+    const wrapper = createWrapper();
+
+    wrapper.getComponent(ChipsStub).vm.$emit("remove", chips(wrapper)[0]);
     await flushPromises();
 
     expect(taskOptions().period.value).toBeUndefined();
-    expect(taskOptions().filter.value).toBeUndefined();
-    expect(scopeChips(wrapper).props("view")).toBe("all");
-    expect(wrapper.get(".sales-rep-tasks-page__day-title").text()).toBe("sales_rep.tasks.all");
-    // Not day-scoped, so no day is highlighted.
     expect(wrapper.getComponent(CalendarStub).props("modelValue")).toBeUndefined();
+    expect(chips(wrapper)).toEqual([]);
   });
 
-  // All spans every rule as well as every date, so it replaces a status tab — and its `?filter=` — rather than
-  // narrowing to it.
-  it("drops the status tab for All", async () => {
+  // Reset empties the row, the day included; the search term keeps its own clear, as on the orders list.
+  it("resets every chip, the day included, and keeps the search term", async () => {
     const wrapper = createWrapper();
-    await pickTab(wrapper, "overdue");
+    await wrapper.get(".search-input").setValue("renewal");
+    await wrapper.get(".search").trigger("keydown", { key: "Enter" });
+    await setFilters(wrapper, {
+      keyword: "renewal",
+      status: "overdue",
+      customerIds: ["org-1"],
+      priorities: ["High"],
+    });
 
-    scopeChips(wrapper).vm.$emit("all");
+    wrapper.getComponent(ChipsStub).vm.$emit("reset");
     await flushPromises();
 
-    expect(state.filterParam.value).toBe("");
-    expect(taskOptions().filter.value).toBeUndefined();
-    expect(scopeChips(wrapper).props("view")).toBe("all");
-  });
-
-  it("leaves All for the day picked in the calendar", async () => {
-    const wrapper = createWrapper();
-    scopeChips(wrapper).vm.$emit("all");
-    await flushPromises();
-
-    await pickDay(wrapper, "2026-10-20");
-
-    expect(scopeChips(wrapper).props("view")).toBe("day");
-    expect(taskOptions().period.value).toEqual(localDayWindow("2026-10-20"));
+    expect(taskOptions().filters.value).toEqual({ ...emptyTaskFilters(), keyword: "renewal" });
+    expect(taskOptions().period.value).toBeUndefined();
   });
 });
 
-describe("Tasks page day scope", () => {
+describe("Tasks page states", () => {
   // The page sat at the top of the hub with no trail back (QA A-20). Home is the composable's own.
   it("places itself in the account trail", () => {
     const wrapper = createWrapper();
@@ -481,110 +523,65 @@ describe("Tasks page day scope", () => {
       (crumb) => crumb.title,
     );
 
-    // The host's useBreadcrumbs puts Home in front; the trail below it is ours.
     expect(titles).toEqual(["common.links.account", "sales_rep.hub.title", "sales_rep.tasks.title"]);
   });
 
-  it("opens on today", () => {
-    createWrapper();
+  it("lists the tasks", () => {
+    state.items.value = [makeTask()];
 
-    expect(taskOptions().period.value).toEqual(localDayWindow(localDayKey(new Date())));
-  });
-
-  it("rescopes the list to the day the rep picked", async () => {
     const wrapper = createWrapper();
 
-    wrapper.getComponent(CalendarStub).vm.$emit("update:modelValue", "2026-10-20");
-    await flushPromises();
-
-    expect(taskOptions().period.value).toEqual(localDayWindow("2026-10-20"));
+    expect(wrapper.getComponent(ListStub).props("tasks")).toHaveLength(1);
   });
 
-  // "long" appends a time to the named format; this heading names a DAY.
-  // Picking a day or a tab replaces the list with no announcement at all (QA A-9); the heading names the
-  // scope, so it is the thing to announce, atomically so the date and the count are read as one.
-  it("announces the scope when it changes", () => {
-    const wrapper = createWrapper();
-
-    const live = wrapper.find('[aria-live="polite"]');
-    expect(live.exists()).toBe(true);
-    expect(live.attributes("aria-atomic")).toBe("true");
-    expect(live.find(".sales-rep-tasks-page__day-count").exists()).toBe(true);
-  });
-
-  it("heads the list with the day in the short format", () => {
-    createWrapper();
-
-    expect(dMock).toHaveBeenCalledWith(expect.any(Date), "short");
-    expect(dMock.mock.calls.every(([, format]) => format !== "long")).toBe(true);
-  });
-});
-
-/**
- * The day and the tab are two views of the same set, not two filters over it. Anding them put an active
- * "Completed 3" chip over an empty list, because the badges count the whole set while the list counted one day.
- */
-describe("Tasks page tab scope", () => {
-  it("drops the day window while a status tab is active", async () => {
-    const wrapper = createWrapper();
-
-    await pickTab(wrapper, "overdue");
-
-    expect(taskOptions().filter.value).toBe("overdue");
-    // Overdue work is due in the past, so intersecting it with the day on screen would show nothing.
-    expect(taskOptions().period.value).toBeUndefined();
-  });
-
-  it("returns to the day's full list when the rep picks a date", async () => {
-    const wrapper = createWrapper();
-    await pickTab(wrapper, "overdue");
-
-    wrapper.getComponent(CalendarStub).vm.$emit("update:modelValue", "2026-10-20");
-    await flushPromises();
-
-    expect(taskOptions().filter.value).toBeUndefined();
-    expect(taskOptions().period.value).toEqual(localDayWindow("2026-10-20"));
-  });
-
-  it("heads the panel with the tab's own label instead of the date", async () => {
-    state.rules.value = [{ name: "overdue", label: "Overdue" }];
-    const wrapper = createWrapper();
-
-    await pickTab(wrapper, "overdue");
-
-    expect(wrapper.get(".sales-rep-tasks-page__day-title").text()).toBe("Overdue");
-  });
-
-  // "Nothing due on this day" is wrong copy for a list that is not scoped to a day.
-  it("explains an empty tab as an empty tab, not an empty day", async () => {
-    const wrapper = createWrapper();
-
-    await pickTab(wrapper, "completed");
-
-    expect(emptyViews(wrapper)[0].attributes("text")).toBe("sales_rep.tasks.empty");
-  });
-});
-
-describe("Tasks page states", () => {
-  it("lists the day's tasks", () => {
+  // Any filter or day replaces the list without a word (QA A-9), so the count is announced, atomically.
+  it("announces the count of the whole list, not of the page on screen", () => {
     state.items.value = [makeTask()];
     state.totalCount.value = 4;
 
     const wrapper = createWrapper();
 
-    expect(wrapper.getComponent(ListStub).props("tasks")).toHaveLength(1);
-    // The header counts the whole day, not the page the pager is on.
-    const count = wrapper.find(".sales-rep-tasks-page__day-count").text();
-    expect(count).toContain("sales_rep.tasks.day_task_count");
-    expect(count).toContain('"count":4');
+    const live = wrapper.get('[role="status"]');
+    expect(live.attributes("aria-live")).toBe("polite");
+    expect(live.attributes("aria-atomic")).toBe("true");
+    expect(live.text()).toBe('sales_rep.tasks.day_task_count {"count":4}');
   });
 
-  it("shows the empty-day view when nothing is due", () => {
+  it("explains an empty day", () => {
     const wrapper = createWrapper();
 
-    expect(emptyViews(wrapper)).toHaveLength(1);
-    expect(emptyViews(wrapper)[0].attributes("variant")).toBe("empty");
+    expect(wrapper.get(".empty").attributes("data-text")).toBe("sales_rep.tasks.empty_day");
+    expect(wrapper.get(".empty").attributes("data-variant")).toBe("empty");
     expect(wrapper.findComponent(ListStub).exists()).toBe(false);
+  });
+
+  it("explains an empty list of every date", async () => {
+    const wrapper = createWrapper();
+
+    await pickDay(wrapper, undefined);
+
+    expect(wrapper.get(".empty").attributes("data-text")).toBe("sales_rep.tasks.empty");
+  });
+
+  it("says when the filters match nothing", async () => {
+    const wrapper = createWrapper();
+
+    await setFilters(wrapper, { priorities: ["High"] });
+
+    expect(wrapper.get(".empty").attributes("data-text")).toBe("sales_rep.tasks.no_results");
+    expect(wrapper.get(".empty").attributes("data-variant")).toBe("search");
+    // Reset search clears a search term; the filters have their own chips.
+    expect(wrapper.get(".empty").find("button").exists()).toBe(false);
+  });
+
+  it("offers Reset search when a search term matches nothing", async () => {
+    const wrapper = createWrapper();
+    await wrapper.get(".search-input").setValue("renewal");
+    await wrapper.get(".search").trigger("keydown", { key: "Enter" });
+
+    await button(wrapper, "sales_rep.tasks.reset_search").trigger("click");
+
+    expect(taskOptions().filters.value.keyword).toBe("");
   });
 
   // Apollo keeps the previous rows on a failed refetch, so the failure view has to win over them.
@@ -595,7 +592,7 @@ describe("Tasks page states", () => {
     const wrapper = createWrapper();
 
     expect(wrapper.findComponent(ListStub).exists()).toBe(false);
-    expect(emptyViews(wrapper)[0].attributes("variant")).toBe("error");
+    expect(wrapper.get(".empty").attributes("data-variant")).toBe("error");
   });
 
   it("explains each dot colour in a legend", () => {
@@ -625,8 +622,8 @@ describe("Tasks page states", () => {
 });
 
 describe("Tasks page writes", () => {
-  // Every surface reads the same records, so a write refreshes the list, the tab counts and the dots.
-  it("completes a task and refreshes all three surfaces", async () => {
+  // Both surfaces read the same records, so a write refreshes the list and the dots.
+  it("completes a task and refreshes the list and the dots", async () => {
     state.items.value = [makeTask()];
 
     const wrapper = createWrapper();
@@ -635,7 +632,6 @@ describe("Tasks page writes", () => {
 
     expect(state.setCompleted).toHaveBeenCalledWith("task-1", true);
     expect(state.refetch).toHaveBeenCalled();
-    expect(state.refetchCounts).toHaveBeenCalled();
     expect(state.refetchMarkers).toHaveBeenCalled();
   });
 
@@ -650,8 +646,7 @@ describe("Tasks page writes", () => {
     expect(state.setCompleted).toHaveBeenCalledWith("task-1", false);
   });
 
-  // A failed toggle usually means the row is stale — deleted from another tab — so the surfaces refresh anyway
-  // and the phantom row goes away. useMutation has already raised the error toast.
+  // A failed toggle usually means the row is stale (deleted elsewhere); leaving it invites the same click.
   it("still refreshes when the write failed, so a stale row cannot linger", async () => {
     state.setCompleted.mockResolvedValue(false);
     state.items.value = [makeTask()];
@@ -661,134 +656,92 @@ describe("Tasks page writes", () => {
     await flushPromises();
 
     expect(state.refetch).toHaveBeenCalled();
-    expect(state.refetchCounts).toHaveBeenCalled();
     expect(state.refetchMarkers).toHaveBeenCalled();
   });
 
   it("creates against the day on screen", async () => {
     const wrapper = createWrapper();
-    wrapper.getComponent(CalendarStub).vm.$emit("update:modelValue", "2026-10-20");
-    await flushPromises();
+    await pickDay(wrapper, "2026-10-20");
 
     await button(wrapper, "tasks.new_task").trigger("click");
 
-    const call = state.openModal.mock.calls.at(-1)?.[0] as {
-      component: unknown;
-      props: { task?: SalesRepTaskType; defaultDay: string; onSaved: () => void };
-    };
-    expect(call.component).toBe(SalesRepTaskModal);
-    expect(call.props.defaultDay).toBe("2026-10-20");
-    expect(call.props.task).toBeUndefined();
+    expect(lastModal().component).toBe(SalesRepTaskModal);
+    expect(lastModal().props.defaultDay).toBe("2026-10-20");
+    expect(lastModal().props.task).toBeUndefined();
+  });
+
+  it("creates against today when every date is on screen", async () => {
+    const wrapper = createWrapper();
+    await pickDay(wrapper, undefined);
+
+    await button(wrapper, "tasks.new_task").trigger("click");
+
+    expect(lastModal().props.defaultDay).toBe(TODAY);
   });
 
   it("edits the task the row asked for, and refreshes once it saved", async () => {
     state.items.value = [makeTask()];
-
     const wrapper = createWrapper();
 
     wrapper.getComponent(ListStub).vm.$emit("edit", makeTask());
     await flushPromises();
 
-    const call = state.openModal.mock.calls.at(-1)?.[0] as {
-      props: { task?: SalesRepTaskType; onSaved: () => Promise<void> };
-    };
-    expect(call.props.task?.id).toBe("task-1");
+    expect(lastModal().props.task?.id).toBe("task-1");
 
-    await call.props.onSaved();
+    await lastModal().props.onSaved();
 
     expect(state.refetch).toHaveBeenCalled();
-    expect(state.refetchCounts).toHaveBeenCalled();
     expect(state.refetchMarkers).toHaveBeenCalled();
   });
 
   // Otherwise "Task saved" lands over a list the task is not in, and it looks like the save was lost.
   it("follows a task saved onto another day", async () => {
     const wrapper = createWrapper();
+    await pickDay(wrapper, "2026-10-15");
 
     await button(wrapper, "tasks.new_task").trigger("click");
-    const call = state.openModal.mock.calls.at(-1)?.[0] as { props: { onSaved: (day?: string) => Promise<void> } };
+    await lastModal().props.onSaved("2026-10-20");
 
-    await call.props.onSaved("2026-11-02");
-
-    expect(taskOptions().period.value).toEqual(localDayWindow("2026-11-02"));
+    expect(taskOptions().period.value).toEqual(localDayWindow("2026-10-20"));
+    expect(state.setMonth).toHaveBeenCalledWith("2026-10-20");
   });
 
-  // A status tab spans every date, so a task that moved is in or out of it on its own merits. Following the
-  // day would throw away the tab the rep chose — and the `?filter=` in the URL with it.
-  it("keeps an active tab across a save, rather than jumping to the task's day", async () => {
+  // Every date holds the task wherever it moved, so the list stays as the rep set it.
+  it("stays on every date when a task is saved with no day picked", async () => {
     const wrapper = createWrapper();
-    await pickTab(wrapper, "completed");
+    await pickDay(wrapper, undefined);
 
     await button(wrapper, "tasks.new_task").trigger("click");
-    const call = state.openModal.mock.calls.at(-1)?.[0] as { props: { onSaved: (day?: string) => Promise<void> } };
+    await lastModal().props.onSaved("2026-10-20");
 
-    await call.props.onSaved("2026-11-02");
-
-    expect(taskOptions().filter.value).toBe("completed");
-    expect(state.filterParam.value).toBe("completed");
-    // Nothing rescoped, so apollo restarts nothing and every surface still needs telling.
+    expect(taskOptions().period.value).toBeUndefined();
     expect(state.refetch).toHaveBeenCalled();
-    expect(state.refetchCounts).toHaveBeenCalled();
+    expect(state.refetchMarkers).toHaveBeenCalled();
   });
 
   /**
-   * Apollo restarts a query whose variables changed by itself, and defers that to nextTick while refetch() runs
-   * synchronously — so refetching a rescoped surface here would fire a second request carrying the variables the
-   * move just replaced.
+   * A query whose variables changed restarts on its own; refetching it as well would fire a second request with the
+   * variables from before the move. So a move refetches only what it did not rescope.
    */
   it("leaves the surfaces the move rescoped to apollo, and refreshes only the rest", async () => {
     const wrapper = createWrapper();
+    await pickDay(wrapper, "2026-10-15");
 
     await button(wrapper, "tasks.new_task").trigger("click");
-    const call = state.openModal.mock.calls.at(-1)?.[0] as { props: { onSaved: (day?: string) => Promise<void> } };
-
-    // Another day AND another month than the "2026-10-01" the grid is anchored to.
-    await call.props.onSaved("2026-11-02");
+    await lastModal().props.onSaved("2026-11-02");
 
     expect(state.refetch).not.toHaveBeenCalled();
     expect(state.refetchMarkers).not.toHaveBeenCalled();
-    // The counts key off no day, so nothing restarts them: a task saved onto another day still has to reach
-    // the All and status badges.
-    expect(state.refetchCounts).toHaveBeenCalled();
-  });
-
-  it("still refreshes the counts when the save stayed on the day on screen", async () => {
-    const wrapper = createWrapper();
-
-    await button(wrapper, "tasks.new_task").trigger("click");
-    const call = state.openModal.mock.calls.at(-1)?.[0] as { props: { onSaved: (day?: string) => Promise<void> } };
-
-    await call.props.onSaved(localDayKey(new Date()));
-
-    expect(state.refetchCounts).toHaveBeenCalled();
-    expect(state.refetch).toHaveBeenCalled();
   });
 
   it("still refreshes the grid when the save stayed inside the month on screen", async () => {
     const wrapper = createWrapper();
+    await pickDay(wrapper, "2026-10-15");
 
     await button(wrapper, "tasks.new_task").trigger("click");
-    const call = state.openModal.mock.calls.at(-1)?.[0] as { props: { onSaved: (day?: string) => Promise<void> } };
-
-    await call.props.onSaved("2026-10-20");
+    await lastModal().props.onSaved("2026-10-20");
 
     expect(state.refetch).not.toHaveBeenCalled();
-    expect(state.refetchMarkers).toHaveBeenCalled();
-  });
-
-  // A delete moves nothing, so every surface needs telling.
-  it("refreshes all three surfaces when the save reported no day", async () => {
-    const wrapper = createWrapper();
-    wrapper.getComponent(CalendarStub).vm.$emit("update:modelValue", "2026-10-20");
-    await flushPromises();
-
-    await button(wrapper, "tasks.new_task").trigger("click");
-    const call = state.openModal.mock.calls.at(-1)?.[0] as { props: { onSaved: (day?: string) => Promise<void> } };
-
-    await call.props.onSaved();
-
-    expect(taskOptions().period.value).toEqual(localDayWindow("2026-10-20"));
-    expect(state.refetch).toHaveBeenCalled();
     expect(state.refetchMarkers).toHaveBeenCalled();
   });
 });

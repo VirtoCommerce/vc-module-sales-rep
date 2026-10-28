@@ -21,6 +21,7 @@ public class SalesRepTasksGraphQlTests
 {
     private const string OrgA = "org-a";
     private const string OrgB = "org-b";
+    private const string OrgC = "org-c";
 
     private static readonly DateTime Today = new(2026, 5, 28, 0, 0, 0, DateTimeKind.Utc);
     private static readonly string TodayIso = Iso(Today);
@@ -1115,6 +1116,123 @@ public class SalesRepTasksGraphQlTests
 
         // Refused before anything is written.
         (await ctx.GetRequiredService<IWorkTaskService>().GetByIdAsync(taskId)).ObjectId.Should().Be(OrgA);
+    }
+
+    [Fact]
+    public async Task CustomerFilter_ReturnsTheTasksOfAnyOfTheCustomers()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB, OrgC);
+
+        await CreateTaskAsync(ctx, rep, "Task for A", Today, customerId: OrgA);
+        await CreateTaskAsync(ctx, rep, "Task for B", Today.AddDays(1), customerId: OrgB);
+        await CreateTaskAsync(ctx, rep, "Task for C", Today.AddDays(2), customerId: OrgC);
+        await CreateTaskAsync(ctx, rep, "Task for nobody", Today.AddDays(3));
+
+        (await NamesForAsync(ctx, rep, $"customerIds: [\"{OrgA}\"]")).Should().Equal("Task for A");
+        (await NamesForAsync(ctx, rep, $"customerIds: [\"{OrgA}\", \"{OrgB}\"]")).Should().BeEquivalentTo("Task for A", "Task for B");
+
+        // An empty list is no filter, like an omitted one.
+        (await NamesForAsync(ctx, rep, "customerIds: []")).Should().HaveCount(4);
+    }
+
+    // The filter narrows the caller's own tasks; it is never a way into another rep's.
+    [Fact]
+    public async Task CustomerFilter_NeverReachesAnotherRepsTasksForTheSameCustomer()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var ann = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        var bob = await SeedRepAsync(ctx, "Bob", "Rep", "bob@test.com", OrgA);
+
+        await CreateTaskAsync(ctx, ann, "Ann's call", Today, customerId: OrgA);
+        await CreateTaskAsync(ctx, bob, "Bob's call", Today, customerId: OrgA);
+
+        var json = await QueryAsync(ctx, ann, $"salesRepTasks(customerIds: [\"{OrgA}\"]) {{ totalCount items {{ name }} }}");
+
+        Names(SalesRepTestContext.Node(json, "salesRepTasks")).Should().Equal("Ann's call");
+        json.Should().NotContain("Bob's call");
+    }
+
+    // A customer the rep no longer serves matches nothing, not even the rep's own task still linked to it: the same rule
+    // that stops the list naming that customer. Nor does the request fall through to the unfiltered list.
+    [Fact]
+    public async Task CustomerFilter_ForCustomersTheRepDoesNotServe_ReturnsNothing()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+        await CreateTaskAsync(ctx, rep, "Task for A", Today, customerId: OrgA);
+        await CreateTaskAsync(ctx, rep, "Task for B", Today, customerId: OrgB);
+
+        var membership = (await ctx.GetMembershipsAsync(rep.UserId)).Single(x => x.OrganizationId == OrgA);
+        await ctx.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
+
+        (await ListTasksAsync(ctx, rep, $"customerIds: [\"{OrgA}\"]")).GetProperty("totalCount").GetInt32().Should().Be(0);
+        (await ListTasksAsync(ctx, rep, "customerIds: [\"no-such-organization\"]")).GetProperty("totalCount").GetInt32().Should().Be(0);
+
+        // A served customer next to an unserved one still finds its own tasks, and only those.
+        (await NamesForAsync(ctx, rep, $"customerIds: [\"{OrgA}\", \"{OrgB}\"]")).Should().Equal("Task for B");
+    }
+
+    // ObjectType/ObjectId is task-management's generic link: another feature's record under the same id is no customer.
+    [Fact]
+    public async Task CustomerFilter_MatchesOnlyCustomerLinks()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        await CreateTaskAsync(ctx, rep, "Task for A", Today, customerId: OrgA);
+        await SaveTaskDirectlyAsync(ctx, rep, "Workflow task", Today, isActive: true, completed: null, objectType: "Order", objectId: OrgA);
+
+        (await NamesForAsync(ctx, rep, $"customerIds: [\"{OrgA}\"]")).Should().Equal("Task for A");
+    }
+
+    [Fact]
+    public async Task PriorityFilter_MatchesAnyOfTheNames_InAnyCase()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        await CreateTaskAsync(ctx, rep, "High task", Today, priority: "High");
+        await CreateTaskAsync(ctx, rep, "Normal task", Today.AddDays(1));
+        await CreateTaskAsync(ctx, rep, "Low task", Today.AddDays(2), priority: "Low");
+
+        (await NamesForAsync(ctx, rep, "priorities: [\"high\"]")).Should().Equal("High task");
+        (await NamesForAsync(ctx, rep, "priorities: [\"HIGH\", \"Normal\"]")).Should().BeEquivalentTo("High task", "Normal task");
+    }
+
+    // Like an unknown filter rule: a name that is no priority narrows to nothing rather than widening to every task. The
+    // numeric and comma-separated shapes Enum.TryParse would take are no names either.
+    [Theory]
+    [InlineData("Urgent")]
+    [InlineData("3")]
+    [InlineData("Low, Normal")]
+    public async Task PriorityFilter_WithANameThatIsNoPriority_FailsClosed(string priority)
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA);
+        await CreateTaskAsync(ctx, rep, "High task", Today, priority: "High");
+
+        (await ListTasksAsync(ctx, rep, $"priorities: [\"High\", \"{priority}\"]")).GetProperty("totalCount").GetInt32().Should().Be(0);
+    }
+
+    // The Tasks page sends every filter at once, and each one narrows what the others left - empty combinations included.
+    [Fact]
+    public async Task Filters_IntersectWithEachOther_TheRuleThePeriodAndTheKeyword()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        var rep = await SeedRepAsync(ctx, "Ann", "Rep", "ann@test.com", OrgA, OrgB);
+
+        await CreateTaskAsync(ctx, rep, "Renew contract", Today, priority: "High", customerId: OrgA);
+        await CreateTaskAsync(ctx, rep, "Renew license", Today, priority: "Low", customerId: OrgA);
+        await CreateTaskAsync(ctx, rep, "Send quote", Today, priority: "High", customerId: OrgA, description: "Renew the tier");
+        await CreateTaskAsync(ctx, rep, "Renew lease", Today, priority: "High", customerId: OrgB);
+        await CreateTaskAsync(ctx, rep, "Renew overdue", Today.AddDays(-2), priority: "High", customerId: OrgA);
+
+        var day = $"period: {{ from: \"{Iso(Today)}\", to: \"{Iso(Today.AddDays(1).AddSeconds(-1))}\" }}";
+        var filters = $"customerIds: [\"{OrgA}\"], priorities: [\"High\"], keyword: \"Renew\"";
+
+        // The keyword reads the notes too, which is how "Send quote" gets in.
+        (await NamesForAsync(ctx, rep, $"{filters}, {day}")).Should().BeEquivalentTo("Renew contract", "Send quote");
+        (await NamesForAsync(ctx, rep, $"{filters}, filter: \"overdue\"")).Should().Equal("Renew overdue");
+        (await NamesForAsync(ctx, rep, $"{filters}, {day}, filter: \"overdue\"")).Should().BeEmpty();
     }
 
     // -- helpers -------------------------------------------------------------------------------------------------

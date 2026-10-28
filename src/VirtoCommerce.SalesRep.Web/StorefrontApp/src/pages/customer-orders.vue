@@ -46,24 +46,7 @@
         />
       </div>
 
-      <div v-if="filterChips.length" class="customer-orders__chips">
-        <VcChip
-          v-for="chip in filterChips"
-          :key="chip.id"
-          color="secondary"
-          closable
-          :close-button-aria-label="t('sales_rep.customer_orders.filters.remove_filter', { label: chip.label })"
-          @close="removeFilterChip(chip)"
-        >
-          {{ chip.label }}
-        </VcChip>
-
-        <VcChip color="secondary" variant="outline" clickable @click="resetFilters">
-          <span>{{ t("common.buttons.reset_filters") }}</span>
-
-          <VcIcon name="reset" />
-        </VcChip>
-      </div>
+      <SalesRepFilterChips :chips="filterChips" @remove="removeFilterChip" @reset="resetFilters" />
 
       <!-- A failed read keeps the previous rows, so the failure needs its own view (VCST-5586). -->
       <VcEmptyView v-if="failed && !loading" :text="t('sales_rep.orders.load_failed')" variant="error" />
@@ -158,6 +141,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { formatDateLocale, OrderStatus, tryParseDate, useBreadcrumbs, usePageHead } from "@vc-frontend/core";
+import SalesRepFilterChips from "../components/sales-rep-filter-chips.vue";
 import SalesRepOrdersFilters from "../components/sales-rep-orders-filters.vue";
 import { useSalesRepColumnSort } from "../composables/useSalesRepColumnSort";
 import { PAGE_SIZE, useSalesRepCustomerOrders } from "../composables/useSalesRepCustomerOrders";
@@ -168,7 +152,7 @@ import {
   MY_CUSTOMERS_ROUTE_NAME,
 } from "../constants";
 import { salesRepOrderRoute } from "../utils";
-import type { SalesRepCustomerOrderRowType, SalesRepOrdersFilterDataType } from "../types";
+import type { SalesRepCustomerOrderRowType, SalesRepFilterChipType, SalesRepOrdersFilterDataType } from "../types";
 import type { RouteLocationRaw } from "vue-router";
 
 interface IProps {
@@ -247,11 +231,9 @@ function formatFilterDate(value: string): string {
   return formatDateLocale(tryParseDate(value), locale.value);
 }
 
-type FilterChipType = {
-  id: string;
+type FilterChipType = SalesRepFilterChipType & {
   field: keyof SalesRepOrdersFilterDataType;
   value?: string;
-  label: string;
 };
 
 // The status facet only lists terms the current result set holds, so a search matching nothing drops the
@@ -387,10 +369,6 @@ const breadcrumbs = useBreadcrumbs(() => {
 
   &__search-input {
     @apply grow;
-  }
-
-  &__chips {
-    @apply flex flex-wrap gap-x-3 gap-y-2;
   }
 
   &__order-link {

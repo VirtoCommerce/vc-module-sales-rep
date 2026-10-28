@@ -144,9 +144,6 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
     }
 
     // Strict, unlike the module's own EnumUtility.SafeParse: a typo should be an error, not a different priority.
-    // Matched on the NAMES rather than Enum.TryParse, which accepts two shapes that are not priority names: any
-    // numeric string, and a comma-separated list - for every enum, not only a [Flags] one, ORing the members. So
-    // "3" and "Low, Normal" (1|2) would both have stored High. Name matching rejects all three shapes at once.
     protected static TaskPriority ParsePriority(string priority)
     {
         if (string.IsNullOrWhiteSpace(priority))
@@ -154,12 +151,11 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
             return TaskPriority.Normal;
         }
 
-        var name = Enum.GetNames<TaskPriority>().FirstOrDefault(x => x.EqualsIgnoreCase(priority.Trim()));
-        if (name == null)
+        if (!TryParsePriority(priority, out var result))
         {
             throw new ExecutionError($"Unknown task priority '{priority}'.");
         }
 
-        return Enum.Parse<TaskPriority>(name);
+        return result;
     }
 }

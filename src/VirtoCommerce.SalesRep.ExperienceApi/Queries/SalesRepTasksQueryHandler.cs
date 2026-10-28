@@ -1,9 +1,11 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
+using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
@@ -43,8 +45,7 @@ public class SalesRepTasksQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHan
 
         criteria = await _sortRuleResolver.ApplySortAsync(request.StoreId, request.Sort, criteria);
 
-        var filteredCriteria = await _filterRuleResolver.ApplyListFilterAsync(
-            request.StoreId, request.Filter, criteria, ResolveDayStart(request.Today));
+        var filteredCriteria = await ApplyFiltersAsync(request, criteria);
         if (filteredCriteria == null)
         {
             return result;
@@ -74,6 +75,63 @@ public class SalesRepTasksQueryHandler : SalesRepTaskQueryHandlerBase, IQueryHan
 
         // Default: attachments are not exposed, and the repository would otherwise load them for every row.
         criteria.ResponseGroup = WorkTaskResponseGroup.Default.ToString();
+
+        return criteria;
+    }
+
+    // Each filter narrows the criteria, or finds that nothing can match and returns null: an unrecognized rule or
+    // priority, or only customers the caller does not serve. None of them may fall through to the unfiltered list.
+    protected virtual async Task<WorkTaskSearchCriteria> ApplyFiltersAsync(SalesRepTasksQuery request, WorkTaskSearchCriteria criteria)
+    {
+        var filteredCriteria = await _filterRuleResolver.ApplyListFilterAsync(
+            request.StoreId, request.Filter, criteria, ResolveDayStart(request.Today));
+        filteredCriteria = filteredCriteria == null ? null : ApplyPriorities(request, filteredCriteria);
+
+        return filteredCriteria == null ? null : await ApplyCustomersAsync(request, filteredCriteria);
+    }
+
+    // Names in any case, as the writes take them. Any of the priorities matches.
+    protected virtual WorkTaskSearchCriteria ApplyPriorities(SalesRepTasksQuery request, WorkTaskSearchCriteria criteria)
+    {
+        if (request.Priorities.IsNullOrEmpty())
+        {
+            return criteria;
+        }
+
+        var priorities = new List<string>();
+        foreach (var name in request.Priorities)
+        {
+            if (!TryParsePriority(name, out var priority))
+            {
+                return null;
+            }
+
+            priorities.Add(priority.ToString());
+        }
+
+        criteria.Priorities = priorities.Distinct().ToList();
+
+        return criteria;
+    }
+
+    // Only customers the caller serves: the rule that decides whether a task names its customer at all, so a task whose
+    // customer is hidden from the rep cannot be found by that customer either. Any of the customers matches.
+    protected virtual async Task<WorkTaskSearchCriteria> ApplyCustomersAsync(SalesRepTasksQuery request, WorkTaskSearchCriteria criteria)
+    {
+        if (request.CustomerIds.IsNullOrEmpty())
+        {
+            return criteria;
+        }
+
+        var servedIds = await OrganizationAccessService.GetServedOrganizationIdsAsync(request.UserId);
+        var customerIds = request.CustomerIds.Intersect(servedIds, StringComparer.OrdinalIgnoreCase).ToList();
+        if (customerIds.Count == 0)
+        {
+            return null;
+        }
+
+        criteria.LinkedObjectType = ModuleConstants.Tasks.CustomerObjectType;
+        criteria.LinkedObjectIds = customerIds;
 
         return criteria;
     }

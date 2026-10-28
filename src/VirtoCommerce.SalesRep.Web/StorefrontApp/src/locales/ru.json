@@ -161,8 +161,7 @@
         "last_day": "Последний день",
         "last_week": "Последняя неделя",
         "last_month": "Последний месяц",
-        "last_year": "Последний год",
-        "remove_filter": "Удалить фильтр «{label}»"
+        "last_year": "Последний год"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "Все задачи",
       "new_task": "Новая задача",
       "due_dates": "Сроки",
-      "today": "Сегодня",
-      "all": "Все",
-      "clear_day_aria": "Сбросить {date}",
-      "empty": "В этой вкладке нет задач",
+      "empty": "Задач пока нет",
       "empty_day": "На этот день ничего не запланировано",
+      "no_results": "Нет задач, соответствующих фильтрам",
+      "search_placeholder": "Поиск задач",
+      "search_aria": "Поиск задач",
+      "reset_search": "Сбросить поиск",
       "load_failed": "Не удалось загрузить задачи",
       "day_task_count": "{count} задач | {count} задача | {count} задачи | {count} задач",
       "overdue_total": "{count} просроченных задач | {count} просроченная задача | {count} просроченные задачи | {count} просроченных задач",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "Задача",
+        "priority": "Приоритет",
+        "customer": "Клиент",
         "status": "Статус",
         "notes": "Заметки",
         "actions": "Действия",
@@ -238,6 +240,15 @@
         "reopen": "Возобновить",
         "action_aria": "{action}: «{name}»",
         "edit_aria": "Изменить «{name}»"
+      },
+      "filters": {
+        "all_customers": "Все клиенты",
+        "customers_label": "Клиенты",
+        "all_statuses": "Все статусы",
+        "status_label": "Статус",
+        "all_priorities": "Все приоритеты",
+        "priorities_label": "Приоритеты",
+        "due_today": "Срок сегодня"
       },
       "status": {
         "upcoming": "Предстоящая",
@@ -271,7 +282,7 @@
         "due_date_label": "Срок выполнения",
         "time_label": "Время",
         "customer_label": "Клиент",
-        "customer_placeholder": "Поиск клиентов по названию",
+        "customer_placeholder": "Без клиента",
         "customer_error": "Не удалось загрузить список клиентов. Пожалуйста, попробуйте снова.",
         "call_name": "Звонок",
         "priority_label": "Приоритет",
@@ -439,6 +450,9 @@
           "All": "Все"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Удалить фильтр «{label}»"
     },
     "list_sharing": {
       "share_customers_label": "Клиенты",

@@ -161,8 +161,7 @@
         "last_day": "Sista dagen",
         "last_week": "Förra veckan",
         "last_month": "Förra månaden",
-        "last_year": "Förra året",
-        "remove_filter": "Ta bort filtret ”{label}”"
+        "last_year": "Förra året"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "Alla uppgifter",
       "new_task": "Ny uppgift",
       "due_dates": "Förfallodatum",
-      "today": "I dag",
-      "all": "Alla",
-      "clear_day_aria": "Rensa {date}",
-      "empty": "Inga uppgifter på den här fliken",
+      "empty": "Inga uppgifter ännu",
       "empty_day": "Inget förfaller denna dag",
+      "no_results": "Inga uppgifter matchar filtren",
+      "search_placeholder": "Sök uppgifter",
+      "search_aria": "Sök uppgifter",
+      "reset_search": "Återställ sökning",
       "load_failed": "Kunde inte läsa in uppgifterna",
       "day_task_count": "{count} uppgift | {count} uppgifter",
       "overdue_total": "{count} försenad uppgift | {count} försenade uppgifter",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "Uppgift",
+        "priority": "Prioritet",
+        "customer": "Kund",
         "status": "Status",
         "notes": "Anteckningar",
         "actions": "Åtgärder",
@@ -238,6 +240,15 @@
         "reopen": "Återöppna",
         "action_aria": "{action}: ”{name}”",
         "edit_aria": "Redigera ”{name}”"
+      },
+      "filters": {
+        "all_customers": "Alla kunder",
+        "customers_label": "Kunder",
+        "all_statuses": "Alla statusar",
+        "status_label": "Status",
+        "all_priorities": "Alla prioriteter",
+        "priorities_label": "Prioriteter",
+        "due_today": "Förfaller i dag"
       },
       "status": {
         "upcoming": "Kommande",
@@ -271,7 +282,7 @@
         "due_date_label": "Förfallodatum",
         "time_label": "Klockslag",
         "customer_label": "Kund",
-        "customer_placeholder": "Sök kunder efter namn",
+        "customer_placeholder": "Ingen kund",
         "customer_error": "Kundlistan kunde inte laddas. Försök igen.",
         "call_name": "Samtal",
         "priority_label": "Prioritet",
@@ -439,6 +450,9 @@
           "All": "Alla"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Ta bort filtret ”{label}”"
     },
     "list_sharing": {
       "share_customers_label": "Kunder",

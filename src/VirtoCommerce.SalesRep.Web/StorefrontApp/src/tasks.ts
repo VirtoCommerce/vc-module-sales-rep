@@ -1,7 +1,12 @@
 import { toEndDateFilterValue, toStartDateFilterValue } from "@vc-frontend/core";
 import { CALL_TASK_TYPE } from "./constants";
 import { eod, iso, local } from "./utils";
-import type { SalesRepTaskStatusType, SalesRepTaskType, SalesRepTaskDayMarkersType } from "./types/tasks";
+import type {
+  SalesRepTaskDayMarkersType,
+  SalesRepTaskFiltersType,
+  SalesRepTaskStatusType,
+  SalesRepTaskType,
+} from "./types/tasks";
 import type { ComposerTranslation, DateTimeOptions } from "vue-i18n";
 
 /**
@@ -20,6 +25,32 @@ import type { ComposerTranslation, DateTimeOptions } from "vue-i18n";
  * deliberately absent: it is not one of the tabs, and a fourth colour would say something the legend does not explain.
  */
 export const TASK_MARKER_KINDS: readonly SalesRepTaskStatusType[] = ["upcoming", "overdue", "completed"];
+
+/** Task-management's TaskPriority names, lowest first: what the API stores and takes, and the order every list shows. */
+export const TASK_PRIORITIES = ["Lowest", "Low", "Normal", "High", "Highest"] as const;
+
+/** The locale key naming a priority. */
+export function taskPriorityLabelKey(priority: string): string {
+  return `sales_rep.tasks.priority.${priority.toLowerCase()}`;
+}
+
+/** No filter at all: every status, customer and priority, matched by no search term. */
+export function emptyTaskFilters(): SalesRepTaskFiltersType {
+  return { keyword: "", status: undefined, customerIds: [], priorities: [] };
+}
+
+/**
+ * The filters as salesRepTasks arguments. An empty one is left out rather than sent empty, so a surface with no filters
+ * asks exactly what it always did, and keeps sharing its Apollo cache entry with every other surface that asks the same.
+ */
+export function taskFilterVariables(filters?: SalesRepTaskFiltersType) {
+  return {
+    keyword: filters?.keyword || undefined,
+    filter: filters?.status || undefined,
+    customerIds: filters?.customerIds.length ? filters.customerIds : undefined,
+    priorities: filters?.priorities.length ? filters.priorities : undefined,
+  };
+}
 
 /** Midnight at the start of the user's current day. */
 export function startOfLocalDay(now: Date = new Date()): Date {
@@ -249,17 +280,22 @@ export function buildDayMarkers(
  * time select writes them. They do not come from the host's named format: the host defines `short` for en and de
  * only, so in every other locale vue-i18n formats it in English, and the line would read 2:30 PM beside the popup's
  * 14:30. The date keeps that format, like every other task's. A call also always names its customer, or says it has
- * none to name: none was picked, or the rep no longer serves it and the API leaves it out.
+ * none to name: none was picked, or the rep no longer serves it and the API leaves it out. A surface that gives the
+ * customer a column of its own leaves it out of the line (`withCustomer: false`).
  */
 export function taskSubline(
   task: SalesRepTaskType,
   t: ComposerTranslation,
   d: (value: number | Date | string, options: DateTimeOptions) => string,
   locale: string,
+  { withCustomer = true }: { withCustomer?: boolean } = {},
 ): string {
   const key = task.status === "overdue" ? "expired" : "due";
   const isCall = isCallTask(task.type);
-  const customer = task.customerName ?? (isCall ? t("sales_rep.tasks.customer_not_assigned") : undefined);
+  let customer: string | undefined;
+  if (withCustomer) {
+    customer = task.customerName ?? (isCall ? t("sales_rep.tasks.customer_not_assigned") : undefined);
+  }
 
   let date = "";
   if (task.dueDate) {

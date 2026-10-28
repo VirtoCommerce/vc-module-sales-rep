@@ -161,8 +161,7 @@
         "last_day": "Letzter Tag",
         "last_week": "Letzte Woche",
         "last_month": "Letzter Monat",
-        "last_year": "Letztes Jahr",
-        "remove_filter": "Filter „{label}“ entfernen"
+        "last_year": "Letztes Jahr"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "Alle Aufgaben",
       "new_task": "Neue Aufgabe",
       "due_dates": "Fälligkeiten",
-      "today": "Heute",
-      "all": "Alle",
-      "clear_day_aria": "{date} entfernen",
-      "empty": "Keine Aufgaben in diesem Tab",
+      "empty": "Noch keine Aufgaben",
       "empty_day": "An diesem Tag ist nichts fällig",
+      "no_results": "Keine Aufgaben entsprechen den Filtern",
+      "search_placeholder": "Aufgaben suchen",
+      "search_aria": "Aufgaben suchen",
+      "reset_search": "Suche zurücksetzen",
       "load_failed": "Aufgaben konnten nicht geladen werden",
       "day_task_count": "{count} Aufgabe | {count} Aufgaben",
       "overdue_total": "{count} überfällige Aufgabe | {count} überfällige Aufgaben",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "Aufgabe",
+        "priority": "Priorität",
+        "customer": "Kunde",
         "status": "Status",
         "notes": "Notizen",
         "actions": "Aktionen",
@@ -238,6 +240,15 @@
         "reopen": "Wieder öffnen",
         "action_aria": "{action}: „{name}“",
         "edit_aria": "„{name}“ bearbeiten"
+      },
+      "filters": {
+        "all_customers": "Alle Kunden",
+        "customers_label": "Kunden",
+        "all_statuses": "Alle Status",
+        "status_label": "Status",
+        "all_priorities": "Alle Prioritäten",
+        "priorities_label": "Prioritäten",
+        "due_today": "Heute fällig"
       },
       "status": {
         "upcoming": "Anstehend",
@@ -271,7 +282,7 @@
         "due_date_label": "Fälligkeitsdatum",
         "time_label": "Uhrzeit",
         "customer_label": "Kunde",
-        "customer_placeholder": "Kunden nach Namen suchen",
+        "customer_placeholder": "Kein Kunde",
         "customer_error": "Die Kundenliste konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
         "call_name": "Anruf",
         "priority_label": "Priorität",
@@ -439,6 +450,9 @@
           "All": "Alle"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Filter „{label}“ entfernen"
     },
     "list_sharing": {
       "share_customers_label": "Kunden",

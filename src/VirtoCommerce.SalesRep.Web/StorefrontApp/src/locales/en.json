@@ -161,8 +161,7 @@
         "last_day": "Last day",
         "last_week": "Last week",
         "last_month": "Last month",
-        "last_year": "Last year",
-        "remove_filter": "Remove filter “{label}”"
+        "last_year": "Last year"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "All tasks",
       "new_task": "New task",
       "due_dates": "Due dates",
-      "today": "Today",
-      "all": "All",
-      "clear_day_aria": "Clear {date}",
-      "empty": "No tasks in this tab",
+      "empty": "No tasks yet",
       "empty_day": "Nothing due on this day",
+      "no_results": "No tasks match the filters",
+      "search_placeholder": "Search tasks",
+      "search_aria": "Search tasks",
+      "reset_search": "Reset search",
       "load_failed": "Couldn't load tasks",
       "day_task_count": "{count} task | {count} tasks",
       "overdue_total": "{count} overdue task | {count} overdue tasks",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "Task",
+        "priority": "Priority",
+        "customer": "Customer",
         "status": "Status",
         "notes": "Notes",
         "actions": "Actions",
@@ -238,6 +240,15 @@
         "reopen": "Reopen",
         "action_aria": "{action}: “{name}”",
         "edit_aria": "Edit “{name}”"
+      },
+      "filters": {
+        "all_customers": "All customers",
+        "customers_label": "Customers",
+        "all_statuses": "All statuses",
+        "status_label": "Status",
+        "all_priorities": "All priorities",
+        "priorities_label": "Priorities",
+        "due_today": "Due today"
       },
       "status": {
         "upcoming": "Upcoming",
@@ -271,7 +282,7 @@
         "due_date_label": "Due date",
         "time_label": "Time",
         "customer_label": "Customer",
-        "customer_placeholder": "Search customers by name",
+        "customer_placeholder": "No customer",
         "customer_error": "The customer list could not be loaded. Please try again.",
         "call_name": "Call",
         "priority_label": "Priority",
@@ -439,6 +450,9 @@
           "All": "All"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Remove filter “{label}”"
     },
     "list_sharing": {
       "share_customers_label": "Customers",

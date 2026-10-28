@@ -126,8 +126,8 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
     }
 
     /// <summary>A task the rep creates through the real mutation, between requests.</summary>
-    internal Task<string> AddTaskAsync(SalesRepDetails rep, string name, DateTime dueDate)
-        => RunExclusiveAsync(context => CreateTaskAsync(context, rep, name, dueDate));
+    internal Task<string> AddTaskAsync(SalesRepDetails rep, string name, DateTime dueDate, string customerId = null, string priority = null)
+        => RunExclusiveAsync(context => CreateTaskAsync(context, rep, name, dueDate, customerId: customerId, priority: priority));
 
     /// <summary>The first matching task row, or null after ten seconds, read between requests.</summary>
     internal async Task<WorkTaskEntity> WaitForTaskAsync(Expression<Func<WorkTaskEntity, bool>> predicate)

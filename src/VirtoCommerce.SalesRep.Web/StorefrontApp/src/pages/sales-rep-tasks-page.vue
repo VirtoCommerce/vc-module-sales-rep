@@ -20,46 +20,43 @@
 
     <SalesRepRuleAlert :filter-failed="filterRulesFailed" />
 
-    <!-- Today, a picked day and All are the views with no status rule. A picked day gets a chip of its own,
-         labelled with its date, so the row always says which day the list shows (VCST-5732 QA A-2, A-5). -->
-    <SalesRepRuleChips v-model="filter" :rules="tabRules" :loading="filterRulesLoading">
-      <template #baseline>
-        <SalesRepTaskScopeChips
-          :view="scopeView"
-          :day-label="dateChipLabel"
-          :show-day="Boolean(dateChip)"
-          :counts="counts"
-          @today="goToToday"
-          @day="showDateChip"
-          @all="showAll"
-          @clear-day="clearDay"
-        />
-      </template>
-    </SalesRepRuleChips>
+    <div class="sales-rep-tasks-page__toolbar">
+      <VcInput
+        v-model="localKeyword"
+        maxlength="64"
+        class="sales-rep-tasks-page__search-input"
+        :disabled="loading"
+        :placeholder="t('sales_rep.tasks.search_placeholder')"
+        clearable
+        @keydown.enter="applyKeyword"
+        @clear="resetKeyword"
+      >
+        <template #append>
+          <VcButton
+            :aria-label="t('sales_rep.tasks.search_aria')"
+            :disabled="loading"
+            icon="search"
+            icon-size="1.25rem"
+            @click="applyKeyword"
+          />
+        </template>
+      </VcInput>
+
+      <SalesRepTaskFilters v-model="filters" :statuses="statusRules" />
+    </div>
+
+    <!-- The day is one of the filters: a chip of its own, set from the calendar. -->
+    <SalesRepFilterChips :chips="filterChips" @remove="removeFilterChip" @reset="resetFilters" />
 
     <div class="sales-rep-tasks-page__body">
       <div class="sales-rep-tasks-page__main">
         <VcWidget size="md">
           <template #header-container>
-            <div class="sales-rep-tasks-page__day-head">
-              <!-- The heading is the only thing that names the current scope, and picking a day or a tab
-                   replaces the list under it without a word (QA A-9). Announcing the heading covers both,
-                   and atomically so the date and the count are read as one.
-
-                   role="status" as well as the attributes: a bare div carrying only aria-live is exposed as a
-                   generic node, which is why QA could not find the live region in the accessibility tree. The role
-                   implies polite+atomic, but the explicit pair is what older AT reads. -->
-              <div role="status" aria-live="polite" aria-atomic="true">
-                <!-- The h2 variant uppercases by default, which turned the date into SEP 18, 2026 — the only
-                     shouted text on the page (QA A-22). The prop is the component's own opt-out. -->
-                <VcTypography tag="h2" text-transform="none" class="sales-rep-tasks-page__day-title">
-                  {{ panelTitle }}
-                </VcTypography>
-
-                <span class="sales-rep-tasks-page__day-count">
-                  {{ t("sales_rep.tasks.day_task_count", { count: totalCount }, totalCount) }}
-                </span>
-              </div>
+            <!-- Any filter or day replaces the list under it without a word (QA A-9), so its count is announced.
+                 role="status" as well as the attributes: a bare div carrying only aria-live is exposed as a generic
+                 node. The role implies polite+atomic, but the explicit pair is what older AT reads. -->
+            <div class="sales-rep-tasks-page__count" role="status" aria-live="polite" aria-atomic="true">
+              {{ t("sales_rep.tasks.day_task_count", { count: totalCount }, totalCount) }}
             </div>
           </template>
 
@@ -67,14 +64,18 @@
             <!-- A failure replaces the rows: apollo keeps the previous ones on a failed refetch. -->
             <VcEmptyView v-if="failed && !loading" :text="t('sales_rep.tasks.load_failed')" variant="error" />
 
-            <!-- Never a keyword miss — this page has no search — so empty means the current scope is empty, and
-                 which scope that is depends on whether a status tab replaced the day. -->
             <VcEmptyView
               v-else-if="!tasks.length && !loading"
-              :text="t(inDayView ? 'sales_rep.tasks.empty_day' : 'sales_rep.tasks.empty')"
-              variant="empty"
+              :text="emptyText"
+              :variant="hasFilters ? 'search' : 'empty'"
               icon="calendar"
-            />
+            >
+              <template v-if="filters.keyword" #button>
+                <VcButton prepend-icon="reset" @click="resetKeyword">
+                  {{ t("sales_rep.tasks.reset_search") }}
+                </VcButton>
+              </template>
+            </VcEmptyView>
 
             <SalesRepTaskList
               v-else
@@ -100,14 +101,13 @@
               {{ t("sales_rep.tasks.due_dates") }}
             </VcTypography>
 
-            <!-- No selection outside the day view: the list is not day-scoped then, so highlighting a day would
-                 misdescribe it - and reka emits nothing when the clicked day is already the selected one, which
-                 made that cell a dead click. With no selection, any day is a change and clears the tab. -->
+            <!-- Picks the day, or unpicks it for every date: its Clear, or a second click on the picked day. -->
             <SalesRepTaskCalendar
               size="sm"
-              :model-value="inDayView ? selectedDay : undefined"
+              :model-value="day"
               :month="month"
               :day-markers="dayMarkers"
+              clearable
               @update:model-value="selectDay"
               @update:month="setMonth"
             />
@@ -126,23 +126,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId } from "vue";
+import { computed, ref, useId, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useBreadcrumbs, useModal, useRouteQueryParam } from "@vc-frontend/core";
+import SalesRepFilterChips from "../components/sales-rep-filter-chips.vue";
 import SalesRepRuleAlert from "../components/sales-rep-rule-alert.vue";
-import SalesRepRuleChips from "../components/sales-rep-rule-chips.vue";
 import SalesRepTaskCalendar from "../components/sales-rep-task-calendar.vue";
+import SalesRepTaskFilters from "../components/sales-rep-task-filters.vue";
 import SalesRepTaskList from "../components/sales-rep-task-list.vue";
 import SalesRepTaskModal from "../components/sales-rep-task-modal.vue";
-import SalesRepTaskScopeChips from "../components/sales-rep-task-scope-chips.vue";
+import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
 import { useSalesRepRules } from "../composables/useSalesRepRules";
 import { useMonthAnchor, useSalesRepTaskCalendar } from "../composables/useSalesRepTaskCalendar";
-import { useSalesRepTaskCounts } from "../composables/useSalesRepTaskCounts";
 import { useSalesRepTaskMutations } from "../composables/useSalesRepTaskMutations";
 import { useSalesRepTasks } from "../composables/useSalesRepTasks";
 import { TASKS_SORT_RULE } from "../constants";
-import { TASK_MARKER_KINDS, localDayKey, localDayKeyToDate, localDayWindow, toMonthKey } from "../tasks";
-import type { SalesRepTaskScopeType, SalesRepTaskType } from "../types/tasks";
+import {
+  emptyTaskFilters,
+  localDayKey,
+  localDayKeyToDate,
+  localDayWindow,
+  TASK_MARKER_KINDS,
+  taskPriorityLabelKey,
+  toMonthKey,
+} from "../tasks";
+import { selectableFilterRules } from "../utils";
+import type { SalesRepFilterChipType } from "../types";
+import type { SalesRepTaskFiltersType, SalesRepTaskType } from "../types/tasks";
 
 const { t, d } = useI18n();
 const { openModal } = useModal();
@@ -157,52 +167,35 @@ const breadcrumbs = useBreadcrumbs(() => [
 // Names the month rail's landmark after its own heading.
 const dueDatesTitleId = useId();
 
-// Resolved once, like the counts' own boundary: a "today" that moved mid-session would reshuffle the chips. So, on
-// purpose, a page left open past midnight keeps listing the day it opened on under Today until it is reloaded.
+// Resolved once, like the list's own boundary: a "today" that moved mid-session would reshuffle the list. So, on
+// purpose, a page left open past midnight keeps calling the day it opened on "today" until it is reloaded.
 const todayKey = localDayKey(new Date());
-const selectedDay = ref(todayKey);
-// The date chip's day: opened by picking a day other than today, closed only by its ×.
-const dateChip = ref<string>();
-// All is a view of its own rather than a server rule: every task, with neither a day window nor a filter.
-const showingAll = ref(false);
+
+/**
+ * The dashboard's overdue notice links here with `?filter=overdue`. Read once on the way in, then dropped: the filters
+ * live in the page, and a parameter left in the URL would describe a list the rep has since changed. `replace`, so
+ * Back does not lead to the same page with the parameter put back.
+ */
+const filterParam = useRouteQueryParam<string>("filter", { updateMethod: "replace" });
+const linkedStatus = filterParam.value || undefined;
+if (linkedStatus) {
+  filterParam.value = "";
+}
+
+/**
+ * The due day on screen, or undefined for every date. Opens on today, except from a status link: overdue work is never
+ * due today, so that one opens on every date.
+ */
+const day = ref<string | undefined>(linkedStatus ? undefined : todayKey);
+const filters = ref<SalesRepTaskFiltersType>({ ...emptyTaskFilters(), status: linkedStatus });
+
+// Unapplied search term; committed to the filters on Enter or the search button.
+const localKeyword = ref("");
+
 // Drives the dots query. The calendar owns which month is on screen and reports it back.
 const { month, setMonth } = useMonthAnchor();
 
-/**
- * The day and the status tab are two views of the same set, not two filters over it: a status tab spans every
- * date (overdue work is never due today, so intersecting it with a day would show nothing), and picking a date
- * goes back to that day's full list. Anding them is what made an active "Completed 3" sit over an empty list —
- * the badges count the whole set, so a tab must show the whole set too.
- *
- * Held in the URL, so the dashboard's overdue notice can deep-link to `?filter=overdue` and a status tab survives
- * a refresh (All and a picked day do not: they reopen on Today). `replace`, not `push`: stepping through the chips must not turn Back into an undo button. The
- * baseline writes an empty string, which useRouteQueryParam drops from the query, so the day view stays on a
- * clean URL — and the day itself is not in there, because it defaults to today and a bookmarked date goes stale.
- */
-const filterParam = useRouteQueryParam<string>("filter", { updateMethod: "replace" });
-const filter = computed<string | undefined>({
-  get: () => filterParam.value || undefined,
-  set: (value) => {
-    filterParam.value = value ?? "";
-  },
-});
-
-const inDayView = computed(() => !filter.value && !showingAll.value);
-const isToday = computed(() => selectedDay.value === todayKey);
-// Which of Today / the picked day / All is on; undefined while a status tab has taken over.
-const scopeView = computed<SalesRepTaskScopeType | undefined>(() => {
-  if (filter.value) {
-    return undefined;
-  }
-
-  if (showingAll.value) {
-    return "all";
-  }
-
-  return isToday.value ? "today" : "day";
-});
-
-const period = computed(() => (inDayView.value ? localDayWindow(selectedDay.value) : undefined));
+const period = computed(() => (day.value ? localDayWindow(day.value) : undefined));
 
 const {
   items: tasks,
@@ -214,14 +207,14 @@ const {
   refetch,
 } = useSalesRepTasks({
   period,
-  filter,
+  filters,
   sort: TASKS_SORT_RULE,
 });
 
-// Every chip's badge in one request.
-const { counts, refetch: refetchCounts } = useSalesRepTaskCounts();
-const { dayMarkers, refetch: refetchMarkers } = useSalesRepTaskCalendar(month);
+// The dots follow the filters, but not the day: they are what a rep picks the day by.
+const { dayMarkers, refetch: refetchMarkers } = useSalesRepTaskCalendar(month, filters);
 const { setCompleted, loading: saving } = useSalesRepTaskMutations();
+const { findOption } = useSalesRepCustomerOptions();
 
 const {
   rules: filterRules,
@@ -229,73 +222,125 @@ const {
   loading: filterRulesLoading,
 } = useSalesRepRules("task", "filter");
 
-const failed = computed(() => Boolean(error.value));
+const statusRules = computed(() => selectableFilterRules(filterRules.value));
 
-// Badge each server-offered tab with its own total. The counts query and the chips agree by rule name.
-const tabRules = computed(() =>
-  filterRules.value.map((rule) => ({
-    ...rule,
-    count: counts.value[rule.name as keyof typeof counts.value],
-  })),
+// A status the project does not offer (the dashboard links to "overdue" by name) falls back to every status, rather
+// than filtering the list by something no select or chip shows.
+watch(
+  () => [filterRulesLoading.value, filterRules.value] as const,
+  ([isLoading, rules]) => {
+    const { status } = filters.value;
+    if (!isLoading && status && !rules.some((rule) => rule.name === status)) {
+      filters.value = { ...filters.value, status: undefined };
+    }
+  },
+  { immediate: true },
 );
 
-// "short" (Sep 1, 2026), not "long" — the long named format appends a time, and this heading names a DAY.
-const selectedDayLabel = computed(() => d(localDayKeyToDate(selectedDay.value), "short"));
-const dateChipLabel = computed(() => (dateChip.value ? d(localDayKeyToDate(dateChip.value), "short") : ""));
+const failed = computed(() => Boolean(error.value));
 
-// Whichever view is on: the tab named by its own chip, All, or the day.
-const panelTitle = computed(() => {
-  if (filter.value) {
-    return filterRules.value.find((rule) => rule.name === filter.value)?.label ?? filter.value;
-  }
-
-  return showingAll.value ? t("sales_rep.tasks.all") : selectedDayLabel.value;
+const hasFilters = computed(() => {
+  const { keyword, status, customerIds, priorities } = filters.value;
+  return Boolean(keyword || status || customerIds.length || priorities.length);
 });
 
-function selectDay(day: string): void {
-  selectedDay.value = day;
-  showingAll.value = false;
-  filter.value = undefined;
+const emptyText = computed(() => {
+  if (hasFilters.value) {
+    return t("sales_rep.tasks.no_results");
+  }
 
-  if (day !== todayKey) {
-    dateChip.value = day;
+  return t(day.value ? "sales_rep.tasks.empty_day" : "sales_rep.tasks.empty");
+});
+
+type TaskFilterChipType = SalesRepFilterChipType & {
+  field: "day" | "status" | keyof Pick<SalesRepTaskFiltersType, "customerIds" | "priorities">;
+  value?: string;
+};
+
+// "short" (Sep 1, 2026), not "long" — the long named format appends a time, and the chip names a DAY.
+const dayLabel = computed(() => {
+  if (!day.value) {
+    return "";
+  }
+
+  return day.value === todayKey
+    ? t("sales_rep.tasks.filters.due_today")
+    : t("sales_rep.tasks.due_relative.due", { date: d(localDayKeyToDate(day.value), "short") });
+});
+
+// In the mockup's order: the day, the customers, then the status and the priorities.
+const filterChips = computed<TaskFilterChipType[]>(() => {
+  const { status, customerIds, priorities } = filters.value;
+  const chips: TaskFilterChipType[] = [];
+
+  if (day.value) {
+    chips.push({ id: "day", field: "day", label: dayLabel.value });
+  }
+
+  for (const customerId of customerIds) {
+    chips.push({
+      id: `customerIds:${customerId}`,
+      field: "customerIds",
+      value: customerId,
+      label: findOption(customerId)?.organizationName ?? customerId,
+    });
+  }
+
+  if (status) {
+    chips.push({
+      id: `status:${status}`,
+      field: "status",
+      value: status,
+      label: filterRules.value.find((rule) => rule.name === status)?.label ?? status,
+    });
+  }
+
+  for (const priority of priorities) {
+    chips.push({
+      id: `priorities:${priority}`,
+      field: "priorities",
+      value: priority,
+      label: t(taskPriorityLabelKey(priority)),
+    });
+  }
+
+  return chips;
+});
+
+function removeFilterChip(chip: TaskFilterChipType): void {
+  switch (chip.field) {
+    case "day":
+      day.value = undefined;
+      break;
+    case "status":
+      filters.value = { ...filters.value, status: undefined };
+      break;
+    case "customerIds":
+      filters.value = { ...filters.value, customerIds: filters.value.customerIds.filter((id) => id !== chip.value) };
+      break;
+    case "priorities":
+      filters.value = { ...filters.value, priorities: filters.value.priorities.filter((x) => x !== chip.value) };
+      break;
   }
 }
 
-// The Today chip: the list, the tab and the grid's month all come back to today.
-function goToToday(): void {
-  selectDay(todayKey);
-  setMonth(todayKey);
+// Every chip at once, the day included. The search term keeps its own clear, as on the orders list.
+function resetFilters(): void {
+  day.value = undefined;
+  filters.value = { ...emptyTaskFilters(), keyword: filters.value.keyword };
 }
 
-function showAll(): void {
-  showingAll.value = true;
-  filter.value = undefined;
+function applyKeyword(): void {
+  filters.value = { ...filters.value, keyword: localKeyword.value.trim() };
 }
 
-// The date chip: back to its day, with the grid on that day's month.
-function showDateChip(): void {
-  if (dateChip.value) {
-    selectDay(dateChip.value);
-    setMonth(dateChip.value);
-  }
+function resetKeyword(): void {
+  localKeyword.value = "";
+  filters.value = { ...filters.value, keyword: "" };
 }
 
-// The date chip's ×. A view of its day falls back to today; a tab or All stays on screen, and so does the month
-// the rep paged the grid to under it.
-function clearDay(): void {
-  const wasOnScreen = scopeView.value === "day";
-
-  // Also the new-task modal's default day, so it must not outlive the chip, on screen or not.
-  if (selectedDay.value === dateChip.value) {
-    selectedDay.value = todayKey;
-  }
-
-  dateChip.value = undefined;
-
-  if (wasOnScreen) {
-    setMonth(todayKey);
-  }
+function selectDay(value: string | undefined): void {
+  day.value = value;
 }
 
 function changePage(value: number): void {
@@ -303,12 +348,12 @@ function changePage(value: number): void {
 }
 
 /**
- * Every surface reads the same records, so a write refreshes all three rather than patching the cache.
+ * Both surfaces read the same records, so a write refreshes them rather than patching the cache.
  * allSettled, not all: a refetch that fails is already logged by its composable's onError and drawn by the
  * surface's failure view, so a rejection escaping here would only be console noise from an event handler.
  */
 async function refreshAll(): Promise<void> {
-  await Promise.allSettled([refetch(), refetchCounts(), refetchMarkers()]);
+  await Promise.allSettled([refetch(), refetchMarkers()]);
 }
 
 async function toggleCompletion(task: SalesRepTaskType): Promise<void> {
@@ -319,18 +364,17 @@ async function toggleCompletion(task: SalesRepTaskType): Promise<void> {
   await refreshAll();
 }
 
-// A save reports the day it landed on: a task moved to another date would otherwise be refetched into a view
-// that no longer contains it, leaving "Task saved" over a list where it is nowhere to be seen. A delete reports
-// nothing — there is no row left to go to.
+// A save reports the day it landed on: a task moved to another date would otherwise be refetched into a list that no
+// longer contains it, leaving "Task saved" over a list where it is nowhere to be seen. A delete reports nothing —
+// there is no row left to go to.
 async function onTaskSaved(dayKey?: string): Promise<void> {
-  // Follow the task only in the DAY view, and only when it actually moved. A status tab and All span every date,
-  // so a task that changed date is in or out of them on its own merits — jumping to its day would throw away
-  // the view the rep chose, and a tab's `?filter=` in the URL with it.
-  const movedTo = dayKey && inDayView.value && dayKey !== selectedDay.value ? dayKey : undefined;
+  // Follow the task only while a day is picked, and only when it actually moved. Every date already holds it, as far
+  // as the other filters let it in; those stay as the rep set them.
+  const movedTo = dayKey && day.value && dayKey !== day.value ? dayKey : undefined;
   const rescopesGrid = !!movedTo && toMonthKey(movedTo) !== month.value;
 
   if (movedTo) {
-    selectDay(movedTo);
+    day.value = movedTo;
     setMonth(movedTo);
   }
 
@@ -338,19 +382,14 @@ async function onTaskSaved(dayKey?: string): Promise<void> {
    * Only the surfaces the move did NOT rescope get an explicit refetch. Apollo restarts a query whose variables
    * changed on its own, and its `restart` is deferred to `nextTick` while `refetch()` runs synchronously — so
    * refetching a rescoped query here fires a second, redundant request carrying the pre-move variables.
-   * The counts key off no day, so no move rescopes them: they are always refetched.
    */
-  await Promise.allSettled([
-    refetchCounts(),
-    ...(movedTo ? [] : [refetch()]),
-    ...(rescopesGrid ? [] : [refetchMarkers()]),
-  ]);
+  await Promise.allSettled([...(movedTo ? [] : [refetch()]), ...(rescopesGrid ? [] : [refetchMarkers()])]);
 }
 
 function openTaskModal(task?: SalesRepTaskType): void {
   openModal({
     component: SalesRepTaskModal,
-    props: { task, defaultDay: selectedDay.value, onSaved: onTaskSaved },
+    props: { task, defaultDay: day.value ?? todayKey, onSaved: onTaskSaved },
   });
 }
 </script>
@@ -374,6 +413,15 @@ function openTaskModal(task?: SalesRepTaskType): void {
     @apply flex flex-none flex-wrap gap-3;
   }
 
+  // The search takes what the three selects leave; below lg they stack under it.
+  &__toolbar {
+    @apply flex flex-col gap-3 lg:flex-row lg:items-start;
+  }
+
+  &__search-input {
+    @apply grow;
+  }
+
   // The month rail splits off at xl, like layout-surface's aside, level with the list column.
   &__body {
     @apply flex flex-col gap-5 xl:flex-row xl:items-start;
@@ -383,13 +431,8 @@ function openTaskModal(task?: SalesRepTaskType): void {
     @apply min-w-0 grow;
   }
 
-  &__day-head {
-    @apply px-6 py-4;
-  }
-
-  &__day-count {
-    // Enough of a gap to read as a second line rather than as part of the heading above it (QA M-6).
-    @apply mt-2 block text-xs text-neutral-500;
+  &__count {
+    @apply px-6 py-4 text-sm text-neutral-600;
   }
 
   // Room for a `sm` calendar plus a long month name ("September 2026"); __month centres the rest.

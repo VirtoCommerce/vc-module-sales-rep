@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { localDayKey, localDayWindow } from "../tasks";
-import { useSalesRepTaskCounts } from "./useSalesRepTaskCounts";
+import { startOfLocalDayIso } from "../tasks";
+import { useSalesRepOverdueTaskCount } from "./useSalesRepTaskCounts";
 
 type CountsResultType = Record<string, { totalCount?: number } | undefined>;
 
@@ -25,35 +25,28 @@ beforeEach(() => {
   queryMock.useQuery.mockClear();
 });
 
-describe("useSalesRepTaskCounts", () => {
-  // Every alias carries its own number, so a badge wired to the wrong alias shows up as the wrong number.
-  it("maps each alias onto its own badge", () => {
-    queryMock.result.value = {
-      currentDay: { totalCount: 1 },
-      all: { totalCount: 2 },
-      upcoming: { totalCount: 3 },
-      overdue: { totalCount: 4 },
-      completed: { totalCount: 5 },
-    };
+describe("useSalesRepOverdueTaskCount", () => {
+  it("reads the overdue total", () => {
+    queryMock.result.value = { overdue: { totalCount: 4 } };
 
-    const { counts } = useSalesRepTaskCounts();
+    const { overdueCount } = useSalesRepOverdueTaskCount();
 
-    expect(counts.value).toEqual({ today: 1, all: 2, upcoming: 3, overdue: 4, completed: 5 });
+    expect(overdueCount.value).toBe(4);
   });
 
-  it("reads zero for every badge until the query answers", () => {
-    const { counts } = useSalesRepTaskCounts();
+  it("reads zero until the query answers", () => {
+    const { overdueCount } = useSalesRepOverdueTaskCount();
 
-    expect(counts.value).toEqual({ today: 0, all: 0, upcoming: 0, overdue: 0, completed: 0 });
+    expect(overdueCount.value).toBe(0);
   });
 
-  // The Today badge counts today's window, the same one the Today chip lists.
-  it("asks for today's window", () => {
-    useSalesRepTaskCounts();
+  // Overdue ends where the rep's own day starts, the boundary the list's status pills are drawn on.
+  it("splits overdue from upcoming at the start of the rep's day", () => {
+    useSalesRepOverdueTaskCount();
 
     const call = (queryMock.useQuery.mock.calls.at(-1) ?? []) as unknown[];
-    const variables = (call[1] as { value: { todayPeriod: { from: string; to: string } } }).value;
+    const variables = (call[1] as { value: { today: string } }).value;
 
-    expect(variables.todayPeriod).toEqual(localDayWindow(localDayKey(new Date())));
+    expect(variables.today).toBe(startOfLocalDayIso());
   });
 });

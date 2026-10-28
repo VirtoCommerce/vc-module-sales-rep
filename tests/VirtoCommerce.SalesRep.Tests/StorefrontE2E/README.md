@@ -44,7 +44,7 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Group 1 | `Customers/` | Rep with two organizations and one order, and an organization the rep does not serve: list, profile, the profile's quick actions, the not-found page. |
 | Group 2 | `Calendar/` | Rep with one task: complete it on the tasks page, create one from the form; both asserted on `WorkTask` rows. |
 | Group 3 | `Calls/` | Browser in New York time. Carl has calls and plain tasks, which the editing tests change; a test that books a call or takes a customer away signs in as a rep of its own. `CallsTests`: schedule a call from a customer's page, also adding it to Google and Apple Calendar, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. `CallTimesTests`: the edges of a day, the nights the clocks skip and repeat an hour, Los Angeles, a time off the select's steps, the select itself. `CallSavesTests`: a call without a customer, a save refused because the customer is no longer the rep's (with the Google tab; without it, skipped until VCST-6455), the Google tab blocked, a double click, a cancelled draft. Each test is asserted on the page and on `WorkTask` rows. |
-| Group 4 | `Tasks/` | Rep with plain tasks, browser in New York time: overdue, today, later, completed, canceled and dateless ones. An edit that changes only the date, a canceled and a completed task edited, a dateless one opened and dated, a delete, completing and reopening, and every tab's badge against its list. |
+| Group 4 | `Tasks/` | Rep with plain tasks, browser in New York time: overdue, today, later, completed, canceled and dateless ones. An edit that changes only the date, a canceled and a completed task edited, a dateless one opened and dated, a delete, completing and reopening across the statuses, and the filters: customers, statuses, priorities, the search and the day, their chips, Reset filters, and the calendar's dots following them. |
 | Group 5 | `WithoutTaskManagement/` | A module list without TaskManagement: the customer page offers "Schedule call" disabled, the hub menu has no Tasks, and the tasks page sends the rep to a dashboard without the tasks widget. |
 
 Groups are xunit collections with `DisableParallelization = true`: each runs alone, so one backend and one browser
@@ -129,8 +129,6 @@ failed test).
   (`OpenAsync`'s `beforeLoad`).
 - The task list pages at 15 rows. Tests that add tasks to a shared rep push the seeded ones to page 2, so a test that
   adds tasks signs in as a rep of its own.
-- The tabs' badges read 0 until their one counts request returns, so a test reads them once a badge the rep's seed
-  makes non-zero is.
 - A second full load in the same page (`GotoAsync` after `OpenAsync`) can leave the page blank on a clone: its module
   requests failed with `net::ERR_INSUFFICIENT_RESOURCES` or were aborted. A test that needs another page by URL opens a
   session of its own.
