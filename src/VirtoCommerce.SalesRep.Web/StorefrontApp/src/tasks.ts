@@ -12,26 +12,33 @@ import type { ComposerTranslation, DateTimeOptions } from "vue-i18n";
 /**
  * Task day maths, on the USER'S calendar rather than UTC — the same rule buildStatisticsWindows follows in
  * utils.ts, and for the same reason: the pills sit next to dates rendered through `$d()`, i.e. in the browser's
- * zone. A task due 23:00 UTC is "tomorrow" for a UTC+3 rep, so a UTC boundary would put it in a different tab
+ * zone. A task due 23:00 UTC is "tomorrow" for a UTC+3 rep, so a UTC boundary would give it a different status
  * than the date beside it reads.
  *
- * The boundary is sent to the backend as `today` and used here to derive the pill, so the tab a task lands in and
- * the pill it renders always agree. Send one boundary to both, or they can disagree at midnight.
+ * The boundary is sent to the backend as `today` and used here to derive the pill, so the status filter a task
+ * matches and the pill it renders always agree. Send one boundary to both, or they can disagree at midnight.
  */
 
 /**
  * The conditions a day can be marked with, in render order — one source for the calendar dots, the legend beside
  * them and the buckets `buildDayMarkers` produces, so the three cannot drift into different orders. `canceled` is
- * deliberately absent: it is not one of the tabs, and a fourth colour would say something the legend does not explain.
+ * deliberately absent: it has no status filter, and a fourth colour would say something the legend does not explain.
  */
 export const TASK_MARKER_KINDS: readonly SalesRepTaskStatusType[] = ["upcoming", "overdue", "completed"];
 
-/** Task-management's TaskPriority names, lowest first: what the API stores and takes, and the order every list shows. */
+/**
+ * Task-management's TaskPriority names, lowest first: what the API stores and takes, and the order every list shows.
+ */
 export const TASK_PRIORITIES = ["Lowest", "Low", "Normal", "High", "Highest"] as const;
 
 /** The locale key naming a priority. */
 export function taskPriorityLabelKey(priority: string): string {
   return `sales_rep.tasks.priority.${priority.toLowerCase()}`;
+}
+
+/** The priorities as select items, lowest first. */
+export function taskPriorityItems(t: ComposerTranslation) {
+  return TASK_PRIORITIES.map((value) => ({ value, label: t(taskPriorityLabelKey(value)) }));
 }
 
 /** No filter at all: every status, customer and priority, matched by no search term. */
@@ -40,8 +47,9 @@ export function emptyTaskFilters(): SalesRepTaskFiltersType {
 }
 
 /**
- * The filters as salesRepTasks arguments. An empty one is left out rather than sent empty, so a surface with no filters
- * asks exactly what it always did, and keeps sharing its Apollo cache entry with every other surface that asks the same.
+ * The filters as salesRepTasks arguments. An empty one is left out rather than sent empty, so a surface with no
+ * filters asks exactly what it always did, and keeps sharing its Apollo cache entry with every other surface that
+ * asks the same.
  */
 export function taskFilterVariables(filters?: SalesRepTaskFiltersType) {
   return {
@@ -223,7 +231,7 @@ type TaskStateType = {
  * everything else still open. A task due at exactly 00:00 today is upcoming, not overdue.
  *
  * A task with no due date reads as upcoming. Only the admin app can create one — the storefront's inputs make the
- * due date non-null — and the backend leaves it out of both dated tabs, so it appears under "All" alone.
+ * due date non-null — and the backend leaves it out of both dated statuses, so it shows only with no status picked.
  */
 export function taskStatus(task: TaskStateType, dayStart: Date): SalesRepTaskStatusType {
   if (!task.isActive) {

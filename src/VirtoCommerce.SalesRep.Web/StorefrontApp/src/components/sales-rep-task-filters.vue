@@ -6,7 +6,7 @@
     <VcSelect
       :model-value="selectedCustomers"
       class="sales-rep-task-filters__select sales-rep-task-filters__select--multiple"
-      :items="customerOptions"
+      :items="customers"
       text-field="organizationName"
       value-field="organizationId"
       :aria-label="t('sales_rep.tasks.filters.customers_label')"
@@ -51,8 +51,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
-import { TASK_PRIORITIES, taskPriorityLabelKey } from "../tasks";
+import { taskPriorityItems } from "../tasks";
 import type { SalesRepCustomerOptionType } from "../composables/useSalesRepCustomerOptions";
 import type { SalesRepRuleType } from "../types";
 import type { SalesRepTaskFiltersType } from "../types/tasks";
@@ -60,23 +59,22 @@ import type { SalesRepTaskFiltersType } from "../types/tasks";
 interface IProps {
   /** The status rules to offer, from salesRepTaskFilterRules. */
   statuses: SalesRepRuleType[];
+  /** The customers to offer: the rep's served customers, from useSalesRepCustomerOptions. */
+  customers: SalesRepCustomerOptionType[];
+  /** The customers could not be loaded: the field says so, as an empty list would read as "serves nobody". */
+  customersFailed?: boolean;
 }
 
-defineProps<IProps>();
+const props = defineProps<IProps>();
 
 const modelValue = defineModel<SalesRepTaskFiltersType>({ required: true });
 
-type PriorityItemType = { value: string; label: string };
-
 const { t } = useI18n();
-const { options: customerOptions, failed: customersFailed } = useSalesRepCustomerOptions();
 
-const priorityItems = computed<PriorityItemType[]>(() =>
-  TASK_PRIORITIES.map((value) => ({ value, label: t(taskPriorityLabelKey(value)) })),
-);
+const priorityItems = computed(() => taskPriorityItems(t));
 
 const selectedCustomers = computed(() =>
-  customerOptions.value.filter((option) => modelValue.value.customerIds.includes(option.organizationId)),
+  props.customers.filter((option) => modelValue.value.customerIds.includes(option.organizationId)),
 );
 
 const selectedPriorities = computed(() =>
@@ -91,7 +89,7 @@ function changeStatus(status?: string): void {
   modelValue.value = { ...modelValue.value, status: status || undefined };
 }
 
-function changePriorities(items: PriorityItemType[]): void {
+function changePriorities(items: { value: string }[]): void {
   modelValue.value = { ...modelValue.value, priorities: items.map((item) => item.value) };
 }
 </script>

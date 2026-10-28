@@ -142,8 +142,7 @@ import {
   isCallTask,
   localDayKey,
   localTimeKey,
-  TASK_PRIORITIES,
-  taskPriorityLabelKey,
+  taskPriorityItems,
 } from "../tasks";
 import SalesRepTaskCustomerSelect from "./sales-rep-task-customer-select.vue";
 import TimeSelect from "./time-select.vue";
@@ -190,9 +189,7 @@ const modalComponent = useTemplateRef<InstanceType<typeof VcModal>>("modalCompon
 const { create, update, remove: removeTask, loading } = useSalesRepTaskMutations();
 const { types } = useSalesRepTaskTypes();
 
-const priorityItems = computed(() =>
-  TASK_PRIORITIES.map((value) => ({ value, label: t(taskPriorityLabelKey(value)) })),
-);
+const priorityItems = computed(() => taskPriorityItems(t));
 
 // The task being edited, or what a new one starts from. A deliberate snapshot: useForm seeds the fields once, and a
 // modal instance is constructed per open with fixed props, so there is no later prop change to track.

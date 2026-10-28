@@ -1,21 +1,15 @@
 import { mount } from "@vue/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { emptyTaskFilters } from "../tasks";
 import SalesRepTaskFilters from "./sales-rep-task-filters.vue";
 import type { SalesRepTaskFiltersType } from "../types/tasks";
 
-const mocks = await vi.hoisted(async () => {
-  const { ref } = await import("vue");
-  return {
-    options: ref<{ organizationId: string; organizationName: string; location: string; imageUrl: string }[]>([]),
-    failed: ref(false),
-  };
-});
-
 vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }));
-vi.mock("../composables/useSalesRepCustomerOptions", () => ({
-  useSalesRepCustomerOptions: () => ({ options: mocks.options, failed: mocks.failed }),
-}));
+
+const CUSTOMERS = [
+  { organizationId: "org-1", organizationName: "Cabin Co.", location: "", imageUrl: "" },
+  { organizationId: "org-2", organizationName: "Drift Inn Resort", location: "", imageUrl: "" },
+];
 
 const SelectStub = {
   name: "VcSelect",
@@ -33,7 +27,7 @@ const SelectStub = {
   template: '<div class="select" :data-label="ariaLabel" />',
 };
 
-function createWrapper(modelValue: SalesRepTaskFiltersType = emptyTaskFilters()) {
+function createWrapper(modelValue: SalesRepTaskFiltersType = emptyTaskFilters(), customersFailed = false) {
   return mount(SalesRepTaskFilters, {
     props: {
       modelValue,
@@ -41,6 +35,8 @@ function createWrapper(modelValue: SalesRepTaskFiltersType = emptyTaskFilters())
         { name: "upcoming", label: "Upcoming" },
         { name: "overdue", label: "Overdue" },
       ],
+      customers: CUSTOMERS,
+      customersFailed,
     },
     global: { stubs: { VcSelect: SelectStub } },
   });
@@ -61,19 +57,11 @@ function select(wrapper: WrapperType, label: string) {
 const emitted = (wrapper: WrapperType) =>
   wrapper.emitted("update:modelValue")?.at(-1)?.[0] as SalesRepTaskFiltersType | undefined;
 
-beforeEach(() => {
-  mocks.options.value = [
-    { organizationId: "org-1", organizationName: "Cabin Co.", location: "", imageUrl: "" },
-    { organizationId: "org-2", organizationName: "Drift Inn Resort", location: "", imageUrl: "" },
-  ];
-  mocks.failed.value = false;
-});
-
 describe("SalesRepTaskFilters", () => {
   it("offers the customers, the statuses and the priorities, each with its own name", () => {
     const wrapper = createWrapper();
 
-    expect(select(wrapper, "customers_label").props("items")).toEqual(mocks.options.value);
+    expect(select(wrapper, "customers_label").props("items")).toEqual(CUSTOMERS);
     expect(select(wrapper, "status_label").props("items")).toEqual([
       { name: "upcoming", label: "Upcoming" },
       { name: "overdue", label: "Overdue" },
@@ -100,13 +88,13 @@ describe("SalesRepTaskFilters", () => {
   it("shows the customers picked by id as their items", () => {
     const wrapper = createWrapper({ ...emptyTaskFilters(), customerIds: ["org-2"] });
 
-    expect(select(wrapper, "customers_label").props("modelValue")).toEqual([mocks.options.value[1]]);
+    expect(select(wrapper, "customers_label").props("modelValue")).toEqual([CUSTOMERS[1]]);
   });
 
   it("hands back the customers picked as ids, keeping the other filters", () => {
     const wrapper = createWrapper({ ...emptyTaskFilters(), keyword: "renewal", priorities: ["High"] });
 
-    select(wrapper, "customers_label").vm.$emit("change", mocks.options.value);
+    select(wrapper, "customers_label").vm.$emit("change", CUSTOMERS);
 
     expect(emitted(wrapper)).toEqual({
       keyword: "renewal",
@@ -145,9 +133,7 @@ describe("SalesRepTaskFilters", () => {
 
   // An empty list on a failed fetch reads as "this rep serves nobody"; the field says what happened instead.
   it("says so on the customer field when the customers could not be loaded", () => {
-    mocks.failed.value = true;
-
-    const wrapper = createWrapper();
+    const wrapper = createWrapper(emptyTaskFilters(), true);
 
     expect(select(wrapper, "customers_label").props("error")).toBe(true);
     expect(select(wrapper, "customers_label").props("message")).toBe("sales_rep.tasks.form.customer_error");

@@ -1,7 +1,8 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import SalesRepTaskModal from "../components/sales-rep-task-modal.vue";
+import { TASKS_FILTERS_DEBOUNCE_MS } from "../constants";
 import { emptyTaskFilters, localDayKey, localDayWindow } from "../tasks";
 import TasksPage from "./sales-rep-tasks-page.vue";
 import type { SalesRepFilterChipType } from "../types";
@@ -22,6 +23,7 @@ const state = await vi.hoisted(async () => {
     rulesLoading: ref(false),
     rulesFailed: ref(false),
     customers: [] as { organizationId: string; organizationName: string }[],
+    customersFailed: false,
     filterParam: ref(""),
     month: ref("2026-10-01"),
     setMonth: vi.fn(),
@@ -66,11 +68,16 @@ vi.mock("../composables/useSalesRepTaskMutations", async () => {
 vi.mock("../composables/useSalesRepRules", () => ({
   useSalesRepRules: () => ({ rules: state.rules, loading: state.rulesLoading, failed: state.rulesFailed }),
 }));
-vi.mock("../composables/useSalesRepCustomerOptions", () => ({
-  useSalesRepCustomerOptions: () => ({
-    findOption: (id: string) => state.customers.find((customer) => customer.organizationId === id),
-  }),
-}));
+vi.mock("../composables/useSalesRepCustomerOptions", async () => {
+  const { ref } = await import("vue");
+  return {
+    useSalesRepCustomerOptions: () => ({
+      options: ref(state.customers),
+      failed: ref(state.customersFailed),
+      findOption: (id: string) => state.customers.find((customer) => customer.organizationId === id),
+    }),
+  };
+});
 // Typed arguments, so the format a call asked for can be asserted.
 const dMock = vi.hoisted(() =>
   vi.fn((value: unknown, format?: string) => (format === "short" ? "Oct 20, 2026" : String(value))),
@@ -119,7 +126,7 @@ const SearchStub = {
 
 const FiltersStub = {
   name: "SalesRepTaskFilters",
-  props: ["modelValue", "statuses"],
+  props: ["modelValue", "statuses", "customers", "customersFailed"],
   emits: ["update:modelValue"],
   template: '<div class="filters" />',
 };
@@ -207,9 +214,16 @@ function chips(wrapper: WrapperType) {
   return wrapper.getComponent(ChipsStub).props("chips") as SalesRepFilterChipType[];
 }
 
+/** Lets a filter change reach the list and the dots, which ask with the filters a debounce late. */
+async function settle() {
+  await flushPromises();
+  await vi.advanceTimersByTimeAsync(TASKS_FILTERS_DEBOUNCE_MS);
+  await flushPromises();
+}
+
 async function setFilters(wrapper: WrapperType, filters: Partial<SalesRepTaskFiltersType>) {
   wrapper.getComponent(FiltersStub).vm.$emit("update:modelValue", { ...emptyTaskFilters(), ...filters });
-  await flushPromises();
+  await settle();
 }
 
 async function pickDay(wrapper: WrapperType, day: string | undefined) {
@@ -225,6 +239,8 @@ function lastModal() {
 }
 
 beforeEach(() => {
+  // Only the timers the debounce runs on: flushPromises still needs a real setImmediate.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
   state.items.value = [];
   state.loading.value = false;
   state.error.value = null;
@@ -235,6 +251,7 @@ beforeEach(() => {
   state.rulesLoading.value = false;
   state.rulesFailed.value = false;
   state.customers = [];
+  state.customersFailed = false;
   state.filterParam.value = "";
   state.month.value = "2026-10-01";
   state.setMonth.mockClear();
@@ -262,6 +279,10 @@ beforeEach(() => {
   }));
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("Tasks page filters", () => {
   it("opens on today, with every status, customer and priority", () => {
     const wrapper = createWrapper();
@@ -280,6 +301,17 @@ describe("Tasks page filters", () => {
     const wrapper = createWrapper();
 
     expect(wrapper.getComponent(FiltersStub).props("statuses")).toEqual(state.rules.value);
+  });
+
+  // One customer list serves the select and the chips' names.
+  it("hands the customer select the customers it names the chips by", () => {
+    state.customers = [{ organizationId: "org-1", organizationName: "Cabin Co." }];
+    state.customersFailed = true;
+
+    const filters = createWrapper().getComponent(FiltersStub);
+
+    expect(filters.props("customers")).toEqual(state.customers);
+    expect(filters.props("customersFailed")).toBe(true);
   });
 
   it("narrows the list by what the selects set", async () => {
@@ -305,11 +337,31 @@ describe("Tasks page filters", () => {
     expect(state.useSalesRepTaskCalendar.mock.calls.at(-1)?.[0]).toBe(state.month);
   });
 
+  // A multi-select stays open for the next pick: the list and the dots ask once the picks settle, the chips at once.
+  it("asks the list and the dots once a burst of picks settles", async () => {
+    const wrapper = createWrapper();
+
+    for (const customerIds of [["org-1"], ["org-1", "org-2"]]) {
+      wrapper.getComponent(FiltersStub).vm.$emit("update:modelValue", { ...emptyTaskFilters(), customerIds });
+      await flushPromises();
+      await vi.advanceTimersByTimeAsync(TASKS_FILTERS_DEBOUNCE_MS - 1);
+    }
+
+    expect(chips(wrapper).map((chip) => chip.id)).toEqual(["day", "customerIds:org-1", "customerIds:org-2"]);
+    expect(taskOptions().filters.value.customerIds).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(taskOptions().filters.value.customerIds).toEqual(["org-1", "org-2"]);
+    expect(markerFilters().value.customerIds).toEqual(["org-1", "org-2"]);
+  });
+
   it("applies the search term from the search button, trimmed", async () => {
     const wrapper = createWrapper();
 
     await wrapper.get(".search-input").setValue("  renewal  ");
     await wrapper.get('[aria-label="sales_rep.tasks.search_aria"]').trigger("click");
+    await settle();
 
     expect(taskOptions().filters.value.keyword).toBe("renewal");
   });
@@ -319,6 +371,7 @@ describe("Tasks page filters", () => {
 
     await wrapper.get(".search-input").setValue("renewal");
     await wrapper.get(".search").trigger("keydown", { key: "Enter" });
+    await settle();
 
     expect(taskOptions().filters.value.keyword).toBe("renewal");
   });
@@ -328,6 +381,7 @@ describe("Tasks page filters", () => {
     const wrapper = createWrapper();
 
     await wrapper.get(".search-input").setValue("renewal");
+    await settle();
 
     expect(taskOptions().filters.value.keyword).toBe("");
   });
@@ -336,9 +390,10 @@ describe("Tasks page filters", () => {
     const wrapper = createWrapper();
     await wrapper.get(".search-input").setValue("renewal");
     await wrapper.get(".search").trigger("keydown", { key: "Enter" });
+    await settle();
 
     wrapper.getComponent(SearchStub).vm.$emit("clear");
-    await flushPromises();
+    await settle();
 
     expect(taskOptions().filters.value.keyword).toBe("");
     expect((wrapper.get(".search-input").element as HTMLInputElement).value).toBe("");
@@ -346,7 +401,7 @@ describe("Tasks page filters", () => {
 });
 
 describe("Tasks page deep link", () => {
-  // The dashboard's overdue notice links to ?filter=overdue. Overdue work is never due today, so it opens on every date.
+  // The dashboard's overdue notice links to ?filter=overdue. Overdue work is never due today: it opens on every date.
   it("opens on the linked status and every date", () => {
     state.filterParam.value = "overdue";
     state.rules.value = [{ name: "overdue", label: "Overdue" }];
@@ -471,7 +526,7 @@ describe("Tasks page chips", () => {
         "remove",
         chips(wrapper).find((chip) => chip.id === id),
       );
-      await flushPromises();
+      await settle();
     }
 
     expect(taskOptions().filters.value).toEqual({
@@ -507,7 +562,7 @@ describe("Tasks page chips", () => {
     });
 
     wrapper.getComponent(ChipsStub).vm.$emit("reset");
-    await flushPromises();
+    await settle();
 
     expect(taskOptions().filters.value).toEqual({ ...emptyTaskFilters(), keyword: "renewal" });
     expect(taskOptions().period.value).toBeUndefined();
@@ -574,12 +629,32 @@ describe("Tasks page states", () => {
     expect(wrapper.get(".empty").find("button").exists()).toBe(false);
   });
 
+  // The empty text describes the list on screen: a change still on its way to the query does not alter it yet.
+  it("keeps the empty text of the list on screen until a change reaches it", async () => {
+    const wrapper = createWrapper();
+    await setFilters(wrapper, { priorities: ["High"] });
+
+    wrapper.getComponent(ChipsStub).vm.$emit(
+      "remove",
+      chips(wrapper).find((chip) => chip.id === "priorities:High"),
+    );
+    await flushPromises();
+
+    expect(wrapper.get(".empty").attributes("data-text")).toBe("sales_rep.tasks.no_results");
+
+    await settle();
+
+    expect(wrapper.get(".empty").attributes("data-text")).toBe("sales_rep.tasks.empty_day");
+  });
+
   it("offers Reset search when a search term matches nothing", async () => {
     const wrapper = createWrapper();
     await wrapper.get(".search-input").setValue("renewal");
     await wrapper.get(".search").trigger("keydown", { key: "Enter" });
+    await settle();
 
     await button(wrapper, "sales_rep.tasks.reset_search").trigger("click");
+    await settle();
 
     expect(taskOptions().filters.value.keyword).toBe("");
   });

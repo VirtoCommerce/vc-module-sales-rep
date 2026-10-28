@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { startOfLocalDayIso } from "../tasks";
-import { useSalesRepOverdueTaskCount } from "./useSalesRepTaskCounts";
+import { useSalesRepOverdueTaskCount } from "./useSalesRepOverdueTaskCount";
 
 type CountsResultType = Record<string, { totalCount?: number } | undefined>;
 

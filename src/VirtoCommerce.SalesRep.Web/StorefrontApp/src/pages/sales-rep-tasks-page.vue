@@ -42,7 +42,12 @@
         </template>
       </VcInput>
 
-      <SalesRepTaskFilters v-model="filters" :statuses="statusRules" />
+      <SalesRepTaskFilters
+        v-model="filters"
+        :statuses="statusRules"
+        :customers="customerOptions"
+        :customers-failed="customersFailed"
+      />
     </div>
 
     <!-- The day is one of the filters: a chip of its own, set from the calendar. -->
@@ -70,7 +75,7 @@
               :variant="hasFilters ? 'search' : 'empty'"
               icon="calendar"
             >
-              <template v-if="filters.keyword" #button>
+              <template v-if="queryFilters.keyword" #button>
                 <VcButton prepend-icon="reset" @click="resetKeyword">
                   {{ t("sales_rep.tasks.reset_search") }}
                 </VcButton>
@@ -103,12 +108,11 @@
 
             <!-- Picks the day, or unpicks it for every date: its Clear, or a second click on the picked day. -->
             <SalesRepTaskCalendar
+              v-model="day"
               size="sm"
-              :model-value="day"
               :month="month"
               :day-markers="dayMarkers"
               clearable
-              @update:model-value="selectDay"
               @update:month="setMonth"
             />
 
@@ -126,9 +130,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, useId, watch } from "vue";
+import { computed, ref, useId } from "vue";
 import { useI18n } from "vue-i18n";
 import { useBreadcrumbs, useModal, useRouteQueryParam } from "@vc-frontend/core";
+import { refDebounced } from "@vueuse/core";
 import SalesRepFilterChips from "../components/sales-rep-filter-chips.vue";
 import SalesRepRuleAlert from "../components/sales-rep-rule-alert.vue";
 import SalesRepTaskCalendar from "../components/sales-rep-task-calendar.vue";
@@ -136,11 +141,12 @@ import SalesRepTaskFilters from "../components/sales-rep-task-filters.vue";
 import SalesRepTaskList from "../components/sales-rep-task-list.vue";
 import SalesRepTaskModal from "../components/sales-rep-task-modal.vue";
 import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
+import { useSalesRepRuleSelection } from "../composables/useSalesRepRuleSelection";
 import { useSalesRepRules } from "../composables/useSalesRepRules";
 import { useMonthAnchor, useSalesRepTaskCalendar } from "../composables/useSalesRepTaskCalendar";
 import { useSalesRepTaskMutations } from "../composables/useSalesRepTaskMutations";
 import { useSalesRepTasks } from "../composables/useSalesRepTasks";
-import { TASKS_SORT_RULE } from "../constants";
+import { TASKS_FILTERS_DEBOUNCE_MS, TASKS_SORT_RULE } from "../constants";
 import {
   emptyTaskFilters,
   localDayKey,
@@ -150,7 +156,6 @@ import {
   taskPriorityLabelKey,
   toMonthKey,
 } from "../tasks";
-import { selectableFilterRules } from "../utils";
 import type { SalesRepFilterChipType } from "../types";
 import type { SalesRepTaskFiltersType, SalesRepTaskType } from "../types/tasks";
 
@@ -192,6 +197,30 @@ const filters = ref<SalesRepTaskFiltersType>({ ...emptyTaskFilters(), status: li
 // Unapplied search term; committed to the filters on Enter or the search button.
 const localKeyword = ref("");
 
+const {
+  rules: filterRules,
+  failed: filterRulesFailed,
+  loading: filterRulesLoading,
+} = useSalesRepRules("task", "filter");
+
+const selectedStatus = computed({
+  get: () => filters.value.status,
+  set: (status) => {
+    filters.value = { ...filters.value, status };
+  },
+});
+
+// A status the project does not offer (the dashboard links to "overdue" by name) falls back to every status, rather
+// than filtering the list by something no select or chip shows.
+const { selectableRules: statusRules } = useSalesRepRuleSelection(selectedStatus, filterRules, filterRulesLoading);
+
+/**
+ * The filters as the list and the dots ask them, a beat late: a multi-select stays open for the next pick, and every
+ * pick would otherwise refetch both. The selects and chips follow each pick at once. Taken after the fallback above,
+ * so a linked status that rules already at hand do not offer is never asked for.
+ */
+const queryFilters = refDebounced(filters, TASKS_FILTERS_DEBOUNCE_MS);
+
 // Drives the dots query. The calendar owns which month is on screen and reports it back.
 const { month, setMonth } = useMonthAnchor();
 
@@ -207,40 +236,20 @@ const {
   refetch,
 } = useSalesRepTasks({
   period,
-  filters,
+  filters: queryFilters,
   sort: TASKS_SORT_RULE,
 });
 
 // The dots follow the filters, but not the day: they are what a rep picks the day by.
-const { dayMarkers, refetch: refetchMarkers } = useSalesRepTaskCalendar(month, filters);
+const { dayMarkers, refetch: refetchMarkers } = useSalesRepTaskCalendar(month, queryFilters);
 const { setCompleted, loading: saving } = useSalesRepTaskMutations();
-const { findOption } = useSalesRepCustomerOptions();
-
-const {
-  rules: filterRules,
-  failed: filterRulesFailed,
-  loading: filterRulesLoading,
-} = useSalesRepRules("task", "filter");
-
-const statusRules = computed(() => selectableFilterRules(filterRules.value));
-
-// A status the project does not offer (the dashboard links to "overdue" by name) falls back to every status, rather
-// than filtering the list by something no select or chip shows.
-watch(
-  () => [filterRulesLoading.value, filterRules.value] as const,
-  ([isLoading, rules]) => {
-    const { status } = filters.value;
-    if (!isLoading && status && !rules.some((rule) => rule.name === status)) {
-      filters.value = { ...filters.value, status: undefined };
-    }
-  },
-  { immediate: true },
-);
+const { options: customerOptions, failed: customersFailed, findOption } = useSalesRepCustomerOptions();
 
 const failed = computed(() => Boolean(error.value));
 
+// Read off what the list was asked, so its empty text never describes a refetch still on its way.
 const hasFilters = computed(() => {
-  const { keyword, status, customerIds, priorities } = filters.value;
+  const { keyword, status, customerIds, priorities } = queryFilters.value;
   return Boolean(keyword || status || customerIds.length || priorities.length);
 });
 
@@ -253,20 +262,9 @@ const emptyText = computed(() => {
 });
 
 type TaskFilterChipType = SalesRepFilterChipType & {
-  field: "day" | "status" | keyof Pick<SalesRepTaskFiltersType, "customerIds" | "priorities">;
+  field: "day" | "status" | "customerIds" | "priorities";
   value?: string;
 };
-
-// "short" (Sep 1, 2026), not "long" — the long named format appends a time, and the chip names a DAY.
-const dayLabel = computed(() => {
-  if (!day.value) {
-    return "";
-  }
-
-  return day.value === todayKey
-    ? t("sales_rep.tasks.filters.due_today")
-    : t("sales_rep.tasks.due_relative.due", { date: d(localDayKeyToDate(day.value), "short") });
-});
 
 // In the mockup's order: the day, the customers, then the status and the priorities.
 const filterChips = computed<TaskFilterChipType[]>(() => {
@@ -274,7 +272,13 @@ const filterChips = computed<TaskFilterChipType[]>(() => {
   const chips: TaskFilterChipType[] = [];
 
   if (day.value) {
-    chips.push({ id: "day", field: "day", label: dayLabel.value });
+    // "short" (Sep 1, 2026), not "long" — the long named format appends a time, and the chip names a DAY.
+    const label =
+      day.value === todayKey
+        ? t("sales_rep.tasks.filters.due_today")
+        : t("sales_rep.tasks.due_relative.due", { date: d(localDayKeyToDate(day.value), "short") });
+
+    chips.push({ id: "day", field: "day", label });
   }
 
   for (const customerId of customerIds) {
@@ -337,10 +341,6 @@ function applyKeyword(): void {
 function resetKeyword(): void {
   localKeyword.value = "";
   filters.value = { ...filters.value, keyword: "" };
-}
-
-function selectDay(value: string | undefined): void {
-  day.value = value;
 }
 
 function changePage(value: number): void {

@@ -45,7 +45,7 @@ export function useSalesRepTasks(options: UseSalesRepTasksOptionsType = {}) {
 
   const pageSize = computed(() => toValue(options.pageSize) ?? TASKS_PAGE_SIZE);
 
-  // Resolved once per composable, not per render: a boundary that moved mid-session would reshuffle the tabs
+  // Resolved once per composable, not per render: a boundary that moved mid-session would move tasks between statuses
   // under the user, and it also has to stay stable for the backend's criteria cache to engage.
   const dayStart = startOfLocalDay();
   const today = startOfLocalDayIso();

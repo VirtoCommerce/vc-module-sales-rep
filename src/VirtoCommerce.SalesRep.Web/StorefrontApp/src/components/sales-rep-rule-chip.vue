@@ -66,7 +66,7 @@ const props = defineProps<{
   // Shown on hover and focus of the whole chip: the tooltip's trigger wrapper opens on focusin, which bubbles up from
   // the chip's button, so the keyboard reaches the hint with nothing focusable nested in the button (axe:
   // nested-interactive). The template root carries no comment: a comment there makes the root a fragment in dev, and
-  // callers read the chip's $el (sales-rep-task-scope-chips.vue focuses its button).
+  // a caller reading the chip's $el would get the fragment's anchor instead.
   hint?: string;
 }>();
 
