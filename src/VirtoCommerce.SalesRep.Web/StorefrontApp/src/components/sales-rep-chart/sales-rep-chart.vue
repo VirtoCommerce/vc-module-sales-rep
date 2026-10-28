@@ -181,7 +181,7 @@
 <script setup lang="ts">
 import { useResizeObserver } from "@vueuse/core";
 import { computed, ref, useTemplateRef } from "vue";
-import { linearLinePath, niceTicks, smoothLinePath } from "./chart-geometry";
+import { linearLinePath, niceTicks, smoothLinePath, splitAtGaps } from "./chart-geometry";
 import type { ChartBarLayoutType, ChartCategoryType, ChartSeriesType, ChartTooltipValueType } from "./types";
 import type { ComponentPublicInstance } from "vue";
 
@@ -322,11 +322,14 @@ const dataColumns = computed(() => columns.value.filter((column) => !column.cate
 
 const lines = computed(() =>
   lineSeries.value.map((series) => {
-    const points = props.categories.flatMap((_, index) => {
-      const value = valueAt(series, index);
-      return value === null ? [] : [{ x: centerOf(index), y: toY(value) }];
-    });
-    return { series, points, path: series.curve === "monotone" ? smoothLinePath(points) : linearLinePath(points) };
+    const linePath = series.curve === "monotone" ? smoothLinePath : linearLinePath;
+    const runs = splitAtGaps(
+      props.categories.map((_, index) => {
+        const value = valueAt(series, index);
+        return value === null ? null : { x: centerOf(index), y: toY(value) };
+      }),
+    );
+    return { series, points: runs.flat(), path: runs.map(linePath).join(" ") };
   }),
 );
 

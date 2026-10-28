@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linearLinePath, niceTicks, smoothLinePath } from "./chart-geometry";
+import { linearLinePath, niceTicks, smoothLinePath, splitAtGaps } from "./chart-geometry";
 
 describe("niceTicks", () => {
   it("rounds the axis up to a readable step", () => {
@@ -54,5 +54,16 @@ describe("smoothLinePath", () => {
   it("handles one point and no points", () => {
     expect(smoothLinePath([])).toBe("");
     expect(smoothLinePath([{ x: 5, y: 7 }])).toBe("M5,7");
+  });
+});
+
+describe("splitAtGaps", () => {
+  it("cuts the series at every gap and drops the gaps", () => {
+    expect(splitAtGaps([1, 2, null, 3, null, null, 4])).toEqual([[1, 2], [3], [4]]);
+  });
+
+  it("ignores gaps at either end", () => {
+    expect(splitAtGaps([null, 1, 2, null])).toEqual([[1, 2]]);
+    expect(splitAtGaps([null, null])).toEqual([]);
   });
 });

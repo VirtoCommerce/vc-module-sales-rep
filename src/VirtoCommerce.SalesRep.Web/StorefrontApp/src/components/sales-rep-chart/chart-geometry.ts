@@ -1,5 +1,23 @@
 export type ChartPointType = { x: number; y: number };
 
+/** Splits a series at its gaps (`null`), so each run of consecutive points is drawn as its own stretch of line. */
+export function splitAtGaps<T>(items: (T | null)[]): T[][] {
+  const runs: T[][] = [];
+  let run: T[] = [];
+  for (const item of items) {
+    if (item !== null) {
+      run.push(item);
+    } else if (run.length) {
+      runs.push(run);
+      run = [];
+    }
+  }
+  if (run.length) {
+    runs.push(run);
+  }
+  return runs;
+}
+
 const NICE_STEPS = [1, 2, 2.5, 5, 10];
 
 /** Axis ticks from 0 to a round maximum that covers `max`, `count` intervals. */

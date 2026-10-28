@@ -111,6 +111,14 @@ describe("SalesRepChart", () => {
     expect(chart.findAll(".sales-rep-chart__dot")).toHaveLength(2);
   });
 
+  it("breaks a line at a gap instead of bridging it", () => {
+    const categories = CATEGORIES.map((category) => ({ ...category, placeholder: false }));
+    const chart = mountChart({ categories, series: [{ ...LINE, data: [50, null, 90] }] });
+
+    expect(chart.find(".sales-rep-chart__line").attributes("d")?.match(/M/g)).toHaveLength(2);
+    expect(chart.findAll(".sales-rep-chart__dot")).toHaveLength(2);
+  });
+
   it("puts annotations above the columns with data, and leaves them out on narrow columns", () => {
     const wide = mountChart({}, { annotation: "<span class='note'>↑</span>" });
     expect(wide.findAll(".note")).toHaveLength(2);
