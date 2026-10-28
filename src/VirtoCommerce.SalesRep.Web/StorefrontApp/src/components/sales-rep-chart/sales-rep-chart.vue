@@ -402,7 +402,8 @@ function onHitKeydown(event: KeyboardEvent, index: number): void {
   @apply flex flex-col gap-3;
 
   &__plot {
-    @apply relative w-full;
+    // Keeps the loader overlay's z-index inside the plot, under any popup that opens over the chart.
+    @apply relative isolate w-full;
   }
 
   &__svg {
