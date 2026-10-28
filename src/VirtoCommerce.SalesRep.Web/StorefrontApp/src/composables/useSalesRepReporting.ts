@@ -23,6 +23,14 @@ import type { MaybeRefOrGetter } from "vue";
 type StatisticsType = NonNullable<SalesRepMonthlyOrderStatisticsQuery["salesRepCustomerOrderStatistics"]>;
 type SlotKeyType = Exclude<keyof StatisticsType, "currencyCode">;
 
+/** What one selection asks for: its period, the months it covers and the month before them. */
+type ReportingPlanType = {
+  period: ReportingPeriodType;
+  months: ReportingMonthSlotType[];
+  /** The first month's "vs previous month" baseline. */
+  previous: { from: string; to: string };
+};
+
 type UseSalesRepReportingOptionsType = {
   period: MaybeRefOrGetter<ReportingPeriodType>;
   /** One customer; empty for all the rep's customers. */
@@ -40,11 +48,10 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
   const organizationId = computed(() => toValue(options.organizationId) || undefined);
   const isMock = isReportingMockEnabled();
 
-  // The months the selection covers, and the month before them (the first month's "vs previous month").
-  const plan = computed(() => {
+  const plan = computed<ReportingPlanType>(() => {
     const period = toValue(options.period);
     const now = new Date(today.value);
-    return { months: buildReportingMonths(period, now), previous: previousMonthWindow(period, now) };
+    return { period, months: buildReportingMonths(period, now), previous: previousMonthWindow(period, now) };
   });
 
   const variables = computed(() => {
@@ -80,14 +87,14 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
   });
 
   // `result` keeps the previous response until the next one lands, and its month aliases are positional (m0…m11),
-  // so each response is kept together with the months it was fetched for, never read against the ones just picked.
-  const settled = shallowRef<{ months: ReportingMonthSlotType[]; statistics?: StatisticsType }>({ months: [] });
+  // so each response is kept together with the plan it was fetched for, never read against the one just picked.
+  const settled = shallowRef<{ plan: ReportingPlanType; statistics?: StatisticsType }>({ plan: plan.value });
 
   watch(
     query.result,
     (value) => {
       settled.value = {
-        months: plan.value.months,
+        plan: plan.value,
         statistics: value?.salesRepCustomerOrderStatistics ?? undefined,
       };
     },
@@ -102,9 +109,9 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
         mock.before,
       );
     }
-    const { months: slots, statistics } = settled.value;
+    const { plan: fetched, statistics } = settled.value;
     return withMonthChanges(
-      slots.map((month, i) =>
+      fetched.months.map((month, i) =>
         toReportingMonth(month, { totals: totals(statistics, `m${i}`), lastYear: totals(statistics, `ly${i}`) }),
       ),
       totals(statistics, "prev"),
@@ -112,6 +119,8 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
   });
 
   return {
+    /** The period of the figures on screen: until a newly picked period loads, still the previous one. */
+    reportPeriod: computed(() => (isMock ? plan.value.period : settled.value.plan.period)),
     months,
     summary: computed(() => summarizeReporting(months.value)),
     currencyCode: computed(() => settled.value.statistics?.currencyCode ?? globals.currencyCode),
