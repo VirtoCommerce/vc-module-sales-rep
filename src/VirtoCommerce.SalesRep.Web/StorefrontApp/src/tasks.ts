@@ -1,25 +1,64 @@
 import { toEndDateFilterValue, toStartDateFilterValue } from "@vc-frontend/core";
 import { CALL_TASK_TYPE } from "./constants";
 import { eod, iso, local } from "./utils";
-import type { SalesRepTaskStatusType, SalesRepTaskType, SalesRepTaskDayMarkersType } from "./types/tasks";
+import type {
+  SalesRepTaskDayMarkersType,
+  SalesRepTaskFiltersType,
+  SalesRepTaskStatusType,
+  SalesRepTaskType,
+} from "./types/tasks";
 import type { ComposerTranslation, DateTimeOptions } from "vue-i18n";
 
 /**
  * Task day maths, on the USER'S calendar rather than UTC — the same rule buildStatisticsWindows follows in
  * utils.ts, and for the same reason: the pills sit next to dates rendered through `$d()`, i.e. in the browser's
- * zone. A task due 23:00 UTC is "tomorrow" for a UTC+3 rep, so a UTC boundary would put it in a different tab
+ * zone. A task due 23:00 UTC is "tomorrow" for a UTC+3 rep, so a UTC boundary would give it a different status
  * than the date beside it reads.
  *
- * The boundary is sent to the backend as `today` and used here to derive the pill, so the tab a task lands in and
- * the pill it renders always agree. Send one boundary to both, or they can disagree at midnight.
+ * The boundary is sent to the backend as `today` and used here to derive the pill, so the status filter a task
+ * matches and the pill it renders always agree. Send one boundary to both, or they can disagree at midnight.
  */
 
 /**
  * The conditions a day can be marked with, in render order — one source for the calendar dots, the legend beside
  * them and the buckets `buildDayMarkers` produces, so the three cannot drift into different orders. `canceled` is
- * deliberately absent: it is not one of the tabs, and a fourth colour would say something the legend does not explain.
+ * deliberately absent: it has no status filter, and a fourth colour would say something the legend does not explain.
  */
 export const TASK_MARKER_KINDS: readonly SalesRepTaskStatusType[] = ["upcoming", "overdue", "completed"];
+
+/**
+ * Task-management's TaskPriority names, lowest first: what the API stores and takes, and the order every list shows.
+ */
+export const TASK_PRIORITIES = ["Lowest", "Low", "Normal", "High", "Highest"] as const;
+
+/** The locale key naming a priority. */
+export function taskPriorityLabelKey(priority: string): string {
+  return `sales_rep.tasks.priority.${priority.toLowerCase()}`;
+}
+
+/** The priorities as select items, lowest first. */
+export function taskPriorityItems(t: ComposerTranslation) {
+  return TASK_PRIORITIES.map((value) => ({ value, label: t(taskPriorityLabelKey(value)) }));
+}
+
+/** No filter at all: every status, customer and priority, matched by no search term. */
+export function emptyTaskFilters(): SalesRepTaskFiltersType {
+  return { keyword: "", status: undefined, customerIds: [], priorities: [] };
+}
+
+/**
+ * The filters as salesRepTasks arguments. An empty one is left out rather than sent empty, so a surface with no
+ * filters asks exactly what it always did, and keeps sharing its Apollo cache entry with every other surface that
+ * asks the same.
+ */
+export function taskFilterVariables(filters?: SalesRepTaskFiltersType) {
+  return {
+    keyword: filters?.keyword || undefined,
+    filter: filters?.status || undefined,
+    customerIds: filters?.customerIds.length ? filters.customerIds : undefined,
+    priorities: filters?.priorities.length ? filters.priorities : undefined,
+  };
+}
 
 /** Midnight at the start of the user's current day. */
 export function startOfLocalDay(now: Date = new Date()): Date {
@@ -192,7 +231,7 @@ type TaskStateType = {
  * everything else still open. A task due at exactly 00:00 today is upcoming, not overdue.
  *
  * A task with no due date reads as upcoming. Only the admin app can create one — the storefront's inputs make the
- * due date non-null — and the backend leaves it out of both dated tabs, so it appears under "All" alone.
+ * due date non-null — and the backend leaves it out of both dated statuses, so it shows only with no status picked.
  */
 export function taskStatus(task: TaskStateType, dayStart: Date): SalesRepTaskStatusType {
   if (!task.isActive) {
@@ -249,17 +288,22 @@ export function buildDayMarkers(
  * time select writes them. They do not come from the host's named format: the host defines `short` for en and de
  * only, so in every other locale vue-i18n formats it in English, and the line would read 2:30 PM beside the popup's
  * 14:30. The date keeps that format, like every other task's. A call also always names its customer, or says it has
- * none to name: none was picked, or the rep no longer serves it and the API leaves it out.
+ * none to name: none was picked, or the rep no longer serves it and the API leaves it out. A surface that gives the
+ * customer a column of its own leaves it out of the line (`withCustomer: false`).
  */
 export function taskSubline(
   task: SalesRepTaskType,
   t: ComposerTranslation,
   d: (value: number | Date | string, options: DateTimeOptions) => string,
   locale: string,
+  { withCustomer = true }: { withCustomer?: boolean } = {},
 ): string {
   const key = task.status === "overdue" ? "expired" : "due";
   const isCall = isCallTask(task.type);
-  const customer = task.customerName ?? (isCall ? t("sales_rep.tasks.customer_not_assigned") : undefined);
+  let customer: string | undefined;
+  if (withCustomer) {
+    customer = task.customerName ?? (isCall ? t("sales_rep.tasks.customer_not_assigned") : undefined);
+  }
 
   let date = "";
   if (task.dueDate) {

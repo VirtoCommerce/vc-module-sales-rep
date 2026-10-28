@@ -17,7 +17,7 @@ const state = await vi.hoisted(async () => {
 });
 
 vi.mock("../composables/useSalesRepTasks", () => ({ useSalesRepTasks: state.useSalesRepTasks }));
-vi.mock("../composables/useSalesRepTaskCounts", () => ({
+vi.mock("../composables/useSalesRepOverdueTaskCount", () => ({
   useSalesRepOverdueTaskCount: () => ({ overdueCount: state.overdueCount }),
 }));
 vi.mock("../composables/useSalesRepTaskCalendar", async () => {

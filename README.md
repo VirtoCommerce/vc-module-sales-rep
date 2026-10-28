@@ -604,10 +604,15 @@ not to a customer — and no dedicated permission beyond being a sales rep.
   # `period` is a due-date window (a calendar month, or one day); it INTERSECTS with `filter` rather than
   # replacing it, so "this month" + "overdue" composes.
   # `storeId` narrows to the tasks stamped with that store (the creating rep's account store); omit for all.
+  # `keyword` matches the name or the notes (`description`), case-sensitive on PostgreSQL (the collation decides).
+  # `customerIds` and `priorities` intersect as well, each matching ANY of its values: the customers the tasks are
+  # linked to (only customers the caller serves count, so none served returns nothing), and priority names in any case
+  # (an unrecognized name returns nothing rather than the unfiltered list).
   salesRepTasks(
     first: 20, after: "0", keyword: "contract", sort: "due-date",
     filter: "overdue", today: "2026-05-28T05:00:00Z", storeId: "B2B-store",
-    period: { from: "2026-05-01T05:00:00Z", to: "2026-06-01T04:59:59Z" }
+    period: { from: "2026-05-01T05:00:00Z", to: "2026-06-01T04:59:59Z" },
+    customerIds: ["7b8c..."], priorities: ["High", "Highest"]
   ) {
     totalCount
     pageInfo { hasNextPage endCursor }
@@ -653,12 +658,11 @@ the count and show the list. A dedicated "no due date" tab is **not implementabl
 bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
 flag in `VirtoCommerce.TaskManagement` first.
 
-⚠️ **"Stays in the unfiltered list" is true of this API, not of any storefront screen.** `salesRepTasks` with
-neither `filter` nor `period` does return a dateless task — but the calendar sends a `period` for the selected day
-whenever no tab is active, and that window uses the same `>=` / `<=` bounds that drop NULLs. So every reachable
-view is either day-scoped or tab-scoped, and a rep never sees one. Deliberate: the storefront cannot create these,
-and they are managed where they come from — the admin Tasks screen. Worth stating because the sentence above
-describes the API's contract, and a reader can easily take it as a promise about the UI.
+⚠️ **On the storefront, only the Tasks page with no day and no status picked lists them.** `salesRepTasks` with
+neither `filter` nor `period` returns a dateless task, and that is what the page asks for once the rep clears the
+day. A picked day sends a `period`, whose `>=` / `<=` bounds drop NULLs, and a status sends a `filter`; the calendar
+marks no day for a dateless task, and the dashboard widget lists one day. The storefront cannot create these, and they
+are managed where they come from — the admin Tasks screen.
 
 🛠 **Extenders:** `SalesRepTaskHandlerBase.GetVisibleResponsibleIdsAsync` is the seam for widening whose tasks a
 caller may see and change — today always their own. Override it (e.g. a team lead seeing their reps') and every
@@ -765,7 +769,7 @@ editable.
 (`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
 read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
 
-**Calls and the customer link.** `customerId` links a task to one of the caller's customers. It is checked against
+**The customer link.** `customerId` links a task to one of the caller's customers. It is checked against
 the organizations they serve — one they do not serve fails with `Customer not found.`, exactly like an unknown id —
 and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the organization
 id), so there is no new column. `customerId` and `customerName` read back only while the caller still serves that
@@ -774,9 +778,9 @@ task reads keeps it, while another customer replaces it. A task linked to someth
 or an `ObjectId` without one; e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit
 leaves the link alone, and setting a customer on it is refused.
 
-A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the call
-editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
-page's other unavailable quick actions. The popup's customer picker offers the rep's first 100 customers by name, the
+A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show a time of
+day as well. Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
+page's other unavailable quick actions. The popup's customer picker offers the rep's first 1000 customers by name, the
 list-sharing picker's list, filtered in the browser: a rep who serves more cannot pick the rest there until the picker
 searches on the server (VCST-5923). "Schedule call" on a customer's page fills in that customer whatever the count,
 and an edit keeps the customer already linked. So that admins can pick and filter it, the module keeps `Call` in the

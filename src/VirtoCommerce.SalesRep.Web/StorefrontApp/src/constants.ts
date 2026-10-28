@@ -133,6 +133,9 @@ export const TASKS_NAV_LINK_ID = "sales-rep-tasks";
 export const TASKS_BLOCK_ID = "tasks";
 // Page size for the Tasks page's task table (offset-as-cursor, like useSalesRepDocuments).
 export const TASKS_PAGE_SIZE = 15;
+// How long the Tasks page's list and dots wait for its filters to settle: a multi-select stays open for the next pick,
+// so picks come in bursts, and each would otherwise refetch both.
+export const TASKS_FILTERS_DEBOUNCE_MS = 300;
 // Dashboard widget row cap — follows documents: default 5, max 10.
 export const TASKS_DEFAULT_ROWS = 5;
 export const TASKS_MAX_ROWS = 10;
@@ -140,9 +143,8 @@ export const TASKS_MAX_ROWS = 10;
 // fails closed — keep it aligned with a real rule); no surface offers a sort control, so the rule list itself is
 // not fetched.
 export const TASKS_SORT_RULE = "due-date";
-// The filter rule the dashboard's overdue notice deep-links to. Same string the counts query aliases in
-// salesRepTaskCountsQuery.graphql; a name the project does not offer falls back to the day view, because
-// the chips drop a selection no rule matches.
+// The filter rule the dashboard's overdue notice links to and counts with (salesRepOverdueTaskCountQuery.graphql).
+// A name the project does not offer falls back to every status, because the Tasks page drops a status no rule matches.
 export const TASKS_OVERDUE_RULE = "overdue";
 // Upper bound on the month query behind the calendar dots. A rep's month is tens of tasks; the cap only
 // stops a pathological book of business from pulling an unbounded page for three dots a day.

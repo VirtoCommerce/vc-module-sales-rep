@@ -161,8 +161,7 @@
         "last_day": "Viimeinen päivä",
         "last_week": "Viime viikko",
         "last_month": "Viime kuukausi",
-        "last_year": "Viime vuosi",
-        "remove_filter": "Poista suodatin ”{label}”"
+        "last_year": "Viime vuosi"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "Kaikki tehtävät",
       "new_task": "Uusi tehtävä",
       "due_dates": "Eräpäivät",
-      "today": "Tänään",
-      "all": "Kaikki",
-      "clear_day_aria": "Poista {date}",
-      "empty": "Tällä välilehdellä ei ole tehtäviä",
+      "empty": "Ei vielä tehtäviä",
       "empty_day": "Tänä päivänä ei eräänny mitään",
+      "no_results": "Mikään tehtävä ei vastaa suodattimia",
+      "search_placeholder": "Hae tehtäviä",
+      "search_aria": "Hae tehtäviä",
+      "reset_search": "Tyhjennä haku",
       "load_failed": "Tehtäviä ei voitu ladata",
       "day_task_count": "{count} tehtävä | {count} tehtävää",
       "overdue_total": "{count} myöhässä oleva tehtävä | {count} myöhässä olevaa tehtävää",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "Tehtävä",
+        "priority": "Prioriteetti",
+        "customer": "Asiakas",
         "status": "Tila",
         "notes": "Muistiinpanot",
         "actions": "Toiminnot",
@@ -238,6 +240,15 @@
         "reopen": "Avaa uudelleen",
         "action_aria": "{action}: ”{name}”",
         "edit_aria": "Muokkaa tehtävää ”{name}”"
+      },
+      "filters": {
+        "all_customers": "Kaikki asiakkaat",
+        "customers_label": "Asiakkaat",
+        "all_statuses": "Kaikki tilat",
+        "status_label": "Tila",
+        "all_priorities": "Kaikki prioriteetit",
+        "priorities_label": "Prioriteetit",
+        "due_today": "Eräpäivä tänään"
       },
       "status": {
         "upcoming": "Tulossa",
@@ -271,7 +282,7 @@
         "due_date_label": "Eräpäivä",
         "time_label": "Kellonaika",
         "customer_label": "Asiakas",
-        "customer_placeholder": "Etsi asiakkaita nimellä",
+        "customer_placeholder": "Ei asiakasta",
         "customer_error": "Asiakaslistaa ei voitu ladata. Yritä uudelleen.",
         "call_name": "Puhelu",
         "priority_label": "Prioriteetti",
@@ -439,6 +450,9 @@
           "All": "Kaikki"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Poista suodatin ”{label}”"
     },
     "list_sharing": {
       "share_customers_label": "Asiakkaat",

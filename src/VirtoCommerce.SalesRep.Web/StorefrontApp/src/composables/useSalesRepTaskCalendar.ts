@@ -7,19 +7,22 @@ import {
   localCalendarWindow,
   startOfLocalDay,
   startOfLocalDayIso,
+  taskFilterVariables,
   taskStatus,
   toMonthKey,
 } from "../tasks";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
-import type { SalesRepTaskDayMarkersType } from "../types/tasks";
+import type { SalesRepTaskDayMarkersType, SalesRepTaskFiltersType } from "../types/tasks";
 import type { Ref } from "vue";
 
 /**
  * The dots on the month grid. Fetches the visible month's tasks with a light selection and buckets them by day
  * CLIENT-SIDE, because a day is a day on the viewer's calendar — bucketing server-side would mean shipping 28-31
  * boundaries or inventing a timezone contract. A month is tens of tasks, so one bounded page covers it.
+ *
+ * `filters` are the list's own, so the dots mark the days where the filtered tasks are.
  */
-export function useSalesRepTaskCalendar(monthAnchor: Ref<string>) {
+export function useSalesRepTaskCalendar(monthAnchor: Ref<string>, filters?: Ref<SalesRepTaskFiltersType>) {
   const dayStart = startOfLocalDay();
   const today = startOfLocalDayIso();
 
@@ -31,6 +34,7 @@ export function useSalesRepTaskCalendar(monthAnchor: Ref<string>) {
     today,
     period: period.value,
     sort: "due-date",
+    ...taskFilterVariables(filters?.value),
   }));
 
   const { result, loading, error, onError, refetch } = useSalesRepHubQuery(SalesRepTaskMarkersDocument, variables, {

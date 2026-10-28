@@ -5,7 +5,9 @@
     variant="ghost"
     color="neutral"
     icon-size="1rem"
-    class="sales-rep-task-action"
+    :icon="iconOnly"
+    :class="['sales-rep-task-action', { 'sales-rep-task-action--icon': iconOnly }]"
+    :title="iconOnly ? label : undefined"
     :disabled="disabled"
     :aria-label="t('sales_rep.tasks.table.action_aria', { action: label, name: task.name })"
     @click="$emit('toggle')"
@@ -16,7 +18,7 @@
       <VcIcon class="sales-rep-task-action__icon" :name="action.icon" :color="disabled ? undefined : action.color" />
     </template>
 
-    {{ label }}
+    <template v-if="!iconOnly" #default>{{ label }}</template>
   </VcButton>
 </template>
 
@@ -28,6 +30,8 @@ import type { SalesRepTaskStatusType, SalesRepTaskType } from "../types/tasks";
 interface IProps {
   task: SalesRepTaskType;
   disabled?: boolean;
+  /** The glyph alone, its label in a tooltip: the table's narrow Actions column. */
+  iconOnly?: boolean;
 }
 
 type TaskActionType = { labelKey: string; icon: string; color: VcMainColorType };
@@ -36,7 +40,7 @@ defineEmits<{
   (event: "toggle"): void;
 }>();
 
-const props = withDefaults(defineProps<IProps>(), { disabled: false });
+const props = withDefaults(defineProps<IProps>(), { disabled: false, iconOnly: false });
 
 const { t } = useI18n();
 
@@ -74,6 +78,11 @@ const label = computed(() => (action.value ? t(action.value.labelKey) : ""));
   // VcButton only spaces its own prepend-icon; a slotted one brings its own gap.
   &__icon {
     @apply me-2;
+  }
+
+  // No label to keep a gap from.
+  &--icon &__icon {
+    @apply me-0;
   }
 }
 </style>

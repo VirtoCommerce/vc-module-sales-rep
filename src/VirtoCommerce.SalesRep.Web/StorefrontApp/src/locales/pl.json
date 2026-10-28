@@ -161,8 +161,7 @@
         "last_day": "Ostatni dzień",
         "last_week": "Ostatni tydzień",
         "last_month": "Ostatni miesiąc",
-        "last_year": "Ostatni rok",
-        "remove_filter": "Usuń filtr „{label}”"
+        "last_year": "Ostatni rok"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "Wszystkie zadania",
       "new_task": "Nowe zadanie",
       "due_dates": "Terminy",
-      "today": "Dziś",
-      "all": "Wszystkie",
-      "clear_day_aria": "Usuń {date}",
-      "empty": "Brak zadań na tej karcie",
+      "empty": "Nie ma jeszcze zadań",
       "empty_day": "Brak terminów w tym dniu",
+      "no_results": "Brak zadań pasujących do filtrów",
+      "search_placeholder": "Szukaj zadań",
+      "search_aria": "Szukaj zadań",
+      "reset_search": "Resetuj wyszukiwanie",
       "load_failed": "Nie udało się wczytać zadań",
       "day_task_count": "{count} zadań | {count} zadanie | {count} zadania | {count} zadań",
       "overdue_total": "{count} zaległych zadań | {count} zaległe zadanie | {count} zaległe zadania | {count} zaległych zadań",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "Zadanie",
+        "priority": "Priorytet",
+        "customer": "Klient",
         "status": "Status",
         "notes": "Notatki",
         "actions": "Akcje",
@@ -238,6 +240,15 @@
         "reopen": "Otwórz ponownie",
         "action_aria": "{action}: „{name}”",
         "edit_aria": "Edytuj „{name}”"
+      },
+      "filters": {
+        "all_customers": "Wszyscy klienci",
+        "customers_label": "Klienci",
+        "all_statuses": "Wszystkie statusy",
+        "status_label": "Status",
+        "all_priorities": "Wszystkie priorytety",
+        "priorities_label": "Priorytety",
+        "due_today": "Termin dzisiaj"
       },
       "status": {
         "upcoming": "Nadchodzące",
@@ -271,7 +282,7 @@
         "due_date_label": "Termin",
         "time_label": "Godzina",
         "customer_label": "Klient",
-        "customer_placeholder": "Szukaj klientów według nazwy",
+        "customer_placeholder": "Brak klienta",
         "customer_error": "Nie udało się wczytać listy klientów. Spróbuj ponownie.",
         "call_name": "Rozmowa",
         "priority_label": "Priorytet",
@@ -439,6 +450,9 @@
           "All": "Wszyscy"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Usuń filtr „{label}”"
     },
     "list_sharing": {
       "share_customers_label": "Klienci",

@@ -22,9 +22,15 @@
           <span class="sales-rep-task-list__name">{{ item.name }}</span>
         </button>
 
-        <span v-if="sublines.get(item.id)" class="sales-rep-task-list__meta">{{ sublines.get(item.id) }}</span>
+        <span v-if="mobileSublines.get(item.id)" class="sales-rep-task-list__meta">
+          {{ mobileSublines.get(item.id) }}
+        </span>
 
-        <SalesRepTaskStatus :status="item.status" />
+        <div class="sales-rep-task-list__mobile-tags">
+          <SalesRepTaskStatus :status="item.status" />
+
+          <SalesRepTaskPriority :priority="item.priority" />
+        </div>
 
         <p v-if="item.description" :title="item.description" class="sales-rep-task-list__notes">
           {{ item.description }}
@@ -52,6 +58,18 @@
       </template>
     </VcTableColumn>
 
+    <VcTableColumn id="priority" :title="t('sales_rep.tasks.table.priority')" class="sales-rep-task-list__priority-col">
+      <template #default="{ item }">
+        <SalesRepTaskPriority :priority="item.priority" />
+      </template>
+    </VcTableColumn>
+
+    <VcTableColumn id="customer" :title="t('sales_rep.tasks.table.customer')">
+      <template #default="{ item }">
+        <span :title="item.customerName" class="sales-rep-task-list__customer">{{ item.customerName ?? "—" }}</span>
+      </template>
+    </VcTableColumn>
+
     <VcTableColumn id="status" :title="t('sales_rep.tasks.table.status')" class="sales-rep-task-list__status-col">
       <template #default="{ item }">
         <SalesRepTaskStatus :status="item.status" />
@@ -66,7 +84,7 @@
 
     <VcTableColumn id="actions" :title="t('sales_rep.tasks.table.actions')" class="sales-rep-task-list__actions-col">
       <template #default="{ item }">
-        <SalesRepTaskAction :task="item" :disabled="busy" @toggle="$emit('toggle', item)" />
+        <SalesRepTaskAction :task="item" :disabled="busy" icon-only @toggle="$emit('toggle', item)" />
       </template>
     </VcTableColumn>
   </VcTable>
@@ -77,6 +95,7 @@ import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { taskSubline } from "../tasks";
 import SalesRepTaskAction from "./sales-rep-task-action.vue";
+import SalesRepTaskPriority from "./sales-rep-task-priority.vue";
 import SalesRepTaskStatus from "./sales-rep-task-status.vue";
 import type { SalesRepTaskType } from "../types/tasks";
 
@@ -99,8 +118,14 @@ const props = withDefaults(defineProps<IProps>(), { loading: false, busy: false,
 
 const { t, d, locale } = useI18n();
 
-// Resolved once per row rather than per template read: each one formats a date through Intl.
-const sublines = computed(() => new Map(props.tasks.map((task) => [task.id, taskSubline(task, t, d, locale.value)])));
+// Resolved once per row rather than per template read: each one formats a date through Intl. The table names the
+// customer in a column of its own; the mobile card has no columns, so its line keeps the customer.
+const sublines = computed(
+  () => new Map(props.tasks.map((task) => [task.id, taskSubline(task, t, d, locale.value, { withCustomer: false })])),
+);
+const mobileSublines = computed(
+  () => new Map(props.tasks.map((task) => [task.id, taskSubline(task, t, d, locale.value)])),
+);
 
 function titleClass(task: SalesRepTaskType) {
   return [
@@ -116,18 +141,23 @@ function titleClass(task: SalesRepTaskType) {
   @apply pb-3;
 
   // Fixed layout, so a long note can no longer size its own column and squeeze the task title beside it.
-  // Only the two content-shaped columns are measured — a chip and an action — and the remainder is split
-  // equally between Task and Notes, which is what fixed layout does with columns that declare no width.
+  // Only the content-shaped columns are measured — a priority, a chip and an icon action — and the remainder is
+  // split equally between Task, Customer and Notes, which is what fixed layout does with columns that declare no
+  // width.
   .vc-table__desktop {
     @apply table-fixed;
   }
 
+  &__priority-col {
+    @apply w-28;
+  }
+
   &__status-col {
-    @apply w-40;
+    @apply w-36;
   }
 
   &__actions-col {
-    @apply w-56;
+    @apply w-24;
   }
 
   &__title-button {
@@ -157,6 +187,11 @@ function titleClass(task: SalesRepTaskType) {
     @apply mt-0.5 block text-xs text-neutral-600;
   }
 
+  // Clamped like the title, and for the same reason: a long name would set the height of its whole row.
+  &__customer {
+    @apply line-clamp-2 text-sm [word-break:break-word];
+  }
+
   &__notes {
     // Clamped like the title: notes are free text up to 1000 characters, and one long note otherwise sets
     // the height of its whole row. The full text stays in the title attribute.
@@ -165,6 +200,10 @@ function titleClass(task: SalesRepTaskType) {
 
   &__mobile-item {
     @apply flex flex-col items-start gap-1.5 border-b px-5 py-4.5;
+  }
+
+  &__mobile-tags {
+    @apply flex flex-wrap items-center gap-3;
   }
 }
 </style>

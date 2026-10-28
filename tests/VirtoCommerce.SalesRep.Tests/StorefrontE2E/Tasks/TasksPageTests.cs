@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.Playwright;
@@ -12,15 +12,15 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Tasks;
 
 /// <summary>
 /// The tasks page around a plain task: an edit that changes only the date, a canceled, a completed and a dateless task
-/// edited, a delete, and the tabs' badges against their lists. Each test checks the page and the row. The edits are
-/// Tom's; a test that adds a task signs in as a rep of its own.
+/// edited, a delete, completion across the statuses, and the filters with their chips. Each test checks the page and
+/// the row. The edits are Tom's; a test that adds a task signs in as a rep of its own.
 /// </summary>
 [Collection(TasksCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
 [Trait("Category", "IntegrationTest")]
 public sealed class TasksPageTests(TasksEnvironment env)
 {
-    private static readonly string[] _tabs = ["Today", "All", "Upcoming", "Overdue", "Completed"];
+    private const string PlannedVisit = "Plan the next visit";
 
     [Fact(Timeout = 300_000)]
     public async Task EditTask_ChangingOnlyTheDate_KeepsEverythingElse()
@@ -82,18 +82,18 @@ public sealed class TasksPageTests(TasksEnvironment env)
             await Expect(Row(page, TasksEnvironment.CanceledTask)).ToContainTextAsync($"Due {Listed(canceledDay)}");
             await ExpectStatusAsync(page, TasksEnvironment.CanceledTask, "Canceled", action: null);
 
-            // In no status tab. Where the tab's list could still be the previous one, a task of its own shows it loaded.
-            await Tab(page, "Upcoming").ClickAsync();
+            // Under no status. Where the list could still be the previous one, a task of its own shows it loaded.
+            await PickFilterAsync(page, "Status", "Upcoming");
             await Expect(Row(page, TasksEnvironment.CanceledTask)).ToHaveCountAsync(0);
-            await Tab(page, "Overdue").ClickAsync();
+            await PickFilterAsync(page, "Status", "Overdue");
             await Expect(Row(page, TasksEnvironment.OverdueTask)).ToBeVisibleAsync();
             await Expect(Row(page, TasksEnvironment.CanceledTask)).ToHaveCountAsync(0);
-            await Tab(page, "Completed").ClickAsync();
+            await PickFilterAsync(page, "Status", "Completed");
             await Expect(Row(page, TasksEnvironment.CompletedTask)).ToBeVisibleAsync();
             await Expect(Row(page, TasksEnvironment.CanceledTask)).ToHaveCountAsync(0);
 
             // A completed task stays completed through an edit too.
-            await ShowAllAsync(page);
+            await RemoveFilterButton(page, "Completed").ClickAsync();
             dialog = await EditAsync(page, TasksEnvironment.CompletedTask, "Edit task");
             await TypeDayAsync(dialog, completedDay);
             await SaveAsync(page, dialog);
@@ -144,7 +144,7 @@ public sealed class TasksPageTests(TasksEnvironment env)
     }
 
     [Fact(Timeout = 300_000)]
-    public async Task DeleteTask_RemovesTheRowAndUpdatesTheBadges()
+    public async Task DeleteTask_RemovesTheRow()
     {
         const string name = "Task to delete";
         string id = null;
@@ -152,16 +152,18 @@ public sealed class TasksPageTests(TasksEnvironment env)
         var rep = await NewRepAsync();
         await using var session = await OpenAsync(rep.UserId);
 
-        await session.RunAsync(nameof(DeleteTask_RemovesTheRowAndUpdatesTheBadges), async page =>
+        await session.RunAsync(nameof(DeleteTask_RemovesTheRow), async page =>
         {
-            var before = await ReadBadgesAsync(page);
+            // Every date: the rep's one task, then the new one beside it.
+            await ShowAllAsync(page);
+            await Expect(HeaderCount(page, 1)).ToBeVisibleAsync(new() { Timeout = 60_000 });
 
             var dialog = await NewTaskAsync(page);
             await dialog.GetByLabel("Title").FillAsync(name);
             await TypeDayAsync(dialog, NewYork.Today.AddDays(1));
             await SaveAsync(page, dialog);
-            await Expect(Tab(page, "All", before["All"] + 1)).ToBeVisibleAsync();
-            await Expect(Tab(page, "Upcoming", before["Upcoming"] + 1)).ToBeVisibleAsync();
+            await Expect(Row(page, name)).ToBeVisibleAsync();
+            await Expect(HeaderCount(page, 2)).ToBeVisibleAsync();
             id = (await env.WaitForTaskAsync(x => x.Name == name)).Id;
 
             dialog = await EditAsync(page, name, "Edit task");
@@ -170,8 +172,7 @@ public sealed class TasksPageTests(TasksEnvironment env)
 
             await Expect(page.GetByText("Task deleted", new() { Exact = true })).ToBeVisibleAsync();
             await Expect(Row(page, name)).ToHaveCountAsync(0);
-            await Expect(Tab(page, "All", before["All"])).ToBeVisibleAsync();
-            await Expect(Tab(page, "Upcoming", before["Upcoming"])).ToBeVisibleAsync();
+            await Expect(HeaderCount(page, 1)).ToBeVisibleAsync();
         });
 
         // Task management deletes the row itself, not a flag on it.
@@ -179,57 +180,34 @@ public sealed class TasksPageTests(TasksEnvironment env)
     }
 
     [Fact(Timeout = 300_000)]
-    public async Task Badges_EqualTheirLists()
-    {
-        await using var session = await OpenAsync();
-
-        await session.RunAsync(nameof(Badges_EqualTheirLists), async page =>
-        {
-            var badges = await ReadBadgesAsync(page);
-
-            // The badges come from one counts request; the header and the rows, from each tab's own list.
-            foreach (var tab in _tabs)
-            {
-                await Tab(page, tab).ClickAsync();
-                await Expect(HeaderCount(page, badges[tab])).ToBeVisibleAsync();
-                await Expect(Rows(page)).ToHaveCountAsync(badges[tab]);
-            }
-        });
-    }
-
-    [Fact(Timeout = 300_000)]
-    public async Task CompleteThenReopen_RestoresTheCounts()
+    public async Task CompleteThenReopen_MovesTheTaskBetweenStatuses()
     {
         const string name = "Task to complete";
 
         var rep = await NewRepAsync();
         await using var session = await OpenAsync(rep.UserId);
 
-        await session.RunAsync(nameof(CompleteThenReopen_RestoresTheCounts), async page =>
+        await session.RunAsync(nameof(CompleteThenReopen_MovesTheTaskBetweenStatuses), async page =>
         {
-            var badges = await ReadBadgesAsync(page);
-
+            // Saved onto another day, the list follows it there.
             var dialog = await NewTaskAsync(page);
             await dialog.GetByLabel("Title").FillAsync(name);
             await TypeDayAsync(dialog, NewYork.Today.AddDays(3));
             await SaveAsync(page, dialog);
             await ExpectStatusAsync(page, name, "Upcoming", "Mark as complete");
 
-            // With the new task counted.
-            var upcoming = badges["Upcoming"] + 1;
-            var completed = badges["Completed"];
-            await Expect(Tab(page, "Upcoming", upcoming)).ToBeVisibleAsync();
-
             await RowAction(page, name).ClickAsync();
             await ExpectStatusAsync(page, name, "Completed", "Reopen");
-            await Expect(Tab(page, "Upcoming", upcoming - 1)).ToBeVisibleAsync();
-            await Expect(Tab(page, "Completed", completed + 1)).ToBeVisibleAsync();
             (await env.WaitForTaskAsync(x => x.Name == name && x.Completed == true)).Should().NotBeNull();
 
+            // Under Completed while it is, and out of it once reopened.
+            await PickFilterAsync(page, "Status", "Completed");
+            await Expect(Row(page, name)).ToBeVisibleAsync();
             await RowAction(page, name).ClickAsync();
+            await Expect(Row(page, name)).ToHaveCountAsync(0);
+
+            await RemoveFilterButton(page, "Completed").ClickAsync();
             await ExpectStatusAsync(page, name, "Upcoming", "Mark as complete");
-            await Expect(Tab(page, "Upcoming", upcoming)).ToBeVisibleAsync();
-            await Expect(Tab(page, "Completed", completed)).ToBeVisibleAsync();
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == name);
@@ -237,34 +215,70 @@ public sealed class TasksPageTests(TasksEnvironment env)
         task.Completed.Should().NotBe(true);
     }
 
+    // VCST-6157: the customer and the priority as columns, and every filter narrowing the list, its count and the
+    // calendar's dots together. Each filter and the day is a chip; Reset takes them all.
+    [Fact(Timeout = 300_000)]
+    public async Task Filters_NarrowTheListAndTheDots_AndResetRestoresBoth()
+    {
+        const string northwindCall = "Call about the spring order";
+        const string contosoQuote = "Send the price list";
+        var tomorrow = NewYork.Today.AddDays(1);
+
+        var rep = await NewRepAsync(TasksEnvironment.NorthwindId, TasksEnvironment.ContosoId);
+        await env.AddTaskAsync(rep, northwindCall, NewYork.At(tomorrow, 12), TasksEnvironment.NorthwindId, "Highest");
+        await env.AddTaskAsync(rep, contosoQuote, NewYork.At(tomorrow, 14), TasksEnvironment.ContosoId, "Low");
+        await using var session = await OpenAsync(rep.UserId);
+
+        await session.RunAsync(nameof(Filters_NarrowTheListAndTheDots_AndResetRestoresBoth), async page =>
+        {
+            await ShowAllAsync(page);
+            await Expect(Rows(page)).ToHaveCountAsync(3, new() { Timeout = 60_000 });
+            await Expect(CustomerCell(page, northwindCall)).ToHaveTextAsync(TasksEnvironment.NorthwindName);
+            await Expect(Row(page, northwindCall)).ToContainTextAsync("Highest");
+            await Expect(CustomerCell(page, PlannedVisit)).ToHaveTextAsync("—");
+            await Expect(DueDay(page, tomorrow)).ToHaveAccessibleDescriptionAsync(new Regex(@"^2 tasks\."));
+
+            await PickFilterAsync(page, "Customers", TasksEnvironment.ContosoName);
+            await Expect(Rows(page)).ToHaveCountAsync(1);
+            await Expect(Row(page, contosoQuote)).ToBeVisibleAsync();
+            await Expect(HeaderCount(page, 1)).ToBeVisibleAsync();
+            await Expect(DueDay(page, tomorrow)).ToHaveAccessibleDescriptionAsync(new Regex(@"^1 task\."));
+
+            // The priorities intersect with the customers: Contoso's one task is Low.
+            await PickFilterAsync(page, "Priorities", "Highest");
+            await Expect(Rows(page)).ToHaveCountAsync(0);
+            await Expect(page.GetByText("No tasks match the filters", new() { Exact = true })).ToBeVisibleAsync();
+
+            // A chip removes its own filter alone.
+            await RemoveFilterButton(page, TasksEnvironment.ContosoName).ClickAsync();
+            await Expect(Rows(page)).ToHaveCountAsync(1);
+            await Expect(Row(page, northwindCall)).ToBeVisibleAsync();
+
+            // The day picked on the calendar is a chip too, and Reset takes every chip, the day included.
+            await PickDueDayAsync(page, tomorrow, NewYork.Today);
+            await Expect(RemoveFilterButton(page, $"Due {Listed(tomorrow)}")).ToBeVisibleAsync();
+            await ResetFiltersAsync(page);
+            await Expect(Rows(page)).ToHaveCountAsync(3);
+            await Expect(RemoveFilterButton(page, $"Due {Listed(tomorrow)}")).ToHaveCountAsync(0);
+
+            await SearchAsync(page, "price list");
+            await Expect(Rows(page)).ToHaveCountAsync(1);
+            await Expect(Row(page, contosoQuote)).ToBeVisibleAsync();
+        });
+
+        session.GraphQlErrors.Should().BeEmpty();
+    }
+
     private Task<StorefrontSession> OpenAsync() => OpenAsync(env.RepUserId);
 
     private Task<StorefrontSession> OpenAsync(string userId) => env.OpenAsync(userId, "/company/tasks", TasksEnvironment.NorthwindId);
 
-    /// <summary>A rep of the test's own, with one task already, so that <see cref="ReadBadgesAsync"/> can tell the badges loaded.</summary>
-    private async Task<SalesRepDetails> NewRepAsync()
+    /// <summary>A rep of the test's own, serving Northwind unless told otherwise, with one task of no customer already.</summary>
+    private async Task<SalesRepDetails> NewRepAsync(params string[] customerIds)
     {
-        var rep = await env.NewRepAsync(TasksEnvironment.NorthwindId);
-        await env.AddTaskAsync(rep, "Plan the next visit", NewYork.At(NewYork.Today.AddDays(10), 12));
+        var rep = await env.NewRepAsync(customerIds.Length > 0 ? customerIds : [TasksEnvironment.NorthwindId]);
+        await env.AddTaskAsync(rep, PlannedVisit, NewYork.At(NewYork.Today.AddDays(10), 12));
         return rep;
-    }
-
-    /// <summary>
-    /// Every tab's badge. The badges read 0 until their one request returns, and every rep here has a task, so a
-    /// non-zero All says they have.
-    /// </summary>
-    private static async Task<Dictionary<string, int>> ReadBadgesAsync(IPage page)
-    {
-        await Expect(Tab(page, "All")).ToBeVisibleAsync(new() { Timeout = 60_000 });
-        await Expect(Tab(page, "All", 0)).ToHaveCountAsync(0);
-
-        var badges = new Dictionary<string, int>();
-        foreach (var tab in _tabs)
-        {
-            badges[tab] = await BadgeAsync(page, tab);
-        }
-
-        return badges;
     }
 
     /// <summary>A row's status chip and its one action; null for none.</summary>

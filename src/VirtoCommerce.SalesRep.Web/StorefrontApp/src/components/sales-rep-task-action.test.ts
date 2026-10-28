@@ -87,3 +87,49 @@ describe("SalesRepTaskAction", () => {
     expect(wrapper.find("i").attributes("data-color")).toBeUndefined();
   });
 });
+
+// The Tasks table's Actions column is too narrow for the label (VCST-6157): the glyph alone, the label its tooltip.
+describe("SalesRepTaskAction icon only", () => {
+  const IconButtonStub = {
+    props: { disabled: Boolean, icon: [Boolean, String] },
+    emits: ["click"],
+    template:
+      '<button :data-icon="String(icon)" :disabled="disabled" @click="$emit(\'click\')"><slot name="prepend" /><slot /></button>',
+  };
+
+  function createIconWrapper(iconOnly: boolean) {
+    return mount(SalesRepTaskAction, {
+      props: { task: makeTask("upcoming"), iconOnly },
+      global: {
+        stubs: {
+          VcButton: IconButtonStub,
+          VcIcon: { props: ["name", "color"], template: '<i :data-name="name" :data-color="color" />' },
+        },
+      },
+    });
+  }
+
+  it("draws the glyph alone, with the label as its tooltip", () => {
+    const button = createIconWrapper(true).get("button");
+
+    expect(button.attributes("data-icon")).toBe("true");
+    expect(button.text()).toBe("");
+    expect(button.attributes("title")).toBe("sales_rep.tasks.table.mark_complete");
+    expect(button.find("i").attributes("data-name")).toBe("circle-check-big");
+  });
+
+  // The accessible name does not depend on what is drawn.
+  it("keeps the accessible name either way", () => {
+    expect(createIconWrapper(true).get("button").attributes("aria-label")).toBe(
+      createIconWrapper(false).get("button").attributes("aria-label"),
+    );
+  });
+
+  it("keeps the label, and no tooltip, by default", () => {
+    const button = createIconWrapper(false).get("button");
+
+    expect(button.attributes("data-icon")).toBe("false");
+    expect(button.text()).toBe("sales_rep.tasks.table.mark_complete");
+    expect(button.attributes("title")).toBeUndefined();
+  });
+});

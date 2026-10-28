@@ -5,23 +5,19 @@
          but every surface here already reads a falsy filter as the baseline).
          `Boolean(true)`, not `:value="true"`: the latter trips vue/prefer-true-attribute-shorthand,
          and the shorthand it asks for passes "" instead — same reason as variations.vue. -->
-    <!-- A surface whose "no rule" state has more than one view (the Tasks page: Today / a day / All) draws its
-         own baseline chips here, inside the row so they share its layout. -->
-    <slot name="baseline">
-      <SalesRepRuleChip
-        :value="Boolean(true)"
-        :model-value="!modelValue"
-        :label="allLabel ?? ''"
-        :count="allCount"
-        :hint="allHint"
-        @change="modelValue = undefined"
-      >
-        <!-- Adornments belong to whoever knows what a tab means: the baseline arrives with no name. -->
-        <template #append>
-          <slot name="suffix" />
-        </template>
-      </SalesRepRuleChip>
-    </slot>
+    <SalesRepRuleChip
+      :value="Boolean(true)"
+      :model-value="!modelValue"
+      :label="allLabel ?? ''"
+      :count="allCount"
+      :hint="allHint"
+      @change="modelValue = undefined"
+    >
+      <!-- Adornments belong to whoever knows what a tab means: the baseline arrives with no name. -->
+      <template #append>
+        <slot name="suffix" />
+      </template>
+    </SalesRepRuleChip>
 
     <SalesRepRuleChip
       v-for="rule in selectableRules"
@@ -41,15 +37,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch } from "vue";
-import { selectableFilterRules } from "../utils";
+import { useSalesRepRuleSelection } from "../composables/useSalesRepRuleSelection";
 import SalesRepRuleChip from "./sales-rep-rule-chip.vue";
 import type { SalesRepRuleType } from "../types";
 
 interface IProps {
   // The server-defined filter rules to offer as tabs.
   rules: SalesRepRuleType[];
-  // Label for the synthetic baseline tab (the "All" / no-filter option). Unused when the #baseline slot is filled.
+  // Label for the synthetic baseline tab (the "All" / no-filter option).
   allLabel?: string;
   // Item count for the baseline tab; rendered as a highlighted counter when present (like `rule.count`).
   allCount?: number;
@@ -62,8 +57,6 @@ interface IProps {
 const props = defineProps<IProps>();
 
 defineSlots<{
-  /** Chips that stand in for the baseline tab. */
-  baseline?(): unknown;
   /** An adornment after a tab's label; the baseline tab has no rule name. */
   suffix?(props: { ruleName?: string }): unknown;
 }>();
@@ -72,24 +65,12 @@ defineSlots<{
 const modelValue = defineModel<string | undefined>();
 
 // Data-derived vocabularies change with the scope (period, customer), so a selected rule can stop being offered — e.g.
-// no order carries that status in the newly picked period. Fall back to the baseline instead of leaving a selection
-// active that no tab shows (which would render an empty list with nothing looking selected).
-watch(
-  () => [props.loading, props.rules] as const,
-  ([isLoading, rules]) => {
-    if (isLoading || !modelValue.value) {
-      return;
-    }
-
-    if (!rules.some((rule) => rule.name === modelValue.value)) {
-      modelValue.value = undefined;
-    }
-  },
-  { immediate: true },
+// no order carries that status in the newly picked period. That tab then falls back to the baseline.
+const { selectableRules } = useSalesRepRuleSelection(
+  modelValue,
+  () => props.rules,
+  () => props.loading,
 );
-
-// A backend "All" passthrough rule (customer segments carry one) would duplicate the baseline tab — drop it.
-const selectableRules = computed(() => selectableFilterRules(props.rules));
 </script>
 
 <style lang="scss">

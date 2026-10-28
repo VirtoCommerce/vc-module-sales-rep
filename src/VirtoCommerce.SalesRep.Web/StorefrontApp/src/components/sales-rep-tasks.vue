@@ -70,7 +70,7 @@ import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useBlockChrome } from "../composables/useBlockChrome";
 import { useMonthAnchor, useSalesRepTaskCalendar } from "../composables/useSalesRepTaskCalendar";
-import { useSalesRepOverdueTaskCount } from "../composables/useSalesRepTaskCounts";
+import { useSalesRepOverdueTaskCount } from "../composables/useSalesRepOverdueTaskCount";
 import { useSalesRepTasks } from "../composables/useSalesRepTasks";
 import { TASKS_ROUTE_NAME, TASKS_DEFAULT_ROWS, TASKS_OVERDUE_RULE, TASKS_SORT_RULE } from "../constants";
 import { localDayKey, localDayKeyToDate, localDayWindow, taskSubline } from "../tasks";

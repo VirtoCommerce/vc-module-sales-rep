@@ -161,8 +161,7 @@
         "last_day": "最后一天",
         "last_week": "上周",
         "last_month": "上个月",
-        "last_year": "去年",
-        "remove_filter": "移除筛选条件“{label}”"
+        "last_year": "去年"
       }
     },
     "communication": {
@@ -216,11 +215,12 @@
       "view_all": "所有任务",
       "new_task": "新建任务",
       "due_dates": "截止日期",
-      "today": "今天",
-      "all": "全部",
-      "clear_day_aria": "清除 {date}",
-      "empty": "此标签页没有任务",
+      "empty": "暂无任务",
       "empty_day": "当天没有到期事项",
+      "no_results": "没有符合筛选条件的任务",
+      "search_placeholder": "搜索任务",
+      "search_aria": "搜索任务",
+      "reset_search": "重置搜索",
       "load_failed": "无法加载任务",
       "day_task_count": "{count} 项任务",
       "overdue_total": "{count} 项逾期任务",
@@ -231,6 +231,8 @@
       },
       "table": {
         "task": "任务",
+        "priority": "优先级",
+        "customer": "客户",
         "status": "状态",
         "notes": "备注",
         "actions": "操作",
@@ -238,6 +240,15 @@
         "reopen": "重新打开",
         "action_aria": "{action}：“{name}”",
         "edit_aria": "编辑“{name}”"
+      },
+      "filters": {
+        "all_customers": "所有客户",
+        "customers_label": "客户",
+        "all_statuses": "所有状态",
+        "status_label": "状态",
+        "all_priorities": "所有优先级",
+        "priorities_label": "优先级",
+        "due_today": "今天到期"
       },
       "status": {
         "upcoming": "即将到期",
@@ -271,7 +282,7 @@
         "due_date_label": "截止日期",
         "time_label": "时间",
         "customer_label": "客户",
-        "customer_placeholder": "按名称搜索客户",
+        "customer_placeholder": "无客户",
         "customer_error": "无法加载客户列表。请重试。",
         "call_name": "通话",
         "priority_label": "优先级",
@@ -439,6 +450,9 @@
           "All": "全部"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "移除筛选条件“{label}”"
     },
     "list_sharing": {
       "share_customers_label": "客户",
