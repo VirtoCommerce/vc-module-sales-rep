@@ -1,5 +1,7 @@
 <template>
   <div class="sales-rep-chart" role="group" :aria-label="ariaLabel">
+    <span v-if="yLabel" class="sales-rep-chart__y-label">{{ yLabel }}</span>
+
     <div ref="plot" class="sales-rep-chart__plot" :style="{ height: `${height}px` }">
       <VcLoaderOverlay :visible="loading" no-bg />
 
@@ -25,16 +27,6 @@
                 {{ yFormat(tick) }}
               </text>
             </g>
-
-            <text
-              v-if="yLabel"
-              class="sales-rep-chart__y-label"
-              :x="MARGIN.left - TICK_GAP"
-              :y="Y_LABEL_Y"
-              text-anchor="end"
-            >
-              {{ yLabel }}
-            </text>
           </g>
 
           <g v-for="column in columns" :key="column.category.id">
@@ -193,7 +185,7 @@ interface IProps {
   barLayout?: ChartBarLayoutType;
   /** Formats the Y axis ticks. */
   yFormat?: (value: number) => string;
-  /** The Y axis title, above the axis. */
+  /** The Y axis title, on its own line above the plot. */
   yLabel?: string;
   /** Total height in px, axes included. */
   height?: number;
@@ -227,7 +219,6 @@ defineSlots<ISlots>();
 // Room for the annotations above the plot, the Y ticks on the left and the category labels below.
 const MARGIN = { top: 34, right: 16, bottom: 30, left: 64 };
 const TICK_GAP = 8;
-const Y_LABEL_Y = 12;
 const LABEL_BOTTOM = 8;
 // Columns nearly touch.
 const BAR_SHARE = 0.92;
@@ -431,7 +422,7 @@ function onHitKeydown(event: KeyboardEvent, index: number): void {
   &__y-label {
     @apply text-xs font-bold;
 
-    fill: var(--label-color);
+    color: var(--label-color);
   }
 
   // One fill, read once: the series picks the colour, an active column only darkens it.
