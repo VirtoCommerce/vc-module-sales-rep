@@ -336,7 +336,8 @@ usePageHead({
   }
 
   &__tiles {
-    @apply relative grid grid-cols-2 gap-3;
+    // Keeps the loader overlay's z-index inside the tiles, under the customer dropdown that opens over them.
+    @apply relative isolate grid grid-cols-2 gap-3;
 
     @media (width >= theme("screens.lg")) {
       @apply grid-cols-4;
