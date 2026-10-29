@@ -108,15 +108,20 @@ describe("SalesRepChart", () => {
 
   // jsdom has no layout, so every tick label is given the same width: a short one ("$800") or a long one ("12,5 tys. USD").
   it.each([
-    { labelWidth: 30, plotStart: "64" },
+    { labelWidth: 30, plotStart: "38" },
     { labelWidth: 71, plotStart: "79" },
-  ])("starts the plot past its widest tick label ($labelWidth px)", async ({ labelWidth, plotStart }) => {
-    vi.spyOn(SVGElement.prototype, "getBoundingClientRect").mockReturnValue({ width: labelWidth } as DOMRect);
-    const chart = mountChart();
-    await nextTick();
+  ])(
+    "runs the plot from just past its widest tick label ($labelWidth px) to the edge",
+    async ({ labelWidth, plotStart }) => {
+      vi.spyOn(SVGElement.prototype, "getBoundingClientRect").mockReturnValue({ width: labelWidth } as DOMRect);
+      const chart = mountChart();
+      await nextTick();
+      const gridLine = chart.find(".sales-rep-chart__grid line");
 
-    expect(chart.find(".sales-rep-chart__grid line").attributes("x1")).toBe(plotStart);
-  });
+      expect(gridLine.attributes("x1")).toBe(plotStart);
+      expect(gridLine.attributes("x2")).toBe(String(plotWidth.value));
+    },
+  );
 
   it("draws a line with a smooth path and a dot per point, skipping placeholders", () => {
     const chart = mountChart({ series: [LINE] });
@@ -138,7 +143,7 @@ describe("SalesRepChart", () => {
     expect(wide.findAll(".note")).toHaveLength(2);
     wide.unmount();
 
-    plotWidth.value = 200;
+    plotWidth.value = 150;
     const narrow = mountChart({}, { annotation: "<span class='note'>↑</span>" });
 
     expect(narrow.findAll(".note")).toHaveLength(0);
