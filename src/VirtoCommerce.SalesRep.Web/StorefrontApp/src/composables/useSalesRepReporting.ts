@@ -55,10 +55,10 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
   });
 
   const variables = computed(() => {
-    const { months, previous } = plan.value;
+    const { months: plannedMonths, previous } = plan.value;
     const slots: Record<string, string | boolean | undefined> = {};
     for (let i = 0; i < REPORTING_MONTH_SLOTS; i++) {
-      const month = months.at(i);
+      const month = plannedMonths.at(i);
       slots[`use${i}`] = month !== undefined && month.state !== "upcoming";
       slots[`from${i}`] = month?.from;
       slots[`to${i}`] = month?.to;
