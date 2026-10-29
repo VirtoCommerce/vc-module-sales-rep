@@ -15,11 +15,12 @@
         >
           <g class="sales-rep-chart__grid">
             <g v-for="tick in ticks" :key="tick">
-              <line :x1="MARGIN.left" :x2="width - MARGIN.right" :y1="toY(tick)" :y2="toY(tick)" />
+              <line :x1="marginLeft" :x2="width - MARGIN.right" :y1="toY(tick)" :y2="toY(tick)" />
 
               <text
+                ref="tickLabels"
                 class="sales-rep-chart__tick"
-                :x="MARGIN.left - TICK_GAP"
+                :x="marginLeft - TICK_GAP"
                 :y="toY(tick)"
                 text-anchor="end"
                 dy="0.32em"
@@ -172,7 +173,7 @@
 
 <script setup lang="ts">
 import { useResizeObserver } from "@vueuse/core";
-import { computed, ref, useTemplateRef } from "vue";
+import { computed, onMounted, ref, useTemplateRef, watch } from "vue";
 import { linearLinePath, niceTicks, smoothLinePath, splitAtGaps } from "./chart-geometry";
 import type { ChartBarLayoutType, ChartCategoryType, ChartSeriesType, ChartTooltipValueType } from "./types";
 import type { ComponentPublicInstance } from "vue";
@@ -216,7 +217,8 @@ const props = withDefaults(defineProps<IProps>(), {
 
 defineSlots<ISlots>();
 
-// Room for the annotations above the plot, the Y ticks on the left and the category labels below.
+// Room for the annotations above the plot, the Y ticks on the left and the category labels below. `left` is a minimum:
+// it widens to the longest tick label.
 const MARGIN = { top: 34, right: 16, bottom: 30, left: 64 };
 const TICK_GAP = 8;
 const LABEL_BOTTOM = 8;
@@ -238,7 +240,9 @@ const MIN_HIT_HEIGHT = 12;
 const DEFAULT_COLOR = "primary-500";
 
 const plot = useTemplateRef<HTMLElement>("plot");
+const tickLabels = useTemplateRef<SVGTextElement[]>("tickLabels");
 const width = ref(0);
+const widestTickLabel = ref(0);
 
 useResizeObserver(plot, (entries) => {
   width.value = Math.floor(entries[0]?.contentRect.width ?? 0);
@@ -248,10 +252,11 @@ const visibleSeries = computed(() => props.series.filter((series) => !series.hid
 const barSeries = computed(() => visibleSeries.value.filter((series) => series.type === "bar"));
 const lineSeries = computed(() => visibleSeries.value.filter((series) => series.type === "line"));
 
+const marginLeft = computed(() => Math.max(MARGIN.left, Math.ceil(widestTickLabel.value) + TICK_GAP));
 const plotHeight = computed(() => props.height - MARGIN.top - MARGIN.bottom);
 const baseline = computed(() => MARGIN.top + plotHeight.value);
 const band = computed(
-  () => Math.max(0, width.value - MARGIN.left - MARGIN.right) / Math.max(props.categories.length, 1),
+  () => Math.max(0, width.value - marginLeft.value - MARGIN.right) / Math.max(props.categories.length, 1),
 );
 const groupWidth = computed(() => band.value * BAR_SHARE);
 const barWidth = computed(() =>
@@ -274,13 +279,22 @@ const ticks = computed(() =>
   ),
 );
 
+// Measured once drawn: a tick label's length depends on the locale and the currency ("$12.5K", "12,5 tys. USD").
+function measureTickLabels(): void {
+  widestTickLabel.value = Math.max(0, ...(tickLabels.value ?? []).map((label) => label.getBoundingClientRect().width));
+}
+
+watch([() => ticks.value.map((tick) => props.yFormat(tick)), () => width.value > 0], measureTickLabels, {
+  flush: "post",
+});
+
 function toY(value: number): number {
   const max = ticks.value.at(-1) ?? 1;
   return baseline.value - (value / max) * plotHeight.value;
 }
 
 function centerOf(index: number): number {
-  return MARGIN.left + index * band.value + band.value / 2;
+  return marginLeft.value + index * band.value + band.value / 2;
 }
 
 function seriesColor(series: ChartSeriesType): Record<string, string> {
@@ -387,6 +401,8 @@ function onHitKeydown(event: KeyboardEvent, index: number): void {
     hitElements.get(target)?.focus();
   }
 }
+
+onMounted(measureTickLabels);
 </script>
 
 <style lang="scss">

@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { nextTick } from "vue";
 import SalesRepChart from "./sales-rep-chart.vue";
 import type { ChartCategoryType, ChartSeriesType } from "./types";
 import type { VueWrapper } from "@vue/test-utils";
@@ -55,6 +56,7 @@ afterEach(() => {
   wrapper?.unmount();
   wrapper = undefined;
   plotWidth.value = 900;
+  vi.restoreAllMocks();
 });
 
 describe("SalesRepChart", () => {
@@ -102,6 +104,18 @@ describe("SalesRepChart", () => {
 
     expect(chart.findAll(".sales-rep-chart__legend-item").map((item) => item.text())).toEqual(["Actual"]);
     expect(chart.find(".sales-rep-chart__legend .extra").exists()).toBe(true);
+  });
+
+  // jsdom has no layout, so every tick label is given the same width: a short one ("$800") or a long one ("12,5 tys. USD").
+  it.each([
+    { labelWidth: 30, plotStart: "64" },
+    { labelWidth: 71, plotStart: "79" },
+  ])("starts the plot past its widest tick label ($labelWidth px)", async ({ labelWidth, plotStart }) => {
+    vi.spyOn(SVGElement.prototype, "getBoundingClientRect").mockReturnValue({ width: labelWidth } as DOMRect);
+    const chart = mountChart();
+    await nextTick();
+
+    expect(chart.find(".sales-rep-chart__grid line").attributes("x1")).toBe(plotStart);
   });
 
   it("draws a line with a smooth path and a dot per point, skipping placeholders", () => {
