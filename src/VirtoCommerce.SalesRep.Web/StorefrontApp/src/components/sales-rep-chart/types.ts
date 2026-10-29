@@ -12,23 +12,32 @@ export type ChartCategoryType = {
   placeholder?: boolean;
 };
 
-export type ChartSeriesType = {
+type ChartSeriesBaseType = {
   id: string;
-  type: "bar" | "line";
   /** The legend text. */
   name: string;
   /** One value per category, by index; `null` draws nothing there. */
   data: (number | null)[];
   /** Default `"primary-500"`. */
   color?: ChartColorType;
-  /** Bars only: `"dashed"` draws an outline without fill, beneath the solid bars it shares a column with. */
-  variant?: "solid" | "dashed";
-  /** Lines only: `"monotone"` is smooth and never overshoots a point. Default `"linear"`. */
-  curve?: "linear" | "monotone";
-  /** Lines only: a dot on every point. */
-  dots?: boolean;
   hidden?: boolean;
 };
+
+export type ChartBarSeriesType = ChartSeriesBaseType & {
+  type: "bar";
+  /** `"dashed"` draws an outline without fill, beneath the solid bars it shares a column with. */
+  variant?: "solid" | "dashed";
+};
+
+export type ChartLineSeriesType = ChartSeriesBaseType & {
+  type: "line";
+  /** `"monotone"` is smooth and never overshoots a point. Default `"linear"`. */
+  curve?: "linear" | "monotone";
+  /** A dot on every point. */
+  dots?: boolean;
+};
+
+export type ChartSeriesType = ChartBarSeriesType | ChartLineSeriesType;
 
 /** `"grouped"`: the bar series of a column stand side by side; `"overlap"`: they share the column, one over another. */
 export type ChartBarLayoutType = "grouped" | "overlap";
