@@ -411,6 +411,8 @@ onMounted(measureTickLabels);
   --label-color: var(--sales-rep-chart-label-color, var(--color-neutral-800));
   --placeholder-color: var(--sales-rep-chart-placeholder-color, var(--color-neutral-300));
   --placeholder-text-color: var(--sales-rep-chart-placeholder-text-color, var(--color-neutral-500));
+  --placeholder-label-color: var(--sales-rep-chart-placeholder-label-color, var(--color-neutral-400));
+  --legend-color: var(--sales-rep-chart-legend-color, var(--color-neutral-700));
   --active-shade: var(--sales-rep-chart-active-shade, 10%);
 
   @apply flex flex-col gap-3;
@@ -485,7 +487,7 @@ onMounted(measureTickLabels);
     fill: var(--label-color);
 
     &--placeholder {
-      fill: var(--color-neutral-400);
+      fill: var(--placeholder-label-color);
     }
   }
 
@@ -514,7 +516,9 @@ onMounted(measureTickLabels);
   }
 
   &__legend {
-    @apply flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-neutral-700;
+    @apply flex flex-wrap items-center gap-x-4 gap-y-2 text-xs;
+
+    color: var(--legend-color);
   }
 
   &__legend-item {
