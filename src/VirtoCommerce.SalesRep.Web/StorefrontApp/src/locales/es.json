@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, mes en curso hasta el {today}. Las ventas son netas, por fecha de pedido; se excluyen los pedidos cancelados.",
       "footnote_closed": "{from} – {to}. Las ventas son netas, por fecha de pedido; se excluyen los pedidos cancelados.",
-      "footnote_upcoming": "Este período aún no ha comenzado.",
-      "example_data": "Datos de ejemplo"
+      "footnote_upcoming": "Este período aún no ha comenzado."
     }
   }
 }

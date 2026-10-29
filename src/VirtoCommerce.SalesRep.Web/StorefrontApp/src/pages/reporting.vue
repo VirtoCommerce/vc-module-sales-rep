@@ -9,15 +9,9 @@
     <VcWidget class="sales-rep-reporting__card">
       <template #header>
         <div class="sales-rep-reporting__card-header">
-          <div class="sales-rep-reporting__card-heading">
-            <VcTypography tag="h2" variant="h6" class="sales-rep-reporting__card-title">
-              {{ t("sales_rep.reporting.card_title") }}
-            </VcTypography>
-
-            <VcBadge v-if="isMock" color="neutral" variant="outline" size="sm" rounded nowrap>
-              {{ t("sales_rep.reporting.example_data") }}
-            </VcBadge>
-          </div>
+          <VcTypography tag="h2" variant="h6" class="sales-rep-reporting__card-title">
+            {{ t("sales_rep.reporting.card_title") }}
+          </VcTypography>
 
           <VcLink class="sales-rep-reporting__all-orders" :to="{ name: ALL_CUSTOMER_ORDERS_ROUTE_NAME }">
             {{ t("sales_rep.reporting.all_orders") }}
@@ -200,7 +194,7 @@ const customerItems = computed(() => [
   ...customers.value,
 ]);
 
-const { months, summary, currencyCode, loading, error, isMock, reportPeriod } = useSalesRepReporting({
+const { months, summary, currencyCode, loading, error, reportPeriod } = useSalesRepReporting({
   period,
   organizationId: customerId,
 });
@@ -291,10 +285,6 @@ usePageHead({
 
   &__card-header {
     @apply flex w-full items-center justify-between gap-3;
-  }
-
-  &__card-heading {
-    @apply flex items-center gap-2;
   }
 
   &__card-title {

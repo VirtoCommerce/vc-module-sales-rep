@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}（当月は {today} まで）。売上は注文日基準の純額で、キャンセル済みの注文は除外しています。",
       "footnote_closed": "{from} – {to}。売上は注文日基準の純額で、キャンセル済みの注文は除外しています。",
-      "footnote_upcoming": "この期間はまだ始まっていません。",
-      "example_data": "サンプルデータ"
+      "footnote_upcoming": "この期間はまだ始まっていません。"
     }
   }
 }

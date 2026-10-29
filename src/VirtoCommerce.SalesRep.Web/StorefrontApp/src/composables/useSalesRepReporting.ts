@@ -10,7 +10,6 @@ import {
   withMonthChanges,
   REPORTING_MONTH_SLOTS,
 } from "../reporting";
-import { buildReportingMock, isReportingMockEnabled } from "../reporting-mock";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import { useToday } from "./useToday";
 import type {
@@ -54,7 +53,6 @@ function totals(statistics: StatisticsType | undefined, key: string): ReportingP
 export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
   const today = useToday();
   const organizationId = computed(() => toValue(options.organizationId) || undefined);
-  const isMock = isReportingMockEnabled();
 
   const plan = computed<ReportingPlanType>(() => {
     const period = toValue(options.period);
@@ -86,7 +84,6 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
 
   const query = useSalesRepHubQuery(SalesRepMonthlyOrderStatisticsDocument, variables, {
     fetchPolicy: HUB_FETCH_POLICY,
-    enabled: !isMock,
     keepPreviousResult: true,
   });
 
@@ -110,13 +107,6 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
   );
 
   const months = computed(() => {
-    if (isMock) {
-      const mock = buildReportingMock(plan.value.months, organizationId.value ?? "");
-      return withMonthChanges(
-        plan.value.months.map((month, i) => toReportingMonth(month, mock.raw[i] ?? {})),
-        mock.before,
-      );
-    }
     const { plan: fetched, statistics } = settled.value;
     return withMonthChanges(
       fetched.months.map((month, i) =>
@@ -132,14 +122,12 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
      * same months (12 months and the current year in December) sends the same variables, so no new response comes.
      */
     reportPeriod: computed(() =>
-      isMock || isSameWindows(settled.value.plan, plan.value) ? plan.value.period : settled.value.plan.period,
+      isSameWindows(settled.value.plan, plan.value) ? plan.value.period : settled.value.plan.period,
     ),
     months,
     summary: computed(() => summarizeReporting(months.value)),
     currencyCode: computed(() => settled.value.statistics?.currencyCode ?? globals.currencyCode),
-    loading: computed(() => !isMock && query.loading.value),
-    error: computed(() => (isMock ? null : query.error.value)),
-    /** True when the page shows example figures (see reporting-mock.ts), not the backend's. */
-    isMock,
+    loading: query.loading,
+    error: query.error,
   };
 }

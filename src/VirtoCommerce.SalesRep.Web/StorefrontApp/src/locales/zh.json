@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}，本月截至 {today}。销售额为净额，按订单日期统计；不含已取消订单。",
       "footnote_closed": "{from} – {to}。销售额为净额，按订单日期统计；不含已取消订单。",
-      "footnote_upcoming": "此期间尚未开始。",
-      "example_data": "示例数据"
+      "footnote_upcoming": "此期间尚未开始。"
     }
   }
 }

@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, kuluva kuu {today} asti. Myynti on nettomyyntiä tilauspäivän mukaan; peruutetut tilaukset eivät sisälly lukuihin.",
       "footnote_closed": "{from} – {to}. Myynti on nettomyyntiä tilauspäivän mukaan; peruutetut tilaukset eivät sisälly lukuihin.",
-      "footnote_upcoming": "Tämä ajanjakso ei ole vielä alkanut.",
-      "example_data": "Esimerkkitiedot"
+      "footnote_upcoming": "Tämä ajanjakso ei ole vielä alkanut."
     }
   }
 }
