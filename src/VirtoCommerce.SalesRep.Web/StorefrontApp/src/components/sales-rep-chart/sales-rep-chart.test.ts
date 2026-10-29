@@ -106,6 +106,12 @@ describe("SalesRepChart", () => {
     expect(chart.find(".sales-rep-chart__legend .extra").exists()).toBe(true);
   });
 
+  it("leaves the legend out when asked to", () => {
+    const chart = mountChart({ showLegend: false }, { "legend-append": "<li class='extra'>Extra</li>" });
+
+    expect(chart.find(".sales-rep-chart__legend").exists()).toBe(false);
+  });
+
   // jsdom has no layout, so every tick label is given the same width: a short one ("$800") or a long one ("12,5 tys. USD").
   it.each([
     { labelWidth: 30, plotStart: "38" },
