@@ -154,7 +154,7 @@
       </template>
     </div>
 
-    <ul v-if="legend && (legendSeries.length || $slots['legend-append'])" class="sales-rep-chart__legend">
+    <ul v-if="showLegend && (legendSeries.length || $slots['legend-append'])" class="sales-rep-chart__legend">
       <li v-for="item in legendSeries" :key="item.id" class="sales-rep-chart__legend-item">
         <span
           :class="[
@@ -191,7 +191,7 @@ interface IProps {
   /** Total height in px, axes included. */
   height?: number;
   /** A list of the drawn series under the plot. */
-  legend?: boolean;
+  showLegend?: boolean;
   loading?: boolean;
 }
 
@@ -212,7 +212,7 @@ const props = withDefaults(defineProps<IProps>(), {
   barLayout: "grouped",
   yFormat: (value: number) => String(value),
   height: 230,
-  legend: true,
+  showLegend: true,
 });
 
 defineSlots<ISlots>();
