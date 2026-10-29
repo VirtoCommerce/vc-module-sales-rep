@@ -19,11 +19,13 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   globals: { storeId: "test-store", cultureName: "en-US", currencyCode: "USD" },
 }));
-// Oct 21, 2026.
-vi.mock("./useToday", async () => {
+// Oct 21, 2026, unless a test moves it.
+const OCTOBER_21 = new Date(2026, 9, 21).getTime();
+const todayMock = await vi.hoisted(async () => {
   const { ref } = await import("vue");
-  return { useToday: () => ref(new Date(2026, 9, 21).getTime()) };
+  return ref(0);
 });
+vi.mock("./useToday", () => ({ useToday: () => todayMock }));
 
 type StatisticsType = NonNullable<SalesRepMonthlyOrderStatisticsQuery["salesRepCustomerOrderStatistics"]>;
 
@@ -43,7 +45,8 @@ function passedVariables(): Record<string, unknown> {
   return (call[1] as { value: Record<string, unknown> }).value;
 }
 
-function setup(initial: ReportingPeriodType = "year") {
+function setup(initial: ReportingPeriodType = "year", today = OCTOBER_21) {
+  todayMock.value = today;
   queryMock.result.value = undefined;
   queryMock.error.value = null;
   const period = ref<ReportingPeriodType>(initial);
@@ -81,6 +84,18 @@ describe("useSalesRepReporting", () => {
     expect(reporting.months.value).toHaveLength(6);
     expect(reporting.months.value[0]).toMatchObject({ month: 4, revenue: 500 });
     expect(reporting.months.value.at(-1)).toMatchObject({ month: 9, state: "current", revenue: 1000 });
+  });
+
+  it("names the picked period at once when it covers the same months, as no new response comes", async () => {
+    const { period, reporting } = setup("year", new Date(2026, 11, 10).getTime());
+    respond({ m0: bucket(100) });
+    await nextTick();
+    const variables = JSON.stringify(passedVariables());
+
+    period.value = "12m";
+    await nextTick();
+    expect(JSON.stringify(passedVariables())).toBe(variables);
+    expect(reporting.reportPeriod.value).toBe("12m");
   });
 
   it("compares the first month with the month before the period", async () => {

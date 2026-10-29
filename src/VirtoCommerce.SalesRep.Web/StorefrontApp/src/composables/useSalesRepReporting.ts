@@ -37,6 +37,14 @@ type UseSalesRepReportingOptionsType = {
   organizationId: MaybeRefOrGetter<string>;
 };
 
+function isSameWindows(a: ReportingPlanType, b: ReportingPlanType): boolean {
+  return (
+    a.previous.from === b.previous.from &&
+    a.months.length === b.months.length &&
+    a.months.every((month, i) => month.from === b.months[i].from && month.to === b.months[i].to)
+  );
+}
+
 function totals(statistics: StatisticsType | undefined, key: string): ReportingPeriodTotalsType | undefined {
   const value = statistics?.[key as SlotKeyType];
   return value ? { amount: value.total.amount, count: value.count } : undefined;
@@ -119,8 +127,13 @@ export function useSalesRepReporting(options: UseSalesRepReportingOptionsType) {
   });
 
   return {
-    /** The period of the figures on screen: until a newly picked period loads, still the previous one. */
-    reportPeriod: computed(() => (isMock ? plan.value.period : settled.value.plan.period)),
+    /**
+     * The period of the figures on screen: until a newly picked period loads, still the previous one. A period over the
+     * same months (12 months and the current year in December) sends the same variables, so no new response comes.
+     */
+    reportPeriod: computed(() =>
+      isMock || isSameWindows(settled.value.plan, plan.value) ? plan.value.period : settled.value.plan.period,
+    ),
     months,
     summary: computed(() => summarizeReporting(months.value)),
     currencyCode: computed(() => settled.value.statistics?.currencyCode ?? globals.currencyCode),
