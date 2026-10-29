@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, current month to {today}. Sales are net, by order date; cancelled orders are excluded.",
       "footnote_closed": "{from} – {to}. Sales are net, by order date; cancelled orders are excluded.",
-      "footnote_upcoming": "This period hasn't started yet.",
-      "example_data": "Example data"
+      "footnote_upcoming": "This period hasn't started yet."
     }
   }
 }

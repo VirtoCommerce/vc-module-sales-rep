@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, laufender Monat bis {today}. Umsatz netto nach Bestelldatum; stornierte Bestellungen sind ausgeschlossen.",
       "footnote_closed": "{from} – {to}. Umsatz netto nach Bestelldatum; stornierte Bestellungen sind ausgeschlossen.",
-      "footnote_upcoming": "Dieser Zeitraum hat noch nicht begonnen.",
-      "example_data": "Beispieldaten"
+      "footnote_upcoming": "Dieser Zeitraum hat noch nicht begonnen."
     }
   }
 }

@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, mese corrente fino al {today}. Le vendite sono nette, per data dell'ordine; gli ordini annullati sono esclusi.",
       "footnote_closed": "{from} – {to}. Le vendite sono nette, per data dell'ordine; gli ordini annullati sono esclusi.",
-      "footnote_upcoming": "Questo periodo non è ancora iniziato.",
-      "example_data": "Dati di esempio"
+      "footnote_upcoming": "Questo periodo non è ancora iniziato."
     }
   }
 }

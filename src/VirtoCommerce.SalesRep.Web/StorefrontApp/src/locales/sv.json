@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, innevarande månad till och med {today}. Försäljningen redovisas netto, per orderdatum; annullerade order ingår inte.",
       "footnote_closed": "{from} – {to}. Försäljningen redovisas netto, per orderdatum; annullerade order ingår inte.",
-      "footnote_upcoming": "Den här perioden har inte börjat än.",
-      "example_data": "Exempeldata"
+      "footnote_upcoming": "Den här perioden har inte börjat än."
     }
   }
 }

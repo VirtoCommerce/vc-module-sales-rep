@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, mês atual até {today}. As vendas são líquidas, por data do pedido; os pedidos cancelados são excluídos.",
       "footnote_closed": "{from} – {to}. As vendas são líquidas, por data do pedido; os pedidos cancelados são excluídos.",
-      "footnote_upcoming": "Este período ainda não começou.",
-      "example_data": "Dados de exemplo"
+      "footnote_upcoming": "Este período ainda não começou."
     }
   }
 }

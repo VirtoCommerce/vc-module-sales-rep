@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, inneværende måned til og med {today}. Salget er netto, etter ordredato; kansellerte ordrer er ikke medregnet.",
       "footnote_closed": "{from} – {to}. Salget er netto, etter ordredato; kansellerte ordrer er ikke medregnet.",
-      "footnote_upcoming": "Denne perioden har ikke startet ennå.",
-      "example_data": "Eksempeldata"
+      "footnote_upcoming": "Denne perioden har ikke startet ennå."
     }
   }
 }

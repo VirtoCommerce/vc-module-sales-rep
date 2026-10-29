@@ -536,8 +536,7 @@
       },
       "footnote": "{from} – {to}, bieżący miesiąc do {today}. Sprzedaż netto, według daty zamówienia; anulowane zamówienia nie są uwzględniane.",
       "footnote_closed": "{from} – {to}. Sprzedaż netto, według daty zamówienia; anulowane zamówienia nie są uwzględniane.",
-      "footnote_upcoming": "Ten okres jeszcze się nie rozpoczął.",
-      "example_data": "Przykładowe dane"
+      "footnote_upcoming": "Ten okres jeszcze się nie rozpoczął."
     }
   }
 }
