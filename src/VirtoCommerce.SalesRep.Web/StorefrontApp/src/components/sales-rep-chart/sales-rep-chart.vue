@@ -15,7 +15,7 @@
         >
           <g class="sales-rep-chart__grid">
             <g v-for="tick in ticks" :key="tick">
-              <line :x1="marginLeft" :x2="width - MARGIN.right" :y1="toY(tick)" :y2="toY(tick)" />
+              <line :x1="marginLeft" :x2="width" :y1="toY(tick)" :y2="toY(tick)" />
 
               <text
                 ref="tickLabels"
@@ -217,9 +217,9 @@ const props = withDefaults(defineProps<IProps>(), {
 
 defineSlots<ISlots>();
 
-// Room for the annotations above the plot, the Y ticks on the left and the category labels below. `left` is a minimum:
-// it widens to the longest tick label.
-const MARGIN = { top: 34, right: 16, bottom: 30, left: 64 };
+// Room for the annotations above the plot and the category labels below. The left margin fits the Y ticks; on the
+// right the plot runs to the edge.
+const MARGIN = { top: 34, bottom: 30 };
 const TICK_GAP = 8;
 const LABEL_BOTTOM = 8;
 // Columns nearly touch.
@@ -252,12 +252,10 @@ const visibleSeries = computed(() => props.series.filter((series) => !series.hid
 const barSeries = computed(() => visibleSeries.value.filter((series) => series.type === "bar"));
 const lineSeries = computed(() => visibleSeries.value.filter((series) => series.type === "line"));
 
-const marginLeft = computed(() => Math.max(MARGIN.left, Math.ceil(widestTickLabel.value) + TICK_GAP));
+const marginLeft = computed(() => Math.ceil(widestTickLabel.value) + TICK_GAP);
 const plotHeight = computed(() => props.height - MARGIN.top - MARGIN.bottom);
 const baseline = computed(() => MARGIN.top + plotHeight.value);
-const band = computed(
-  () => Math.max(0, width.value - marginLeft.value - MARGIN.right) / Math.max(props.categories.length, 1),
-);
+const band = computed(() => Math.max(0, width.value - marginLeft.value) / Math.max(props.categories.length, 1));
 const groupWidth = computed(() => band.value * BAR_SHARE);
 const barWidth = computed(() =>
   props.barLayout === "overlap" ? groupWidth.value : groupWidth.value / Math.max(barSeries.value.length, 1),
