@@ -464,6 +464,91 @@
       "scope_label": "Wybrani klienci",
       "status": "Udostępniona {count} klientom | Udostępniona {count} klientowi | Udostępniona {count} klientom | Udostępniona {count} klientom",
       "badge": "Polecane przez Twojego przedstawiciela handlowego"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Raporty"
+      },
+      "title": "Raporty",
+      "subtitle": "Sprzedaż, zamówienia i średnia wartość zamówienia Twoich klientów w porównaniu z poprzednim rokiem",
+      "period_label": "Okres",
+      "periods": {
+        "six_months": "6 miesięcy",
+        "twelve_months": "12 miesięcy",
+        "year": "Bieżący rok",
+        "q1": "I kw.",
+        "q2": "II kw.",
+        "q3": "III kw.",
+        "q4": "IV kw."
+      },
+      "customer_label": "Klient",
+      "all_customers": "Wszyscy moi klienci ({count})",
+      "all_customers_plain": "Wszyscy moi klienci",
+      "customers_failed": "Nie udało się wczytać klientów",
+      "load_failed": "Nie udało się wczytać raportu. Spróbuj ponownie później.",
+      "last_year": "Poprzedni rok",
+      "last_year_toggle": "Pokaż poprzedni rok na wykresie „{chart}”",
+      "upcoming": "Nadchodzący",
+      "cancelled_excluded": "Bez anulowanych zamówień",
+      "sales_chart": {
+        "title": "Sprzedaż miesięczna · {period}",
+        "subtitle": "Średnio {value} na zamknięty miesiąc"
+      },
+      "aov_chart": {
+        "title": "Średnia wartość zamówienia",
+        "subtitle_period": "Śr. wartość zamówienia w okresie: {aov}"
+      },
+      "legend": {
+        "sales_closed": "Sprzedaż, zamknięte miesiące",
+        "aov_closed": "Śr. wartość zamówienia, zamknięte miesiące",
+        "current": "Ten miesiąc, do dziś",
+        "projection": "Prognoza na koniec miesiąca",
+        "last_year": "Poprzedni rok",
+        "vs_last_year": "vs ten sam miesiąc poprzedniego roku",
+        "up": "wzrost",
+        "down": "spadek"
+      },
+      "tooltip": {
+        "revenue": "Przychody",
+        "revenue_to_date": "Przychody do dziś",
+        "projection": "Prognoza na koniec miesiąca",
+        "aov": "Śr. wartość zamówienia",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Przychody, {month}",
+        "last_year_aov": "Śr. wartość zamówienia, {month}"
+      },
+      "card_title": "Moja sprzedaż",
+      "all_orders": "Wszystkie zamówienia",
+      "kpi": {
+        "sales": "Sprzedaż · {period}",
+        "orders": "Zamówienia · {period}",
+        "aov": "Średnia wartość zamówienia · {period}",
+        "month_to_date": "{month} do dziś · dzień {day} z {days}",
+        "projected": "{share} miesiąca · prognoza {value}",
+        "vs_last_year": "{change} vs poprzedni rok"
+      },
+      "chart_periods": {
+        "six_months": "ostatnie 6 miesięcy",
+        "twelve_months": "ostatnie 12 miesięcy",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "Śr. wartość zamówienia, {currency}"
+      },
+      "table": {
+        "toggle": "Pokaż jako tabelę",
+        "description": "Sprzedaż, zamówienia i średnia wartość zamówienia w podziale na miesiące",
+        "month": "Miesiąc",
+        "sales": "Sprzedaż",
+        "orders": "Zamówienia",
+        "aov": "Śr. wartość zamówienia",
+        "last_year": "Ten sam miesiąc poprzedniego roku",
+        "change": "vs poprzedni rok"
+      },
+      "footnote": "{from} – {to}, bieżący miesiąc do {today}. Sprzedaż netto, według daty zamówienia; anulowane zamówienia nie są uwzględniane.",
+      "footnote_closed": "{from} – {to}. Sprzedaż netto, według daty zamówienia; anulowane zamówienia nie są uwzględniane.",
+      "footnote_upcoming": "Ten okres jeszcze się nie rozpoczął."
     }
   }
 }

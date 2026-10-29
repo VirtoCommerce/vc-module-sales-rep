@@ -12,6 +12,7 @@ import {
   useWishlistSharingScopes,
 } from "@vc-frontend/core";
 import { computed, defineAsyncComponent } from "vue";
+import { statisticsTypePolicies } from "./api/graphql/cache-policies";
 import { useSharedSalesRepCustomersCount } from "./composables/useSalesRepCustomersCount";
 import {
   isSalesRepAnalyticsEnabled,
@@ -35,6 +36,8 @@ import {
   HUB_SECTION_ID,
   MY_CUSTOMERS_NAV_LINK_ID,
   MY_CUSTOMERS_ROUTE_NAME,
+  REPORTING_NAV_LINK_ID,
+  REPORTING_ROUTE_NAME,
   SALES_REP_ACCESS_PERMISSION,
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
@@ -56,6 +59,7 @@ import {
   documentsRoute,
   isMyCustomersArea,
   myCustomersRoute,
+  reportingRoute,
   salesRepsRoute,
 } from "./routes";
 import type { ExtendedMenuLinkType, I18n, ILanguage } from "@vc-frontend/core";
@@ -129,6 +133,7 @@ export function init(): void {
   // Relative routes -> mount under the Company parent (/company/sales-reps, /company/dashboard, /company/my-customers).
   router.addRoute(ROUTES.COMPANY.NAME, salesRepsRoute);
   router.addRoute(ROUTES.COMPANY.NAME, dashboardRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, reportingRoute);
   router.addRoute(ROUTES.COMPANY.NAME, myCustomersRoute);
   // Customer profile (VCST-5308) -> /company/my-customers/:organizationId.
   router.addRoute(ROUTES.COMPANY.NAME, customerProfileRoute);
@@ -248,6 +253,12 @@ export function init(): void {
         route: { name: DASHBOARD_ROUTE_NAME },
       },
       {
+        id: REPORTING_NAV_LINK_ID,
+        title: "sales_rep.reporting.navigation.link",
+        icon: "chart-bar",
+        route: { name: REPORTING_ROUTE_NAME },
+      },
+      {
         id: MY_CUSTOMERS_NAV_LINK_ID,
         title: "sales_rep.my_customers.navigation.link",
         icon: "users",
@@ -269,8 +280,9 @@ export function init(): void {
   });
 
   // Layout regions and blocks carry ids that repeat across surfaces, so Apollo would normalize them
-  // into entities shared by every scope. See layout/cache-policies.ts.
-  registerCacheTypePolicies(layoutTypePolicies, { owner: "sales-rep" });
+  // into entities shared by every scope. The statistics have no id, and several queries write the
+  // same entries. See layout/cache-policies.ts and api/graphql/cache-policies.ts.
+  registerCacheTypePolicies({ ...layoutTypePolicies, ...statisticsTypePolicies }, { owner: "sales-rep" });
 
   loadLocale();
 }

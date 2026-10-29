@@ -464,6 +464,91 @@
       "scope_label": "Bestemte kunder",
       "status": "Delt med 1 kunde | Delt med {count} kunder",
       "badge": "Anbefalt av din salgsrepresentant"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Rapporter"
+      },
+      "title": "Rapporter",
+      "subtitle": "Salg, ordrer og gjennomsnittlig ordreverdi for kundene dine sammenlignet med i fjor",
+      "period_label": "Periode",
+      "periods": {
+        "six_months": "6 måneder",
+        "twelve_months": "12 måneder",
+        "year": "Inneværende år",
+        "q1": "Q1",
+        "q2": "Q2",
+        "q3": "Q3",
+        "q4": "Q4"
+      },
+      "customer_label": "Kunde",
+      "all_customers": "Alle mine kunder ({count})",
+      "all_customers_plain": "Alle mine kunder",
+      "customers_failed": "Kunne ikke laste kundene dine",
+      "load_failed": "Kunne ikke laste rapporten. Prøv igjen senere.",
+      "last_year": "I fjor",
+      "last_year_toggle": "Vis fjoråret i diagrammet «{chart}»",
+      "upcoming": "Kommende",
+      "cancelled_excluded": "Kansellerte ordrer er ikke medregnet",
+      "sales_chart": {
+        "title": "Salg per måned · {period}",
+        "subtitle": "Gjennomsnitt {value} / avsluttet måned"
+      },
+      "aov_chart": {
+        "title": "Gjennomsnittlig ordreverdi",
+        "subtitle_period": "Snittordreverdi for perioden: {aov}"
+      },
+      "legend": {
+        "sales_closed": "Salg, avsluttede måneder",
+        "aov_closed": "Snittordreverdi, avsluttede måneder",
+        "current": "Denne måneden, hittil",
+        "projection": "Prognose ved månedsslutt",
+        "last_year": "I fjor",
+        "vs_last_year": "vs samme måned i fjor",
+        "up": "økning",
+        "down": "nedgang"
+      },
+      "tooltip": {
+        "revenue": "Inntekter",
+        "revenue_to_date": "Inntekter hittil",
+        "projection": "Prognose ved månedsslutt",
+        "aov": "Snittordreverdi",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Inntekter, {month}",
+        "last_year_aov": "Snittordreverdi, {month}"
+      },
+      "card_title": "Mitt salg",
+      "all_orders": "Alle bestillinger",
+      "kpi": {
+        "sales": "Salg · {period}",
+        "orders": "Ordrer · {period}",
+        "aov": "Gjennomsnittlig ordreverdi · {period}",
+        "month_to_date": "Hittil i {month} · dag {day} av {days}",
+        "projected": "{share} av måneden · prognose {value}",
+        "vs_last_year": "{change} vs i fjor"
+      },
+      "chart_periods": {
+        "six_months": "siste 6 måneder",
+        "twelve_months": "siste 12 måneder",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "Snittordreverdi, {currency}"
+      },
+      "table": {
+        "toggle": "Vis som tabell",
+        "description": "Salg, ordrer og gjennomsnittlig ordreverdi per måned",
+        "month": "Måned",
+        "sales": "Salg",
+        "orders": "Ordrer",
+        "aov": "Snittordreverdi",
+        "last_year": "Samme måned i fjor",
+        "change": "vs i fjor"
+      },
+      "footnote": "{from} – {to}, inneværende måned til og med {today}. Salget er netto, etter ordredato; kansellerte ordrer er ikke medregnet.",
+      "footnote_closed": "{from} – {to}. Salget er netto, etter ordredato; kansellerte ordrer er ikke medregnet.",
+      "footnote_upcoming": "Denne perioden har ikke startet ennå."
     }
   }
 }

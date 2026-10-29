@@ -64,6 +64,11 @@ export const DASHBOARD_ROUTE_NAME = "SalesRepDashboard";
 export const DASHBOARD_ROUTE_SEGMENT = "dashboard";
 export const DASHBOARD_NAV_LINK_ID = "sales-rep-dashboard";
 
+// Reporting (VCST-6255): monthly revenue, orders and AOV across the rep's customers -> /company/reporting.
+export const REPORTING_ROUTE_NAME = "SalesRepReporting";
+export const REPORTING_ROUTE_SEGMENT = "reporting";
+export const REPORTING_NAV_LINK_ID = "sales-rep-reporting";
+
 // The rep's own activity page (VCST-5337); a sibling of the hub pages under "Company".
 export const ACTIVITIES_ROUTE_NAME = "SalesRepActivities";
 export const ACTIVITIES_ROUTE_SEGMENT = "activities";

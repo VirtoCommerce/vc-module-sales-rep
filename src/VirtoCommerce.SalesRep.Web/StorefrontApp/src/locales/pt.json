@@ -464,6 +464,91 @@
       "scope_label": "Clientes específicos",
       "status": "Compartilhada com {count} clientes | Compartilhada com {count} cliente | Compartilhada com {count} clientes",
       "badge": "Recomendado pelo seu representante de vendas"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Relatórios"
+      },
+      "title": "Relatórios",
+      "subtitle": "Vendas, pedidos e valor médio do pedido dos seus clientes, em comparação com o ano passado",
+      "period_label": "Período",
+      "periods": {
+        "six_months": "6 meses",
+        "twelve_months": "12 meses",
+        "year": "Ano atual",
+        "q1": "T1",
+        "q2": "T2",
+        "q3": "T3",
+        "q4": "T4"
+      },
+      "customer_label": "Cliente",
+      "all_customers": "Todos os meus clientes ({count})",
+      "all_customers_plain": "Todos os meus clientes",
+      "customers_failed": "Não foi possível carregar seus clientes",
+      "load_failed": "Não foi possível carregar o relatório. Tente novamente mais tarde.",
+      "last_year": "Ano passado",
+      "last_year_toggle": "Mostrar o ano passado no gráfico «{chart}»",
+      "upcoming": "Por vir",
+      "cancelled_excluded": "Exceto pedidos cancelados",
+      "sales_chart": {
+        "title": "Vendas mensais · {period}",
+        "subtitle": "Média de {value} por mês fechado"
+      },
+      "aov_chart": {
+        "title": "Valor médio do pedido",
+        "subtitle_period": "Ticket médio de {aov} no período"
+      },
+      "legend": {
+        "sales_closed": "Vendas, meses fechados",
+        "aov_closed": "Ticket médio, meses fechados",
+        "current": "Mês atual, até hoje",
+        "projection": "Projeção para o fim do mês",
+        "last_year": "Ano passado",
+        "vs_last_year": "vs mesmo mês do ano passado",
+        "up": "alta",
+        "down": "queda"
+      },
+      "tooltip": {
+        "revenue": "Receita",
+        "revenue_to_date": "Receita até hoje",
+        "projection": "Projeção para o fim do mês",
+        "aov": "Ticket médio",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Receita, {month}",
+        "last_year_aov": "Ticket médio, {month}"
+      },
+      "card_title": "Minhas vendas",
+      "all_orders": "Todos os pedidos",
+      "kpi": {
+        "sales": "Vendas · {period}",
+        "orders": "Pedidos · {period}",
+        "aov": "Valor médio do pedido · {period}",
+        "month_to_date": "Acumulado de {month} · dia {day} de {days}",
+        "projected": "{share} do mês · projeção de {value}",
+        "vs_last_year": "{change} vs ano passado"
+      },
+      "chart_periods": {
+        "six_months": "últimos 6 meses",
+        "twelve_months": "últimos 12 meses",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "Ticket médio, {currency}"
+      },
+      "table": {
+        "toggle": "Mostrar como tabela",
+        "description": "Vendas, pedidos e valor médio do pedido por mês",
+        "month": "Mês",
+        "sales": "Vendas",
+        "orders": "Pedidos",
+        "aov": "Ticket médio",
+        "last_year": "Mesmo mês do ano passado",
+        "change": "vs ano passado"
+      },
+      "footnote": "{from} – {to}, mês atual até {today}. As vendas são líquidas, por data do pedido; os pedidos cancelados são excluídos.",
+      "footnote_closed": "{from} – {to}. As vendas são líquidas, por data do pedido; os pedidos cancelados são excluídos.",
+      "footnote_upcoming": "Este período ainda não começou."
     }
   }
 }

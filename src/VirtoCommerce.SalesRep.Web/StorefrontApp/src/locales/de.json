@@ -464,6 +464,91 @@
       "scope_label": "Bestimmte Kunden",
       "status": "Mit 1 Kunden geteilt | Mit {count} Kunden geteilt",
       "badge": "Empfohlen von Ihrem Vertriebsmitarbeiter"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Berichte"
+      },
+      "title": "Berichte",
+      "subtitle": "Umsatz, Bestellungen und durchschnittlicher Bestellwert Ihrer Kunden im Vergleich zum Vorjahr",
+      "period_label": "Zeitraum",
+      "periods": {
+        "six_months": "6 Monate",
+        "twelve_months": "12 Monate",
+        "year": "Laufendes Jahr",
+        "q1": "Q1",
+        "q2": "Q2",
+        "q3": "Q3",
+        "q4": "Q4"
+      },
+      "customer_label": "Kunde",
+      "all_customers": "Alle meine Kunden ({count})",
+      "all_customers_plain": "Alle meine Kunden",
+      "customers_failed": "Ihre Kunden konnten nicht geladen werden",
+      "load_failed": "Der Bericht konnte nicht geladen werden. Bitte versuchen Sie es später erneut.",
+      "last_year": "Vorjahr",
+      "last_year_toggle": "Vorjahr im Diagramm „{chart}“ anzeigen",
+      "upcoming": "Anstehend",
+      "cancelled_excluded": "Ohne stornierte Bestellungen",
+      "sales_chart": {
+        "title": "Monatsumsatz · {period}",
+        "subtitle": "Durchschnittlich {value} pro abgeschlossenem Monat"
+      },
+      "aov_chart": {
+        "title": "Durchschnittlicher Bestellwert",
+        "subtitle_period": "Ø Bestellwert im Zeitraum: {aov}"
+      },
+      "legend": {
+        "sales_closed": "Umsatz, abgeschlossene Monate",
+        "aov_closed": "Ø Bestellwert, abgeschlossene Monate",
+        "current": "Dieser Monat, bis heute",
+        "projection": "Prognose zum Monatsende",
+        "last_year": "Vorjahr",
+        "vs_last_year": "ggü. Vorjahresmonat",
+        "up": "Anstieg",
+        "down": "Rückgang"
+      },
+      "tooltip": {
+        "revenue": "Umsatz",
+        "revenue_to_date": "Umsatz bis heute",
+        "projection": "Prognose zum Monatsende",
+        "aov": "Ø Bestellwert",
+        "vs_month": "ggü. {month}",
+        "last_year_revenue": "Umsatz, {month}",
+        "last_year_aov": "Ø Bestellwert, {month}"
+      },
+      "card_title": "Mein Umsatz",
+      "all_orders": "Alle Bestellungen",
+      "kpi": {
+        "sales": "Umsatz · {period}",
+        "orders": "Bestellungen · {period}",
+        "aov": "Durchschnittlicher Bestellwert · {period}",
+        "month_to_date": "{month} bis heute · Tag {day} von {days}",
+        "projected": "{share} des Monats · Prognose {value}",
+        "vs_last_year": "{change} ggü. Vorjahr"
+      },
+      "chart_periods": {
+        "six_months": "letzte 6 Monate",
+        "twelve_months": "letzte 12 Monate",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "Ø Bestellwert, {currency}"
+      },
+      "table": {
+        "toggle": "Als Tabelle anzeigen",
+        "description": "Umsatz, Bestellungen und durchschnittlicher Bestellwert pro Monat",
+        "month": "Monat",
+        "sales": "Umsatz",
+        "orders": "Bestellungen",
+        "aov": "Ø Bestellwert",
+        "last_year": "Vorjahresmonat",
+        "change": "ggü. Vorjahr"
+      },
+      "footnote": "{from} – {to}, laufender Monat bis {today}. Umsatz netto nach Bestelldatum; stornierte Bestellungen sind ausgeschlossen.",
+      "footnote_closed": "{from} – {to}. Umsatz netto nach Bestelldatum; stornierte Bestellungen sind ausgeschlossen.",
+      "footnote_upcoming": "Dieser Zeitraum hat noch nicht begonnen."
     }
   }
 }

@@ -11,6 +11,7 @@ import {
   documentsRoute,
   isMyCustomersArea,
   myCustomersRoute,
+  reportingRoute,
   salesRepsRoute,
   tasksRoute,
 } from "./routes";
@@ -56,6 +57,7 @@ const at = (name: string) => ({ name, query: {} }) as unknown as RouteLocationNo
 describe("sales-rep routes", () => {
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -94,6 +96,7 @@ describe("sales-rep routes", () => {
   // through leaves the click doing nothing at all.
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -112,6 +115,7 @@ describe("sales-rep routes", () => {
 
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
