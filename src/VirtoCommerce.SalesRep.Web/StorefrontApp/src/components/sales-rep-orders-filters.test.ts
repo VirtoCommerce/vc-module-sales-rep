@@ -1,6 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { nextTick, ref } from "vue";
+import { createI18n } from "vue-i18n";
 import { BREAKPOINTS } from "@vc-frontend/core";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
 import SalesRepOrdersFilters from "./sales-rep-orders-filters.vue";
@@ -27,6 +28,7 @@ vi.mock("@vueuse/core", async (importOriginal) => {
 
 afterEach(() => {
   isPhone.value = false;
+  vi.useRealTimers();
 });
 
 const createWrapper = createWrapperFactory(mount, SalesRepOrdersFilters, {
@@ -52,7 +54,7 @@ const createWrapper = createWrapperFactory(mount, SalesRepOrdersFilters, {
       },
       VcSelect: {
         name: "VcSelect",
-        props: ["modelValue", "items"],
+        props: ["modelValue", "items", "valueField", "textField"],
         emits: ["update:modelValue", "change"],
         template: "<div />",
       },
@@ -122,14 +124,11 @@ describe("SalesRepOrdersFilters", () => {
   });
 
   it("fills both bounds from a preset range", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 4, 8, 10, 30));
     const wrapper = createWrapper();
 
-    rangeSelect(wrapper).vm.$emit("change", {
-      id: "lastWeek",
-      label: "Last week",
-      startDate: "2026-05-01",
-      endDate: "2026-05-08",
-    });
+    rangeSelect(wrapper).vm.$emit("change", "lastWeek");
     await nextTick();
 
     await applyButton(wrapper).trigger("click");
@@ -203,12 +202,7 @@ describe("SalesRepOrdersFilters", () => {
     const wrapper = createWrapper();
 
     rangePicker(wrapper).vm.$emit("update:valid", false);
-    rangeSelect(wrapper).vm.$emit("change", {
-      id: "lastWeek",
-      label: "Last week",
-      startDate: "2026-05-01",
-      endDate: "2026-05-08",
-    });
+    rangeSelect(wrapper).vm.$emit("change", "lastWeek");
     await nextTick();
 
     expect(applyButton(wrapper).attributes("disabled")).toBeUndefined();
@@ -251,6 +245,37 @@ describe("SalesRepOrdersFilters", () => {
 
     expect(statuses(wrapper).props("modelValue")).toEqual([]);
   });
+
+  const appliedLastWeek = { statuses: [], customerNames: [], startDate: "2026-05-01", endDate: "2026-05-08" };
+
+  it.each([
+    ["start", { ...appliedLastWeek, startDate: undefined }, { start: undefined, end: "2026-05-08" }],
+    ["end", { ...appliedLastWeek, endDate: undefined }, { start: "2026-05-01", end: undefined }],
+  ])(
+    "falls back to a custom range that keeps the other bound when a preset's %s chip is removed",
+    async (_bound, applied, keptRange) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 4, 8, 10, 30));
+      const wrapper = createWrapper();
+
+      rangeSelect(wrapper).vm.$emit("update:modelValue", "lastWeek");
+      rangeSelect(wrapper).vm.$emit("change", "lastWeek");
+      await nextTick();
+      await applyButton(wrapper).trigger("click");
+
+      expect(lastChange(wrapper)).toEqual(appliedLastWeek);
+
+      await wrapper.setProps({ applied: appliedLastWeek });
+
+      expect(rangeSelect(wrapper).props("modelValue")).toBe("lastWeek");
+      expect(rangePicker(wrapper).exists()).toBe(false);
+
+      await wrapper.setProps({ applied });
+
+      expect(rangeSelect(wrapper).props("modelValue")).toBe("custom");
+      expect(rangePicker(wrapper).props("modelValue")).toEqual(keptRange);
+    },
+  );
 
   it("offers a customer group only where the page passes customers", async () => {
     const wrapper = createWrapper();
@@ -327,5 +352,36 @@ describe("SalesRepOrdersFilters — the date range field", () => {
       layout: "combined",
       label: "sales_rep.customer_orders.filters.date_range",
     });
+  });
+});
+
+describe("SalesRepOrdersFilters — the Created date field", () => {
+  // VcSelect resolves the selected item as the one whose value-field equals the model, so an id keeps it live.
+  it("hands the select the range id and value-field, before and after a pick", async () => {
+    const wrapper = createWrapper();
+
+    expect(rangeSelect(wrapper).props()).toMatchObject({ valueField: "id", modelValue: "custom" });
+
+    rangeSelect(wrapper).vm.$emit("update:modelValue", "lastWeek");
+    rangeSelect(wrapper).vm.$emit("change", "lastWeek");
+    await nextTick();
+
+    expect(rangeSelect(wrapper).props("modelValue")).toBe("lastWeek");
+  });
+
+  it("keeps the select on live items, so a module locale that loads late reaches the selected label", async () => {
+    const i18n = createI18n({ legacy: false, locale: "en", messages: {}, missingWarn: false, fallbackWarn: false });
+    const wrapper = createWrapper({ global: { plugins: [i18n] } });
+    const customDate = (label: string) => expect.objectContaining({ id: "custom", label });
+
+    expect(rangeSelect(wrapper).props("items")).toContainEqual(
+      customDate("sales_rep.customer_orders.filters.custom_date"),
+    );
+
+    i18n.global.setLocaleMessage("en", { sales_rep: { customer_orders: { filters: { custom_date: "Custom date" } } } });
+    await nextTick();
+
+    expect(rangeSelect(wrapper).props()).toMatchObject({ valueField: "id", textField: "label", modelValue: "custom" });
+    expect(rangeSelect(wrapper).props("items")).toContainEqual(customDate("Custom date"));
   });
 });
