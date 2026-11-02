@@ -10,7 +10,20 @@
           {{ t(row.labelKey) }}
         </dt>
 
-        <dd class="customer-profile-info__value">{{ row.value }}</dd>
+        <!-- The default number calls straight away; the others sit behind the same dropdown as on My customers. -->
+        <dd
+          v-if="row.key === 'phone' && defaultPhone"
+          class="customer-profile-info__value customer-profile-info__phone"
+        >
+          <a :href="defaultPhone.href" class="customer-profile-info__link">{{ defaultPhone.number }}</a>
+
+          <CustomerCallAction
+            v-if="phonesState.status === 'ready' && phonesState.phones.length > 1"
+            :state="phonesState"
+          />
+        </dd>
+
+        <dd v-else class="customer-profile-info__value">{{ row.value }}</dd>
       </div>
     </dl>
   </LayoutWidget>
@@ -20,7 +33,9 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
+import CustomerCallAction from "./customer-call-action.vue";
 import LayoutWidget from "./layout-widget.vue";
+import type { CustomerPhonesStateType } from "../phones";
 
 interface IProps {
   organizationId: string;
@@ -31,6 +46,12 @@ const props = defineProps<IProps>();
 const { t } = useI18n();
 // Apollo dedupes this query by id, so sharing it with the page header costs no extra request.
 const { customer, loading } = useSalesRepCustomer(() => props.organizationId);
+
+const phonesState = computed<CustomerPhonesStateType>(() => ({
+  status: "ready",
+  phones: customer.value?.phones ?? [],
+}));
+const defaultPhone = computed(() => customer.value?.phones[0]);
 
 // Only fields the backend returns; blank values are dropped so no label renders empty.
 const rows = computed(() => {
@@ -46,7 +67,12 @@ const rows = computed(() => {
       icon: "user",
       value: details.primaryContactName,
     },
-    { key: "phone", labelKey: "sales_rep.customer_profile.info.phone", icon: "phone", value: details.phone },
+    {
+      key: "phone",
+      labelKey: "sales_rep.customer_profile.info.phone",
+      icon: "phone",
+      value: details.phones[0]?.number,
+    },
     {
       key: "account_type",
       labelKey: "sales_rep.customer_profile.info.account_type",
@@ -79,6 +105,14 @@ const rows = computed(() => {
 
   &__value {
     @apply min-w-0 text-end text-sm font-medium text-neutral-900 [word-break:break-word];
+  }
+
+  &__phone {
+    @apply flex items-center justify-end gap-1;
+  }
+
+  &__link {
+    @apply text-[--link-color] hover:text-[--link-hover-color];
   }
 }
 </style>

@@ -2,6 +2,7 @@ import { computed, ref, toValue } from "vue";
 import { Logger } from "@vc-frontend/core";
 import { SalesRepCustomerDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
+import { buildCustomerPhones } from "../phones";
 import { formatCustomerLocation } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { SalesRepCustomerProfileType } from "../types/customer-profile";
@@ -50,6 +51,7 @@ export function useSalesRepCustomer(organizationId: MaybeRefOrGetter<string>, op
           iconUrl: node.iconUrl ?? "",
           accountType: node.accountType ?? "",
           phone: node.phone ?? "",
+          phones: buildCustomerPhones(node),
           shipTo: formatCustomerLocation(node.address),
           primaryContactName: node.primaryContact?.fullName || node.primaryContact?.name || "",
         }

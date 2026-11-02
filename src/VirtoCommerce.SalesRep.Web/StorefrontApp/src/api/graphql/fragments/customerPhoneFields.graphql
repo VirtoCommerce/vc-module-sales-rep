@@ -1,0 +1,15 @@
+# Every phone the customer details expose today (VCST-6256); `buildCustomerPhones` orders and de-duplicates them.
+fragment customerPhoneFields on SalesRepCustomerDetails {
+  organizationId
+  organizationName
+  phone
+  address {
+    phone
+  }
+  primaryContact {
+    id
+    fullName
+    name
+    phones
+  }
+}

@@ -166,7 +166,7 @@
       }
     },
     "communication": {
-      "action": "发送电子邮件",
+      "action": "发送消息",
       "title": "发送消息",
       "subtitle": "将送达 {organization} 的所有成员",
       "title_label": "标题",
@@ -194,6 +194,13 @@
         "send_email": "发送电子邮件",
         "create_quote": "创建报价",
         "schedule_call": "安排通话"
+      },
+      "call": {
+        "action": "致电客户",
+        "action_with_number": "致电客户，{number}",
+        "no_phone": "无电话号码",
+        "load_failed": "无法加载电话号码",
+        "choose_number": "选择要拨打的号码"
       }
     },
     "orders": {

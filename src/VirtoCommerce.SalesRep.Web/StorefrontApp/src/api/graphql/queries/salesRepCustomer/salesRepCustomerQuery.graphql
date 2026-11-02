@@ -14,5 +14,6 @@ query SalesRepCustomer($organizationId: String!) {
       fullName
       name
     }
+    ...customerPhoneFields
   }
 }

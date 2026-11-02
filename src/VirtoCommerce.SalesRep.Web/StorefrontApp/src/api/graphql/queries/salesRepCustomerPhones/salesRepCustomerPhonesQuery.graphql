@@ -1,0 +1,56 @@
+# Call a customer (VCST-6256): the list query has no phone fields, so one request reads the details of every customer
+# on the visible My customers page, one alias per row. `use<N>` switches off the slots a short page does not fill; their
+# `id<N>` is then an empty string the server never sees.
+query SalesRepCustomerPhones(
+  $use0: Boolean!
+  $id0: String!
+  $use1: Boolean!
+  $id1: String!
+  $use2: Boolean!
+  $id2: String!
+  $use3: Boolean!
+  $id3: String!
+  $use4: Boolean!
+  $id4: String!
+  $use5: Boolean!
+  $id5: String!
+  $use6: Boolean!
+  $id6: String!
+  $use7: Boolean!
+  $id7: String!
+  $use8: Boolean!
+  $id8: String!
+  $use9: Boolean!
+  $id9: String!
+) {
+  c0: salesRepCustomer(organizationId: $id0) @include(if: $use0) {
+    ...customerPhoneFields
+  }
+  c1: salesRepCustomer(organizationId: $id1) @include(if: $use1) {
+    ...customerPhoneFields
+  }
+  c2: salesRepCustomer(organizationId: $id2) @include(if: $use2) {
+    ...customerPhoneFields
+  }
+  c3: salesRepCustomer(organizationId: $id3) @include(if: $use3) {
+    ...customerPhoneFields
+  }
+  c4: salesRepCustomer(organizationId: $id4) @include(if: $use4) {
+    ...customerPhoneFields
+  }
+  c5: salesRepCustomer(organizationId: $id5) @include(if: $use5) {
+    ...customerPhoneFields
+  }
+  c6: salesRepCustomer(organizationId: $id6) @include(if: $use6) {
+    ...customerPhoneFields
+  }
+  c7: salesRepCustomer(organizationId: $id7) @include(if: $use7) {
+    ...customerPhoneFields
+  }
+  c8: salesRepCustomer(organizationId: $id8) @include(if: $use8) {
+    ...customerPhoneFields
+  }
+  c9: salesRepCustomer(organizationId: $id9) @include(if: $use9) {
+    ...customerPhoneFields
+  }
+}

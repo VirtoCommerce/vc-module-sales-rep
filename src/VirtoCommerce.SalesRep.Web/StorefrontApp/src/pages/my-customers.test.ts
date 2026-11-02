@@ -13,6 +13,7 @@ const state = await vi.hoisted(async () => {
     filter: ref<string | undefined>(undefined),
     filterRulesFailed: ref(false),
     sortRulesFailed: ref(false),
+    phoneIds: undefined as undefined | (() => string[]),
   };
 });
 
@@ -48,6 +49,12 @@ vi.mock("../composables/useSalesRepColumnSort", async () => {
     useSalesRepColumnSort: () => ({ sortInfo: ref(undefined), isColumnSortable: () => false, applySort: vi.fn() }),
   };
 });
+vi.mock("../composables/useSalesRepCustomerPhones", () => ({
+  useSalesRepCustomerPhones: (ids: () => string[]) => {
+    state.phoneIds = ids;
+    return { phonesOf: () => ({ status: "loading" }) };
+  },
+}));
 vi.mock("../composables/useSalesRepCommunication", () => ({
   useSalesRepCommunication: () => ({ send: vi.fn(), sending: false }),
 }));
@@ -146,5 +153,22 @@ describe("MyCustomers states", () => {
 
     expect(views).toHaveLength(1);
     expect(views[0].attributes("variant")).toBe("search");
+  });
+});
+
+// The list has no phone fields, so the call actions read the numbers of exactly the rows on screen (VCST-6256).
+describe("MyCustomers phone numbers", () => {
+  it("asks for the numbers of the customers on the page, and follows the page", () => {
+    state.items.value = [
+      { organizationId: "o1", organizationName: "Acme" },
+      { organizationId: "o2", organizationName: "Globex" },
+    ];
+    createWrapper();
+
+    expect(state.phoneIds?.()).toEqual(["o1", "o2"]);
+
+    state.items.value = [{ organizationId: "o3", organizationName: "Initech" }];
+
+    expect(state.phoneIds?.()).toEqual(["o3"]);
   });
 });

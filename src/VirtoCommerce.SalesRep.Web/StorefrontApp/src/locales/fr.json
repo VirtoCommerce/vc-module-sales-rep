@@ -166,7 +166,7 @@
       }
     },
     "communication": {
-      "action": "Envoyer un e-mail",
+      "action": "Envoyer un message",
       "title": "Envoyer un message",
       "subtitle": "Atteint tous les membres de {organization}",
       "title_label": "Titre",
@@ -194,6 +194,13 @@
         "send_email": "Envoyer un e-mail",
         "create_quote": "Créer un devis",
         "schedule_call": "Planifier un appel"
+      },
+      "call": {
+        "action": "Appeler le client",
+        "action_with_number": "Appeler le client, {number}",
+        "no_phone": "Aucun numéro de téléphone",
+        "load_failed": "Impossible de charger les numéros de téléphone",
+        "choose_number": "Choisissez un numéro à appeler"
       }
     },
     "orders": {
