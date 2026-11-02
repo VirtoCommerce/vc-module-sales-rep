@@ -104,7 +104,7 @@ interface IProps {
 interface ITooltipRow {
   label: string;
   value: string;
-  /** A formatted amount, shown through VcPriceDisplay like every price in the storefront. */
+  /** A formatted amount, shown through VcPriceDisplay. */
   isMoney?: boolean;
 }
 
@@ -184,7 +184,7 @@ const series = computed<ChartSeriesType[]>(() => {
       color: "accent-500",
       curve: "monotone",
       dots: true,
-      data: props.months.map((month) => (isAov ? month.lastYearAov : month.lastYearRevenue)),
+      data: props.months.map((month) => lastYearBaseline(month, props.kind)),
       hidden: !props.withLastYear,
     },
   ];
