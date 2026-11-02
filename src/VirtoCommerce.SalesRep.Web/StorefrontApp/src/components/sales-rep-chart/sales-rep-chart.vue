@@ -122,6 +122,7 @@
           </div>
         </template>
 
+        <!-- lazy: otherwise each closed tooltip mounts at once and floating-ui measures its column every frame. -->
         <VcTooltip
           v-for="column in dataColumns"
           :key="`hit-${column.category.id}`"
@@ -130,13 +131,18 @@
           :disabled="!$slots.tooltip"
           placement="top"
           hover
+          lazy
         >
           <template #default="{ triggerProps }">
+            <!-- A column only shows its figures, so it drops the button semantics the trigger props give it. -->
             <div
               :ref="(element) => setHitElement(column.index, element)"
               class="sales-rep-chart__hit-area"
               :style="{ height: `${baseline - hitTop(column)}px` }"
               v-bind="triggerProps"
+              role="img"
+              :aria-expanded="undefined"
+              :aria-controls="undefined"
               :tabindex="column.index === tabStop ? 0 : -1"
               :aria-label="column.category.label"
               @mouseenter="activate(column.index)"
@@ -188,7 +194,7 @@ interface IProps {
   yFormat?: (value: number) => string;
   /** The Y axis title, on its own line above the plot. */
   yLabel?: string;
-  /** Total height in px, axes included. */
+  /** The plot's height in px, axes included; the Y title above it and the legend below it add to it. */
   height?: number;
   /** A list of the drawn series under the plot. */
   showLegend?: boolean;
@@ -410,8 +416,8 @@ onMounted(measureTickLabels);
   --tick-color: var(--sales-rep-chart-tick-color, var(--color-neutral-600));
   --label-color: var(--sales-rep-chart-label-color, var(--color-neutral-800));
   --placeholder-color: var(--sales-rep-chart-placeholder-color, var(--color-neutral-300));
-  --placeholder-text-color: var(--sales-rep-chart-placeholder-text-color, var(--color-neutral-500));
-  --placeholder-label-color: var(--sales-rep-chart-placeholder-label-color, var(--color-neutral-400));
+  --placeholder-text-color: var(--sales-rep-chart-placeholder-text-color, var(--color-neutral-600));
+  --placeholder-label-color: var(--sales-rep-chart-placeholder-label-color, var(--color-neutral-600));
   --legend-color: var(--sales-rep-chart-legend-color, var(--color-neutral-700));
   --active-shade: var(--sales-rep-chart-active-shade, 10%);
 
@@ -442,7 +448,8 @@ onMounted(measureTickLabels);
     color: var(--label-color);
   }
 
-  // One fill, read once: the series picks the colour, an active column only darkens it.
+  // One fill, read once: the series picks the colour, an active column only mixes in the contrast colour (darker on
+  // a light theme, lighter on a dark one).
   &__bar {
     --shade: 0%;
 
