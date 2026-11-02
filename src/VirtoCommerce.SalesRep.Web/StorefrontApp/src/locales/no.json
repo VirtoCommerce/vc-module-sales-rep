@@ -517,7 +517,7 @@
         "last_year_revenue": "Inntekter, {month}",
         "last_year_aov": "Snittordreverdi, {month}"
       },
-      "card_title": "Mitt salg",
+      "card_title": "Salgsstatistikk",
       "all_orders": "Alle bestillinger",
       "kpi": {
         "sales": "Salg · {period}",

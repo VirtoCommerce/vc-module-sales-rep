@@ -517,7 +517,7 @@
         "last_year_revenue": "Intäkter, {month}",
         "last_year_aov": "Snittordervärde, {month}"
       },
-      "card_title": "Min försäljning",
+      "card_title": "Försäljningsstatistik",
       "all_orders": "Alla beställningar",
       "kpi": {
         "sales": "Försäljning · {period}",

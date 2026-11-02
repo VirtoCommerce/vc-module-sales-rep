@@ -517,7 +517,7 @@
         "last_year_revenue": "Przychody, {month}",
         "last_year_aov": "Śr. wartość zamówienia, {month}"
       },
-      "card_title": "Moja sprzedaż",
+      "card_title": "Statystyki sprzedaży",
       "all_orders": "Wszystkie zamówienia",
       "kpi": {
         "sales": "Sprzedaż · {period}",

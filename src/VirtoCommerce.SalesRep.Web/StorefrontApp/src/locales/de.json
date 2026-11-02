@@ -517,7 +517,7 @@
         "last_year_revenue": "Umsatz, {month}",
         "last_year_aov": "Ø Bestellwert, {month}"
       },
-      "card_title": "Mein Umsatz",
+      "card_title": "Umsatzstatistik",
       "all_orders": "Alle Bestellungen",
       "kpi": {
         "sales": "Umsatz · {period}",

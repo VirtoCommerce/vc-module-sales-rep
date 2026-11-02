@@ -517,7 +517,7 @@
         "last_year_revenue": "Revenue, {month}",
         "last_year_aov": "AOV, {month}"
       },
-      "card_title": "My sales",
+      "card_title": "Sales statistics",
       "all_orders": "All orders",
       "kpi": {
         "sales": "Sales · {period}",

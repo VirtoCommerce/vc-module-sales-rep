@@ -517,7 +517,7 @@
         "last_year_revenue": "Receita, {month}",
         "last_year_aov": "Ticket médio, {month}"
       },
-      "card_title": "Minhas vendas",
+      "card_title": "Estatísticas de vendas",
       "all_orders": "Todos os pedidos",
       "kpi": {
         "sales": "Vendas · {period}",
