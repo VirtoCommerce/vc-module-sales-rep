@@ -12,8 +12,9 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Tasks;
 
 /// <summary>
 /// The tasks page around a plain task: an edit that changes only the date, a canceled, a completed and a dateless task
-/// edited, a delete, completion across the statuses, and the filters with their chips. Each test checks the page and
-/// the row. The edits are Tom's; a test that adds a task signs in as a rep of its own.
+/// edited, a delete, completion across the statuses, the filters with their chips, and the dashboard's overdue link
+/// into the page. Each test checks the page and the row. The edits are Tom's; a test that adds a task signs in as a
+/// rep of its own.
 /// </summary>
 [Collection(TasksCollection.Name)]
 [Trait("Category", "StorefrontE2E")]
@@ -264,6 +265,45 @@ public sealed class TasksPageTests(TasksEnvironment env)
             await SearchAsync(page, "price list");
             await Expect(Rows(page)).ToHaveCountAsync(1);
             await Expect(Row(page, contosoQuote)).ToBeVisibleAsync();
+        });
+
+        session.GraphQlErrors.Should().BeEmpty();
+    }
+
+    // VCST-6157: the dashboard's overdue link opens the list on Overdue, over every date. The page drops the link's
+    // parameter on the way in, so Back returns to the dashboard.
+    [Fact(Timeout = 300_000)]
+    public async Task DashboardOverdueLink_OpensOverdueOnEveryDate_AndBackReturnsToTheDashboard()
+    {
+        const string name = "Return the sample kit";
+
+        var rep = await NewRepAsync();
+        await env.AddTaskAsync(rep, name, NewYork.At(NewYork.Today.AddDays(-2), 12));
+        await using var session = await OpenAsync(rep.UserId);
+
+        await session.RunAsync(nameof(DashboardOverdueLink_OpensOverdueOnEveryDate_AndBackReturnsToTheDashboard), async page =>
+        {
+            // The dashboard through the hub's menu (Purchasing has a Dashboard of its own), once the tasks page is up:
+            // opened as a run's first page, it asks the cold Vite for more modules at once than the browser has request
+            // slots for (ERR_INSUFFICIENT_RESOURCES).
+            var hubDashboard = page.GetByRole(AriaRole.Link, new() { Name = "Dashboard", Exact = true }).And(page.Locator("[href$='/company/dashboard']"));
+            await Expect(DueDates(page)).ToBeVisibleAsync(new() { Timeout = 60_000 });
+            await hubDashboard.ClickAsync();
+
+            var overdue = page.GetByRole(AriaRole.Link, new() { Name = "1 overdue task", Exact = true });
+            await overdue.ClickAsync(new() { Timeout = 60_000 });
+
+            // The overdue task alone: the rep's later one is filtered out, and no day narrows the list.
+            var dayChips = page.GetByRole(AriaRole.Button, new() { NameRegex = new Regex("^Remove filter “Due ") });
+            await Expect(RemoveFilterButton(page, "Overdue")).ToBeVisibleAsync(new() { Timeout = 60_000 });
+            await Expect(Row(page, name)).ToBeVisibleAsync();
+            await Expect(HeaderCount(page, 1)).ToBeVisibleAsync();
+            await Expect(dayChips).ToHaveCountAsync(0);
+            await Expect(page).ToHaveURLAsync(new Regex("/company/tasks$"));
+
+            await page.GoBackAsync();
+            await Expect(page).ToHaveURLAsync(new Regex("/company/dashboard$"));
+            await Expect(overdue).ToBeVisibleAsync();
         });
 
         session.GraphQlErrors.Should().BeEmpty();
