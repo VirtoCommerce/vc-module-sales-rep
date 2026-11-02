@@ -1,7 +1,7 @@
 # Temporary: the unreleased facade
 
-`vc-frontend-core-0.2.6.tgz` is `@vc-frontend/core` 0.2.6, packed with `npm pack` from
-VirtoCommerce/vc-frontend#2552 at `cc243cb82` (`feat/VCST-6078-user-dashboard`, the branch that exports the
+`vc-frontend-core-0.2.7.tgz` is `@vc-frontend/core` 0.2.7, packed with `npm pack` from
+VirtoCommerce/vc-frontend#2552 at `70a1d557` (`feat/VCST-6078-user-dashboard`, the branch that exports the
 dashboard layout engine through the facade) — the same command the Core Facade Release workflow runs. It lets this branch build and
 ship its plugin before that facade is released.
 
