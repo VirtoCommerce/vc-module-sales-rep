@@ -130,6 +130,9 @@
         "phone": "Телефон",
         "account_type": "Тип аккаунта",
         "ship_to": "Адрес доставки"
+      },
+      "sales": {
+        "open_in_reporting": "Открыть в отчётах"
       }
     },
     "customer_orders": {

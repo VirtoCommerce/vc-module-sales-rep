@@ -130,6 +130,9 @@
         "phone": "电话",
         "account_type": "账户类型",
         "ship_to": "收货地址"
+      },
+      "sales": {
+        "open_in_reporting": "在报表中打开"
       }
     },
     "customer_orders": {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   CUSTOMER_PROFILE_LAYOUT_SCOPE,
+  CUSTOMER_SALES_BLOCK_ID,
   DASHBOARD_LAYOUT_SCOPE,
   DOCUMENTS_BLOCK_ID,
   DOCUMENTS_DEFAULT_ROWS,
@@ -23,6 +24,10 @@ describe("layout vocabulary", () => {
 
   it("pins the region ids and their order", () => {
     expect(LAYOUT_REGION_IDS).toEqual(["statistics", "mainLeft", "mainRight"]);
+  });
+
+  it("pins the sales statistics block id", () => {
+    expect(CUSTOMER_SALES_BLOCK_ID).toBe("sales");
   });
 
   it("pins the schema version", () => {
@@ -88,5 +93,25 @@ describe("documents block", () => {
     const ids = getBlockRegistry("dashboard").map((block) => block.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(getBlock("dashboard", DOCUMENTS_BLOCK_ID)?.region).toBe("mainRight");
+  });
+});
+
+describe("customer sales block", () => {
+  it("leads the customer profile's left column, ahead of the orders", () => {
+    const left = getBlockRegistry("customerProfile")
+      .filter((block) => block.region === "mainLeft")
+      .sort((a, b) => a.order - b.order)
+      .map((block) => block.id);
+
+    expect(left[0]).toBe(CUSTOMER_SALES_BLOCK_ID);
+    expect(left).toContain("orders");
+  });
+
+  it("is named like the Reporting page's card", () => {
+    expect(getBlock("customerProfile", CUSTOMER_SALES_BLOCK_ID)?.titleKey).toBe("sales_rep.reporting.card_title");
+  });
+
+  it("stays off the hub dashboard", () => {
+    expect(getBlock("dashboard", CUSTOMER_SALES_BLOCK_ID)).toBeUndefined();
   });
 });

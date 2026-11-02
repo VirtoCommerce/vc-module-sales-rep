@@ -130,6 +130,9 @@
         "phone": "Teléfono",
         "account_type": "Tipo de cuenta",
         "ship_to": "Envío a"
+      },
+      "sales": {
+        "open_in_reporting": "Abrir en Informes"
       }
     },
     "customer_orders": {

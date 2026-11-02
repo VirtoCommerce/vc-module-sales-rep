@@ -130,6 +130,9 @@
         "phone": "Téléphone",
         "account_type": "Type de compte",
         "ship_to": "Adresse de livraison"
+      },
+      "sales": {
+        "open_in_reporting": "Ouvrir dans Rapports"
       }
     },
     "customer_orders": {

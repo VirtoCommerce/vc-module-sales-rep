@@ -130,6 +130,9 @@
         "phone": "電話番号",
         "account_type": "アカウントタイプ",
         "ship_to": "配送先"
+      },
+      "sales": {
+        "open_in_reporting": "レポートで開く"
       }
     },
     "customer_orders": {

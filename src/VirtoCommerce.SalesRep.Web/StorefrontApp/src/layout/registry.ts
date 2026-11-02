@@ -5,6 +5,7 @@
 // no region, order or title.
 import { defineAsyncComponent, markRaw } from "vue";
 import {
+  CUSTOMER_SALES_BLOCK_ID,
   MIN_ROWS,
   ORDERS_DEFAULT_ROWS,
   ORDERS_MAX_ROWS,
@@ -20,6 +21,7 @@ const TopSellers = markRaw(defineAsyncComponent(() => import("../components/top-
 const CustomerProfileActions = markRaw(
   defineAsyncComponent(() => import("../components/customer-profile-actions.vue")),
 );
+const CustomerSales = markRaw(defineAsyncComponent(() => import("../components/customer-sales.vue")));
 const CustomerProfileInfo = markRaw(defineAsyncComponent(() => import("../components/customer-profile-info.vue")));
 // Shown with or without the analytics module: orders and customer assignments are platform data, and the card
 // leaves the tracked half out when the module is absent. The customer activity widget is registered on its own.
@@ -76,6 +78,14 @@ const dashboardBlocks: SalesRepBlockType[] = [
 
 const customerProfileBlocks: SalesRepBlockType[] = [
   ...statBlocks("customerProfile"),
+  // Leads the column: the trend reads first, the orders behind it next.
+  {
+    id: CUSTOMER_SALES_BLOCK_ID,
+    region: "mainLeft",
+    titleKey: "sales_rep.reporting.card_title",
+    order: 5,
+    component: CustomerSales,
+  },
   {
     id: "orders",
     region: "mainLeft",
