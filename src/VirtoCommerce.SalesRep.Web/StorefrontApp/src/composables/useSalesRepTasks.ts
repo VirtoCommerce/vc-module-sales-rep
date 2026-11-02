@@ -20,6 +20,8 @@ function mapSalesRepTask(task: SalesRepTaskFieldsFragment, dayStart: Date): Sale
     isActive: task.isActive,
     completed: task.completed ?? undefined,
     status: taskStatus(task, dayStart),
+    customerId: task.customerId ?? undefined,
+    customerName: task.customerName ?? undefined,
   };
 }
 

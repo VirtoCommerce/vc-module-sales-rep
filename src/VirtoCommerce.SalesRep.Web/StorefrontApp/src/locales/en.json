@@ -256,6 +256,7 @@
         "expired": "Expired {date}",
         "due": "Due {date}"
       },
+      "customer_not_assigned": "Customer not assigned",
       "legend": {
         "upcoming": "Upcoming",
         "overdue": "Overdue",
@@ -264,17 +265,28 @@
       "form": {
         "create_title": "New task",
         "edit_title": "Edit task",
+        "create_call_title": "Schedule call",
+        "edit_call_title": "Edit call",
         "name_label": "Title",
         "due_date_label": "Due date",
+        "time_label": "Time",
+        "customer_label": "Customer",
+        "customer_placeholder": "Search customers by name",
+        "customer_error": "The customer list could not be loaded. Please try again.",
+        "call_name": "Call",
         "priority_label": "Priority",
         "type_label": "Type",
         "description_label": "Notes",
+        "calendars_label": "Add to calendar",
+        "google_calendar": "Google Calendar",
+        "apple_calendar": "Apple Calendar",
         "save_button": "Save",
         "cancel_button": "Cancel",
         "delete_button": "Delete",
         "delete_title": "Delete task",
         "delete_confirm": "This task will be deleted permanently. Continue?",
         "saved": "Task saved",
+        "calendar_failed": "Task saved, but it could not be added to the calendar",
         "deleted": "Task deleted"
       }
     },

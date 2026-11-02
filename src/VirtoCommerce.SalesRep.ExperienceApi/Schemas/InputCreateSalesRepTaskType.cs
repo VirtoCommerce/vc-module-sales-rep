@@ -25,5 +25,7 @@ public class InputCreateSalesRepTaskType : ExtendableInputObjectGraphType<Create
             .Description("Lowest, Low, Normal, High or Highest. Null or empty means Normal.");
         Field<DateTimeGraphType>(nameof(CreateSalesRepTaskCommand.DueDate))
             .Description("When the task is due. Required on create; null on update clears it.");
+        Field<StringGraphType>(nameof(CreateSalesRepTaskCommand.CustomerId))
+            .Description("Organization id of a customer the caller serves - the customer the task is about. Null or empty means none.");
     }
 }

@@ -1,9 +1,10 @@
 import { flushPromises, mount } from "@vue/test-utils";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { localDayKey, localDayKeyToIso } from "../tasks";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { dueDateForDayAndTime, localDayKey, localDayKeyToIso } from "../tasks";
 import SalesRepTaskModal from "./sales-rep-task-modal.vue";
 import type { SalesRepTaskType } from "../types/tasks";
-import { VcButton } from "@vc-frontend/core";
+import type { MockInstance } from "vitest";
+import { Logger, VcButton } from "@vc-frontend/core";
 
 const mutations = await vi.hoisted(async () => {
   const { ref } = await import("vue");
@@ -18,8 +19,15 @@ const mutations = await vi.hoisted(async () => {
 
 const state = await vi.hoisted(async () => {
   const { ref } = await import("vue");
-  return { types: ref<string[]>([]), success: vi.fn() };
+  return { types: ref<string[]>([]), success: vi.fn(), warning: vi.fn() };
 });
+
+// The real openBlankTab runs against a spied window.open; only the download is replaced.
+const files = vi.hoisted(() => ({ saveFile: vi.fn() }));
+vi.mock("../files", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  saveFile: files.saveFile,
+}));
 
 vi.mock("../composables/useSalesRepTaskMutations", () => ({
   useSalesRepTaskMutations: () => mutations,
@@ -28,13 +36,29 @@ vi.mock("../composables/useSalesRepTaskTypes", async () => {
   const { ref } = await import("vue");
   return { useSalesRepTaskTypes: () => ({ types: state.types, loading: ref(false), error: ref(null) }) };
 });
+// Behind the call's Customer field, which renders only for a call.
+vi.mock("../composables/useSalesRepCustomerOptions", async () => {
+  const { ref } = await import("vue");
+  const options = ref([
+    { organizationId: "org-1", organizationName: "Lakeview Outfitters", location: "", imageUrl: "" },
+  ]);
+  return {
+    useSalesRepCustomerOptions: () => ({
+      options,
+      failed: ref(false),
+      findOption: (id: string) => options.value.find((option) => option.organizationId === id),
+    }),
+  };
+});
 const modal = vi.hoisted(() => ({ openModal: vi.fn(), closeModal: vi.fn(), closeConfirmation: vi.fn() }));
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
-  useNotifications: () => ({ success: state.success, error: vi.fn() }),
+  useNotifications: () => ({ success: state.success, warning: state.warning, error: vi.fn() }),
   useModal: () => modal,
 }));
-vi.mock("vue-i18n", () => ({ useI18n: () => ({ t: (key: string) => key, d: () => "Oct 15", n: String }) }));
+vi.mock("vue-i18n", () => ({
+  useI18n: () => ({ t: (key: string) => key, d: () => "Oct 15", n: String, locale: { value: "en-US" } }),
+}));
 
 const closeMock = vi.hoisted(() => vi.fn());
 
@@ -62,8 +86,28 @@ const FieldStub = {
     " @input=\"$emit('update:modelValue', $event.target.value)\" />",
 };
 
+// A real checkbox under its label text, so a test ticks it the way the rep does.
+const CheckboxStub = {
+  props: ["modelValue", "disabled"],
+  emits: ["update:modelValue"],
+  template:
+    '<label class="checkbox"><input type="checkbox" :checked="modelValue" :disabled="disabled"' +
+    " @change=\"$emit('update:modelValue', $event.target.checked)\" /><slot /></label>",
+};
+
 // 9:30 on the rep's own clock, so the fixture lands on the same local day whatever timezone the suite runs in.
 const TIMED_DUE_DATE = new Date(2026, 9, 15, 9, 30).toISOString();
+
+// What createSalesRepTask answers: the task as saved, with its id and the customer's name.
+const CREATED_TASK = {
+  id: "task-new",
+  name: "Call ACME",
+  description: undefined,
+  type: undefined,
+  priority: "Normal",
+  dueDate: localDayKeyToIso("2026-10-15"),
+  isActive: true,
+};
 
 function makeTask(overrides: Partial<SalesRepTaskType> = {}): SalesRepTaskType {
   return {
@@ -93,6 +137,8 @@ function createWrapper(props: Record<string, unknown> = {}) {
         VcDatePicker: FieldStub,
         VcSelect: FieldStub,
         VcTextarea: FieldStub,
+        VcCheckbox: CheckboxStub,
+        VcLabel: { template: "<div><slot /></div>" },
         VcIcon: true,
       },
       // Real buttons: the actions are genuine <button>s the tests click, and Save reads its own disabled state.
@@ -104,6 +150,7 @@ function createWrapper(props: Record<string, unknown> = {}) {
 type WrapperType = ReturnType<typeof createWrapper>;
 
 const field = (wrapper: WrapperType, label: string) => wrapper.get(`[data-label$="${label}"]`);
+const exists = (wrapper: WrapperType, label: string) => wrapper.find(`[data-label$="${label}"]`).exists();
 
 function button(wrapper: WrapperType, key: string) {
   const found = wrapper.findAll("button").find((candidate) => candidate.text().includes(key));
@@ -135,9 +182,11 @@ async function confirmDelete(wrapper: WrapperType) {
 beforeEach(() => {
   state.types.value = [];
   state.success.mockClear();
+  state.warning.mockClear();
+  files.saveFile.mockClear();
   closeMock.mockClear();
   mutations.loading.value = false;
-  mutations.create.mockClear().mockResolvedValue(true);
+  mutations.create.mockClear().mockResolvedValue(CREATED_TASK);
   mutations.update.mockClear().mockResolvedValue(true);
   mutations.remove.mockClear().mockResolvedValue(true);
   modal.closeConfirmation.mockClear();
@@ -197,7 +246,7 @@ describe("SalesRepTaskModal create", () => {
   // useMutation already raises the global error toast; what matters here is that the rep does not lose the form.
   it("keeps the form open when the write failed", async () => {
     const onSaved = vi.fn();
-    mutations.create.mockResolvedValue(false);
+    mutations.create.mockResolvedValue(undefined);
     const wrapper = createWrapper({ defaultDay: "2026-10-15", onSaved });
     await field(wrapper, "name_label").setValue("Call ACME");
 
@@ -355,7 +404,7 @@ describe("SalesRepTaskModal type vocabulary", () => {
   it("hides the type field when nobody has configured the dictionary", () => {
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
 
-    expect(wrapper.find('[data-label$="type_label"]').exists()).toBe(false);
+    expect(exists(wrapper, "type_label")).toBe(false);
   });
 
   it("offers the type field once the dictionary has values", async () => {
@@ -388,5 +437,341 @@ describe("SalesRepTaskModal type vocabulary", () => {
     const wrapper = createWrapper({ task: makeTask() });
 
     expect(field(wrapper, "type_label").attributes("data-clearable")).toBe("true");
+  });
+});
+
+// VCST-6314: a task of the Call type gets a time of day and a customer; "Schedule call" opens a drafted one.
+describe("SalesRepTaskModal calls", () => {
+  const CALL_DRAFT = { name: "Call", type: "Call", customerId: "org-1", customerName: "Lakeview Outfitters" };
+
+  // The backend keeps Call in the dictionary, so the type list always offers it.
+  beforeEach(() => {
+    state.types.value = ["Other", "Call"];
+  });
+
+  it("opens a drafted call as a call for that customer: titled, at 9:00, on a day still to pick", () => {
+    const wrapper = createWrapper({ draft: CALL_DRAFT });
+
+    expect(wrapper.get(".modal").attributes("data-title")).toBe("sales_rep.tasks.form.create_call_title");
+    expect(field(wrapper, "name_label").attributes("value")).toBe("Call");
+    expect(field(wrapper, "customer_label").attributes("value")).toBe("org-1");
+    expect(field(wrapper, "due_date_label").attributes("value")).toBe("");
+    expect(field(wrapper, "time_label").attributes("value")).toBe("09:00");
+    expect(field(wrapper, "priority_label").attributes("value")).toBe("Normal");
+  });
+
+  it("will not save a call before its day is picked", async () => {
+    const wrapper = createWrapper({ draft: CALL_DRAFT });
+    await flushPromises();
+
+    expect(button(wrapper, "form.save_button").attributes("disabled")).toBeDefined();
+
+    await field(wrapper, "due_date_label").setValue("2026-10-20");
+    await flushPromises();
+
+    expect(button(wrapper, "form.save_button").attributes("disabled")).toBeUndefined();
+  });
+
+  it("writes the picked day at the picked time, as a call linked to the customer", async () => {
+    const wrapper = createWrapper({ draft: CALL_DRAFT });
+    await field(wrapper, "due_date_label").setValue("2026-10-20");
+    await field(wrapper, "time_label").setValue("14:45");
+
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Call",
+        type: "Call",
+        customerId: "org-1",
+        dueDate: dueDateForDayAndTime("2026-10-20", "14:45"),
+      }),
+    );
+  });
+
+  it("reopens a call at its own time, and moves it when the rep picks another", async () => {
+    const wrapper = createWrapper({
+      task: makeTask({
+        type: "Call",
+        dueDate: TIMED_DUE_DATE,
+        customerId: "org-1",
+        customerName: "Lakeview Outfitters",
+      }),
+    });
+
+    expect(wrapper.get(".modal").attributes("data-title")).toBe("sales_rep.tasks.form.edit_call_title");
+    expect(field(wrapper, "time_label").attributes("value")).toBe("09:30");
+    expect(field(wrapper, "customer_label").attributes("value")).toBe("org-1");
+
+    await field(wrapper, "time_label").setValue("11:00");
+    await save(wrapper);
+
+    const sent = new Date(mutations.update.mock.calls[0][1].dueDate as string);
+    expect(localDayKey(sent)).toBe("2026-10-15");
+    expect([sent.getHours(), sent.getMinutes()]).toEqual([11, 0]);
+  });
+
+  // updateSalesRepTask replaces the task, so an edit that moves neither the day nor the time sends the instant back as
+  // it was, seconds and all - as a date-only task's edit already does (VCST-5732 QA A-1).
+  it("leaves an unchanged call's instant exactly as it found it", async () => {
+    const dueDate = new Date(2026, 9, 15, 9, 30, 15, 250).toISOString();
+    const wrapper = createWrapper({
+      task: makeTask({ type: "Call", dueDate, customerId: "org-1", customerName: "Lakeview Outfitters" }),
+    });
+    await field(wrapper, "name_label").setValue("Call ACME back");
+
+    await save(wrapper);
+
+    expect(mutations.update.mock.calls[0][1].dueDate).toBe(dueDate);
+  });
+
+  // Schedule call must not turn into some other task, and a call opened from the list stays one: the type is not
+  // offered for change in either.
+  it("offers no Type in call mode", () => {
+    expect(exists(createWrapper({ draft: CALL_DRAFT }), "type_label")).toBe(false);
+    expect(exists(createWrapper({ task: makeTask({ type: "Call", customerId: "org-1" }) }), "type_label")).toBe(false);
+  });
+
+  // The type decides which fields follow, so it sits right under the title instead of at the bottom.
+  it("puts Type right under Title, above the fields it controls", () => {
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+
+    const labels = wrapper.findAll("[data-label]").map((input) => input.attributes("data-label"));
+    expect(labels.slice(0, 3)).toEqual([
+      "sales_rep.tasks.form.name_label",
+      "sales_rep.tasks.form.type_label",
+      "sales_rep.tasks.form.due_date_label",
+    ]);
+  });
+
+  it("asks a task for a time and a customer only once it is a call", async () => {
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+
+    expect(exists(wrapper, "time_label")).toBe(false);
+    expect(exists(wrapper, "customer_label")).toBe(false);
+
+    await field(wrapper, "type_label").setValue("Call");
+
+    expect(exists(wrapper, "time_label")).toBe(true);
+    expect(exists(wrapper, "customer_label")).toBe(true);
+  });
+
+  // A non-call task is date-only, so its midnight is no time anybody picked; becoming a call starts at 9:00.
+  it("starts a task that becomes a call at 9:00", async () => {
+    const wrapper = createWrapper({ task: makeTask({ type: "Other" }) });
+
+    await field(wrapper, "type_label").setValue("Call");
+
+    expect(field(wrapper, "time_label").attributes("value")).toBe("09:00");
+  });
+
+  it("drops the customer picked for a call when the task stops being one", async () => {
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+    await field(wrapper, "name_label").setValue("Follow up");
+    await field(wrapper, "type_label").setValue("Call");
+    await field(wrapper, "customer_label").setValue("org-1");
+
+    await field(wrapper, "type_label").setValue("Other");
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalledWith(expect.objectContaining({ type: "Other", customerId: undefined }));
+  });
+
+  // Customer is a call's field, but the API can link one to any task. Such a link is not shown, and is still sent
+  // back as it came, because updateSalesRepTask replaces the task.
+  it("keeps the unshown customer of a task that is not a call", async () => {
+    const wrapper = createWrapper({ task: makeTask({ customerId: "org-1", customerName: "Lakeview Outfitters" }) });
+
+    expect(exists(wrapper, "customer_label")).toBe(false);
+
+    await save(wrapper);
+
+    expect(mutations.update).toHaveBeenCalledWith("task-1", expect.objectContaining({ customerId: "org-1" }));
+  });
+});
+
+// VCST-6314: a new call can go to the rep's Google and Apple calendars. Each event is a copy the storefront cannot
+// update later, so editing offers neither.
+describe("SalesRepTaskModal calendars", () => {
+  const CALL_DRAFT = { name: "Call", type: "Call", customerId: "org-1", customerName: "Lakeview Outfitters" };
+  const CREATED_CALL = {
+    ...CREATED_TASK,
+    name: "Call",
+    type: "Call",
+    dueDate: "2026-10-20T13:00:00.000Z",
+    customerId: "org-1",
+    customerName: "Lakeview Outfitters",
+  };
+
+  let openSpy: MockInstance<typeof window.open>;
+  let googleTab: { location: { href: string }; opener: unknown; close: ReturnType<typeof vi.fn> };
+
+  beforeEach(() => {
+    state.types.value = ["Other", "Call"];
+    mutations.create.mockResolvedValue(CREATED_CALL);
+    googleTab = { location: { href: "" }, opener: {}, close: vi.fn() };
+    openSpy = vi.spyOn(window, "open").mockReturnValue(googleTab as unknown as Window);
+  });
+
+  afterEach(() => {
+    openSpy.mockRestore();
+  });
+
+  const calendar = (wrapper: WrapperType, key: string) =>
+    wrapper.findAll(".checkbox").find((candidate) => candidate.text().includes(key));
+
+  async function tick(wrapper: WrapperType, key: string) {
+    await calendar(wrapper, key)!.get("input").setValue(true);
+  }
+
+  /** A drafted call, ready to save: its day is the one thing Schedule call leaves to the rep. */
+  async function scheduleCall() {
+    const wrapper = createWrapper({ draft: CALL_DRAFT });
+    await field(wrapper, "due_date_label").setValue("2026-10-20");
+    await flushPromises();
+    return wrapper;
+  }
+
+  it("offers both calendars, unticked, when scheduling a call", async () => {
+    const wrapper = await scheduleCall();
+
+    expect(calendar(wrapper, "google_calendar")!.get("input").element.checked).toBe(false);
+    expect(calendar(wrapper, "apple_calendar")!.get("input").element.checked).toBe(false);
+  });
+
+  it("names the group for assistive tech", async () => {
+    const wrapper = await scheduleCall();
+
+    const labelId = wrapper.get("fieldset").attributes("aria-labelledby");
+    expect(wrapper.get(`[id="${labelId}"]`).text()).toBe("sales_rep.tasks.form.calendars_label");
+  });
+
+  it("offers them on a new task only once it is a call", async () => {
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+
+    expect(calendar(wrapper, "google_calendar")).toBeUndefined();
+
+    await field(wrapper, "type_label").setValue("Call");
+
+    expect(calendar(wrapper, "google_calendar")).toBeDefined();
+    expect(calendar(wrapper, "apple_calendar")).toBeDefined();
+  });
+
+  it("offers none when editing a call", () => {
+    const wrapper = createWrapper({ task: makeTask({ type: "Call", dueDate: TIMED_DUE_DATE, customerId: "org-1" }) });
+
+    expect(wrapper.find("fieldset").exists()).toBe(false);
+  });
+
+  it("adds the call nowhere when nothing is ticked", async () => {
+    const wrapper = await scheduleCall();
+
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalled();
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(files.saveFile).not.toHaveBeenCalled();
+    expect(state.success).toHaveBeenCalled();
+  });
+
+  // A tab opened after the save's `await` is popup-blocked, so the click opens it and the saved call fills it in.
+  it("opens Google's tab in the Save click, then fills in the call as the API saved it", async () => {
+    let resolveCreate!: (task: typeof CREATED_CALL) => void;
+    mutations.create.mockReturnValue(new Promise((resolve) => (resolveCreate = resolve)));
+    const wrapper = await scheduleCall();
+    await tick(wrapper, "google_calendar");
+
+    await button(wrapper, "form.save_button").trigger("click");
+
+    expect(openSpy).toHaveBeenCalledWith("", "_blank");
+    expect(googleTab.location.href).toBe("");
+
+    resolveCreate(CREATED_CALL);
+    await flushPromises();
+
+    const url = new URL(googleTab.location.href);
+    expect(url.hostname).toBe("calendar.google.com");
+    expect(url.searchParams.get("text")).toBe("Call — Lakeview Outfitters");
+    expect(url.searchParams.get("dates")).toBe("20261020T130000Z/20261020T133000Z");
+    expect(googleTab.close).not.toHaveBeenCalled();
+    expect(state.success).toHaveBeenCalled();
+    expect(closeMock).toHaveBeenCalled();
+  });
+
+  it("closes Google's tab, still blank, and keeps the form when the call was not saved", async () => {
+    mutations.create.mockResolvedValue(undefined);
+    const wrapper = await scheduleCall();
+    await tick(wrapper, "google_calendar");
+
+    await save(wrapper);
+
+    expect(googleTab.close).toHaveBeenCalled();
+    expect(googleTab.location.href).toBe("");
+    expect(closeMock).not.toHaveBeenCalled();
+  });
+
+  it("downloads the call as an .ics file for Apple Calendar", async () => {
+    const wrapper = await scheduleCall();
+    await tick(wrapper, "apple_calendar");
+
+    await save(wrapper);
+
+    expect(files.saveFile).toHaveBeenCalledWith(
+      expect.stringContaining("SUMMARY:Call — Lakeview Outfitters"),
+      "call.ics",
+      "text/calendar;charset=utf-8",
+    );
+    expect(files.saveFile.mock.calls[0][0]).toContain(`UID:${CREATED_CALL.id}`);
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(closeMock).toHaveBeenCalled();
+  });
+
+  // The call is saved by then, so the form closes either way: left open, it would invite a second save.
+  it("warns, and still closes, when the browser blocked even the tab the click opened", async () => {
+    openSpy.mockReturnValue(null);
+    const wrapper = await scheduleCall();
+    await tick(wrapper, "google_calendar");
+
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalled();
+    expect(state.warning).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "sales_rep.tasks.form.calendar_failed" }),
+    );
+    expect(state.success).not.toHaveBeenCalled();
+    expect(closeMock).toHaveBeenCalled();
+  });
+
+  it("warns, logs and still closes when the calendar step throws", async () => {
+    const loggerSpy = vi.spyOn(Logger, "error").mockImplementation(() => {});
+    files.saveFile.mockImplementationOnce(() => {
+      throw new Error("download refused");
+    });
+    const wrapper = await scheduleCall();
+    await tick(wrapper, "apple_calendar");
+
+    await save(wrapper);
+
+    expect(state.warning).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "sales_rep.tasks.form.calendar_failed" }),
+    );
+    expect(loggerSpy).toHaveBeenCalled();
+    expect(closeMock).toHaveBeenCalled();
+    loggerSpy.mockRestore();
+  });
+
+  it("adds nothing once the task stops being a call", async () => {
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+    await field(wrapper, "name_label").setValue("Follow up");
+    await field(wrapper, "type_label").setValue("Call");
+    await tick(wrapper, "google_calendar");
+    await tick(wrapper, "apple_calendar");
+
+    await field(wrapper, "type_label").setValue("Other");
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalledWith(expect.objectContaining({ type: "Other" }));
+    expect(openSpy).not.toHaveBeenCalled();
+    expect(files.saveFile).not.toHaveBeenCalled();
   });
 });

@@ -9,7 +9,7 @@ import type { OrganizationRowType } from "../types";
 // Paging them all in waits on server-side search in `VcSelect`; VCST-5923.
 const OPTIONS_LIMIT = 100;
 
-/** A customer the rep may pick in the sharing picker. */
+/** A customer the rep may pick, in the list-sharing picker or as a call's customer. */
 export type SalesRepCustomerOptionType = OrganizationRowType;
 
 // The rep's served customer organizations, resolved server-side from their claims. Uses its own narrow query rather
@@ -32,7 +32,7 @@ export function useSalesRepCustomerOptions() {
   const failed = computed(() => error.value != null);
 
   onError((queryError) => {
-    Logger.error("[sales-rep] salesRepCustomers (share options) failed:", queryError);
+    Logger.error("[sales-rep] salesRepCustomers (customer options) failed:", queryError);
   });
 
   const options = computed<SalesRepCustomerOptionType[]>(() =>
@@ -53,7 +53,7 @@ export function useSalesRepCustomerOptions() {
     (count) => {
       if (count > OPTIONS_LIMIT) {
         Logger.warn(
-          `[sales-rep] share picker lists only ${OPTIONS_LIMIT} of ${count} served customers; the rest are unreachable.`,
+          `[sales-rep] customer pickers list only ${OPTIONS_LIMIT} of ${count} served customers; the rest are unreachable.`,
         );
       }
     },
