@@ -12,7 +12,7 @@ export function isReportingPeriod(value: unknown): value is ReportingPeriodType 
 /** Every percent on the page is printed with this many decimals. */
 export const REPORTING_PERCENT_DIGITS = 1;
 
-/** Shown for a figure that has no value (no orders, no baseline), never as 0 or NaN. */
+/** Shown for an amount or a change that has no value (no orders, no baseline), never as $0 or NaN. */
 export const REPORTING_NO_VALUE = "—";
 
 /** The `?customer=` value for all the rep's customers. */
@@ -56,7 +56,7 @@ export type ReportingMonthType = ReportingMonthSlotType & {
   orders: number | null;
   /** null when there are no orders (shown as "—", never as 0 or NaN). */
   aov: number | null;
-  /** Month-end projection; set for the current month only, once at least one day has passed. */
+  /** Month-end projection; set for the current month only. */
   projectedRevenue: number | null;
   lastYearRevenue: number | null;
   lastYearOrders: number | null;
@@ -178,7 +178,7 @@ export function toReportingMonth(slot: ReportingMonthSlotType, raw: ReportingRaw
   const current = isUpcoming ? null : (raw.totals ?? null);
   const lastYear = raw.lastYear ?? null;
 
-  const canProject = slot.state === "current" && slot.daysPassed > 0 && current !== null;
+  const canProject = slot.state === "current" && current !== null;
   const factor = slot.daysInMonth / slot.daysPassed;
   const projectedRevenue = canProject ? current.amount * factor : null;
 
