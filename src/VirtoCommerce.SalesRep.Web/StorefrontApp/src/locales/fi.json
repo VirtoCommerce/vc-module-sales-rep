@@ -517,7 +517,7 @@
         "last_year_revenue": "Tuotto, {month}",
         "last_year_aov": "Keskim. tilausarvo, {month}"
       },
-      "card_title": "Oma myynti",
+      "card_title": "Myyntitilastot",
       "all_orders": "Kaikki tilaukset",
       "kpi": {
         "sales": "Myynti · {period}",

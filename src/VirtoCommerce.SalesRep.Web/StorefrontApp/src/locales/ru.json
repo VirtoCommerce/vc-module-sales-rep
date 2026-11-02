@@ -517,7 +517,7 @@
         "last_year_revenue": "Выручка, {month}",
         "last_year_aov": "Средний чек, {month}"
       },
-      "card_title": "Мои продажи",
+      "card_title": "Статистика продаж",
       "all_orders": "Все заказы",
       "kpi": {
         "sales": "Продажи · {period}",

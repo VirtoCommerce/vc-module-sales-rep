@@ -517,7 +517,7 @@
         "last_year_revenue": "{month} 收入",
         "last_year_aov": "{month} 平均订单金额"
       },
-      "card_title": "我的销售额",
+      "card_title": "销售统计",
       "all_orders": "全部订单",
       "kpi": {
         "sales": "销售额 · {period}",

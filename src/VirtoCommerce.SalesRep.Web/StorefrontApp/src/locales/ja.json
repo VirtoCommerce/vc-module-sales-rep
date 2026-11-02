@@ -517,7 +517,7 @@
         "last_year_revenue": "収益（{month}）",
         "last_year_aov": "平均注文額（{month}）"
       },
-      "card_title": "自分の売上",
+      "card_title": "売上統計",
       "all_orders": "すべての注文",
       "kpi": {
         "sales": "売上 · {period}",
