@@ -11,13 +11,10 @@
         </dt>
 
         <!-- The default number calls straight away; the others sit behind the same dropdown as on My customers. -->
-        <dd
-          v-if="row.key === 'phone' && defaultPhone"
-          class="customer-profile-info__value customer-profile-info__phone"
-        >
-          <a :href="defaultPhone.href" class="customer-profile-info__link">{{ defaultPhone.number }}</a>
+        <dd v-if="row.phones" class="customer-profile-info__value customer-profile-info__phone">
+          <a :href="row.phones[0].href" class="customer-profile-info__link">{{ row.value }}</a>
 
-          <CustomerCallAction v-if="customer && customer.phones.length > 1" :phones="customer.phones" />
+          <CustomerCallAction v-if="row.phones.length > 1" :phones="row.phones" />
         </dd>
 
         <dd v-else class="customer-profile-info__value">{{ row.value }}</dd>
@@ -32,6 +29,7 @@ import { useI18n } from "vue-i18n";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import CustomerCallAction from "./customer-call-action.vue";
 import LayoutWidget from "./layout-widget.vue";
+import type { CustomerPhoneType } from "../phones";
 
 interface IProps {
   organizationId: string;
@@ -43,10 +41,17 @@ const { t } = useI18n();
 // Apollo dedupes this query by id, so sharing it with the page header costs no extra request.
 const { customer, loading } = useSalesRepCustomer(() => props.organizationId);
 
-const defaultPhone = computed(() => customer.value?.phones[0]);
+type InfoRowType = {
+  key: string;
+  labelKey: string;
+  icon: string;
+  value?: string;
+  /** The Phone row's numbers, the default first: its value calls `phones[0]`. */
+  phones?: CustomerPhoneType[];
+};
 
 // Only fields the backend returns; blank values are dropped so no label renders empty.
-const rows = computed(() => {
+const rows = computed<InfoRowType[]>(() => {
   const details = customer.value;
   if (!details) {
     return [];
@@ -64,6 +69,7 @@ const rows = computed(() => {
       labelKey: "sales_rep.customer_profile.info.phone",
       icon: "phone",
       value: details.phones[0]?.number,
+      phones: details.phones,
     },
     {
       key: "account_type",

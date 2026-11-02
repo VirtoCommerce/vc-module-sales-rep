@@ -1,5 +1,8 @@
 // Call a customer (VCST-6256).
 
+import { contactDisplayName } from "./utils";
+import type { SalesRepPrimaryContactFieldsFragment } from "./api/graphql/types";
+
 /** One number a rep can call, with whose it is. */
 export type CustomerPhoneType = {
   /** The contact's name, or the organization's for an organization-level number. */
@@ -15,7 +18,7 @@ export type CustomerPhoneSourceType = {
   organizationName?: string;
   phone?: string;
   address?: { phone?: string };
-  primaryContact?: { fullName?: string; name?: string; phones?: string[] };
+  primaryContact?: SalesRepPrimaryContactFieldsFragment;
 };
 
 /** Digits and a leading `+` only: what a dialer needs, and what makes two spellings of one number equal. */
@@ -30,7 +33,7 @@ export function normalizePhone(value: string): string {
  * number and the default address's phone wherever those are not one of them. The first entry is the default number.
  */
 export function buildCustomerPhones(details: CustomerPhoneSourceType): CustomerPhoneType[] {
-  const contactName = details.primaryContact?.fullName || details.primaryContact?.name || "";
+  const contactName = contactDisplayName(details.primaryContact);
   const organizationName = details.organizationName ?? "";
   const candidates: { name: string; number?: string }[] = [
     ...(details.primaryContact?.phones ?? []).map((number) => ({ name: contactName || organizationName, number })),

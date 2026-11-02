@@ -34,10 +34,7 @@ query SalesRepCustomers(
         phone
       }
       primaryContact {
-        id
-        fullName
-        name
-        phones
+        ...salesRepPrimaryContactFields
       }
       ytd: orderStatistics(from: $ytdFrom, to: $ytdTo) {
         total {

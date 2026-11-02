@@ -100,4 +100,13 @@ describe("CustomerCallAction", () => {
     expect(button.attributes("data-prepend-icon")).toBe("phone");
     expect(button.text()).toBe("sales_rep.communication.call.action");
   });
+
+  it("drops the tooltip that would repeat the labelled button, and keeps it to say there is no number", () => {
+    expect(tooltipOf(mountAction([jane], "button")).disabled).toBe(true);
+    expect(tooltipOf(mountAction([jane, office], "button")).disabled).toBe(true);
+    expect(tooltipOf(mountAction([], "button"))).toEqual({
+      text: "sales_rep.communication.call.no_phone",
+      disabled: false,
+    });
+  });
 });

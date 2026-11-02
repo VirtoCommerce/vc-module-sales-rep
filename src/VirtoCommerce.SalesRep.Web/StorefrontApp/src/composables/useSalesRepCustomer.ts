@@ -3,7 +3,7 @@ import { Logger } from "@vc-frontend/core";
 import { SalesRepCustomerDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
 import { buildCustomerPhones } from "../phones";
-import { formatCustomerLocation } from "../utils";
+import { contactDisplayName, formatCustomerLocation } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { SalesRepCustomerProfileType } from "../types/customer-profile";
 import type { MaybeRefOrGetter } from "vue";
@@ -52,7 +52,7 @@ export function useSalesRepCustomer(organizationId: MaybeRefOrGetter<string>, op
           accountType: node.accountType ?? "",
           phones: buildCustomerPhones(node),
           shipTo: formatCustomerLocation(node.address),
-          primaryContactName: node.primaryContact?.fullName || node.primaryContact?.name || "",
+          primaryContactName: contactDisplayName(node.primaryContact),
         }
       : undefined;
   });

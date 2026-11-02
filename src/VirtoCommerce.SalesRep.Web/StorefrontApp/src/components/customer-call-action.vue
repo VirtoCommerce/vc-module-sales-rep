@@ -1,7 +1,7 @@
 <template>
   <!-- One design-system tooltip over every state; the trigger slot binds its hover/focus listeners on a wrapper, so it
        also shows over a disabled control, which fires no events of its own. -->
-  <VcTooltip class="customer-call-action" :disabled="menuOpened" placement="top" lazy>
+  <VcTooltip class="customer-call-action" :disabled="tooltipDisabled" placement="top" lazy>
     <template #trigger>
       <VcPopover
         v-if="phones.length > 1"
@@ -83,6 +83,9 @@ const menuOpened = ref(false);
 const tooltip = computed(() =>
   props.phones.length ? t("sales_rep.communication.call.action") : t("sales_rep.communication.call.no_phone"),
 );
+
+// A labelled button already says "Call customer"; its tooltip only has something to add when there is no number.
+const tooltipDisabled = computed(() => menuOpened.value || (props.variant === "button" && props.phones.length > 0));
 
 const label = computed(() => (props.variant === "button" ? t("sales_rep.communication.call.action") : undefined));
 

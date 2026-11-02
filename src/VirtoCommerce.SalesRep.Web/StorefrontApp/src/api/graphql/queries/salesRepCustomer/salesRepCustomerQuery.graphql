@@ -11,10 +11,7 @@ query SalesRepCustomer($organizationId: String!) {
       phone
     }
     primaryContact {
-      id
-      fullName
-      name
-      phones
+      ...salesRepPrimaryContactFields
     }
   }
 }
