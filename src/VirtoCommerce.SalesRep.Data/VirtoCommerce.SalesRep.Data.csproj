@@ -8,13 +8,15 @@
     <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1012.0" />
     <PackageReference Include="VirtoCommerce.CoreModule.Core" Version="3.1012.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1010.0" />
-    <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1083.0" />
-    <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1083.0" />
+    <PackageReference Include="VirtoCommerce.Platform.Data" Version="3.1091.0" />
+    <PackageReference Include="VirtoCommerce.Platform.Security" Version="3.1091.0" />
     <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1009.0" />
     <PackageReference Include="VirtoCommerce.TaskManagement.Core" Version="3.1005.0" />
     <PackageReference Include="VirtoCommerce.Xapi.Core" Version="3.1027.0" />
     <PackageReference Include="VirtoCommerce.XCart.Core" Version="3.1039.0" />
     <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1011.0" />
+    <!-- Transitive override: OrdersModule.Data 3.1010.0 -> Platform.Hangfire 3.1039.0 -> Hangfire.MySqlStorage 2.0.3 pulls MySqlConnector 1.0.0 (GHSA-473q-m89c-ghf8, fixed in 2.6.1). -->
+    <PackageReference Include="MySqlConnector" Version="2.6.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\VirtoCommerce.SalesRep.Core\VirtoCommerce.SalesRep.Core.csproj" />
