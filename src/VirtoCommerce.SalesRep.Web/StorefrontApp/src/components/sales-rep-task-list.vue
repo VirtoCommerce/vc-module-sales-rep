@@ -82,7 +82,12 @@
       </template>
     </VcTableColumn>
 
-    <VcTableColumn id="actions" :title="t('sales_rep.tasks.table.actions')" class="sales-rep-task-list__actions-col">
+    <VcTableColumn
+      id="actions"
+      :title="t('sales_rep.tasks.table.actions')"
+      align="center"
+      class="sales-rep-task-list__actions-col"
+    >
       <template #default="{ item }">
         <SalesRepTaskAction :task="item" :disabled="busy" icon-only @toggle="$emit('toggle', item)" />
       </template>
