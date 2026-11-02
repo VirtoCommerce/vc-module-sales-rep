@@ -69,6 +69,11 @@ export const REPORTING_ROUTE_NAME = "SalesRepReporting";
 export const REPORTING_ROUTE_SEGMENT = "reporting";
 export const REPORTING_NAV_LINK_ID = "sales-rep-reporting";
 
+// Sales statistics on the customer profile (VCST-6257): the Reporting panel for one customer. Layout block id —
+// persisted as block.type in saved layouts, so it is load-bearing (see LAYOUT_SCOPE notes).
+export const CUSTOMER_SALES_BLOCK_ID = "sales";
+export const CUSTOMER_SALES_PERIOD_STORAGE_KEY = "vc-sales-rep-customer-sales-period";
+
 // The rep's own activity page (VCST-5337); a sibling of the hub pages under "Company".
 export const ACTIVITIES_ROUTE_NAME = "SalesRepActivities";
 export const ACTIVITIES_ROUTE_SEGMENT = "activities";
