@@ -1,7 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it, vi } from "vitest";
 import CustomerCallAction from "./customer-call-action.vue";
-import type { CustomerPhonesStateType, CustomerPhoneType } from "../phones";
+import type { CustomerPhoneType } from "../phones";
 
 vi.mock("vue-i18n", () => ({
   useI18n: () => ({
@@ -12,9 +12,9 @@ vi.mock("vue-i18n", () => ({
 const jane: CustomerPhoneType = { name: "Jane Smith", number: "+1 555 010 2030", href: "tel:+15550102030" };
 const office: CustomerPhoneType = { name: "Acme Corp", number: "555 000", href: "tel:555000" };
 
-function mountAction(state: CustomerPhonesStateType, variant?: "icon" | "button") {
+function mountAction(phones: CustomerPhoneType[], variant?: "icon" | "button") {
   return mount(CustomerCallAction, {
-    props: { state, variant },
+    props: { phones, variant },
     global: {
       stubs: {
         VcTooltip: {
@@ -49,7 +49,7 @@ const tooltipOf = (wrapper: ReturnType<typeof mountAction>) => ({
 
 describe("CustomerCallAction", () => {
   it("calls the only number directly, under the Call customer tooltip", () => {
-    const wrapper = mountAction({ status: "ready", phones: [jane] });
+    const wrapper = mountAction([jane]);
     const button = wrapper.find(".button");
 
     expect(button.attributes("data-href")).toBe("tel:+15550102030");
@@ -61,7 +61,7 @@ describe("CustomerCallAction", () => {
   });
 
   it("offers every number, with whose it is, when there are several", () => {
-    const wrapper = mountAction({ status: "ready", phones: [jane, office] });
+    const wrapper = mountAction([jane, office]);
     const items = wrapper.findAll(".menu-item");
 
     expect(items.map((item) => item.attributes("href"))).toEqual(["tel:+15550102030", "tel:555000"]);
@@ -72,7 +72,7 @@ describe("CustomerCallAction", () => {
   });
 
   it("hides the tooltip while the number list is open", async () => {
-    const wrapper = mountAction({ status: "ready", phones: [jane, office] });
+    const wrapper = mountAction([jane, office]);
 
     await wrapper.findComponent({ name: "VcPopover" }).vm.$emit("toggle", true);
 
@@ -80,7 +80,7 @@ describe("CustomerCallAction", () => {
   });
 
   it("is disabled with No phone number when the customer has none, and still takes focus to say so", () => {
-    const wrapper = mountAction({ status: "ready", phones: [] });
+    const wrapper = mountAction([]);
     const reason = wrapper.find(".customer-call-action__disabled");
 
     expect(wrapper.find(".button").attributes("disabled")).toBeDefined();
@@ -92,30 +92,10 @@ describe("CustomerCallAction", () => {
     );
   });
 
-  it("is disabled without any tooltip while the numbers load", () => {
-    const wrapper = mountAction({ status: "loading" });
-    const reason = wrapper.find(".customer-call-action__disabled");
-
-    expect(wrapper.find(".button").attributes("disabled")).toBeDefined();
-    expect(tooltipOf(wrapper)).toEqual({ text: "", disabled: true });
-    expect(reason.attributes("tabindex")).toBeUndefined();
-  });
-
-  it("tells a failed load apart from a customer with no number", () => {
-    const wrapper = mountAction({ status: "failed" });
-
-    expect(wrapper.find(".button").attributes("disabled")).toBeDefined();
-    expect(tooltipOf(wrapper).text).toBe("sales_rep.communication.call.load_failed");
-  });
-
   it("is an icon in the table and a labelled button on the mobile cards", () => {
-    expect(
-      mountAction({ status: "ready", phones: [jane] })
-        .find(".button")
-        .attributes("data-icon"),
-    ).toBe("phone");
+    expect(mountAction([jane]).find(".button").attributes("data-icon")).toBe("phone");
 
-    const button = mountAction({ status: "ready", phones: [jane] }, "button").find(".button");
+    const button = mountAction([jane], "button").find(".button");
 
     expect(button.attributes("data-prepend-icon")).toBe("phone");
     expect(button.text()).toBe("sales_rep.communication.call.action");

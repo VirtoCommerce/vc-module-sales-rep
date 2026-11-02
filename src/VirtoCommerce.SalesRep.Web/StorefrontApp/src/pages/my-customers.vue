@@ -116,7 +116,7 @@
                       {{ t("sales_rep.communication.action") }}
                     </VcButton>
 
-                    <CustomerCallAction :state="phonesOf(item.organizationId)" variant="button" />
+                    <CustomerCallAction :phones="item.phones" variant="button" />
                   </div>
                 </div>
               </div>
@@ -213,7 +213,7 @@
                 <template #content>{{ t("sales_rep.communication.action") }}</template>
               </VcTooltip>
 
-              <CustomerCallAction :state="phonesOf(item.organizationId)" />
+              <CustomerCallAction :phones="item.phones" />
             </VcTableColumn>
           </VcTable>
         </template>
@@ -231,7 +231,6 @@ import CustomerCommunicationModal from "../components/customer-communication-mod
 import SalesRepRuleAlert from "../components/sales-rep-rule-alert.vue";
 import SalesRepRuleChips from "../components/sales-rep-rule-chips.vue";
 import { useSalesRepColumnSort } from "../composables/useSalesRepColumnSort";
-import { useSalesRepCustomerPhones } from "../composables/useSalesRepCustomerPhones";
 import { useSalesRepCustomers } from "../composables/useSalesRepCustomers";
 import { useSalesRepRules } from "../composables/useSalesRepRules";
 import { CUSTOMER_PROFILE_ROUTE_NAME } from "../constants";
@@ -243,9 +242,6 @@ const { openModal } = useModal();
 const { loading, error, keyword, filter, sortRule, page, pages, items } = useSalesRepCustomers();
 
 const failed = computed(() => Boolean(error.value));
-
-// The list has no phone fields: the numbers of the rows on screen come in one request of their own (VCST-6256).
-const { phonesOf } = useSalesRepCustomerPhones(() => items.value.map((item) => item.organizationId));
 
 const { rules: sortRules, failed: sortRulesFailed } = useSalesRepRules("customer", "sort");
 const { rules: filterRules, failed: filterRulesFailed } = useSalesRepRules("customer", "filter");

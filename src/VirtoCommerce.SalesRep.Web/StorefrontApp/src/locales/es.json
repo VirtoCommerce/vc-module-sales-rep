@@ -199,7 +199,6 @@
         "action": "Llamar al cliente",
         "action_with_number": "Llamar al cliente, {number}",
         "no_phone": "Sin número de teléfono",
-        "load_failed": "No se pudieron cargar los números de teléfono",
         "choose_number": "Elija un número para llamar"
       }
     },

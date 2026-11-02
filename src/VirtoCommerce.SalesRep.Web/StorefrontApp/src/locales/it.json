@@ -199,7 +199,6 @@
         "action": "Chiama il cliente",
         "action_with_number": "Chiama il cliente, {number}",
         "no_phone": "Nessun numero di telefono",
-        "load_failed": "Impossibile caricare i numeri di telefono",
         "choose_number": "Scegli un numero da chiamare"
       }
     },

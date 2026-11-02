@@ -199,7 +199,6 @@
         "action": "Ring kunden",
         "action_with_number": "Ring kunden, {number}",
         "no_phone": "Inget telefonnummer",
-        "load_failed": "Det gick inte att läsa in telefonnummer",
         "choose_number": "Välj ett nummer att ringa"
       }
     },

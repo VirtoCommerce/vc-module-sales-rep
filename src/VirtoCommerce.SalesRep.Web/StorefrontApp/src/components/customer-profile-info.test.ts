@@ -39,7 +39,7 @@ function mountInfo() {
         LayoutWidget: { template: "<section><slot /></section>" },
         VcEmptyView: true,
         VcIcon: true,
-        CustomerCallAction: { name: "CustomerCallAction", props: ["state"], template: "<span class='call-action' />" },
+        CustomerCallAction: { name: "CustomerCallAction", props: ["phones"], template: "<span class='call-action' />" },
       },
     },
   });
@@ -63,7 +63,7 @@ describe("CustomerProfileInfo phone", () => {
     const action = mountInfo().findComponent({ name: "CustomerCallAction" });
 
     expect(action.exists()).toBe(true);
-    expect(action.props("state")).toEqual({ status: "ready", phones: [jane, office] });
+    expect(action.props("phones")).toEqual([jane, office]);
   });
 
   it("keeps a single number to the link alone", () => {

@@ -199,7 +199,6 @@
         "action": "Ring kunden",
         "action_with_number": "Ring kunden, {number}",
         "no_phone": "Ingen telefonnummer",
-        "load_failed": "Kunne ikke laste inn telefonnumre",
         "choose_number": "Velg et nummer å ringe"
       }
     },

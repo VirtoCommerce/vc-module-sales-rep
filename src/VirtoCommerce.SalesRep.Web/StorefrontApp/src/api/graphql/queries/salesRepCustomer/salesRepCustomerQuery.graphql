@@ -8,12 +8,13 @@ query SalesRepCustomer($organizationId: String!) {
     address {
       city
       regionName
+      phone
     }
     primaryContact {
       id
       fullName
       name
+      phones
     }
-    ...customerPhoneFields
   }
 }

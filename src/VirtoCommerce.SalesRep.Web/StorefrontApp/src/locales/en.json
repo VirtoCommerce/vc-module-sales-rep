@@ -199,7 +199,6 @@
         "action": "Call customer",
         "action_with_number": "Call customer, {number}",
         "no_phone": "No phone number",
-        "load_failed": "Couldn't load phone numbers",
         "choose_number": "Choose a number to call"
       }
     },

@@ -17,10 +17,7 @@
         >
           <a :href="defaultPhone.href" class="customer-profile-info__link">{{ defaultPhone.number }}</a>
 
-          <CustomerCallAction
-            v-if="phonesState.status === 'ready' && phonesState.phones.length > 1"
-            :state="phonesState"
-          />
+          <CustomerCallAction v-if="customer && customer.phones.length > 1" :phones="customer.phones" />
         </dd>
 
         <dd v-else class="customer-profile-info__value">{{ row.value }}</dd>
@@ -35,7 +32,6 @@ import { useI18n } from "vue-i18n";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import CustomerCallAction from "./customer-call-action.vue";
 import LayoutWidget from "./layout-widget.vue";
-import type { CustomerPhonesStateType } from "../phones";
 
 interface IProps {
   organizationId: string;
@@ -47,10 +43,6 @@ const { t } = useI18n();
 // Apollo dedupes this query by id, so sharing it with the page header costs no extra request.
 const { customer, loading } = useSalesRepCustomer(() => props.organizationId);
 
-const phonesState = computed<CustomerPhonesStateType>(() => ({
-  status: "ready",
-  phones: customer.value?.phones ?? [],
-}));
 const defaultPhone = computed(() => customer.value?.phones[0]);
 
 // Only fields the backend returns; blank values are dropped so no label renders empty.

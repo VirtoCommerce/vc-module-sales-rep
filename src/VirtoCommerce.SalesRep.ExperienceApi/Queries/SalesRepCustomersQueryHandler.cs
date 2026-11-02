@@ -10,6 +10,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
@@ -19,12 +20,16 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomersQuery, SalesRepCustomerSearchResult>
 {
+    private static readonly string _contactResponseGroup =
+        (MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
+
     private readonly IMemberSearchService _memberSearchService;
     private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
     private readonly ISalesRepCustomerFilterRuleResolver _filterRuleResolver;
     private readonly ISalesRepCustomerSortRuleResolver _sortRuleResolver;
     private readonly ICustomerOrderStatisticsService _statisticsService;
     private readonly ISalesRepCurrencyResolver _currencyResolver;
+    private readonly ISalesRepPrimaryContactResolver _primaryContactResolver;
 
     public SalesRepCustomersQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
@@ -33,7 +38,8 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         ISalesRepCustomerFilterRuleResolver filterRuleResolver,
         ISalesRepCustomerSortRuleResolver sortRuleResolver,
         ICustomerOrderStatisticsService statisticsService,
-        ISalesRepCurrencyResolver currencyResolver)
+        ISalesRepCurrencyResolver currencyResolver,
+        ISalesRepPrimaryContactResolver primaryContactResolver)
         : base(organizationAccessService)
     {
         _memberSearchService = memberSearchService;
@@ -42,6 +48,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         _sortRuleResolver = sortRuleResolver;
         _statisticsService = statisticsService;
         _currencyResolver = currencyResolver;
+        _primaryContactResolver = primaryContactResolver;
     }
 
     public virtual async Task<SalesRepCustomerSearchResult> Handle(SalesRepCustomersQuery request, CancellationToken cancellationToken)
@@ -92,9 +99,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(criteria);
 
         result.TotalCount = membersSearchResult.TotalCount;
-        result.Results = membersSearchResult.Results
-            .Select(x => SalesRepCustomer.FromOrganization(x, request.StoreId, currencyCode))
-            .ToList();
+        result.Results = await ToCustomersAsync(membersSearchResult.Results, request, currencyCode);
         return result;
     }
 
@@ -130,12 +135,33 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var byOrganization = await _statisticsService.GetStatisticsByOrganizationAsync(statisticsCriteria);
 
         result.TotalCount = candidates.Count;
-        result.Results = RankByMetric(candidates, byOrganization, sortSpec)
+        var page = RankByMetric(candidates, byOrganization, sortSpec)
             .Skip(skip)
             .Take(take)
-            .Select(x => SalesRepCustomer.FromOrganization(x, request.StoreId, currencyCode))
             .ToList();
+        result.Results = await ToCustomersAsync(page, request, currencyCode);
         return result;
+    }
+
+    protected virtual async Task<IList<SalesRepCustomer>> ToCustomersAsync(
+        IList<Member> organizations,
+        SalesRepCustomersQuery request,
+        string currencyCode)
+    {
+        var withPrimaryContact = request.IncludeFields.IncludesField(nameof(SalesRepCustomer.PrimaryContact))
+            || request.IncludeFields.IncludesField(nameof(SalesRepCustomer.Phone));
+
+        var customers = new List<SalesRepCustomer>(organizations.Count);
+        foreach (var organization in organizations)
+        {
+            var primaryContact = withPrimaryContact && organization is Organization org
+                ? await _primaryContactResolver.ResolvePrimaryContactAsync(org, _contactResponseGroup)
+                : null;
+
+            customers.Add(SalesRepCustomer.FromOrganization(organization, request.StoreId, currencyCode, primaryContact));
+        }
+
+        return customers;
     }
 
     private static IEnumerable<Member> RankByMetric(

@@ -72,6 +72,38 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepCustomers_ResolvesPrimaryContactPhonesPerRow()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedContactAsync("owner-1", c =>
+        {
+            c.FirstName = "Olivia";
+            c.LastName = "Owner";
+            c.FullName = "Olivia Owner";
+            c.Name = "Olivia Owner";
+            c.Phones = ["+1-999-0001", "+1-999-0002"];
+        });
+        await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "owner-1");
+        await ctx.SeedContactAsync("owner-2", c => c.Name = "Oscar Owner");
+        await ctx.SeedOrganizationAsync("org-2", o =>
+        {
+            o.OwnerId = "owner-2";
+            o.Phones = ["+1-222-0000"];
+        });
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"name\") { items { organizationId phone primaryContact { id fullName phones } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        // org-1: the owner is the primary contact, and its first phone is the customer's phone.
+        json.Should().Contain("owner-1").And.Contain("999-0001").And.Contain("999-0002");
+        // org-2's owner has no phone, so `phone` falls back to the organization's.
+        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"\\u002B1-222-0000\"");
+    }
+
+    [Fact]
     public async Task SalesRepCustomers_Anonymous_ReturnsAuthorizationError()
     {
         using var ctx = SalesRepTestContext.Create();

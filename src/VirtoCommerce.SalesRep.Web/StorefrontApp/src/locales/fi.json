@@ -199,7 +199,6 @@
         "action": "Soita asiakkaalle",
         "action_with_number": "Soita asiakkaalle, {number}",
         "no_phone": "Ei puhelinnumeroa",
-        "load_failed": "Puhelinnumeroita ei voitu ladata",
         "choose_number": "Valitse soitettava numero"
       }
     },

@@ -1,7 +1,7 @@
 <template>
   <!-- One design-system tooltip over every state; the trigger slot binds its hover/focus listeners on a wrapper, so it
        also shows over a disabled control, which fires no events of its own. -->
-  <VcTooltip class="customer-call-action" :disabled="!tooltip || menuOpened" placement="top" lazy>
+  <VcTooltip class="customer-call-action" :disabled="menuOpened" placement="top" lazy>
     <template #trigger>
       <VcPopover
         v-if="phones.length > 1"
@@ -46,10 +46,10 @@
       <span
         v-else
         class="customer-call-action__disabled"
-        :role="tooltip ? 'button' : undefined"
-        :tabindex="tooltip ? 0 : undefined"
+        role="button"
+        tabindex="0"
         aria-disabled="true"
-        :aria-label="tooltip ? `${t('sales_rep.communication.call.action')}, ${tooltip}` : undefined"
+        :aria-label="`${t('sales_rep.communication.call.action')}, ${tooltip}`"
       >
         <VcButton v-bind="buttonProps" disabled tabindex="-1" aria-hidden="true">
           <template v-if="label" #default>{{ label }}</template>
@@ -64,10 +64,10 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { CustomerPhonesStateType } from "../phones";
+import type { CustomerPhoneType } from "../phones";
 
 interface IProps {
-  state: CustomerPhonesStateType;
+  phones: CustomerPhoneType[];
   /** `icon` for the My customers table, `button` (with a label) for its mobile cards. */
   variant?: "icon" | "button";
 }
@@ -80,18 +80,9 @@ const { t } = useI18n();
 
 const menuOpened = ref(false);
 
-const phones = computed(() => (props.state.status === "ready" ? props.state.phones : []));
-
-// While the numbers load there is no tooltip at all: "No phone number" must not flash over a customer that has one.
-const tooltip = computed(() => {
-  if (props.state.status === "loading") {
-    return undefined;
-  }
-  if (props.state.status === "failed") {
-    return t("sales_rep.communication.call.load_failed");
-  }
-  return phones.value.length ? t("sales_rep.communication.call.action") : t("sales_rep.communication.call.no_phone");
-});
+const tooltip = computed(() =>
+  props.phones.length ? t("sales_rep.communication.call.action") : t("sales_rep.communication.call.no_phone"),
+);
 
 const label = computed(() => (props.variant === "button" ? t("sales_rep.communication.call.action") : undefined));
 

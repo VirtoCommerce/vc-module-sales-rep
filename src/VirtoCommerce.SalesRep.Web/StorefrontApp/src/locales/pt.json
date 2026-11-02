@@ -199,7 +199,6 @@
         "action": "Ligar para o cliente",
         "action_with_number": "Ligar para o cliente, {number}",
         "no_phone": "Sem número de telefone",
-        "load_failed": "Não foi possível carregar os números de telefone",
         "choose_number": "Escolha um número para ligar"
       }
     },

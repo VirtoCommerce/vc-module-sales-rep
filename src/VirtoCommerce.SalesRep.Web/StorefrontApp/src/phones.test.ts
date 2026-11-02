@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { buildCustomerPhones, normalizePhone } from "./phones";
-import type { CustomerPhoneFieldsFragment } from "./api/graphql/types";
+import type { CustomerPhoneSourceType } from "./phones";
 
-function details(overrides: Partial<CustomerPhoneFieldsFragment> = {}): CustomerPhoneFieldsFragment {
-  return { organizationId: "org-1", organizationName: "Acme Corp", ...overrides };
+function details(overrides: Partial<CustomerPhoneSourceType> = {}): CustomerPhoneSourceType {
+  return { organizationName: "Acme Corp", ...overrides };
 }
 
-const contact = (phones: string[], fullName = "Jane Smith") => ({ id: "c-1", fullName, name: "jsmith", phones });
+const contact = (phones: string[], fullName = "Jane Smith") => ({ fullName, name: "jsmith", phones });
 
 describe("normalizePhone", () => {
   it.each([
@@ -40,10 +40,8 @@ describe("buildCustomerPhones", () => {
   });
 
   it("falls back to the contact's display name, then the organization's", () => {
-    expect(buildCustomerPhones(details({ primaryContact: { id: "c", name: "jsmith", phones: ["1"] } }))[0].name).toBe(
-      "jsmith",
-    );
-    expect(buildCustomerPhones(details({ primaryContact: { id: "c", phones: ["1"] } }))[0].name).toBe("Acme Corp");
+    expect(buildCustomerPhones(details({ primaryContact: { name: "jsmith", phones: ["1"] } }))[0].name).toBe("jsmith");
+    expect(buildCustomerPhones(details({ primaryContact: { phones: ["1"] } }))[0].name).toBe("Acme Corp");
   });
 
   it("names an organization-level number after the organization", () => {

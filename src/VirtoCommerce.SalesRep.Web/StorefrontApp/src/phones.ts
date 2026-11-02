@@ -1,5 +1,3 @@
-import type { CustomerPhoneFieldsFragment } from "./api/graphql/types";
-
 // Call a customer (VCST-6256).
 
 /** One number a rep can call, with whose it is. */
@@ -12,9 +10,13 @@ export type CustomerPhoneType = {
   href: string;
 };
 
-/** Where a customer's numbers stand: the list reads them after the rows, the profile with the details. */
-export type CustomerPhonesStateType =
-  { status: "loading" } | { status: "failed" } | { status: "ready"; phones: CustomerPhoneType[] };
+/** The phone fields both `salesRepCustomers` items and `salesRepCustomer` details return. */
+export type CustomerPhoneSourceType = {
+  organizationName?: string;
+  phone?: string;
+  address?: { phone?: string };
+  primaryContact?: { fullName?: string; name?: string; phones?: string[] };
+};
 
 /** Digits and a leading `+` only: what a dialer needs, and what makes two spellings of one number equal. */
 export function normalizePhone(value: string): string {
@@ -27,7 +29,7 @@ export function normalizePhone(value: string): string {
  * Every number the customer details expose, the primary contact's first: its phones, then the customer's primary
  * number and the default address's phone wherever those are not one of them. The first entry is the default number.
  */
-export function buildCustomerPhones(details: CustomerPhoneFieldsFragment | undefined | null): CustomerPhoneType[] {
+export function buildCustomerPhones(details: CustomerPhoneSourceType | undefined | null): CustomerPhoneType[] {
   if (!details) {
     return [];
   }

@@ -199,7 +199,6 @@
         "action": "Kunden anrufen",
         "action_with_number": "Kunden anrufen, {number}",
         "no_phone": "Keine Telefonnummer",
-        "load_failed": "Telefonnummern konnten nicht geladen werden",
         "choose_number": "Nummer zum Anrufen wählen"
       }
     },
