@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { nextTick, ref } from "vue";
+import { SalesRepMonthlyOrderStatisticsDocument } from "../api/graphql/types";
 import { useSalesRepReporting } from "./useSalesRepReporting";
 import type { SalesRepMonthlyOrderStatisticsQuery } from "../api/graphql/types";
 import type { ReportingPeriodType } from "../reporting";
@@ -84,6 +85,29 @@ describe("useSalesRepReporting", () => {
     expect(reporting.months.value).toHaveLength(6);
     expect(reporting.months.value[0]).toMatchObject({ month: 4, revenue: 500 });
     expect(reporting.months.value.at(-1)).toMatchObject({ month: 9, state: "current", revenue: 1000 });
+  });
+
+  it("sends exactly the variables the query declares", () => {
+    setup("year");
+    const [operation] = SalesRepMonthlyOrderStatisticsDocument.definitions;
+    const declared = "variableDefinitions" in operation ? operation.variableDefinitions : [];
+
+    expect(Object.keys(passedVariables()).sort()).toEqual(
+      (declared ?? []).map((definition) => definition.variable.name.value).sort(),
+    );
+  });
+
+  it("keeps naming the previous period while a shorter one that starts the same way loads", async () => {
+    // Q1 shares the year's first three months and the month before them, but not its length.
+    const { period, reporting } = setup("year");
+    respond({ m0: bucket(100) });
+    await nextTick();
+
+    period.value = "q1";
+    await nextTick();
+
+    expect(reporting.reportPeriod.value).toBe("year");
+    expect(reporting.months.value).toHaveLength(12);
   });
 
   it("names the picked period at once when it covers the same months, as no new response comes", async () => {
