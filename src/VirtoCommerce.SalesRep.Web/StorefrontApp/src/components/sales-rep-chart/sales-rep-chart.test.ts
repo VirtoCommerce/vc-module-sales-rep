@@ -5,13 +5,17 @@ import SalesRepChart from "./sales-rep-chart.vue";
 import type { ChartCategoryType, ChartSeriesType } from "./types";
 import type { VueWrapper } from "@vue/test-utils";
 
-const plotWidth = vi.hoisted(() => ({ value: 900 }));
+type ResizeCallbackType = (entries: Array<{ contentRect: { width: number } }>) => void;
 
-// jsdom has no layout: report a real width so the chart and its overlay render.
+const plotWidth = vi.hoisted(() => ({ value: 900, resize: undefined as ResizeCallbackType | undefined }));
+
+// jsdom has no layout: report a real width so the chart and its overlay render. `resize` reports a later one.
 vi.mock("@vueuse/core", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@vueuse/core")>()),
-  useResizeObserver: (_target: unknown, callback: (entries: Array<{ contentRect: { width: number } }>) => void) =>
-    callback([{ contentRect: { width: plotWidth.value } }]),
+  useResizeObserver: (_target: unknown, callback: ResizeCallbackType) => {
+    plotWidth.resize = callback;
+    callback([{ contentRect: { width: plotWidth.value } }]);
+  },
 }));
 
 const CATEGORIES: ChartCategoryType[] = [
@@ -41,10 +45,13 @@ function mountChart(props: Partial<InstanceType<typeof SalesRepChart>["$props"]>
     global: {
       stubs: {
         VcLoaderOverlay: true,
+        // Hands out the trigger props the real VcPopover does for a hover tooltip.
         VcTooltip: {
-          props: ["disabled"],
-          template:
-            "<div class='tooltip-stub'><slot :trigger-props='{}' /><div class='tooltip-content'><slot name='content' /></div></div>",
+          props: { disabled: Boolean, lazy: Boolean },
+          template: `<div class='tooltip-stub' :data-lazy='lazy'>
+            <slot :trigger-props="{ role: 'button', 'aria-expanded': false, 'aria-controls': 'popover-1' }" />
+            <div class='tooltip-content'><slot name='content' /></div>
+          </div>`,
         },
       },
     },
@@ -129,6 +136,31 @@ describe("SalesRepChart", () => {
     },
   );
 
+  it("measures the widest tick label, not the first", async () => {
+    // The default format prints the tick itself, so "300" is wider than "0".
+    vi.spyOn(SVGElement.prototype, "getBoundingClientRect").mockImplementation(function (this: SVGElement) {
+      return { width: (this.textContent?.trim().length ?? 0) * 10 } as DOMRect;
+    });
+    const chart = mountChart();
+    await nextTick();
+
+    expect(chart.find(".sales-rep-chart__grid line").attributes("x1")).toBe("38");
+  });
+
+  it("measures the tick labels once a plot that mounted with no width gets one", async () => {
+    vi.spyOn(SVGElement.prototype, "getBoundingClientRect").mockReturnValue({ width: 30 } as DOMRect);
+    plotWidth.value = 0;
+    const chart = mountChart();
+    await nextTick();
+    expect(chart.find(".sales-rep-chart__grid").exists()).toBe(false);
+
+    plotWidth.resize?.([{ contentRect: { width: 900 } }]);
+    await nextTick();
+    await nextTick();
+
+    expect(chart.find(".sales-rep-chart__grid line").attributes("x1")).toBe("38");
+  });
+
   it("draws a line with a smooth path and a dot per point, skipping placeholders", () => {
     const chart = mountChart({ series: [LINE] });
 
@@ -156,7 +188,7 @@ describe("SalesRepChart", () => {
     expect(narrow.findAll(".sales-rep-chart__label").map((label) => label.text())).toEqual(["J", "F", "M"]);
   });
 
-  it("darkens the hovered column", async () => {
+  it("shades the hovered column", async () => {
     const chart = mountChart();
     const [january] = chart.findAll(".sales-rep-chart__hit-area");
 
@@ -184,6 +216,39 @@ describe("SalesRepChart", () => {
 
     await targets[2].trigger("keydown", { key: "Home" });
     expect(document.activeElement).toBe(targets[0].element);
+  });
+
+  it("moves back with ArrowLeft, jumps to the last column with End, and keeps the keys from scrolling the page", async () => {
+    const chart = mountChart({ categories: [...CATEGORIES, { id: "apr", label: "Apr" }], series: [SOLID] });
+    const targets = chart.findAll(".sales-rep-chart__hit-area");
+    (targets[0].element as HTMLElement).focus();
+
+    const end = new KeyboardEvent("keydown", { key: "End", cancelable: true });
+    targets[0].element.dispatchEvent(end);
+    expect(document.activeElement).toBe(targets[2].element);
+    expect(end.defaultPrevented).toBe(true);
+
+    await targets[2].trigger("keydown", { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(targets[1].element);
+
+    const tab = new KeyboardEvent("keydown", { key: "Tab", cancelable: true });
+    targets[1].element.dispatchEvent(tab);
+    expect(tab.defaultPrevented).toBe(false);
+  });
+
+  it("exposes a column as an image with its tooltip, not as a button", () => {
+    const [january] = mountChart().findAll(".sales-rep-chart__hit-area");
+
+    expect(january.attributes("role")).toBe("img");
+    expect(january.attributes("aria-label")).toBe("Jan");
+    expect(january.attributes("aria-expanded")).toBeUndefined();
+    expect(january.attributes("aria-controls")).toBeUndefined();
+  });
+
+  it("mounts each tooltip's content only once it opens", () => {
+    const tooltips = mountChart().findAll(".tooltip-stub");
+
+    expect(tooltips.map((tooltip) => tooltip.attributes("data-lazy"))).toEqual(["true", "true"]);
   });
 
   it("hands the tooltip the column and every visible series' value", () => {
