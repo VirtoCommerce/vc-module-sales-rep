@@ -1,6 +1,9 @@
+import { ApolloClient, ApolloLink, InMemoryCache, Observable } from "@apollo/client/core";
+import { provideApolloClient } from "@vue/apollo-composable";
 import { describe, expect, it, vi } from "vitest";
-import { nextTick, ref } from "vue";
+import { effectScope, nextTick, ref } from "vue";
 import { useReportingQueryParams } from "./useReportingQueryParams";
+import { useSalesRepCustomerOptions } from "./useSalesRepCustomerOptions";
 import type { SalesRepCustomerOptionType } from "./useSalesRepCustomerOptions";
 
 // Each param is a plain ref seeded from `query` the way the host's getter reads the route, validator quirk included:
@@ -78,5 +81,25 @@ describe("useReportingQueryParams", () => {
 
   it("ignores a repeated customer param", () => {
     expect(setup({ customer: ["org-1", "org-2"] }).customerId.value).toBe("");
+  });
+
+  it("keeps the customer when the real customers query fails", async () => {
+    const failingLink = new ApolloLink(() => new Observable((observer) => observer.error(new Error("boom"))));
+    provideApolloClient(new ApolloClient({ link: failingLink, cache: new InMemoryCache() }));
+    query.values = { customer: "org-2" };
+
+    const scope = effectScope();
+    const { customers, customerId } = scope.run(() => {
+      const options = useSalesRepCustomerOptions();
+      return { customers: options, ...useReportingQueryParams(options) };
+    })!;
+
+    await vi.waitFor(() => expect(customers.loading.value).toBe(false));
+    await nextTick();
+    await nextTick();
+
+    expect(customers.failed.value).toBe(true);
+    expect(customerId.value).toBe("org-2");
+    scope.stop();
   });
 });
