@@ -29,11 +29,7 @@ export function normalizePhone(value: string): string {
  * Every number the customer details expose, the primary contact's first: its phones, then the customer's primary
  * number and the default address's phone wherever those are not one of them. The first entry is the default number.
  */
-export function buildCustomerPhones(details: CustomerPhoneSourceType | undefined | null): CustomerPhoneType[] {
-  if (!details) {
-    return [];
-  }
-
+export function buildCustomerPhones(details: CustomerPhoneSourceType): CustomerPhoneType[] {
   const contactName = details.primaryContact?.fullName || details.primaryContact?.name || "";
   const organizationName = details.organizationName ?? "";
   const candidates: { name: string; number?: string }[] = [

@@ -10,4 +10,9 @@ public static class MemberExtensions
     {
         return member.Addresses?.FirstOrDefault(x => x.IsDefault) ?? member.Addresses?.FirstOrDefault();
     }
+
+    public static string GetPrimaryPhone(this Member organization, Contact primaryContact)
+    {
+        return primaryContact?.Phones?.FirstOrDefault() ?? organization.Phones?.FirstOrDefault();
+    }
 }

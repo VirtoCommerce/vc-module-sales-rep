@@ -7,7 +7,6 @@ export type SalesRepCustomerProfileType = {
   iconUrl: string;
   // Only fields the backend exposes; the design's payment terms / balances have no source yet.
   accountType: string;
-  phone: string;
   /** Every number to call, the default first (VCST-6256). */
   phones: CustomerPhoneType[];
   shipTo: string;

@@ -1,4 +1,3 @@
-using System.Linq;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
@@ -60,6 +59,6 @@ public class SalesRepCustomer
             PrimaryContact = SalesRepContact.FromContact(primaryContact);
         }
 
-        Phone = primaryContact?.Phones?.FirstOrDefault() ?? organization.Phones?.FirstOrDefault();
+        Phone = organization.GetPrimaryPhone(primaryContact);
     }
 }

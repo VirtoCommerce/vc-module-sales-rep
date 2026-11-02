@@ -51,7 +51,7 @@
         aria-disabled="true"
         :aria-label="`${t('sales_rep.communication.call.action')}, ${tooltip}`"
       >
-        <VcButton v-bind="buttonProps" disabled tabindex="-1" aria-hidden="true">
+        <VcButton v-bind="buttonProps" disabled aria-hidden="true">
           <template v-if="label" #default>{{ label }}</template>
         </VcButton>
       </span>

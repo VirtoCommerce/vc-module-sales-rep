@@ -21,11 +21,6 @@ describe("normalizePhone", () => {
 });
 
 describe("buildCustomerPhones", () => {
-  it("has nothing to call without details", () => {
-    expect(buildCustomerPhones(undefined)).toEqual([]);
-    expect(buildCustomerPhones(null)).toEqual([]);
-  });
-
   it("has nothing to call when no number is stored", () => {
     expect(buildCustomerPhones(details({ phone: " ", address: { phone: undefined } }))).toEqual([]);
   });

@@ -24,7 +24,6 @@ function customer(phones: CustomerPhoneType[]): SalesRepCustomerProfileType {
     organizationName: "Acme Corp",
     iconUrl: "",
     accountType: "Garden Center",
-    phone: phones[0]?.number ?? "",
     phones,
     shipTo: "",
     primaryContactName: "Jane Smith",

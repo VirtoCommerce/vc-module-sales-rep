@@ -20,9 +20,6 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomersQuery, SalesRepCustomerSearchResult>
 {
-    private static readonly string _contactResponseGroup =
-        (MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
-
     private readonly IMemberSearchService _memberSearchService;
     private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
     private readonly ISalesRepCustomerFilterRuleResolver _filterRuleResolver;
@@ -114,10 +111,13 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var take = criteria.Take;
 
         // Order-derived metrics live in the orders, not the member index, so we can't page in the DB: load every
-        // served-org candidate (bounded by the rep's assignment count), then rank + page in memory.
+        // served-org candidate (bounded by the rep's assignment count), then rank + page in memory. Ranking reads
+        // only ids and names, so the candidates load with the default group and the page reloads with the selected one.
+        var responseGroup = criteria.ResponseGroup;
         criteria.Skip = 0;
         criteria.Take = criteria.ObjectIds?.Count ?? 0;
         criteria.Sort = null;
+        criteria.ResponseGroup = nameof(MemberResponseGroup.Default);
         var candidatesResult = await _memberSearchService.SearchMembersAsync(criteria);
         var candidates = candidatesResult.Results;
         if (candidates.Count == 0)
@@ -135,12 +135,35 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var byOrganization = await _statisticsService.GetStatisticsByOrganizationAsync(statisticsCriteria);
 
         result.TotalCount = candidates.Count;
-        var page = RankByMetric(candidates, byOrganization, sortSpec)
+        var rankedPage = RankByMetric(candidates, byOrganization, sortSpec)
             .Skip(skip)
             .Take(take)
             .ToList();
+        var page = await ReloadWithResponseGroupAsync(rankedPage, responseGroup);
         result.Results = await ToCustomersAsync(page, request, currencyCode);
         return result;
+    }
+
+    protected virtual async Task<IList<Member>> ReloadWithResponseGroupAsync(IList<Member> organizations, string responseGroup)
+    {
+        if (organizations.Count == 0 || responseGroup == nameof(MemberResponseGroup.Default))
+        {
+            return organizations;
+        }
+
+        var criteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        criteria.ObjectIds = organizations.Select(x => x.Id).ToList();
+        criteria.MemberType = nameof(Organization);
+        criteria.RootMembersOnly = false;
+        criteria.ResponseGroup = responseGroup;
+        criteria.Take = organizations.Count;
+        var reloaded = (await _memberSearchService.SearchMembersAsync(criteria)).Results
+            .DistinctBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+        return organizations
+            .Select(x => reloaded.TryGetValue(x.Id, out var organization) ? organization : x)
+            .ToList();
     }
 
     protected virtual async Task<IList<SalesRepCustomer>> ToCustomersAsync(
@@ -148,16 +171,16 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         SalesRepCustomersQuery request,
         string currencyCode)
     {
-        var withPrimaryContact = request.IncludeFields.IncludesField(nameof(SalesRepCustomer.PrimaryContact))
-            || request.IncludeFields.IncludesField(nameof(SalesRepCustomer.Phone));
+        var primaryContacts = request.IncludeFields.IncludesPrimaryContact()
+            ? await _primaryContactResolver.ResolvePrimaryContactsAsync(
+                organizations.OfType<Organization>().ToList(),
+                request.IncludeFields.GetPrimaryContactResponseGroup())
+            : new Dictionary<string, Contact>();
 
         var customers = new List<SalesRepCustomer>(organizations.Count);
         foreach (var organization in organizations)
         {
-            var primaryContact = withPrimaryContact && organization is Organization org
-                ? await _primaryContactResolver.ResolvePrimaryContactAsync(org, _contactResponseGroup)
-                : null;
-
+            primaryContacts.TryGetValue(organization.Id, out var primaryContact);
             customers.Add(SalesRepCustomer.FromOrganization(organization, request.StoreId, currencyCode, primaryContact));
         }
 

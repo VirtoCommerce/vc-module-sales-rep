@@ -50,7 +50,6 @@ export function useSalesRepCustomer(organizationId: MaybeRefOrGetter<string>, op
           organizationName: node.organizationName ?? "",
           iconUrl: node.iconUrl ?? "",
           accountType: node.accountType ?? "",
-          phone: node.phone ?? "",
           phones: buildCustomerPhones(node),
           shipTo: formatCustomerLocation(node.address),
           primaryContactName: node.primaryContact?.fullName || node.primaryContact?.name || "",

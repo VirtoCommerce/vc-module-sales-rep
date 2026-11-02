@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
-using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -97,10 +96,66 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        // org-1: the owner is the primary contact, and its first phone is the customer's phone.
+        // org-1: the owner is the primary contact, and one of its phones is the customer's phone (the member service
+        // does not keep the phones' order).
         json.Should().Contain("owner-1").And.Contain("999-0001").And.Contain("999-0002");
+        json.Should().MatchRegex("\"organizationId\":\"org-1\",\"phone\":\"\\\\u002B1-999-000[12]\"");
         // org-2's owner has no phone, so `phone` falls back to the organization's.
         json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"\\u002B1-222-0000\"");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_DefaultSort_PhoneOnly_ResolvesPrimaryContactPhones()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedContactAsync("owner-1", c =>
+        {
+            c.Name = "Olivia Owner";
+            c.Phones = ["+1-999-0001"];
+        });
+        await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "owner-1");
+        await ctx.SeedContactAsync("owner-2", c => c.Name = "Oscar Owner");
+        await ctx.SeedOrganizationAsync("org-2", o =>
+        {
+            o.OwnerId = "owner-2";
+            o.Phones = ["+1-222-0000"];
+        });
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+
+        // No sort: the order-derived default ranks the candidates, then the page is reloaded with phones. Only
+        // `phone` is selected, which must still resolve the primary contact for its number.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers { items { organizationId phone } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"\\u002B1-999-0001\"");
+        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"\\u002B1-222-0000\"");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomers_WithoutOwner_SkipsSalesRepsInPrimaryContactFallback()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1", "org-2"); // no owners
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1", "org-2");
+        // Created after the rep, so the rep is the first contact member by creation date.
+        await ctx.SeedContactAsync("customer-1", c =>
+        {
+            c.Organizations = ["org-1"];
+            c.Name = "Carl Customer";
+            c.Phones = ["+1-333-0001"];
+        });
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"name\") { items { organizationId phone primaryContact { id } } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"\\u002B1-333-0001\",\"primaryContact\":{\"id\":\"customer-1\"}");
+        // org-2's only contact member is the rep, so it has no primary contact and no phone.
+        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":null,\"primaryContact\":null");
+        json.Should().NotContain("555-0100"); // the rep's phone
     }
 
     [Fact]
@@ -447,14 +502,36 @@ public class SalesRepGraphQlComponentTests
         using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1"); // no owner set
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        await ctx.SeedContactAsync("customer-1", c =>
+        {
+            c.Organizations = ["org-1"];
+            c.FullName = "Carl Customer";
+        });
 
-        // With no owner, the primary contact falls back to the org's first contact member — here the rep itself.
+        // With no owner, the primary contact falls back to the org's first contact member that is not its sales rep:
+        // the rep is the older member, but it is skipped.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain(rep.Id).And.Contain("Jane Rep");
+        json.Should().Contain("customer-1").And.Contain("Carl Customer");
+        json.Should().NotContain(rep.Id).And.NotContain("Jane Rep");
+    }
+
+    [Fact]
+    public async Task SalesRepCustomer_WhenOnlyContactIsSalesRep_HasNoPrimaryContact()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        await ctx.SeedOrganizationsAsync("org-1"); // no owner set
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomer(organizationId:\"org-1\") { phone primaryContact { id } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"phone\":null,\"primaryContact\":null");
     }
 
     [Fact]
@@ -1287,17 +1364,22 @@ public class SalesRepGraphQlComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         // The organization's OwnerId points at a contact that no longer exists — the primary contact must fall
-        // back to the first contact member (here the rep) instead of returning nothing.
+        // back to the first contact member that is not a sales rep instead of returning nothing.
         await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "ghost-owner");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
+        await ctx.SeedContactAsync("customer-1", c =>
+        {
+            c.Organizations = ["org-1"];
+            c.FullName = "Carl Customer";
+        });
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomer(organizationId:\"org-1\") { primaryContact { id fullName } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain(rep.Id).And.Contain("Jane Rep");
-        json.Should().NotContain("ghost-owner");
+        json.Should().Contain("customer-1").And.Contain("Carl Customer");
+        json.Should().NotContain(rep.Id).And.NotContain("ghost-owner");
     }
 
     [Fact]

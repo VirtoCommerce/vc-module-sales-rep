@@ -97,7 +97,6 @@ describe("useSalesRepCustomer", () => {
       organizationName: "The Cottage Shop LLC",
       iconUrl: "https://cdn.example/org-1.png",
       accountType: "Garden Center",
-      phone: "(804) 462-1612",
       phones: [{ name: "The Cottage Shop LLC", number: "(804) 462-1612", href: "tel:8044621612" }],
       // Structured address formatted as "City, Region".
       shipTo: "Richmond, Virginia",
@@ -117,7 +116,6 @@ describe("useSalesRepCustomer", () => {
       organizationName: "",
       iconUrl: "",
       accountType: "",
-      phone: "",
       phones: [],
       shipTo: "",
       primaryContactName: "",
