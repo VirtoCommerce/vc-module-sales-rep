@@ -287,10 +287,6 @@ usePageHead({
     @apply flex w-full items-center justify-between gap-3;
   }
 
-  &__card-title {
-    @apply uppercase;
-  }
-
   &__all-orders {
     @apply inline-flex items-center gap-1 text-sm font-bold;
   }
@@ -307,7 +303,8 @@ usePageHead({
     // Hover contrast, as on the hub's chips (VCST-5890).
     --vc-tab-switch-hover-color: var(--color-neutral-900);
 
-    @apply flex max-w-full gap-1 overflow-x-auto;
+    // Wraps rather than scrolls: a scrolling row would clip the tabs' focus ring and the checked tab's shadow.
+    @apply flex max-w-full flex-wrap gap-1;
   }
 
   &__actions {

@@ -13,8 +13,13 @@ vi.mock("@vueuse/core", async (importOriginal) => ({
     callback([{ contentRect: { width: PLOT_WIDTH } }]),
 }));
 
+// `t` prints its params after the key, so a spec sees what a message was given.
 vi.mock("vue-i18n", () => ({
-  useI18n: () => ({ t: (key: string) => key, n: (value: number) => String(value), d: () => "Jan" }),
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key),
+    n: (value: number) => String(value),
+    d: () => "Jan",
+  }),
 }));
 
 function slot(month: number, state: ReportingMonthSlotType["state"] = "closed"): ReportingMonthSlotType {
@@ -24,7 +29,8 @@ function slot(month: number, state: ReportingMonthSlotType["state"] = "closed"):
 const MONTHS = [
   toReportingMonth(slot(0), { totals: { amount: 1200, count: 3 }, lastYear: { amount: 1000, count: 2 } }),
   toReportingMonth(slot(1), { totals: { amount: 800, count: 2 }, lastYear: { amount: 1000, count: 2 } }),
-  toReportingMonth(slot(2, "current"), { totals: { amount: 500, count: 1 } }),
+  // Last year had no sales this month.
+  toReportingMonth(slot(2, "current"), { totals: { amount: 500, count: 1 }, lastYear: { amount: 0, count: 0 } }),
   toReportingMonth(slot(3, "upcoming"), {}),
 ];
 
@@ -55,7 +61,12 @@ describe("ReportingChart", () => {
   it("draws the current month inside its projected month-end outline, and upcoming months as placeholders", () => {
     const chart = mountChart();
 
+    const outline = chart.get(".sales-rep-chart__bar--dashed");
+    const bars = chart.findAll(".sales-rep-chart__bar:not(.sales-rep-chart__bar--dashed)");
+    const currentBar = bars.find((bar) => bar.attributes("x") === outline.attributes("x"));
+
     expect(chart.findAll(".sales-rep-chart__bar--dashed")).toHaveLength(1);
+    expect(currentBar?.attributes("width")).toBe(outline.attributes("width"));
     expect(chart.findAll(".sales-rep-chart__placeholder")).toHaveLength(1);
     expect(chart.find(".sales-rep-chart__placeholder-caption").text()).toBe("sales_rep.reporting.upcoming");
   });
@@ -69,6 +80,10 @@ describe("ReportingChart", () => {
     expect(mountChart({ withLastYear: true }).find(".sales-rep-chart__line").exists()).toBe(true);
   });
 
+  it("leaves a month with no sales last year off the Last year line", () => {
+    expect(mountChart({ withLastYear: true }).findAll(".sales-rep-chart__dot")).toHaveLength(2);
+  });
+
   it("has no projection on the AOV chart", () => {
     expect(mountChart({ kind: "aov" }).findAll(".sales-rep-chart__bar--dashed")).toHaveLength(0);
   });
@@ -80,6 +95,8 @@ describe("ReportingChart", () => {
   });
 
   it("names each Last year switch after its chart", () => {
-    expect(mountChart().find(".switch-stub").attributes("aria-label")).toBe("sales_rep.reporting.last_year_toggle");
+    expect(mountChart().find(".switch-stub").attributes("aria-label")).toBe(
+      'sales_rep.reporting.last_year_toggle {"chart":"Sales"}',
+    );
   });
 });

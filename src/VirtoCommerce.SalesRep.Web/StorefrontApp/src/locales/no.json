@@ -475,7 +475,7 @@
       "customers_failed": "Kunne ikke laste kundene dine",
       "load_failed": "Kunne ikke laste rapporten. Prøv igjen senere.",
       "last_year": "I fjor",
-      "last_year_toggle": "Vis fjoråret i diagrammet «{chart}»",
+      "last_year_toggle": "Vis tall for i fjor i diagrammet «{chart}»",
       "upcoming": "Kommende",
       "cancelled_excluded": "Kansellerte ordrer er ikke medregnet",
       "sales_chart": {
