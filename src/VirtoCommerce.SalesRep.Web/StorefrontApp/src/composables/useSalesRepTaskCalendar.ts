@@ -1,6 +1,6 @@
 import { computed, ref } from "vue";
 import { Logger } from "@vc-frontend/core";
-import { SalesRepTasksDocument } from "../api/graphql/types";
+import { SalesRepTaskMarkersDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY, TASKS_CALENDAR_MAX } from "../constants";
 import {
   buildDayMarkers,
@@ -33,7 +33,7 @@ export function useSalesRepTaskCalendar(monthAnchor: Ref<string>) {
     sort: "due-date",
   }));
 
-  const { result, loading, error, onError, refetch } = useSalesRepHubQuery(SalesRepTasksDocument, variables, {
+  const { result, loading, error, onError, refetch } = useSalesRepHubQuery(SalesRepTaskMarkersDocument, variables, {
     keepPreviousResult: true,
     fetchPolicy: HUB_FETCH_POLICY,
   });

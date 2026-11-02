@@ -1,7 +1,8 @@
 import { toEndDateFilterValue, toStartDateFilterValue } from "@vc-frontend/core";
+import { CALL_TASK_TYPE } from "./constants";
 import { eod, iso, local } from "./utils";
 import type { SalesRepTaskStatusType, SalesRepTaskType, SalesRepTaskDayMarkersType } from "./types/tasks";
-import type { ComposerTranslation } from "vue-i18n";
+import type { ComposerTranslation, DateTimeOptions } from "vue-i18n";
 
 /**
  * Task day maths, on the USER'S calendar rather than UTC — the same rule buildStatisticsWindows follows in
@@ -109,6 +110,76 @@ export function dueDateForDay(dayKey: string, original?: string): string {
   return moved.toISOString();
 }
 
+/** A call gets a time of day and a customer. Case-insensitive: the type is a dictionary value an admin can retype. */
+export function isCallTask(type?: string | null): boolean {
+  return type?.toLowerCase() === CALL_TASK_TYPE.toLowerCase();
+}
+
+/** How a time of day is written: the hour and minute alone, the user's locale deciding 12- or 24-hour. */
+export const TIME_OF_DAY_FORMAT: Intl.DateTimeFormatOptions = { hour: "numeric", minute: "2-digit" };
+
+// One formatter per locale: vue-i18n's `d` builds a new one per call when given options without a format key.
+const timeOfDayFormats = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * A time of day as the user's locale writes it, in TIME_OF_DAY_FORMAT. The time select lists its times this way and a
+ * call's line shows its time this way, so the two always read alike.
+ */
+export function formatTimeOfDay(value: string | Date, locale: string): string {
+  let format = timeOfDayFormats.get(locale);
+  if (!format) {
+    format = new Intl.DateTimeFormat(locale, TIME_OF_DAY_FORMAT);
+    timeOfDayFormats.set(locale, format);
+  }
+
+  return format.format(typeof value === "string" ? new Date(value) : value);
+}
+
+/** "HH:mm" on the user's clock — the key a time select is addressed by. */
+export function localTimeKey(value: string | Date): string {
+  const date = typeof value === "string" ? new Date(value) : value;
+
+  return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * A picked day and time of day, both on the user's clock ("YYYY-MM-DD", "HH:mm"), as the instant the API stores. When
+ * neither moved, the original instant comes back byte for byte, as in dueDateForDay: rebuilding it would drop seconds
+ * set elsewhere, and on the night the clocks go back it would pick the other of the two 1:30s.
+ */
+export function dueDateForDayAndTime(dayKey: string, timeKey: string, original?: string): string {
+  if (original && localDayKey(original) === dayKey && localTimeKey(original) === timeKey) {
+    return original;
+  }
+
+  const [hours, minutes] = timeKey.split(":").map(Number);
+  const date = localDayKeyToDate(dayKey);
+  date.setHours(hours, minutes, 0, 0);
+
+  return date.toISOString();
+}
+
+/** Every time of day from midnight in `stepMinutes` steps, as "HH:mm". */
+export function timeKeysOfDay(stepMinutes: number): string[] {
+  const keys: string[] = [];
+  for (let minutes = 0; minutes < 24 * 60; minutes += stepMinutes) {
+    keys.push(`${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`);
+  }
+
+  return keys;
+}
+
+/** "HH:mm" as a Date on an arbitrary day, for formatting the time of day alone. */
+export function timeKeyToDate(timeKey: string): Date {
+  const [hours, minutes] = timeKey.split(":").map(Number);
+
+  return new Date(2000, 0, 1, hours, minutes);
+}
+
+function pad(value: number): string {
+  return `${value}`.padStart(2, "0");
+}
+
 type TaskStateType = {
   isActive: boolean;
   completed?: boolean | null;
@@ -168,21 +239,37 @@ export function buildDayMarkers(
 }
 
 /**
- * The line under a task's title: the deadline, then the type — both when both exist. Shared by the table and the
- * dashboard widget so the two cannot read the same task differently; " · "-joined like `documentMeta` in utils.ts,
- * and takes the i18n functions rather than calling useI18n for the same reason it does.
+ * The line under a task's title: the deadline, the customer, then the type — whichever exist. Shared by the table
+ * and the dashboard widget so the two cannot read the same task differently; " · "-joined like `documentMeta` in
+ * utils.ts, and takes the i18n functions rather than calling useI18n for the same reason it does.
  *
  * The type rides along rather than replacing the date: it is the only place the form's Type field is ever read
  * back, and a rep-created task always has a due date, so a "type instead of date" fallback would never show it.
+ * A call is due at a time of day, so its deadline carries the hour and minute too, written by formatTimeOfDay as the
+ * time select writes them. They do not come from the host's named format: the host defines `short` for en and de
+ * only, so in every other locale vue-i18n formats it in English, and the line would read 2:30 PM beside the popup's
+ * 14:30. The date keeps that format, like every other task's. A call also always names its customer, or says it has
+ * none to name: none was picked, or the rep no longer serves it and the API leaves it out.
  */
 export function taskSubline(
   task: SalesRepTaskType,
   t: ComposerTranslation,
-  d: (value: number | Date | string, format: string) => string,
+  d: (value: number | Date | string, options: DateTimeOptions) => string,
+  locale: string,
 ): string {
   const key = task.status === "overdue" ? "expired" : "due";
+  const isCall = isCallTask(task.type);
+  const customer = task.customerName ?? (isCall ? t("sales_rep.tasks.customer_not_assigned") : undefined);
 
-  return [task.dueDate ? t(`sales_rep.tasks.due_relative.${key}`, { date: d(task.dueDate, "short") }) : "", task.type]
+  let date = "";
+  if (task.dueDate) {
+    date = d(task.dueDate, { key: "short" });
+    if (isCall) {
+      date = `${date}, ${formatTimeOfDay(task.dueDate, locale)}`;
+    }
+  }
+
+  return [date ? t(`sales_rep.tasks.due_relative.${key}`, { date }) : "", customer, task.type]
     .filter(Boolean)
     .join(" · ");
 }

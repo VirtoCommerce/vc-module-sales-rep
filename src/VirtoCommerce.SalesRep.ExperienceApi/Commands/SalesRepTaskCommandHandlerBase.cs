@@ -6,6 +6,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Services;
+using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
 using VirtoCommerce.TaskManagement.Core.Models;
 using VirtoCommerce.TaskManagement.Core.Services;
@@ -84,6 +85,38 @@ public abstract class SalesRepTaskCommandHandlerBase : SalesRepTaskHandlerBase
         task.Type = input.Type?.Trim().EmptyToNull();
         task.Priority = ParsePriority(input.Priority);
         task.DueDate = input.DueDate;
+    }
+
+    protected virtual async Task ApplyCustomerAsync(WorkTask task, string userId, string customerId)
+    {
+        customerId = customerId?.Trim().EmptyToNull();
+
+        // ObjectType/ObjectId may hold another feature's link (a workflow task about an order); never clear or replace it.
+        if (SalesRepTask.IsLinkedToAnotherRecord(task))
+        {
+            if (customerId != null)
+            {
+                throw new ExecutionError("This task is linked to another record, so it cannot take a customer.");
+            }
+
+            return;
+        }
+
+        // One answer for an unknown organization and one the rep does not serve, so a write cannot probe ids.
+        if (customerId != null && !await OrganizationAccessService.ServesOrganizationAsync(userId, customerId))
+        {
+            throw new ExecutionError("Customer not found.");
+        }
+
+        // A customer the rep no longer serves reads back as none, so writing that back keeps the link: like a link to
+        // another record, it is not theirs to see or to clear.
+        if (customerId == null && !string.IsNullOrEmpty(task.ObjectId) && !await OrganizationAccessService.ServesOrganizationAsync(userId, task.ObjectId))
+        {
+            return;
+        }
+
+        task.ObjectType = customerId == null ? null : ModuleConstants.Tasks.CustomerObjectType;
+        task.ObjectId = customerId;
     }
 
     // Here rather than in each handler: both mutations enter through ApplyInput, so a third cannot forget it.

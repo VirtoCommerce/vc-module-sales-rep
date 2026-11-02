@@ -7,6 +7,7 @@ import {
   DeleteSalesRepTaskDocument,
   UpdateSalesRepTaskDocument,
 } from "../api/graphql/types";
+import type { SalesRepTaskFieldsFragment } from "../api/graphql/types";
 import type { SalesRepTaskInputType } from "../types/tasks";
 
 async function run(operation: string, mutate: () => Promise<unknown>): Promise<boolean> {
@@ -21,8 +22,8 @@ async function run(operation: string, mutate: () => Promise<unknown>): Promise<b
 
 /**
  * Task writes. `useMutation` (not useSalesRepHubQuery — that is for reads): a failed user action keeps the global
- * error toast, per the module's convention. Each call returns a boolean rather than throwing, so callers close a
- * dialog on success and leave it open otherwise.
+ * error toast, per the module's convention. Each call reports success rather than throwing (a boolean, or the created
+ * task), so callers close a dialog on success and leave it open otherwise.
  */
 export function useSalesRepTaskMutations() {
   const { mutate: createTask, loading: creating } = useMutation(CreateSalesRepTaskDocument);
@@ -32,8 +33,14 @@ export function useSalesRepTaskMutations() {
 
   const loading = computed(() => creating.value || updating.value || changingStatus.value || deleting.value);
 
-  function create(input: SalesRepTaskInputType): Promise<boolean> {
-    return run("createSalesRepTask", () => createTask({ command: input }));
+  /** The new task as the API saved it, its id and customer name included; undefined when the write failed. */
+  async function create(input: SalesRepTaskInputType): Promise<SalesRepTaskFieldsFragment | undefined> {
+    let created: SalesRepTaskFieldsFragment | undefined;
+    const succeeded = await run("createSalesRepTask", async () => {
+      created = (await createTask({ command: input }))?.data?.createSalesRepTask;
+    });
+
+    return succeeded ? created : undefined;
   }
 
   function update(id: string, input: SalesRepTaskInputType): Promise<boolean> {

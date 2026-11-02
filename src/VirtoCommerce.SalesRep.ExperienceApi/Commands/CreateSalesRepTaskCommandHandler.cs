@@ -41,6 +41,7 @@ public class CreateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
 
         var task = AbstractTypeFactory<WorkTask>.TryCreateInstance();
         ApplyInput(task, request);
+        await ApplyCustomerAsync(task, request.UserId, request.CustomerId);
         task.IsActive = true;
         task.StoreId = await ResolveStoreIdAsync(request.UserId);
         await AssignResponsibleAsync(task, memberId);

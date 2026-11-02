@@ -22,6 +22,7 @@ public class UpdateSalesRepTaskCommandHandler : SalesRepTaskCommandHandlerBase, 
         var task = await GetOwnedTaskAsync(request.UserId, request.MemberId, request.Id);
 
         ApplyInput(task, request);
+        await ApplyCustomerAsync(task, request.UserId, request.CustomerId);
 
         await RequireTaskService().SaveChangesAsync([task]);
 

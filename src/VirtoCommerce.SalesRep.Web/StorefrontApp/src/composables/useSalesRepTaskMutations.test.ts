@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { Logger } from "@vc-frontend/core";
 import { useSalesRepTaskMutations } from "./useSalesRepTaskMutations";
 
-const mutate = vi.hoisted(() => vi.fn(() => Promise.resolve()));
+const mutate = vi.hoisted(() => vi.fn((): Promise<unknown> => Promise.resolve()));
 const useMutation = vi.hoisted(() => vi.fn(() => ({ mutate, loading: { value: false } })));
 
 vi.mock("@vue/apollo-composable", () => ({ useMutation }));
@@ -57,6 +57,27 @@ describe("useSalesRepTaskMutations", () => {
     await create({ name: "New", dueDate: "2026-09-04T09:00:00Z" });
 
     expect(passedCommand()).toEqual({ command: { name: "New", dueDate: "2026-09-04T09:00:00Z" } });
+  });
+
+  // The task popup reads the saved task back from create(): its id becomes the calendar event's, and an empty answer
+  // keeps the form open - so a create that lost the result would read every successful save as a failure.
+  it("answers the created task as the API saved it", async () => {
+    const saved = { id: "task-9", name: "New", dueDate: "2026-09-04T09:00:00Z", isActive: true };
+    mutate.mockResolvedValueOnce({ data: { createSalesRepTask: saved } });
+    const { create } = useSalesRepTaskMutations();
+
+    await expect(create({ name: "New", dueDate: "2026-09-04T09:00:00Z" })).resolves.toEqual(saved);
+  });
+
+  it("answers nothing and logs when the create fails", async () => {
+    const logger = vi.spyOn(Logger, "error").mockImplementation(() => {});
+    mutate.mockRejectedValueOnce(new Error("boom"));
+    const { create } = useSalesRepTaskMutations();
+
+    await expect(create({ name: "New", dueDate: "2026-09-04T09:00:00Z" })).resolves.toBeUndefined();
+
+    expect(logger).toHaveBeenCalledWith(expect.stringContaining("createSalesRepTask"), expect.any(Error));
+    logger.mockRestore();
   });
 
   // The contract the dialogs rely on: a failed write answers false instead of throwing, so the caller keeps the
