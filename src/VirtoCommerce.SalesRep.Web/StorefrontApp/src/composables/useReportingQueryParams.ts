@@ -12,7 +12,10 @@ type CustomerOptionsType = {
   failed: Ref<boolean>;
 };
 
-/** The Reporting selection kept in the URL (`?period=`, `?customer=`); a value the page cannot show reads as the default. */
+/**
+ * The Reporting selection kept in the URL (`?period=`, `?customer=`). An unknown period reads as the default; an unknown
+ * customer does once the complete customer list shows it is not one of the rep's.
+ */
 export function useReportingQueryParams(customers: CustomerOptionsType) {
   const periodParam = useRouteQueryParam<string>("period", {
     defaultValue: REPORTING_DEFAULT_PERIOD,

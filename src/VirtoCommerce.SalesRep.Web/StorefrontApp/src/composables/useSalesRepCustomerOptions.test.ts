@@ -9,10 +9,10 @@ const queryMock = await vi.hoisted(async () => {
   const { ref: reactiveRef } = await import("vue");
   const result = reactiveRef<SalesRepCustomerOptionsQuery | undefined>(undefined);
   const loading = reactiveRef(false);
+  const error = reactiveRef<Error | null>(null);
   const onError = vi.fn();
-  const onResult = vi.fn();
-  const useQuery = vi.fn(() => ({ result, loading, onError, onResult }));
-  return { result, loading, onError, onResult, useQuery };
+  const useQuery = vi.fn(() => ({ result, loading, error, onError }));
+  return { result, loading, error, onError, useQuery };
 });
 
 const loggerMock = await vi.hoisted(() => ({ warn: vi.fn(), error: vi.fn() }));
@@ -63,7 +63,10 @@ async function respondWith(totalCount: number, items: CustomerItemsType) {
   await nextTick();
 }
 
+/** Fails the query as Apollo does: `error` and `loading` in one tick, the `onError` hook after them. */
 function failQuery(error = new Error("boom")) {
+  queryMock.error.value = error;
+  queryMock.loading.value = false;
   (queryMock.onError.mock.calls[0][0] as (e: Error) => void)(error);
 }
 
@@ -71,9 +74,9 @@ beforeEach(() => {
   scope = effectScope();
   queryMock.result.value = undefined;
   queryMock.loading.value = false;
+  queryMock.error.value = null;
   queryMock.useQuery.mockClear();
   queryMock.onError.mockClear();
-  queryMock.onResult.mockClear();
   loggerMock.warn.mockClear();
   loggerMock.error.mockClear();
 });
@@ -216,8 +219,8 @@ describe("useSalesRepCustomerOptions", () => {
       const { failed } = build();
 
       failQuery();
-      // A retry must not leave the field stuck in an error state.
-      (queryMock.onResult.mock.calls[0][0] as () => void)();
+      // A retry must not leave the field stuck in an error state; Apollo clears `error` with the next result.
+      queryMock.error.value = null;
 
       expect(failed.value).toBe(false);
     });

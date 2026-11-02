@@ -1,4 +1,4 @@
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { globals, Logger } from "@vc-frontend/core";
 import { SalesRepCustomerOptionsDocument } from "../api/graphql/types";
 import { formatCustomerLocation } from "../utils";
@@ -24,18 +24,15 @@ export function useSalesRepCustomerOptions() {
     sort: "name:asc",
   }));
 
-  const { result, loading, onError, onResult } = useSalesRepHubQuery(SalesRepCustomerOptionsDocument, variables);
+  const { result, loading, error, onError } = useSalesRepHubQuery(SalesRepCustomerOptionsDocument, variables);
 
   // An empty dropdown on a failed fetch reads as "this rep serves nobody"; callers surface this on the field instead.
-  const failed = ref(false);
+  // Read from `error`, which turns on in the same tick as `loading` turns off: `onError` fires a tick later, and a
+  // caller watching `loading` would meanwhile take the empty list for a complete one.
+  const failed = computed(() => error.value != null);
 
-  onError((error) => {
-    failed.value = true;
-    Logger.error("[sales-rep] salesRepCustomers (share options) failed:", error);
-  });
-
-  onResult(() => {
-    failed.value = false;
+  onError((queryError) => {
+    Logger.error("[sales-rep] salesRepCustomers (share options) failed:", queryError);
   });
 
   const options = computed<SalesRepCustomerOptionType[]>(() =>
