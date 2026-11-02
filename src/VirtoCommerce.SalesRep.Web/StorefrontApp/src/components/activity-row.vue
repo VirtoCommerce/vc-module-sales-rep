@@ -97,7 +97,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { getProductRoute, OrderStatus } from "@vc-frontend/core";
-import { useActivityClock } from "../composables/useActivityClock";
+import { useMinuteClock } from "../composables/useMinuteClock";
 import { BUYER_ORDER_ROUTE_NAME } from "../constants";
 import { activityCategoryIcon, formatStatCount, formatTimeAgo, searchResultsRoute } from "../utils";
 import type { SalesRepActivityItemType } from "../types";
@@ -113,7 +113,7 @@ const props = defineProps<IProps>();
 
 const { t, d } = useI18n();
 
-const now = useActivityClock();
+const now = useMinuteClock();
 
 const icon = computed(() => activityCategoryIcon(props.item.category));
 
