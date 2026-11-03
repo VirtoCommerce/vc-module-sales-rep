@@ -181,7 +181,6 @@
       "push_label": "Push-Benachrichtigung",
       "send_button": "Senden",
       "cancel_button": "Abbrechen",
-      "send_message_button": "Nachricht senden",
       "success_text": "Ihre Nachricht wurde gesendet.",
       "error_text": "Die Nachricht konnte nicht gesendet werden. Bitte versuchen Sie es erneut.",
       "partial_success_text": "Ihre Nachricht wurde gesendet, aber nicht über alle Kanäle:",

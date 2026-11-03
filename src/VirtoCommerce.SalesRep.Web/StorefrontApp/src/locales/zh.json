@@ -181,7 +181,6 @@
       "push_label": "推送通知",
       "send_button": "发送",
       "cancel_button": "取消",
-      "send_message_button": "发送消息",
       "success_text": "您的消息已发送。",
       "error_text": "消息发送失败，请重试。",
       "partial_success_text": "您的消息已发送，但并非通过所有渠道：",

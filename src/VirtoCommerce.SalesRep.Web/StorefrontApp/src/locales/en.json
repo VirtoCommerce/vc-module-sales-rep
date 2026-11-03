@@ -181,7 +181,6 @@
       "push_label": "Push notification",
       "send_button": "Send",
       "cancel_button": "Cancel",
-      "send_message_button": "Send message",
       "success_text": "Your message has been sent.",
       "partial_success_text": "Your message was sent, but not on every channel:",
       "error_text": "The message could not be sent. Please try again.",

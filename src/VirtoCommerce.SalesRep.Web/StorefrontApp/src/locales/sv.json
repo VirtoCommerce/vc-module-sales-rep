@@ -181,7 +181,6 @@
       "push_label": "Push-avisering",
       "send_button": "Skicka",
       "cancel_button": "Avbryt",
-      "send_message_button": "Skicka meddelande",
       "success_text": "Ditt meddelande har skickats.",
       "error_text": "Meddelandet kunde inte skickas. Försök igen.",
       "partial_success_text": "Ditt meddelande skickades, men inte via alla kanaler:",

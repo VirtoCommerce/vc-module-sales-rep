@@ -181,7 +181,6 @@
       "push_label": "Notificación push",
       "send_button": "Enviar",
       "cancel_button": "Cancelar",
-      "send_message_button": "Enviar mensaje",
       "success_text": "Su mensaje ha sido enviado.",
       "error_text": "No se pudo enviar el mensaje. Inténtelo de nuevo.",
       "partial_success_text": "Su mensaje se envió, pero no por todos los canales:",

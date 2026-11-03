@@ -181,7 +181,6 @@
       "push_label": "Push-varsel",
       "send_button": "Send",
       "cancel_button": "Avbryt",
-      "send_message_button": "Send melding",
       "success_text": "Meldingen din er sendt.",
       "error_text": "Meldingen kunne ikke sendes. Prøv igjen.",
       "partial_success_text": "Meldingen din ble sendt, men ikke på alle kanaler:",

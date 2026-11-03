@@ -181,7 +181,6 @@
       "push_label": "Push-ilmoitus",
       "send_button": "Lähetä",
       "cancel_button": "Peruuta",
-      "send_message_button": "Lähetä viesti",
       "success_text": "Viestisi on lähetetty.",
       "error_text": "Viestiä ei voitu lähettää. Yritä uudelleen.",
       "partial_success_text": "Viestisi lähetettiin, mutta ei kaikkien kanavien kautta:",

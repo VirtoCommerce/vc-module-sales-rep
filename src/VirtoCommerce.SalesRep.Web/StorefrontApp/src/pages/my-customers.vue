@@ -5,9 +5,10 @@
         {{ t("sales_rep.my_customers.page.title") }}
       </VcTypography>
 
-      <div class="my-customers__actions">
+      <!-- The same "Send message" as each row's action (VCST-6256); this one starts with no customer picked. -->
+      <div class="my-customers__head-actions">
         <VcButton data-test-id="my-customers-send-message-button" prepend-icon="mail" @click="openCommunication()">
-          {{ t("sales_rep.communication.send_message_button") }}
+          {{ t("sales_rep.communication.action") }}
         </VcButton>
       </div>
     </div>
