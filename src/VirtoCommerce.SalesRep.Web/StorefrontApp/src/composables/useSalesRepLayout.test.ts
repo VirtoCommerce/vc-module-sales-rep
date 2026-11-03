@@ -86,7 +86,7 @@ const CUSTOMER_STAT_IDS = ["new_orders", "active_cart", "mtd", "orders_ytd", "ao
 // layout. Declared once because a save now only succeeds against an echo that covers every sent block.
 const DEFAULT_ECHO = [
   { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(echoedBlock) },
-  { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
+  { id: "mainLeft", blocks: ["sales", "orders", "top_sellers"].map(echoedBlock) },
   { id: "mainRight", blocks: ["actions", "info"].map(echoedBlock) },
 ];
 
@@ -111,7 +111,7 @@ describe("useSalesRepLayout", () => {
     const { state } = withLayout(scope);
 
     expect(state.value.regions.mainRight.visible).toEqual(["actions", "info"]);
-    expect(state.value.regions.mainLeft.visible).toEqual(["orders", "top_sellers"]);
+    expect(state.value.regions.mainLeft.visible).toEqual(["sales", "orders", "top_sellers"]);
   });
 
   it("applies a saved arrangement over the defaults", () => {
@@ -254,7 +254,7 @@ describe("useSalesRepLayout", () => {
         saveSalesRepLayout: {
           regions: [
             { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(echoedBlock) },
-            { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
+            { id: "mainLeft", blocks: ["sales", "orders", "top_sellers"].map(echoedBlock) },
             { id: "mainRight", blocks: [echoedBlock("info"), echoedBlock("actions")] },
           ],
         },
@@ -298,7 +298,7 @@ describe("useSalesRepLayout", () => {
         saveSalesRepLayout: {
           regions: [
             { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(echoedBlock) },
-            { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
+            { id: "mainLeft", blocks: ["sales", "orders", "top_sellers"].map(echoedBlock) },
             // `actions` was sent hidden; the backend echoes it visible.
             { id: "mainRight", blocks: [echoedBlock("info"), echoedBlock("actions")] },
           ],
@@ -352,7 +352,7 @@ describe("useSalesRepLayout", () => {
         saveSalesRepLayout: {
           regions: [
             { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(echoedBlock) },
-            { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
+            { id: "mainLeft", blocks: ["sales", "orders", "top_sellers"].map(echoedBlock) },
             {
               id: "mainRight",
               blocks: [echoedBlock("info"), { id: "actions", type: "actions", hidden: true, settings: [] }],
@@ -506,7 +506,7 @@ describe("useSalesRepLayout", () => {
 
     expect(hiddenIn("mainRight")).toEqual(["actions", "info"]);
     expect(visibleIn("mainRight")).toEqual([]);
-    expect(visibleIn("mainLeft")).toEqual(["orders", "top_sellers"]);
+    expect(visibleIn("mainLeft")).toEqual(["sales", "orders", "top_sellers"]);
   });
 
   it("reset restores defaults into the draft but does not persist on its own", () => {
@@ -547,7 +547,7 @@ describe("useSalesRepLayout", () => {
     startEdit();
     setHidden("orders", true);
 
-    expect(visibleIn("mainLeft")).toEqual(["top_sellers"]);
+    expect(visibleIn("mainLeft")).toEqual(["sales", "top_sellers"]);
     expect(hiddenIn("mainLeft")).toEqual(["orders"]);
   });
 
@@ -668,7 +668,7 @@ describe("useSalesRepLayout restoreDefaults", () => {
     salesRepLayout: {
       regions: [
         { id: "statistics", blocks: CUSTOMER_STAT_IDS.map(hiddenBlock) },
-        { id: "mainLeft", blocks: ["orders", "top_sellers"].map(hiddenBlock) },
+        { id: "mainLeft", blocks: ["sales", "orders", "top_sellers"].map(hiddenBlock) },
         { id: "mainRight", blocks: ["actions", "info"].map(hiddenBlock) },
       ],
     },
@@ -723,7 +723,7 @@ describe("useSalesRepLayout restoreDefaults", () => {
     await expect(restoreDefaults()).resolves.toBe(false);
     expect(editing.value).toBe(true);
     expect(saveFailed.value).toBe(true);
-    expect(visibleIn("mainLeft")).toEqual(["orders", "top_sellers"]);
+    expect(visibleIn("mainLeft")).toEqual(["sales", "orders", "top_sellers"]);
 
     apolloMock.mutate.mockResolvedValue({ data: { saveSalesRepLayout: { regions: DEFAULT_ECHO } } });
 

@@ -100,7 +100,7 @@ describe("useLayoutPage", () => {
         saveSalesRepLayout: {
           regions: [
             { id: "statistics", blocks: ["new_orders", "active_cart", "mtd", "orders_ytd", "aov"].map(echoedBlock) },
-            { id: "mainLeft", blocks: ["orders", "top_sellers"].map(echoedBlock) },
+            { id: "mainLeft", blocks: ["sales", "orders", "top_sellers"].map(echoedBlock) },
             { id: "mainRight", blocks: ["actions", "info"].map(echoedBlock) },
           ],
         },
@@ -159,7 +159,7 @@ describe("useLayoutPage with every block hidden", () => {
   const documentOf = (toBlock: (id: string) => ReturnType<typeof echoedBlock>) => ({
     regions: [
       { id: "statistics", blocks: ["new_orders", "active_cart", "mtd", "orders_ytd", "aov"].map(toBlock) },
-      { id: "mainLeft", blocks: ["orders", "top_sellers"].map(toBlock) },
+      { id: "mainLeft", blocks: ["sales", "orders", "top_sellers"].map(toBlock) },
       { id: "mainRight", blocks: ["actions", "info"].map(toBlock) },
     ],
   });

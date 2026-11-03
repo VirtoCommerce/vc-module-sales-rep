@@ -130,6 +130,9 @@
         "phone": "Puhelin",
         "account_type": "Tilin tyyppi",
         "ship_to": "Toimitusosoite"
+      },
+      "sales": {
+        "open_in_reporting": "Avaa raporteissa"
       }
     },
     "customer_orders": {
