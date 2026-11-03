@@ -1085,6 +1085,14 @@ Common prerequisites: the .NET 10 SDK and Playwright's Chromium for the referenc
 
 **On CI** the module workflow runs `vc-build Test`, whose default filter (`Category!=IntegrationTest`) leaves the end-to-end tests out. Its runner has none of what they need: the storefront is a separate repository, and the hub plugin and the VC-Shell app are built only by `vc-build Compress`, after the tests.
 
+**In GitHub, on demand**, the `E2E tests` workflow (`.github/workflows/e2e-tests.yml`) runs both groups. Start it from Actions → E2E tests → Run workflow, or with `gh workflow run e2e-tests.yml --ref <module branch> -f frontend=<vc-frontend ref>`. "Use workflow from" is the module branch; the `frontend` input is the vc-frontend branch, tag or commit to test against, empty for its latest release:
+
+- A sales-rep change: its branch, `frontend` empty.
+- A change with a vc-frontend part: its branch, and its vc-frontend branch in `frontend`.
+- A vc-frontend change alone, a UI kit change for example: `dev`, and that vc-frontend branch in `frontend`.
+
+The run builds that storefront, the hub plugin and the VC-Shell app, serves the storefront build (`VC_STOREFRONT_BUILD`) and gives the contract test the same checkout (`VC_STOREFRONT_DIR`). Its summary names both commits; a failed run attaches the diagnostics folders as `e2e-diagnostics`. Only a person starts it and no branch rule requires it, so it never blocks a merge. GitHub shows the Run button once the workflow is on the default branch, and runs the copy on the branch picked.
+
 **Writing a test.** Seed in the group's environment (`SeedAsync`, through the harness helpers: organizations, contacts, reps, accounts, orders, tasks), open a signed-in context with `OpenAsync`, act with Playwright, assert through the harness (`NewSalesRepDbContext()`, `GetRequiredService<IMemberService>()`, `UserManager`, `GetMembershipsAsync`, …). What the harness does differently from a platform:
 
 * Databases are created with `EnsureCreated`, so nothing that only migrations create exists; every account, administrators included, comes from the seed (`ApplicationUser.IsAdministrator = true` makes one).
