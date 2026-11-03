@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
-import { isInlineRenderable, openAuthorizedFile } from "./files";
+import { isInlineRenderable, openAuthorizedFile, openBlankTab, saveFile } from "./files";
 import type { Mock } from "vitest";
 
 const useFetchMock = vi.hoisted(() => vi.fn());
@@ -124,5 +124,68 @@ describe("openAuthorizedFile", () => {
 
     expect(fakeTab.close).toHaveBeenCalled();
     expect(loggerErrorMock).toHaveBeenCalled();
+  });
+});
+
+describe("openBlankTab", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("opens an empty tab with the opener severed, as rel=noopener would", () => {
+    const fakeTab = { opener: {} };
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(fakeTab as unknown as Window);
+
+    expect(openBlankTab()).toBe(fakeTab);
+    expect(openSpy).toHaveBeenCalledWith("", "_blank");
+    expect(fakeTab.opener).toBeNull();
+  });
+
+  it("answers null when the browser blocked the tab", () => {
+    vi.spyOn(window, "open").mockReturnValue(null);
+
+    expect(openBlankTab()).toBeNull();
+  });
+});
+
+describe("saveFile", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    URL.createObjectURL = vi.fn(() => "blob:mock-url");
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("downloads the content under the file name, typed as asked", async () => {
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      expect(this.href).toBe("blob:mock-url");
+      expect(this.download).toBe("call.ics");
+      expect(this.isConnected).toBe(true);
+    });
+
+    saveFile("BEGIN:VCALENDAR", "call.ics", "text/calendar;charset=utf-8");
+
+    expect(clickSpy).toHaveBeenCalledOnce();
+    const blob = (URL.createObjectURL as Mock).mock.calls[0][0] as Blob;
+    expect(blob.type).toBe("text/calendar;charset=utf-8");
+    expect(await blob.text()).toBe("BEGIN:VCALENDAR");
+    // The anchor was only a vehicle for the click.
+    expect(document.querySelector("a[download]")).toBeNull();
+  });
+
+  it("revokes the object URL only after the delay, so the download can still read it", () => {
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+
+    saveFile("BEGIN:VCALENDAR", "call.ics", "text/calendar;charset=utf-8");
+
+    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(60_000);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:mock-url");
   });
 });

@@ -15,6 +15,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.DependencyInjection;
+using OpenIddict.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
 using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.AssetsModule.Data.Repositories;
@@ -82,7 +83,10 @@ internal sealed class SalesRepTestContext : IDisposable
     private readonly SqliteConnection _salesRepConnection;
     private readonly SqliteConnection _taskConnection;
     private readonly SqliteConnection _marketingConnection;
-    private readonly ServiceProvider _provider;
+    private readonly IServiceProvider _provider;
+    // False when a host (the storefront E2E Kestrel app) built and owns the provider; it disposes it then.
+    private readonly bool _ownsProvider;
+    private readonly DbContextOptions<TaskManagementDbContext> _taskOptions;
     private readonly DbContextOptions<SecurityDbContext> _securityOptions;
     private readonly DbContextOptions<CustomerDbContext> _customerOptions;
     private readonly DbContextOptions<OrderDbContext> _orderOptions;
@@ -101,7 +105,9 @@ internal sealed class SalesRepTestContext : IDisposable
         SqliteConnection salesRepConnection,
         SqliteConnection taskConnection,
         SqliteConnection marketingConnection,
-        ServiceProvider provider,
+        IServiceProvider provider,
+        bool ownsProvider,
+        DbContextOptions<TaskManagementDbContext> taskOptions,
         DbContextOptions<SecurityDbContext> securityOptions,
         DbContextOptions<CustomerDbContext> customerOptions,
         DbContextOptions<OrderDbContext> orderOptions,
@@ -120,6 +126,8 @@ internal sealed class SalesRepTestContext : IDisposable
         _taskConnection = taskConnection;
         _marketingConnection = marketingConnection;
         _provider = provider;
+        _ownsProvider = ownsProvider;
+        _taskOptions = taskOptions;
         _securityOptions = securityOptions;
         _customerOptions = customerOptions;
         _orderOptions = orderOptions;
@@ -135,11 +143,22 @@ internal sealed class SalesRepTestContext : IDisposable
     /// exercise composite order-status resolution). Omit for the default (real-service) harness.
     /// </param>
     /// <param name="withMarketing">Adds vc-module-marketing for salesRepCoupons; off by default, only the coupon tests need it.</param>
-    public static SalesRepTestContext Create(Action<IServiceCollection> configureOverrides = null, bool withTaskManagement = true, bool withMarketing = false)
+    /// <param name="providerFactory">
+    /// Optional: builds the service provider from the fully configured collection instead of the plain
+    /// <c>BuildServiceProvider()</c>. The storefront E2E host passes a factory that copies the registrations into a
+    /// Kestrel <c>WebApplication</c>, so the very same services answer real HTTP from the real storefront.
+    /// The caller then owns (and disposes) that provider.
+    /// </param>
+    public static SalesRepTestContext Create(
+        Action<IServiceCollection> configureOverrides = null,
+        bool withTaskManagement = true,
+        bool withMarketing = false,
+        Func<IServiceCollection, IServiceProvider> providerFactory = null)
     {
         // The platform resolves the current user id from these claim types; they are configured at platform
-        // startup, so set them here for the GraphQL current-user resolution to work in tests.
-        ClaimsPrincipalExtensions.UserIdClaimTypes = [ClaimTypes.NameIdentifier];
+        // startup, so set them here for the GraphQL current-user resolution to work in tests. "sub" first, as
+        // the platform's OpenIddict tokens carry it, so a production-shaped JWT (storefront E2E) resolves too.
+        ClaimsPrincipalExtensions.UserIdClaimTypes = [OpenIddictConstants.Claims.Subject, ClaimTypes.NameIdentifier];
 
         var securityConnection = SqliteTestDbContextFactory.CreateConnection();
         var customerConnection = SqliteTestDbContextFactory.CreateConnection();
@@ -159,6 +178,7 @@ internal sealed class SalesRepTestContext : IDisposable
         var salesRepOptions = SqliteTestDbContextFactory.CreateOptions<SalesRepDbContext>(salesRepConnection);
         var taskConnection = withTaskManagement ? SqliteTestDbContextFactory.CreateConnection() : null;
         var marketingConnection = withMarketing ? SqliteTestDbContextFactory.CreateConnection() : null;
+        DbContextOptions<TaskManagementDbContext> taskOptions = null;
 
         var services = new ServiceCollection()
             .AddSecuritySlice(securityOptions)
@@ -175,9 +195,10 @@ internal sealed class SalesRepTestContext : IDisposable
 
         if (withTaskManagement)
         {
-            services.AddTaskManagementSlice(SqliteTestDbContextFactory.CreateOptions<TaskManagementDbContext>(
+            taskOptions = SqliteTestDbContextFactory.CreateOptions<TaskManagementDbContext>(
                 taskConnection,
-                builder => builder.ReplaceService<IModelCustomizer, WorkTaskNumberSqliteModelCustomizer>()));
+                builder => builder.ReplaceService<IModelCustomizer, WorkTaskNumberSqliteModelCustomizer>());
+            services.AddTaskManagementSlice(taskOptions);
         }
 
         if (withMarketing)
@@ -188,7 +209,8 @@ internal sealed class SalesRepTestContext : IDisposable
         // Per-test last-wins overrides (e.g. a composite order-status resolver), applied after the defaults.
         configureOverrides?.Invoke(services);
 
-        var provider = services.BuildServiceProvider();
+        var ownsProvider = providerFactory == null;
+        var provider = ownsProvider ? services.BuildServiceProvider() : providerFactory(services);
 
         // Subscribe the customer delete-cascade handler to the in-process bus — mirrors the customer module's
         // appBuilder.RegisterEventHandler<UserChangedEvent, DeleteOrganizationMembershipUserChangedEventHandler>().
@@ -220,7 +242,7 @@ internal sealed class SalesRepTestContext : IDisposable
         return new SalesRepTestContext(
             securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
             assetsConnection, salesRepConnection, taskConnection, marketingConnection,
-            provider, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions,
+            provider, ownsProvider, taskOptions, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions,
             assetsOptions, salesRepOptions);
     }
 
@@ -228,6 +250,9 @@ internal sealed class SalesRepTestContext : IDisposable
     public SalesRepController Controller => _provider.GetRequiredService<SalesRepController>();
 
     public T GetRequiredService<T>() where T : notnull => _provider.GetRequiredService<T>();
+
+    /// <summary>The root provider (the Kestrel app's when a host built it).</summary>
+    public IServiceProvider Services => _provider;
 
     /// <summary>
     /// User id of the most recently created Sales Rep. <c>SeedOrder</c> defaults a seeded order's CustomerId to this,
@@ -656,6 +681,10 @@ internal sealed class SalesRepTestContext : IDisposable
     /// <summary>Fresh DbContext on the sales-rep DB (document metadata) for assertions.</summary>
     public SalesRepDbContext NewSalesRepDbContext() => new(_salesRepOptions);
 
+    /// <summary>Fresh DbContext on the task-management DB (WorkTask rows) for assertions.</summary>
+    public TaskManagementDbContext NewTaskManagementDbContext()
+        => new(_taskOptions ?? throw new InvalidOperationException("The context was built without the task-management slice."));
+
     /// <summary>
     /// Backdate a document's metadata creation date (the documents default sort key) so ordering tests are
     /// deterministic. Direct UPDATE (no audit re-stamp) + expiry of the metadata CRUD/search cache regions the
@@ -752,7 +781,11 @@ internal sealed class SalesRepTestContext : IDisposable
 
     public void Dispose()
     {
-        _provider.Dispose();
+        if (_ownsProvider)
+        {
+            (_provider as IDisposable)?.Dispose();
+        }
+
         _securityConnection.Dispose();
         _customerConnection.Dispose();
         _orderConnection.Dispose();

@@ -173,6 +173,10 @@ public static class ModuleConstants
         public const int MaxTypeLength = 128;
 
         public const int MaxResponsibleNameLength = 256;
+
+        public const string CallType = "Call";
+
+        public const string CustomerObjectType = "SalesRepCustomer";
     }
 
     public static class Settings

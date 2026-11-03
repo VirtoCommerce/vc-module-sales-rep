@@ -97,10 +97,10 @@ defineEmits<{
 
 const props = withDefaults(defineProps<IProps>(), { loading: false, busy: false, page: 1, pages: 1 });
 
-const { t, d } = useI18n();
+const { t, d, locale } = useI18n();
 
 // Resolved once per row rather than per template read: each one formats a date through Intl.
-const sublines = computed(() => new Map(props.tasks.map((task) => [task.id, taskSubline(task, t, d)])));
+const sublines = computed(() => new Map(props.tasks.map((task) => [task.id, taskSubline(task, t, d, locale.value)])));
 
 function titleClass(task: SalesRepTaskType) {
   return [

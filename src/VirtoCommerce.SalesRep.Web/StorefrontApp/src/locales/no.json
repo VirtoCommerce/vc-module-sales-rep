@@ -256,6 +256,7 @@
         "expired": "Utløp {date}",
         "due": "Frist {date}"
       },
+      "customer_not_assigned": "Ingen kunde tildelt",
       "legend": {
         "upcoming": "Kommende",
         "overdue": "Forfalt",
@@ -264,17 +265,28 @@
       "form": {
         "create_title": "Ny oppgave",
         "edit_title": "Rediger oppgave",
+        "create_call_title": "Planlegg samtale",
+        "edit_call_title": "Rediger samtale",
         "name_label": "Tittel",
         "due_date_label": "Frist",
+        "time_label": "Klokkeslett",
+        "customer_label": "Kunde",
+        "customer_placeholder": "Søk etter kunder på navn",
+        "customer_error": "Kundelisten kunne ikke lastes. Prøv igjen.",
+        "call_name": "Samtale",
         "priority_label": "Prioritet",
         "type_label": "Type",
         "description_label": "Notater",
+        "calendars_label": "Legg til i kalender",
+        "google_calendar": "Google Kalender",
+        "apple_calendar": "Apple Kalender",
         "save_button": "Lagre",
         "cancel_button": "Avbryt",
         "delete_button": "Slett",
         "delete_title": "Slett oppgave",
         "delete_confirm": "Denne oppgaven blir slettet permanent. Vil du fortsette?",
         "saved": "Oppgaven er lagret",
+        "calendar_failed": "Oppgaven er lagret, men kunne ikke legges til i kalenderen",
         "deleted": "Oppgaven er slettet"
       }
     },
