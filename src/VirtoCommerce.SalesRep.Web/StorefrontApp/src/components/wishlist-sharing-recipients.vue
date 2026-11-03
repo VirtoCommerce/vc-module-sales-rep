@@ -1,6 +1,6 @@
 <template>
   <div data-test-id="wishlist-sharing-recipients" class="wishlist-sharing-recipients">
-    <template v-if="recipients.length">
+    <template v-if="recipients.length && !readonly">
       <div class="wishlist-sharing-recipients__header">
         <span class="wishlist-sharing-recipients__title">
           {{ t("sales_rep.list_sharing.recipients_title", { count: recipients.length }) }}
@@ -44,6 +44,7 @@
           </span>
 
           <VcButton
+            v-if="!readonly"
             :data-test-id="`wishlist-sharing-remove-recipient-${recipient.organizationId}`"
             :aria-label="t('sales_rep.list_sharing.remove_recipient_button', { name: recipient.organizationName })"
             :size="isMobile ? 'xs' : 'sm'"
@@ -122,6 +123,8 @@ interface IProps {
   collapsedRows?: number;
   /** Recipients the last `clear` took away, offered back until the rep does something else. */
   clearedCount?: number;
+  /** Shows the rows only: no Clear all and no remove buttons, for an audience the rep cannot change. */
+  readonly?: boolean;
 }
 
 const emit = defineEmits<IEmits>();

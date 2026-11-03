@@ -82,12 +82,14 @@ const { customer } = useSalesRepCustomer(() => props.organizationId);
 // Calls are tasks, so they need the optional task-management module like every other task surface.
 const tasksEnabled = isSalesRepTasksEnabled();
 
+// The profile is about this one customer, so the message stays on it: nobody else can be picked by accident.
 function openCommunication(): void {
   openModal({
     component: CustomerCommunicationModal,
     props: {
       organizationId: props.organizationId,
       organizationName: customer.value?.organizationName ?? "",
+      locked: true,
     },
   });
 }

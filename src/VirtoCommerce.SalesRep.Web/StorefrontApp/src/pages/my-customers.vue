@@ -1,8 +1,16 @@
 <template>
   <div class="my-customers">
-    <VcTypography class="my-customers__title" tag="h1">
-      {{ t("sales_rep.my_customers.page.title") }}
-    </VcTypography>
+    <div class="my-customers__head">
+      <VcTypography class="my-customers__title" tag="h1">
+        {{ t("sales_rep.my_customers.page.title") }}
+      </VcTypography>
+
+      <div class="my-customers__actions">
+        <VcButton data-test-id="my-customers-send-message-button" prepend-icon="mail" @click="openCommunication()">
+          {{ t("sales_rep.communication.send_message_button") }}
+        </VcButton>
+      </div>
+    </div>
 
     <div class="my-customers__results">
       <div class="my-customers__search">
@@ -265,11 +273,12 @@ function orderLabel(number: string): string {
   return `#${number}`;
 }
 
-// Broadcast to all members of the customer's org — reuses the shared modal shell (VCST-5310).
-function openCommunication(item: SalesRepCustomerType): void {
+// Broadcast to every member of the picked customers (VCST-5310): a row's envelope opens the popup with that customer
+// picked, the page's own Send message button with none.
+function openCommunication(item?: SalesRepCustomerType): void {
   openModal({
     component: CustomerCommunicationModal,
-    props: { organizationId: item.organizationId, organizationName: item.organizationName },
+    props: item ? { organizationId: item.organizationId, organizationName: item.organizationName } : {},
   });
 }
 
@@ -297,6 +306,11 @@ function changePage(newPage: number): void {
 <style lang="scss">
 // @apply: module is self-contained as an MF remote (no global utility layer).
 .my-customers {
+  // The title and the Send message button stack on narrow screens, as on the Tasks page.
+  &__head {
+    @apply flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between;
+  }
+
   &__title {
     @apply [word-break:break-word];
   }

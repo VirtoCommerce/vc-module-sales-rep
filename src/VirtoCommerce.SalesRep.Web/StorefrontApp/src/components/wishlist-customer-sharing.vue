@@ -1,6 +1,6 @@
 <template>
   <div class="wishlist-customer-sharing">
-    <VcSelect
+    <CustomerPicker
       :model-value="selected"
       test-id-dropdown="wishlist-share-customer-select"
       :label="t('sales_rep.list_sharing.share_customers_label')"
@@ -9,27 +9,8 @@
       :items="pickerOptions"
       :error="failed"
       :message="fieldMessage"
-      text-field="organizationName"
-      value-field="organizationId"
-      required
-      multiple
-      autocomplete
-      clearable
-      lazy
       @change="onPickerChange"
-    >
-      <template #item="{ item }">
-        <span class="wishlist-customer-sharing__option">
-          <WishlistSharingAvatar :organization-name="item.organizationName" :image-url="item.imageUrl" />
-
-          <span class="wishlist-customer-sharing__option-meta">
-            <span class="wishlist-customer-sharing__option-name">{{ item.organizationName }}</span>
-
-            <span v-if="item.location" class="wishlist-customer-sharing__option-location">{{ item.location }}</span>
-          </span>
-        </span>
-      </template>
-    </VcSelect>
+    />
 
     <WishlistSharingRecipients
       v-if="selected.length || clearedRecipients.length"
@@ -66,7 +47,8 @@ import type {
 } from "@vc-frontend/core";
 import { useSalesRepCommunication } from "../composables/useSalesRepCommunication";
 import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
-import WishlistSharingAvatar from "./wishlist-sharing-avatar.vue";
+import { mergeCustomerOptions } from "../utils";
+import CustomerPicker from "./customer-picker.vue";
 import WishlistSharingRecipients from "./wishlist-sharing-recipients.vue";
 import type { WishlistSharingRecipientType } from "../types";
 
@@ -82,7 +64,7 @@ const props = defineProps<IProps>();
 const { t, te } = useI18n();
 const notifications = useNotifications();
 const { sendCommunication } = useSalesRepCommunication();
-const { options, loading, failed, findOption } = useSalesRepCustomerOptions();
+const { options, loading, failed } = useSalesRepCustomerOptions();
 
 const MESSAGE_MAX_LENGTH = 250;
 const SEPARATOR = "\n\n";
@@ -105,15 +87,7 @@ const messageChanged = computed(() => shareMessage.value.trim() !== props.messag
 const isDirty = computed(() => addedIds.value.length > 0 || removedIds.value.length > 0 || messageChanged.value);
 
 // A granted customer may sit on a page the picker never fetched; listing them keeps the row unticking possible.
-const pickerOptions = computed<WishlistSharingRecipientType[]>(() => {
-  const missing = props.targets.filter((target) => !findOption(target.id));
-
-  // Merged into the backend's name sort rather than prepended, or a granted customer the page never carried would
-  // sit above every option the search box shows.
-  return [...missing.map(toRecipient), ...options.value].sort((a, b) =>
-    a.organizationName.localeCompare(b.organizationName),
-  );
-});
+const pickerOptions = computed(() => mergeCustomerOptions(options.value, props.targets.map(toRecipient)));
 
 const fieldMessage = computed(() => {
   if (failed.value) {
@@ -263,25 +237,5 @@ defineExpose<IWishlistSharingScopeExposeType>({
 <style lang="scss">
 .wishlist-customer-sharing {
   @apply space-y-4;
-
-  &__option {
-    @apply flex min-w-0 grow items-center gap-3;
-  }
-
-  &__option-meta {
-    @apply flex min-w-0 grow flex-col;
-  }
-
-  &__option-name {
-    // The leading is spelled out so the two lines total the avatar's 32 and the row stays balanced; the menu item
-    // hands down 14/14.
-    @apply truncate text-sm/[18px] font-bold text-neutral-950;
-  }
-
-  &__option-location {
-    // `font-normal` against the kit: `VcMenuItem` bolds the whole row of a selected option, and the second line is
-    // Regular in every state.
-    @apply truncate text-xs font-normal text-neutral-600;
-  }
 }
 </style>

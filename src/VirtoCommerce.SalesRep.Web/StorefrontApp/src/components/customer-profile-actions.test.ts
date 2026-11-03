@@ -1,5 +1,6 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import CustomerCommunicationModal from "./customer-communication-modal.vue";
 import CustomerProfileActions from "./customer-profile-actions.vue";
 import SalesRepTaskModal from "./sales-rep-task-modal.vue";
 
@@ -36,20 +37,36 @@ function createWrapper() {
   });
 }
 
-function scheduleCallButton(wrapper: ReturnType<typeof createWrapper>) {
-  const found = wrapper
-    .findAll("button")
-    .find((candidate) => candidate.text().includes("sales_rep.communication.quick_actions.schedule_call"));
+function tile(wrapper: ReturnType<typeof createWrapper>, labelKey: string) {
+  const found = wrapper.findAll("button").find((candidate) => candidate.text().includes(labelKey));
   if (!found) {
-    throw new Error("No Schedule call button");
+    throw new Error(`No ${labelKey} button`);
   }
   return found;
+}
+
+function scheduleCallButton(wrapper: ReturnType<typeof createWrapper>) {
+  return tile(wrapper, "sales_rep.communication.quick_actions.schedule_call");
 }
 
 beforeEach(() => {
   mocks.openModal.mockClear();
   mocks.customer.value = { organizationName: "Lakeview Outfitters" };
   mocks.tasksEnabled = true;
+});
+
+describe("CustomerProfileActions Send email", () => {
+  // The profile is about one customer, so its popup must not let the rep reach anyone else by accident.
+  it("opens the message popup locked to this customer", async () => {
+    const wrapper = createWrapper();
+
+    await tile(wrapper, "sales_rep.communication.quick_actions.send_email").trigger("click");
+
+    expect(mocks.openModal).toHaveBeenCalledWith({
+      component: CustomerCommunicationModal,
+      props: { organizationId: "org-1", organizationName: "Lakeview Outfitters", locked: true },
+    });
+  });
 });
 
 describe("CustomerProfileActions Schedule call", () => {

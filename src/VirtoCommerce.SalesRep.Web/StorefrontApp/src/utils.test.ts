@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
-import { buildStatisticsWindows, formatStatCount, formatStatMoney, formatTimeAgo, salesRepOrderRoute } from "./utils";
-import type { SalesRepCustomerOrderRowType } from "./types";
+import {
+  buildStatisticsWindows,
+  formatStatCount,
+  formatStatMoney,
+  formatTimeAgo,
+  mergeCustomerOptions,
+  salesRepOrderRoute,
+} from "./utils";
+import type { OrganizationRowType, SalesRepCustomerOrderRowType } from "./types";
 
 // Pinned so the expectations don't depend on the runtime's default locale.
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
@@ -139,6 +146,37 @@ describe("buildStatisticsWindows", () => {
       const date = new Date(bound);
       expect([date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds()]).toEqual([0, 0, 0, 0]);
     }
+  });
+});
+
+describe("mergeCustomerOptions", () => {
+  const customer = (organizationId: string, organizationName: string): OrganizationRowType => ({
+    organizationId,
+    organizationName,
+    location: "",
+    imageUrl: "",
+  });
+
+  const names = (rows: OrganizationRowType[]) => rows.map((row) => row.organizationName);
+
+  it("lists a customer the options stop short of, sorted in by name", () => {
+    const options = [customer("org-1", "Acme"), customer("org-3", "Initech")];
+
+    expect(names(mergeCustomerOptions(options, [customer("org-2", "Globex")]))).toEqual(["Acme", "Globex", "Initech"]);
+  });
+
+  it("keeps the options' own row for a customer they already list", () => {
+    const listed = { ...customer("org-1", "Acme"), location: "Richmond, Virginia" };
+
+    const merged = mergeCustomerOptions([listed], [customer("org-1", "Acme")]);
+
+    expect(merged).toEqual([listed]);
+  });
+
+  it("leaves the options as they are when there is nobody to add", () => {
+    const options = [customer("org-1", "Acme"), customer("org-2", "Globex")];
+
+    expect(mergeCustomerOptions(options, [])).toEqual(options);
   });
 });
 

@@ -3,6 +3,7 @@ import { ContentType, globals, QueryParamName, ROUTES } from "@vc-frontend/core"
 import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
 import type { MoneyType, SalesRepCustomerOrdersQuery, SalesRepOrdersQuery } from "./api/graphql/types";
 import type {
+  OrganizationRowType,
   SalesRepActivityItemType,
   SalesRepCustomerOrderRowType,
   SalesRepDocumentType,
@@ -37,6 +38,19 @@ export function formatCustomerLocation(address: LocationPartsType, options?: { w
   // List rows: postal code (prefixed "#"), city, region — middot-separated (e.g. "#23220 · Richmond · Virginia").
   const code = postalCode ? `#${postalCode}` : "";
   return [code, address?.city, address?.regionName].filter(Boolean).join(" · ");
+}
+
+// The customer options stop at a cap, so a customer the caller already holds (a list's recipient, the customer a
+// popup opened for) may sit past it. Listing it keeps its row in the picker, where it can be unticked; it is sorted in
+// by name rather than put above every option the search box shows.
+export function mergeCustomerOptions(
+  options: OrganizationRowType[],
+  customers: OrganizationRowType[],
+): OrganizationRowType[] {
+  const listed = new Set(options.map((option) => option.organizationId));
+  const missing = customers.filter((customer) => !listed.has(customer.organizationId));
+
+  return [...missing, ...options].sort((a, b) => a.organizationName.localeCompare(b.organizationName));
 }
 
 // ISO date windows shared by the statistics ops: current bounds end at the END of the user's current day
