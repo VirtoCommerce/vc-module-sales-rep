@@ -96,8 +96,8 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        // org-1: the owner is the primary contact, and one of its phones is the customer's phone (the member service
-        // does not keep the phones' order).
+        // org-1: the owner is the primary contact, and one of its phones is the customer's phone. The member service
+        // orders phones by their generated row ids, not by entry, so either number can come first.
         json.Should().Contain("owner-1").And.Contain("999-0001").And.Contain("999-0002");
         json.Should().MatchRegex("\"organizationId\":\"org-1\",\"phone\":\"\\\\u002B1-999-000[12]\"");
         // org-2's owner has no phone, so `phone` falls back to the organization's.

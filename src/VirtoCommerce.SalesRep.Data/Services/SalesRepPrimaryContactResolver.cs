@@ -2,12 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
-using VirtoCommerce.Platform.Core.Security.Search;
 using VirtoCommerce.SalesRep.Core.Services;
 
 namespace VirtoCommerce.SalesRep.Data.Services;
@@ -17,18 +18,18 @@ public class SalesRepPrimaryContactResolver : ISalesRepPrimaryContactResolver
     private readonly IMemberService _memberService;
     private readonly IMemberSearchService _memberSearchService;
     private readonly ISalesRepOrganizationAccessService _organizationAccessService;
-    private readonly IUserSearchService _userSearchService;
+    private readonly Func<UserManager<ApplicationUser>> _userManagerFactory;
 
     public SalesRepPrimaryContactResolver(
         IMemberService memberService,
         IMemberSearchService memberSearchService,
         ISalesRepOrganizationAccessService organizationAccessService,
-        IUserSearchService userSearchService)
+        Func<UserManager<ApplicationUser>> userManagerFactory)
     {
         _memberService = memberService;
         _memberSearchService = memberSearchService;
         _organizationAccessService = organizationAccessService;
-        _userSearchService = userSearchService;
+        _userManagerFactory = userManagerFactory;
     }
 
     public virtual async Task<Contact> ResolvePrimaryContactAsync(Organization organization, string responseGroup)
@@ -133,12 +134,14 @@ public class SalesRepPrimaryContactResolver : ISalesRepPrimaryContactResolver
             return result;
         }
 
-        var userCriteria = AbstractTypeFactory<UserSearchCriteria>.TryCreateInstance();
-        userCriteria.ObjectIds = userIds;
-        var users = await _userSearchService.SearchAllAsync(userCriteria);
+        // The contact ids alone, in one query: IUserSearchService would also load every user's roles.
+        using var userManager = _userManagerFactory();
+        var users = await userManager.Users
+            .Where(x => userIds.Contains(x.Id) && x.MemberId != null)
+            .Select(x => new { x.Id, x.MemberId })
+            .ToListAsync();
 
         var memberIdByUserId = users
-            .Where(x => !string.IsNullOrEmpty(x.MemberId))
             .DistinctBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Id, x => x.MemberId, StringComparer.OrdinalIgnoreCase);
 
