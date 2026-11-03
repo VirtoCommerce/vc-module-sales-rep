@@ -11,6 +11,7 @@ import {
   documentsRoute,
   isMyCustomersArea,
   myCustomersRoute,
+  reportingRoute,
   salesRepsRoute,
   tasksRoute,
 } from "./routes";
@@ -56,6 +57,7 @@ const at = (name: string) => ({ name, query: {} }) as unknown as RouteLocationNo
 describe("sales-rep routes", () => {
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -90,10 +92,16 @@ describe("sales-rep routes", () => {
     expect(allCustomerOrdersRoute.path).toBe("customer-orders");
   });
 
+  // An equal path loses to the host's route on a reload or a link.
+  it("keeps Reporting off the host's Company Reporting path", () => {
+    expect(reportingRoute.path).toBe("customer-sales");
+  });
+
   // guardSalesRep only calls next() to bounce a non-rep, so a beforeEnter that forgets to call it on the way
   // through leaves the click doing nothing at all.
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -112,6 +120,7 @@ describe("sales-rep routes", () => {
 
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
