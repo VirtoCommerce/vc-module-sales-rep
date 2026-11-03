@@ -119,15 +119,13 @@
                     </div>
                   </div>
 
-                  <VcButton
-                    class="my-customers__mobile-action"
-                    size="sm"
-                    variant="outline"
-                    prepend-icon="mail"
-                    @click="openCommunication(item)"
-                  >
-                    {{ t("sales_rep.communication.action") }}
-                  </VcButton>
+                  <div class="my-customers__mobile-actions">
+                    <VcButton size="sm" variant="outline" prepend-icon="mail" @click="openCommunication(item)">
+                      {{ t("sales_rep.communication.action") }}
+                    </VcButton>
+
+                    <CustomerCallAction :phones="item.phones" variant="button" />
+                  </div>
                 </div>
               </div>
             </template>
@@ -206,15 +204,24 @@
               :title="t('sales_rep.my_customers.table.actions')"
               class="my-customers__actions-col"
             >
-              <VcButton
-                :aria-label="t('sales_rep.communication.action')"
-                :title="t('sales_rep.communication.action')"
-                icon="mail"
-                icon-size="1.25rem"
-                variant="ghost"
-                color="neutral"
-                @click="openCommunication(item)"
-              />
+              <!-- The design-system tooltip, like the call action beside it (VCST-6256). -->
+              <VcTooltip class="my-customers__action" placement="top" lazy>
+                <template #default="{ triggerProps }">
+                  <VcButton
+                    v-bind="triggerProps"
+                    :aria-label="t('sales_rep.communication.action')"
+                    icon="mail"
+                    icon-size="1.25rem"
+                    variant="ghost"
+                    color="neutral"
+                    @click="openCommunication(item)"
+                  />
+                </template>
+
+                <template #content>{{ t("sales_rep.communication.action") }}</template>
+              </VcTooltip>
+
+              <CustomerCallAction :phones="item.phones" />
             </VcTableColumn>
           </VcTable>
         </template>
@@ -227,6 +234,7 @@
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useModal } from "@vc-frontend/core";
+import CustomerCallAction from "../components/customer-call-action.vue";
 import CustomerCommunicationModal from "../components/customer-communication-modal.vue";
 import SalesRepRuleAlert from "../components/sales-rep-rule-alert.vue";
 import SalesRepRuleChips from "../components/sales-rep-rule-chips.vue";
@@ -332,8 +340,13 @@ function changePage(newPage: number): void {
     @apply flex flex-wrap items-center justify-between gap-3;
   }
 
+  // Email and call side by side.
   &__actions-col {
-    @apply w-16 text-center;
+    @apply w-24 whitespace-nowrap text-center;
+  }
+
+  &__action {
+    @apply inline-flex;
   }
 
   // Top-align body cells only, so the name lines up with the stacked last-order date/number.
@@ -398,11 +411,11 @@ function changePage(newPage: number): void {
     @apply text-sm;
   }
 
-  &__mobile-action {
-    @apply self-start;
+  &__mobile-actions {
+    @apply flex flex-wrap gap-2 self-start;
 
     @container (min-width: theme("containers.md")) {
-      @apply shrink-0;
+      @apply shrink-0 flex-nowrap;
     }
   }
 }

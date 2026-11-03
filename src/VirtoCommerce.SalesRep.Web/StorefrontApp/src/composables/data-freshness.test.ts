@@ -330,7 +330,7 @@ const widgetSources: [string, () => () => number | undefined][] = [
     "customer profile header",
     () => {
       const { customer } = useSalesRepCustomer("org-a");
-      return () => (customer.value ? Number(customer.value.phone) : undefined);
+      return () => (customer.value ? Number(customer.value.phones[0]?.number) : undefined);
     },
   ],
   [

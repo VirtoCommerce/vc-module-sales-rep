@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
 import {
   buildStatisticsWindows,
+  contactDisplayName,
   formatStatCount,
   formatStatMoney,
   formatTimeAgo,
@@ -146,6 +147,15 @@ describe("buildStatisticsWindows", () => {
       const date = new Date(bound);
       expect([date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds()]).toEqual([0, 0, 0, 0]);
     }
+  });
+});
+
+describe("contactDisplayName", () => {
+  it("prefers the full name, then the account name", () => {
+    expect(contactDisplayName({ fullName: "Jane Smith", name: "jsmith" })).toBe("Jane Smith");
+    expect(contactDisplayName({ fullName: "", name: "jsmith" })).toBe("jsmith");
+    expect(contactDisplayName({})).toBe("");
+    expect(contactDisplayName(undefined)).toBe("");
   });
 });
 

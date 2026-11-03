@@ -166,7 +166,7 @@
       }
     },
     "communication": {
-      "action": "Send email",
+      "action": "Send message",
       "title": "Send a message",
       "subtitle": "Reaches every member of {organization}",
       "subtitle_customers": "Reaches every member of the selected customers",
@@ -200,6 +200,12 @@
         "send_email": "Send email",
         "create_quote": "Create quote",
         "schedule_call": "Schedule call"
+      },
+      "call": {
+        "action": "Call customer",
+        "action_with_number": "Call customer, {number}",
+        "no_phone": "No phone number",
+        "choose_number": "Choose a number to call"
       }
     },
     "orders": {

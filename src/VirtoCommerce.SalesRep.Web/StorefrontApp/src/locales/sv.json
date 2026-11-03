@@ -166,7 +166,7 @@
       }
     },
     "communication": {
-      "action": "Skicka e-post",
+      "action": "Skicka meddelande",
       "title": "Skicka ett meddelande",
       "subtitle": "Når alla medlemmar i {organization}",
       "subtitle_customers": "Når alla medlemmar i de valda kunderna",
@@ -200,6 +200,12 @@
         "send_email": "Skicka e-post",
         "create_quote": "Skapa offert",
         "schedule_call": "Boka samtal"
+      },
+      "call": {
+        "action": "Ring kunden",
+        "action_with_number": "Ring kunden, {number}",
+        "no_phone": "Inget telefonnummer",
+        "choose_number": "Välj ett nummer att ringa"
       }
     },
     "orders": {
