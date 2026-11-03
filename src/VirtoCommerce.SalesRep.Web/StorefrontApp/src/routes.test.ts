@@ -92,7 +92,7 @@ describe("sales-rep routes", () => {
     expect(allCustomerOrdersRoute.path).toBe("customer-orders");
   });
 
-  // The host's Company Reporting page is /company/reporting; an equal path loses to it on a reload or a link (VCST-6668).
+  // An equal path loses to the host's route on a reload or a link.
   it("keeps Reporting off the host's Company Reporting path", () => {
     expect(reportingRoute.path).toBe("customer-sales");
   });
