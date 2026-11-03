@@ -1,5 +1,6 @@
 <template>
   <VcSelect
+    ref="select"
     :model-value="modelValue"
     :test-id-dropdown="testIdDropdown"
     :label="label"
@@ -32,6 +33,7 @@
 </template>
 
 <script setup lang="ts">
+import { useTemplateRef } from "vue";
 import WishlistSharingAvatar from "./wishlist-sharing-avatar.vue";
 import type { OrganizationRowType } from "../types";
 
@@ -50,6 +52,16 @@ interface IProps {
 defineProps<IProps>();
 
 const emit = defineEmits<{ change: [customers: OrganizationRowType[]] }>();
+
+const select = useTemplateRef<{ $el: HTMLElement }>("select");
+
+// `VcSelect` has no focus method, and its input opens the list on focus, so this focuses the select's container: the
+// element a dialog focuses when it opens on this field.
+function focus(): void {
+  select.value?.$el?.querySelector<HTMLElement>(".vc-select__container")?.focus();
+}
+
+defineExpose({ focus });
 </script>
 
 <style lang="scss">

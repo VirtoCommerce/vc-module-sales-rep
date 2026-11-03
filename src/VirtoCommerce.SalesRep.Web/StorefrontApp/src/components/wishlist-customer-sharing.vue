@@ -1,6 +1,7 @@
 <template>
   <div class="wishlist-customer-sharing">
     <CustomerPicker
+      ref="customerPicker"
       :model-value="selected"
       test-id-dropdown="wishlist-share-customer-select"
       :label="t('sales_rep.list_sharing.share_customers_label')"
@@ -37,7 +38,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed, nextTick, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useNotifications } from "@vc-frontend/core";
 import type {
@@ -65,6 +66,8 @@ const { t, te } = useI18n();
 const notifications = useNotifications();
 const { sendCommunication } = useSalesRepCommunication();
 const { options, loading, failed } = useSalesRepCustomerOptions();
+
+const customerPicker = useTemplateRef<InstanceType<typeof CustomerPicker>>("customerPicker");
 
 const MESSAGE_MAX_LENGTH = 250;
 const SEPARATOR = "\n\n";
@@ -150,8 +153,14 @@ function restoreSelection(): void {
   clearedRecipients.value = [];
 }
 
-function deselect(organizationId: string): void {
+// Removing the last row unmounts the list, which takes the focus with it: hand it to the field instead.
+async function deselect(organizationId: string): Promise<void> {
   selected.value = selected.value.filter((recipient) => recipient.organizationId !== organizationId);
+
+  if (!selected.value.length) {
+    await nextTick();
+    customerPicker.value?.focus();
+  }
 }
 
 // The kit hands back an empty array both for its own clear button and for unticking the last option, so both go

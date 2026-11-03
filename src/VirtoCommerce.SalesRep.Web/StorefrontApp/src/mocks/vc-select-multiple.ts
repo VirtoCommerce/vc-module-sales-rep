@@ -49,6 +49,8 @@ export const VcSelectMultiple = defineComponent({
           "aria-disabled": String(props.disabled),
         },
         [
+          // The real select's focusable container, which `CustomerPicker.focus()` finds by its class.
+          h("div", { class: "vc-select__container", tabindex: "-1" }),
           ...props.items.map((item) =>
             h(
               "button",

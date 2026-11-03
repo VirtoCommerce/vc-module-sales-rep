@@ -26,6 +26,7 @@
 
       <template v-else>
         <CustomerPicker
+          ref="customerPicker"
           :model-value="selectedCustomers"
           test-id-dropdown="customer-communication-customers"
           :label="t('sales_rep.communication.customers_label')"
@@ -42,7 +43,7 @@
           :recipients="selectedCustomers"
           :disabled="loading"
           @remove="deselect"
-          @clear="customers = []"
+          @clear="clearCustomers"
         />
       </template>
 
@@ -98,7 +99,7 @@
 <script setup lang="ts">
 import { toTypedSchema } from "@vee-validate/yup";
 import { useField, useForm } from "vee-validate";
-import { computed, ref, useTemplateRef } from "vue";
+import { computed, nextTick, ref, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { string } from "yup";
 import { useNotifications, VcModal } from "@vc-frontend/core";
@@ -126,6 +127,7 @@ const { sendCommunication, loading } = useSalesRepCommunication();
 const { options, loading: optionsLoading, failed, findOption } = useSalesRepCustomerOptions();
 
 const modalComponent = useTemplateRef<InstanceType<typeof VcModal>>("modalComponent");
+const customerPicker = useTemplateRef<InstanceType<typeof CustomerPicker>>("customerPicker");
 
 const openedFor: OrganizationRowType[] = props.organizationId
   ? [customerRow(props.organizationId, props.organizationName)]
@@ -152,8 +154,25 @@ const selectedCustomers = computed(() =>
 
 const pickerItems = computed(() => mergeCustomerOptions(options.value, openedFor));
 
-function deselect(organizationId: string): void {
+// Emptied, the recipients list unmounts and takes the focus with it: hand it to the field, which now says why Send is
+// off.
+async function focusFieldIfEmpty(): Promise<void> {
+  if (customers.value.length) {
+    return;
+  }
+
+  await nextTick();
+  customerPicker.value?.focus();
+}
+
+async function deselect(organizationId: string): Promise<void> {
   customers.value = customers.value.filter((customer) => customer.organizationId !== organizationId);
+  await focusFieldIfEmpty();
+}
+
+async function clearCustomers(): Promise<void> {
+  customers.value = [];
+  await focusFieldIfEmpty();
 }
 
 const send = handleSubmit(async (data) => {

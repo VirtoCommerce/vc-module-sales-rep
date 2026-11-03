@@ -82,9 +82,10 @@ function customer(organizationId: string, organizationName: string, location = "
   return { organizationId, organizationName, location, imageUrl: "" };
 }
 
-function createWrapper(props: Record<string, unknown> = {}) {
+function createWrapper(props: Record<string, unknown> = {}, attachTo?: HTMLElement) {
   return mount(CustomerCommunicationModal, {
     props,
+    attachTo,
     global: {
       components: { VcSelect: VcSelectMultiple, VcButton },
       stubs: {
@@ -232,6 +233,47 @@ describe("CustomerCommunicationModal", () => {
 
       expect(fieldMessage(wrapper).exists()).toBe(false);
       expect(sendButton(wrapper).attributes("disabled")).toBeUndefined();
+    });
+
+    // The recipients list unmounts once it empties, and the focus must not go with it to the page.
+    describe("when the recipients list empties", () => {
+      const customersField = (wrapper: WrapperType) => picker(wrapper).find(".vc-select__container").element;
+
+      it("moves the focus to the Customers field after Clear all", async () => {
+        const wrapper = createWrapper(ACME, document.body);
+        await pick(wrapper, "org-2");
+
+        await wrapper.find("[data-test-id='wishlist-sharing-clear-recipients-button']").trigger("click");
+        await flushPromises();
+
+        expect(document.activeElement).toBe(customersField(wrapper));
+        wrapper.unmount();
+      });
+
+      it("moves the focus to the Customers field when the last row is removed", async () => {
+        const wrapper = createWrapper(ACME, document.body);
+
+        await removeRecipient(wrapper, "org-1");
+
+        expect(document.activeElement).toBe(customersField(wrapper));
+        wrapper.unmount();
+      });
+
+      // The list hands the focus to the next row itself; the field must not take it, not even for a moment.
+      it("leaves the focus in the list while rows remain", async () => {
+        const wrapper = createWrapper(ACME, document.body);
+        await pick(wrapper, "org-2");
+        const fieldFocused = vi.fn();
+        customersField(wrapper).addEventListener("focus", fieldFocused);
+
+        await removeRecipient(wrapper, "org-1");
+
+        expect(fieldFocused).not.toHaveBeenCalled();
+        expect(document.activeElement).toBe(
+          wrapper.find("[data-test-id='wishlist-sharing-remove-recipient-org-2']").element,
+        );
+        wrapper.unmount();
+      });
     });
 
     // The options stop at a cap; the row's customer may sit past it and must stay pickable and unpickable.

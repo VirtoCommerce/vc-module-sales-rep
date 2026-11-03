@@ -147,7 +147,8 @@ const visibleRecipients = computed(() =>
   collapsible.value && !expanded.value ? props.recipients.slice(0, props.collapsedRows) : props.recipients,
 );
 
-// The rows the clear takes away carry the focus with them, so hand it to the Undo that replaces them.
+// The rows the clear takes away carry the focus with them, so hand it to the Undo that replaces them. Without one (the
+// Send a message popup offers no Undo), the block unmounts and the parent places the focus.
 async function requestClear(): Promise<void> {
   emit("clear");
 
@@ -165,8 +166,8 @@ async function requestRestore(): Promise<void> {
   clearButton.value?.$el?.focus();
 }
 
-// The deleted row takes the focus with it. Nowhere to send it once the list empties: the block unmounts, and
-// `VcSelect` exposes no focus method.
+// The deleted row takes the focus with it, so hand it to the remove button that takes its place. Once the list empties,
+// the block unmounts and the parent places the focus: the Send a message popup hands it to its Customers field.
 async function requestRemove(organizationId: string, index: number): Promise<void> {
   emit("remove", organizationId);
 

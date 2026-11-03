@@ -334,6 +334,27 @@ describe("WishlistCustomerSharing", () => {
       expect(document.activeElement).toBe(recipientRow("org-1")!.closest("button"));
     });
 
+    it("hands the focus to the Customers field when the last row is deleted", async () => {
+      renderSharing([target("org-1", "Acme Inc.")]);
+
+      await fireEvent.click(recipientRow("org-1")!.closest("button")!);
+
+      // The list unmounts with its last row; without the handoff the rep tabs in from the top of the dialog again.
+      await waitFor(() => expect(document.activeElement).toBe(customerSelect().querySelector(".vc-select__container")));
+    });
+
+    // The list hands the focus to the next row itself; the field must not take it, not even for a moment.
+    it("keeps the field out of the focus while rows remain", async () => {
+      renderSharing([target("org-1", "Acme Inc."), target("org-2", "Globex")]);
+      const fieldFocused = vi.fn();
+      customerSelect().querySelector(".vc-select__container")!.addEventListener("focus", fieldFocused);
+
+      await fireEvent.click(recipientRow("org-1")!.closest("button")!);
+      await waitFor(() => expect(document.activeElement).toBe(recipientRow("org-2")!.closest("button")));
+
+      expect(fieldFocused).not.toHaveBeenCalled();
+    });
+
     it("hands the focus to Undo when Clear all takes every row away", async () => {
       renderSharing([target("org-1", "Acme Inc."), target("org-2", "Globex")]);
 
