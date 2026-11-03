@@ -1701,6 +1701,48 @@ public class SalesRepGraphQlComponentTests
     }
 
     [Fact]
+    public async Task SalesRepCustomers_SortByYtdPurchases_WithPhone_KeepsMetricOrder()
+    {
+        using var ctx = SalesRepTestContext.Create();
+        // Name, id and creation order all run opposite to the YTD order, so a page reload that returned the member
+        // search's own order instead of the ranked one would put org-a first.
+        await ctx.SeedOrganizationAsync("org-a", o =>
+        {
+            o.Name = "Aardvark Supply";
+            o.Phones = ["+1-100-0000"];
+        });
+        await ctx.SeedOrganizationAsync("org-b", o =>
+        {
+            o.Name = "Zephyr Supply";
+            o.Phones = ["+1-200-0000"];
+        });
+        var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-a", "org-b");
+        var thisYear = new DateTime(DateTime.UtcNow.Year, 3, 1, 0, 0, 0, DateTimeKind.Utc);
+        SeedOrder(ctx, id: "a", org: "org-a", number: "ORD-A", createdDate: thisYear, total: 100m);
+        SeedOrder(ctx, id: "b", org: "org-b", number: "ORD-B", createdDate: thisYear, total: 300m);
+
+        // Selecting `phone` makes the handler rank candidates loaded without phones, then reload the page with them:
+        // each organization's own phone in the response shows the reload ran.
+        var json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"ytd-purchases\") { items { organizationId phone } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        var orgB = json.IndexOf("\"organizationId\":\"org-b\",\"phone\":\"\\u002B1-200-0000\"", StringComparison.Ordinal);
+        var orgA = json.IndexOf("\"organizationId\":\"org-a\",\"phone\":\"\\u002B1-100-0000\"", StringComparison.Ordinal);
+        orgB.Should().BeGreaterThanOrEqualTo(0);
+        orgA.Should().BeGreaterThan(orgB);
+
+        // The second page holds the second-ranked organization.
+        json = await ctx.ExecuteGraphQlAsync(
+            "query { salesRepCustomers(sort:\"ytd-purchases\", first:1, after:\"1\") { items { organizationId phone } } }",
+            userId: rep.UserId);
+
+        json.Should().NotContain("\"errors\"");
+        json.Should().Contain("\"organizationId\":\"org-a\",\"phone\":\"\\u002B1-100-0000\"").And.NotContain("org-b");
+    }
+
+    [Fact]
     public async Task SalesRepCustomers_OrderStatistics_InlinePerRow_CountsOnlyRepsOwnOrders()
     {
         using var ctx = SalesRepTestContext.Create();
