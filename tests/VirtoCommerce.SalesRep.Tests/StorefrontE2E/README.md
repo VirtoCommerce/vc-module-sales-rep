@@ -75,8 +75,8 @@ Prerequisites:
   with `yarn install`: a ticket that moved to a clone keeps its old `front`. The storefront must load plugins, which
   vc-frontend does since 2.60.0 (vc-frontend#2569), and accept the plugin's `requiredHostVersion` (in its
   `mf-manifest.json`). Each group checks the hub's menu first and, when the storefront did not load the plugin, fails
-  as a whole within a minute: quoting the storefront's refusal, which a clone's development build logs, or naming both
-  versions, as a production build logs nothing.
+  as a whole: at once, quoting the storefront's refusal, which a clone's development build logs, or after 60 seconds,
+  naming both versions, as a production build logs nothing.
 - **Hub plugin build:** `yarn build` in `src/VirtoCommerce.SalesRep.Web/StorefrontApp`. A missing build, or one older
   than its sources under `src`, fails the groups with that command; they never rebuild it themselves. Other build
   inputs (`vite.config.ts`, `package.json`, `public/plugin.json`) are not checked: rebuild after changing them.

@@ -239,7 +239,8 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         var page = await context.NewPageAsync();
         page.SetDefaultTimeout(30_000);
 
-        // Into the phase log as well, which a CI run keeps; subscribed before the first navigation, so the boot's are in.
+        // Into the phase log as well, which a failed CI run uploads. Subscribed before the first navigation, so the
+        // boot's are in.
         page.Console += (_, message) =>
         {
             if (message.Type is "error" or "warning")

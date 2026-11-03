@@ -104,7 +104,7 @@ import { string } from "yup";
 import { useNotifications, VcModal } from "@vc-frontend/core";
 import { useSalesRepCommunication } from "../composables/useSalesRepCommunication";
 import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
-import { mergeCustomerOptions } from "../utils";
+import { customerRow, mergeCustomerOptions } from "../utils";
 import CustomerPicker from "./customer-picker.vue";
 import WishlistSharingRecipients from "./wishlist-sharing-recipients.vue";
 import type { OrganizationRowType } from "../types";
@@ -112,7 +112,7 @@ import type { OrganizationRowType } from "../types";
 interface IProps {
   /** The customer the popup opens for; none when the customer list's own Send message button opens it. */
   organizationId?: string;
-  /** That customer's name, shown until the customer options load, or when they do not list it. */
+  /** That customer's name, for the locked popup's subtitle, and for its row until the options list it. */
   organizationName?: string;
   /** Keeps the popup on that customer: it cannot be removed, and no other customer can be added. */
   locked?: boolean;
@@ -127,16 +127,8 @@ const { options, loading: optionsLoading, failed, findOption } = useSalesRepCust
 
 const modalComponent = useTemplateRef<InstanceType<typeof VcModal>>("modalComponent");
 
-// The caller knows only the name; the location and the logo come with the options, when they list the customer.
 const openedFor: OrganizationRowType[] = props.organizationId
-  ? [
-      {
-        organizationId: props.organizationId,
-        organizationName: props.organizationName || props.organizationId,
-        location: "",
-        imageUrl: "",
-      },
-    ]
+  ? [customerRow(props.organizationId, props.organizationName)]
   : [];
 
 const sendEmail = ref(false);

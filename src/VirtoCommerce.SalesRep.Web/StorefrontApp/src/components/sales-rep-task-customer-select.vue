@@ -23,7 +23,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
-import { mergeCustomerOptions } from "../utils";
+import { customerRow, mergeCustomerOptions } from "../utils";
 
 interface IProps {
   /** Organization id; "" for none. */
@@ -42,18 +42,6 @@ const { options, failed } = useSalesRepCustomerOptions();
 
 // The options stop at a cap, so the linked customer may be past it: list it anyway, or the form would drop it.
 const items = computed(() =>
-  mergeCustomerOptions(
-    options.value,
-    props.modelValue
-      ? [
-          {
-            organizationId: props.modelValue,
-            organizationName: props.name || props.modelValue,
-            location: "",
-            imageUrl: "",
-          },
-        ]
-      : [],
-  ),
+  mergeCustomerOptions(options.value, props.modelValue ? [customerRow(props.modelValue, props.name)] : []),
 );
 </script>

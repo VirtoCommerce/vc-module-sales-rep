@@ -45,6 +45,12 @@ export function formatCustomerLocation(address: LocationPartsType, options?: { w
   return [code, address?.city, address?.regionName].filter(Boolean).join(" · ");
 }
 
+// A customer the caller knows only by id and, maybe, name, as a picker row. The location and the logo come with the
+// options, when they list the customer.
+export function customerRow(organizationId: string, organizationName?: string): OrganizationRowType {
+  return { organizationId, organizationName: organizationName || organizationId, location: "", imageUrl: "" };
+}
+
 // The customer options stop at a cap, so a customer the caller already holds (a list's recipient, a task's customer,
 // the customer a popup opened for) may sit past it. Listing it keeps its row in the picker, where it can be unticked;
 // it is sorted in by name rather than put above every option the search box shows. With nobody missing, the options

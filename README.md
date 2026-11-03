@@ -21,7 +21,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 * Filter the orders/customers lists and every statistics block by a single, optional, server-defined **filter rule** (aggregated order statuses / cart kinds / customer segments), and order the lists by a server-defined **sort rule** (orders: *recent* / *total*; customers: *my last orders* / *ytd purchases* / *name*; top sellers: *by units* / *by revenue*) — one rule name per axis, with an optional X-Order-style `:asc`/`:desc` suffix to reverse a rule where that's meaningful; both filter and sort are overridable per project
 * Rank a rep's **top-selling products** (dashboard + per-customer) by units or revenue over a period, optionally within a product category
 * Scope the orders list to an optional created-date **period**
-* Send a push notification and/or email to the members of a customer organization
+* Send a push notification and/or email to the members of one or more customer organizations
 * Publish a shopping list (wishlist) to a customer organization the rep serves — its members open it read-only ("Recommended by your Sales Rep") and add items to their cart, with an optional email/push notification
 * Share a curated **documents library** with sales reps — a back-office manager uploads categorized sales materials (price lists, catalogs, guides), optionally pinning one and annotating summary / page count / preview; reps browse, search and download them from the storefront
 * Show a rep an **activity feed** of their customers — orders placed, customers assigned, and (from Google Analytics 4) searches, product views and sign-ins — merged newest-first with per-category counters
@@ -711,6 +711,8 @@ The request itself is rejected with a GraphQL error only when it is **malformed 
 Codes are plain strings (see `ModuleConstants.Communication.Warnings`) — not an enum — so a downstream project can contribute its own codes; the storefront maps each to a localized message.
 
 Recipients are resolved **once** across all `organizationIds` — a member of several of them receives the message once — and fed to both channels, so the audience is identical regardless of which channels are selected. The legacy single `organizationId` is still accepted and counts as one more organization; at most 1000 organizations may be targeted by one call. The default policy targets **every member of the organization**; it is a pluggable seam (`ISalesRepRecipientResolver`) a project can replace — for example with the bundled primary-contact-only policy — via a later DI registration. Delivery still depends on what each channel needs: push reaches members with a storefront login account, email reaches members with an email address. The email renders the store-scoped `SalesRepMessageEmailNotification` template (localized by `cultureName`); `message` is required (max 1000 characters) and may contain a URL; `title` is optional (max 128 characters).
+
+In the storefront, the popup's **Customers** field offers the list-sharing picker's list: the rep's first 100 customers by name, filtered in the browser. A rep who serves more cannot pick the rest there until the picker searches on the server (VCST-5923); the customer the popup opens for, from a row or a profile, is there whatever the count.
 
 All statistics and rankings obey the same **data-isolation rule** as the rest of the module: they count only the data the calling rep *created* (their own orders/carts), within the organizations they serve — never another rep's or employee's data.
 

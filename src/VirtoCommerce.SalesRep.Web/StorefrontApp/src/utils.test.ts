@@ -3,6 +3,7 @@ import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
 import {
   buildStatisticsWindows,
   contactDisplayName,
+  customerRow,
   formatStatCount,
   formatStatMoney,
   formatTimeAgo,
@@ -159,41 +160,54 @@ describe("contactDisplayName", () => {
   });
 });
 
-describe("mergeCustomerOptions", () => {
-  const customer = (organizationId: string, organizationName: string): OrganizationRowType => ({
-    organizationId,
-    organizationName,
-    location: "",
-    imageUrl: "",
+describe("customerRow", () => {
+  it("names a customer by its id when the caller has no name", () => {
+    expect(customerRow("org-1")).toEqual({
+      organizationId: "org-1",
+      organizationName: "org-1",
+      location: "",
+      imageUrl: "",
+    });
+    expect(customerRow("org-1", "").organizationName).toBe("org-1");
   });
 
+  it("keeps the caller's name", () => {
+    expect(customerRow("org-1", "Acme").organizationName).toBe("Acme");
+  });
+});
+
+describe("mergeCustomerOptions", () => {
   const names = (rows: OrganizationRowType[]) => rows.map((row) => row.organizationName);
 
   it("lists a customer the options stop short of, sorted in by name", () => {
-    const options = [customer("org-1", "Acme"), customer("org-3", "Initech")];
+    const options = [customerRow("org-1", "Acme"), customerRow("org-3", "Initech")];
 
-    expect(names(mergeCustomerOptions(options, [customer("org-2", "Globex")]))).toEqual(["Acme", "Globex", "Initech"]);
+    expect(names(mergeCustomerOptions(options, [customerRow("org-2", "Globex")]))).toEqual([
+      "Acme",
+      "Globex",
+      "Initech",
+    ]);
   });
 
   it("keeps the options' own row for a customer they already list", () => {
-    const listed = { ...customer("org-1", "Acme"), location: "Richmond, Virginia" };
+    const listed = { ...customerRow("org-1", "Acme"), location: "Richmond, Virginia" };
 
-    const merged = mergeCustomerOptions([listed], [customer("org-1", "Acme")]);
+    const merged = mergeCustomerOptions([listed], [customerRow("org-1", "Acme")]);
 
     expect(merged).toEqual([listed]);
   });
 
   it("leaves the options as they are when there is nobody to add", () => {
-    const options = [customer("org-1", "Acme"), customer("org-2", "Globex")];
+    const options = [customerRow("org-1", "Acme"), customerRow("org-2", "Globex")];
 
     expect(mergeCustomerOptions(options, [])).toEqual(options);
   });
 
   // The backend sorts the options itself; sorting again in the browser could only reorder what it returned.
   it("keeps the backend's order when every held customer is already listed", () => {
-    const options = [customer("org-2", "globex"), customer("org-1", "Acme")];
+    const options = [customerRow("org-2", "globex"), customerRow("org-1", "Acme")];
 
-    expect(mergeCustomerOptions(options, [customer("org-1", "Acme")])).toBe(options);
+    expect(mergeCustomerOptions(options, [customerRow("org-1", "Acme")])).toBe(options);
   });
 });
 
