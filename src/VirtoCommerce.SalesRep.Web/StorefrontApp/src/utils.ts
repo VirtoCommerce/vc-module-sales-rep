@@ -45,15 +45,20 @@ export function formatCustomerLocation(address: LocationPartsType, options?: { w
   return [code, address?.city, address?.regionName].filter(Boolean).join(" · ");
 }
 
-// The customer options stop at a cap, so a customer the caller already holds (a list's recipient, the customer a
-// popup opened for) may sit past it. Listing it keeps its row in the picker, where it can be unticked; it is sorted in
-// by name rather than put above every option the search box shows.
+// The customer options stop at a cap, so a customer the caller already holds (a list's recipient, a task's customer,
+// the customer a popup opened for) may sit past it. Listing it keeps its row in the picker, where it can be unticked;
+// it is sorted in by name rather than put above every option the search box shows. With nobody missing, the options
+// keep the backend's own order.
 export function mergeCustomerOptions(
   options: OrganizationRowType[],
   customers: OrganizationRowType[],
 ): OrganizationRowType[] {
   const listed = new Set(options.map((option) => option.organizationId));
   const missing = customers.filter((customer) => !listed.has(customer.organizationId));
+
+  if (!missing.length) {
+    return options;
+  }
 
   return [...missing, ...options].sort((a, b) => a.organizationName.localeCompare(b.organizationName));
 }

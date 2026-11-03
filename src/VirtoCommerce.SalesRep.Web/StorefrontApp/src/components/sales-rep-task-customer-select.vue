@@ -23,7 +23,7 @@
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
 import { useSalesRepCustomerOptions } from "../composables/useSalesRepCustomerOptions";
-import type { SalesRepCustomerOptionType } from "../composables/useSalesRepCustomerOptions";
+import { mergeCustomerOptions } from "../utils";
 
 interface IProps {
   /** Organization id; "" for none. */
@@ -38,22 +38,22 @@ const props = defineProps<IProps>();
 const emit = defineEmits<{ "update:modelValue": [value: string] }>();
 
 const { t } = useI18n();
-const { options, failed, findOption } = useSalesRepCustomerOptions();
+const { options, failed } = useSalesRepCustomerOptions();
 
 // The options stop at a cap, so the linked customer may be past it: list it anyway, or the form would drop it.
-// Sorted in by name like the sharing picker's, rather than put above every other customer.
-const items = computed(() => {
-  if (!props.modelValue || findOption(props.modelValue)) {
-    return options.value;
-  }
-
-  const linked: SalesRepCustomerOptionType = {
-    organizationId: props.modelValue,
-    organizationName: props.name || props.modelValue,
-    location: "",
-    imageUrl: "",
-  };
-
-  return [linked, ...options.value].sort((a, b) => a.organizationName.localeCompare(b.organizationName));
-});
+const items = computed(() =>
+  mergeCustomerOptions(
+    options.value,
+    props.modelValue
+      ? [
+          {
+            organizationId: props.modelValue,
+            organizationName: props.name || props.modelValue,
+            location: "",
+            imageUrl: "",
+          },
+        ]
+      : [],
+  ),
+);
 </script>

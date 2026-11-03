@@ -2,10 +2,10 @@
 
 import { flushPromises, mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { defineComponent, h } from "vue";
+import { VcSelectMultiple } from "../mocks/vc-select-multiple";
 import CustomerCommunicationModal from "./customer-communication-modal.vue";
 import type { OrganizationRowType } from "../types";
-import type { PropType } from "vue";
+import { VcButton } from "@vc-frontend/core";
 
 const KEY = "sales_rep.communication";
 
@@ -15,7 +15,7 @@ const mocks = await vi.hoisted(async () => {
   return {
     sendCommunication: vi.fn(),
     sending: ref(false),
-    options: ref<{ organizationId: string; organizationName: string; location: string; imageUrl: string }[]>([]),
+    options: ref<OrganizationRowType[]>([]),
     optionsLoading: ref(false),
     failed: ref(false),
     notifications: { success: vi.fn(), warning: vi.fn(), error: vi.fn() },
@@ -56,57 +56,6 @@ const VcModal = {
   template: '<div class="modal"><slot /><slot name="actions" :close="close" /></div>',
 };
 
-/* Multiple mode carries whole items, not ids — the real VcSelect pushes the item it was given. */
-const VcSelect = defineComponent({
-  props: {
-    modelValue: { type: Array as PropType<Record<string, string>[]>, default: () => [] },
-    items: { type: Array as PropType<Record<string, string>[]>, default: () => [] },
-    textField: { type: String, default: "" },
-    valueField: { type: String, default: "" },
-    message: { type: String, default: "" },
-    error: { type: Boolean, default: false },
-    disabled: { type: Boolean, default: false },
-    testIdDropdown: { type: String, default: "" },
-  },
-  emits: ["update:modelValue", "change"],
-  setup(props, { emit }) {
-    const isPicked = (item: Record<string, string>) =>
-      props.modelValue.some((picked) => picked[props.valueField] === item[props.valueField]);
-
-    function commit(next: Record<string, string>[]) {
-      emit("update:modelValue", next);
-      emit("change", next);
-    }
-
-    function toggle(item: Record<string, string>) {
-      commit(
-        isPicked(item)
-          ? props.modelValue.filter((picked) => picked[props.valueField] !== item[props.valueField])
-          : [...props.modelValue, item],
-      );
-    }
-
-    return () =>
-      h("div", { "data-test-id": props.testIdDropdown, "aria-invalid": String(props.error) }, [
-        ...props.items.map((item) =>
-          h(
-            "button",
-            {
-              key: item[props.valueField],
-              type: "button",
-              "data-test-id": `customer-option-${item[props.valueField]}`,
-              "aria-pressed": String(isPicked(item)),
-              onClick: () => toggle(item),
-            },
-            item[props.textField],
-          ),
-        ),
-        h("button", { type: "button", "data-test-id": "customer-select-clear", onClick: () => commit([]) }),
-        props.message ? h("span", { "data-test-id": "field-message" }, props.message) : null,
-      ]);
-  },
-});
-
 // One stub for the text fields: the label tells them apart.
 const FieldStub = {
   props: ["modelValue", "label"],
@@ -124,20 +73,10 @@ const CheckboxStub = {
     " @change=\"$emit('update:modelValue', $event.target.checked)\" /><slot /></label>",
 };
 
-const VcButton = defineComponent({
-  props: { disabled: { type: Boolean, default: false }, ariaLabel: { type: String, default: "" } },
-  emits: ["click"],
-  setup(props, { slots, emit }) {
-    return () =>
-      h(
-        "button",
-        { disabled: props.disabled, "aria-label": props.ariaLabel, onClick: () => emit("click") },
-        slots.default?.(),
-      );
-  },
-});
-
 const SUCCESS = { succeeded: true, pushSent: true, emailSent: true, warnings: [] as string[] };
+
+// The customer a row or a profile opens the popup for.
+const ACME = { organizationId: "org-1", organizationName: "Acme Inc." };
 
 function customer(organizationId: string, organizationName: string, location = ""): OrganizationRowType {
   return { organizationId, organizationName, location, imageUrl: "" };
@@ -147,13 +86,13 @@ function createWrapper(props: Record<string, unknown> = {}) {
   return mount(CustomerCommunicationModal, {
     props,
     global: {
-      components: { VcSelect, VcButton },
+      components: { VcSelect: VcSelectMultiple, VcButton },
       stubs: {
         VcModal,
         VcInput: FieldStub,
         VcTextarea: FieldStub,
         VcCheckbox: CheckboxStub,
-        VcLabel: { template: "<span class='label'><slot /></span>" },
+        VcLabel: { template: "<span><slot /></span>" },
         VcImage: true,
         VcIcon: true,
       },
@@ -180,6 +119,11 @@ function sendButton(wrapper: WrapperType) {
 async function fillMessage(wrapper: WrapperType) {
   await wrapper.find(`[data-label='${KEY}.message_label']`).setValue("Spring prices are out");
   await wrapper.find("label.checkbox input").setValue(true);
+  await flushPromises();
+}
+
+async function send(wrapper: WrapperType) {
+  await sendButton(wrapper).trigger("click");
   await flushPromises();
 }
 
@@ -236,8 +180,7 @@ describe("CustomerCommunicationModal", () => {
       await pick(wrapper, "org-3");
       await fillMessage(wrapper);
 
-      await sendButton(wrapper).trigger("click");
-      await flushPromises();
+      await send(wrapper);
 
       expect(mocks.sendCommunication).toHaveBeenCalledWith(
         expect.objectContaining({ organizationIds: ["org-2", "org-3"], sendEmail: true, sendPush: false }),
@@ -247,7 +190,7 @@ describe("CustomerCommunicationModal", () => {
 
   describe("opened from a customer row", () => {
     it("starts with that customer picked, as the options describe it", () => {
-      const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc." });
+      const wrapper = createWrapper(ACME);
 
       expect(recipientNames(wrapper)).toEqual([expect.stringContaining("Acme Inc.")]);
       expect(recipientNames(wrapper)[0]).toContain("Richmond, Virginia");
@@ -255,19 +198,18 @@ describe("CustomerCommunicationModal", () => {
     });
 
     it("takes more customers, and sends to all of them at once", async () => {
-      const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc." });
+      const wrapper = createWrapper(ACME);
       await pick(wrapper, "org-3");
       await fillMessage(wrapper);
 
-      await sendButton(wrapper).trigger("click");
-      await flushPromises();
+      await send(wrapper);
 
       expect(mocks.sendCommunication).toHaveBeenCalledTimes(1);
       expect(mocks.sendCommunication.mock.calls[0][0].organizationIds).toEqual(["org-1", "org-3"]);
     });
 
     it("holds Send back and says why once every customer is unpicked", async () => {
-      const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc." });
+      const wrapper = createWrapper(ACME);
       await fillMessage(wrapper);
       expect(sendButton(wrapper).attributes("disabled")).toBeUndefined();
 
@@ -279,7 +221,7 @@ describe("CustomerCommunicationModal", () => {
     });
 
     it("lets the rep pick again after emptying the field from the picker itself", async () => {
-      const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc." });
+      const wrapper = createWrapper(ACME);
       await fillMessage(wrapper);
 
       await wrapper.find("[data-test-id='customer-select-clear']").trigger("click");
@@ -303,7 +245,7 @@ describe("CustomerCommunicationModal", () => {
 
   describe("opened from Quick actions on a customer's profile", () => {
     it("shows that customer only, with no way to change who receives it", () => {
-      const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc.", locked: true });
+      const wrapper = createWrapper({ ...ACME, locked: true });
 
       expect(picker(wrapper).exists()).toBe(false);
       expect(recipientNames(wrapper)).toEqual([expect.stringContaining("Acme Inc.")]);
@@ -313,11 +255,10 @@ describe("CustomerCommunicationModal", () => {
     });
 
     it("sends to that customer", async () => {
-      const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc.", locked: true });
+      const wrapper = createWrapper({ ...ACME, locked: true });
       await fillMessage(wrapper);
 
-      await sendButton(wrapper).trigger("click");
-      await flushPromises();
+      await send(wrapper);
 
       expect(mocks.sendCommunication.mock.calls[0][0].organizationIds).toEqual(["org-1"]);
     });
@@ -333,32 +274,26 @@ describe("CustomerCommunicationModal", () => {
 
   it("stays open and says so when nothing was sent", async () => {
     mocks.sendCommunication.mockResolvedValue({ ...SUCCESS, succeeded: false, emailSent: false, pushSent: false });
-    const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc." });
+    const wrapper = createWrapper(ACME);
     await fillMessage(wrapper);
 
-    await sendButton(wrapper).trigger("click");
-    await flushPromises();
+    await send(wrapper);
 
     expect(mocks.close).not.toHaveBeenCalled();
     expect(mocks.notifications.error).toHaveBeenCalledWith(expect.objectContaining({ text: `${KEY}.error_text` }));
     expect(mocks.notifications.success).not.toHaveBeenCalled();
   });
 
-  // One send covers several organizations, and the backend repeats a code once per organization.
-  it("names a warning once however many customers it came back for", async () => {
-    mocks.sendCommunication.mockResolvedValue({ ...SUCCESS, warnings: ["EmailNoRecipients", "EmailNoRecipients"] });
-    const wrapper = createWrapper({ organizationId: "org-1", organizationName: "Acme Inc." });
-    await pick(wrapper, "org-2");
+  it("closes and names what did not go out on a partial send", async () => {
+    mocks.sendCommunication.mockResolvedValue({ ...SUCCESS, emailSent: false, warnings: ["EmailNoRecipients"] });
+    const wrapper = createWrapper(ACME);
     await fillMessage(wrapper);
 
-    await sendButton(wrapper).trigger("click");
-    await flushPromises();
+    await send(wrapper);
 
     expect(mocks.close).toHaveBeenCalled();
     expect(mocks.notifications.warning).toHaveBeenCalledWith(
-      expect.objectContaining({
-        text: `${KEY}.partial_success_text ${KEY}.warnings.EmailNoRecipients`,
-      }),
+      expect.objectContaining({ text: `${KEY}.partial_success_text ${KEY}.warnings.EmailNoRecipients` }),
     );
   });
 });

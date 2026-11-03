@@ -3,6 +3,7 @@
 import { render, fireEvent, cleanup, configure, waitFor, within } from "@testing-library/vue";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, onMounted, ref } from "vue";
+import { VcSelectMultiple } from "../mocks/vc-select-multiple";
 import WishlistCustomerSharing from "./wishlist-customer-sharing.vue";
 import type { IWishlistSharingScopeControlsType, SharingTargetType } from "@vc-frontend/core";
 import type { RenderResult } from "@testing-library/vue";
@@ -66,73 +67,6 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   useNotifications: () => mocks.notifications,
 }));
-
-/* Multiple mode carries whole items, not ids — the real VcSelect pushes the item it was given. */
-const VcSelect = defineComponent({
-  props: {
-    modelValue: { type: Array as PropType<Record<string, string>[]>, default: () => [] },
-    items: { type: Array as PropType<Record<string, string>[]>, default: () => [] },
-    textField: { type: String, default: "" },
-    valueField: { type: String, default: "" },
-    message: { type: String, default: "" },
-    error: { type: Boolean, default: false },
-    required: { type: Boolean, default: false },
-    disabled: { type: Boolean, default: false },
-    multiple: { type: Boolean, default: false },
-    clearable: { type: Boolean, default: false },
-    testIdDropdown: { type: String, default: "" },
-  },
-  emits: ["update:modelValue", "change"],
-  setup(props, { emit }) {
-    const isPicked = (item: Record<string, string>) =>
-      props.modelValue.some((picked) => picked[props.valueField] === item[props.valueField]);
-
-    // The kit raises both events together on every path that changes the selection, its own clear button included.
-    function commit(next: Record<string, string>[]) {
-      emit("update:modelValue", next);
-      emit("change", next);
-    }
-
-    function toggle(item: Record<string, string>) {
-      commit(
-        isPicked(item)
-          ? props.modelValue.filter((picked) => picked[props.valueField] !== item[props.valueField])
-          : [...props.modelValue, item],
-      );
-    }
-
-    return () =>
-      h(
-        "div",
-        {
-          "data-test-id": props.testIdDropdown,
-          "data-multiple": String(props.multiple),
-          "aria-invalid": String(props.error),
-          "aria-required": String(props.required),
-          "aria-disabled": String(props.disabled),
-        },
-        [
-          ...props.items.map((item) =>
-            h(
-              "button",
-              {
-                key: item[props.valueField],
-                type: "button",
-                "data-test-id": `customer-option-${item[props.valueField]}`,
-                "aria-pressed": String(isPicked(item)),
-                onClick: () => toggle(item),
-              },
-              item[props.textField],
-            ),
-          ),
-          props.clearable
-            ? h("button", { type: "button", "data-test-id": "customer-select-clear", onClick: () => commit([]) })
-            : null,
-          props.message ? h("span", { "data-test-id": "field-message" }, props.message) : null,
-        ],
-      );
-  },
-});
 
 const VcTextarea = defineComponent({
   props: {
@@ -202,7 +136,7 @@ function renderSharing(targets: SharingTargetType[] = [], message = "") {
   component = render(Host, {
     props: { targets, message },
     global: {
-      components: { VcSelect, VcTextarea, VcButton, VcImage },
+      components: { VcSelect: VcSelectMultiple, VcTextarea, VcButton, VcImage },
       stubs: { VcIcon: true },
     },
   });

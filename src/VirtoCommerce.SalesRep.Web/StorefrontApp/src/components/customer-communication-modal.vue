@@ -24,7 +24,7 @@
         <WishlistSharingRecipients :recipients="selectedCustomers" readonly />
       </fieldset>
 
-      <div v-else class="customer-communication-modal__customers">
+      <template v-else>
         <CustomerPicker
           :model-value="selectedCustomers"
           test-id-dropdown="customer-communication-customers"
@@ -44,7 +44,7 @@
           @remove="deselect"
           @clear="customers = []"
         />
-      </div>
+      </template>
 
       <VcInput
         v-model="title"
@@ -174,9 +174,8 @@ const send = handleSubmit(async (data) => {
     message: data.message.trim(),
   });
 
-  // Map the backend's stable warning codes to localized messages (unknown codes fall back to a generic note). One send
-  // covers many organizations, so the backend may repeat a code once per organization.
-  const warnings = [...new Set(result.warnings)].map((code) =>
+  // Map the backend's stable warning codes to localized messages (unknown codes fall back to a generic note).
+  const warnings = result.warnings.map((code) =>
     te(`sales_rep.communication.warnings.${code}`)
       ? t(`sales_rep.communication.warnings.${code}`)
       : t("sales_rep.communication.warnings.generic"),
@@ -218,10 +217,6 @@ const send = handleSubmit(async (data) => {
 
   &__subtitle {
     @apply mb-4 text-sm text-neutral-500 [word-break:break-word];
-  }
-
-  &__customers {
-    @apply space-y-4;
   }
 
   &__customers-label,

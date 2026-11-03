@@ -188,6 +188,13 @@ describe("mergeCustomerOptions", () => {
 
     expect(mergeCustomerOptions(options, [])).toEqual(options);
   });
+
+  // The backend sorts the options itself; sorting again in the browser could only reorder what it returned.
+  it("keeps the backend's order when every held customer is already listed", () => {
+    const options = [customer("org-2", "globex"), customer("org-1", "Acme")];
+
+    expect(mergeCustomerOptions(options, [customer("org-1", "Acme")])).toBe(options);
+  });
 });
 
 describe("formatStatCount", () => {
