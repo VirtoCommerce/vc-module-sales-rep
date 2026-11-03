@@ -108,7 +108,7 @@ export const dashboardRoute: RouteRecordRaw = {
   beforeEnter: guardRepRoute,
 };
 
-// Reporting (VCST-6255) -> /company/reporting.
+// Reporting (VCST-6255) -> /company/customer-sales.
 export const reportingRoute: RouteRecordRaw = {
   path: REPORTING_ROUTE_SEGMENT,
   name: REPORTING_ROUTE_NAME,

@@ -92,6 +92,11 @@ describe("sales-rep routes", () => {
     expect(allCustomerOrdersRoute.path).toBe("customer-orders");
   });
 
+  // The host's Company Reporting page is /company/reporting; an equal path loses to it on a reload or a link (VCST-6668).
+  it("keeps Reporting off the host's Company Reporting path", () => {
+    expect(reportingRoute.path).toBe("customer-sales");
+  });
+
   // guardSalesRep only calls next() to bounce a non-rep, so a beforeEnter that forgets to call it on the way
   // through leaves the click doing nothing at all.
   it.each([

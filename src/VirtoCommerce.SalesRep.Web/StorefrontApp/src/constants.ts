@@ -64,9 +64,10 @@ export const DASHBOARD_ROUTE_NAME = "SalesRepDashboard";
 export const DASHBOARD_ROUTE_SEGMENT = "dashboard";
 export const DASHBOARD_NAV_LINK_ID = "sales-rep-dashboard";
 
-// Reporting (VCST-6255): monthly revenue, orders and AOV across the rep's customers -> /company/reporting.
+// Reporting (VCST-6255): monthly revenue, orders and AOV across the rep's customers -> /company/customer-sales.
+// Not "reporting": the host owns /company/reporting (Company Reporting) and wins when a URL is resolved (VCST-6668).
 export const REPORTING_ROUTE_NAME = "SalesRepReporting";
-export const REPORTING_ROUTE_SEGMENT = "reporting";
+export const REPORTING_ROUTE_SEGMENT = "customer-sales";
 export const REPORTING_NAV_LINK_ID = "sales-rep-reporting";
 
 // The rep's own activity page (VCST-5337); a sibling of the hub pages under "Company".
