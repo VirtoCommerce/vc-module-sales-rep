@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -24,6 +25,7 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 /// </summary>
 public abstract class StorefrontEnvironment : IAsyncLifetime
 {
+    private readonly Lock _logLock = new();
     private IPlaywright _playwright;
     private IBrowser _browser;
     private InProcessBackend _backend;
@@ -32,7 +34,10 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
     /// <summary>Where the browser opens the storefront: the run's Vite dev server, or the backend's own origin for a build.</summary>
     internal string StorefrontUrl { get; private set; }
 
-    /// <summary>Timestamped phases of this environment's life, so a hang or a slow step is attributable.</summary>
+    /// <summary>
+    /// Timestamped phases of this environment's life, so a hang or a slow step is attributable, with its pages' console
+    /// errors and warnings among them.
+    /// </summary>
     public string PhaseLog { get; } = Path.Combine(DiagnosticsDirectory, $"environment-{DateTime.Now:HHmmss}.log");
 
     public static string DiagnosticsDirectory => Path.Combine(AppContext.BaseDirectory, "StorefrontE2E-diagnostics");
@@ -73,12 +78,56 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
             Headless = Environment.GetEnvironmentVariable("E2E_HEADED") != "1",
         });
         Log("browser launched");
+
+        await EnsureHubLoadsAsync();
+        Log("hub loaded");
     }
 
-    private void Log(string phase)
+    /// <summary>
+    /// The hub's menu, which the storefront draws only once it has loaded the plugin, checked before the group's tests.
+    /// A storefront that refuses the plugin (one older than its <c>requiredHostVersion</c>, say) would fail every test in
+    /// turn, each after its own minute; this fails the group at once. A development build (a clone) logs why it refused,
+    /// so the check stops at that line. A production build logs nothing, so its failure names both versions instead.
+    /// </summary>
+    private async Task EnsureHubLoadsAsync()
     {
-        Directory.CreateDirectory(DiagnosticsDirectory);
-        File.AppendAllText(PhaseLog, $"{DateTime.Now:HH:mm:ss.fff} [{GetType().Name}] {phase}{Environment.NewLine}");
+        var rep = await NewRepAsync();
+        await using var session = await OpenAsync(rep.UserId, "/company/my-customers");
+
+        await session.RunAsync($"{GetType().Name}_HubLoads", async page =>
+        {
+            var menuLink = page.GetByRole(AriaRole.Link, new() { Name = "My activity", Exact = true });
+            var deadline = DateTime.UtcNow.AddSeconds(60);
+
+            while (!await menuLink.IsVisibleAsync())
+            {
+                var refusal = session.ConsoleMessages.FirstOrDefault(x => x.Contains("[MF] Skipping", StringComparison.Ordinal));
+                if (refusal != null)
+                {
+                    throw new InvalidOperationException($"The storefront refused the hub plugin: {refusal}");
+                }
+
+                if (DateTime.UtcNow > deadline)
+                {
+                    throw new InvalidOperationException(
+                        "The hub did not load: no \"My activity\" link in its menu after 60 seconds. The plugin requires " +
+                        $"@vc-frontend/core {StorefrontPlugin.ReadRequiredHostVersion() ?? "(none declared)"}, the storefront provides " +
+                        $"{StorefrontLocation.Current.ReadCoreVersion() ?? "(unknown for a build alone)"}.");
+                }
+
+                await Task.Delay(250);
+            }
+        });
+    }
+
+    private void Log(string line)
+    {
+        // Console lines come in on Playwright's thread, phases on the test's.
+        lock (_logLock)
+        {
+            Directory.CreateDirectory(DiagnosticsDirectory);
+            File.AppendAllText(PhaseLog, $"{DateTime.Now:HH:mm:ss.fff} [{GetType().Name}] {line}{Environment.NewLine}");
+        }
     }
 
     /// <summary>The group's shared data, seeded through the harness before the first page opens.</summary>
@@ -189,6 +238,16 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
 
         var page = await context.NewPageAsync();
         page.SetDefaultTimeout(30_000);
+
+        // Into the phase log as well, which a CI run keeps; subscribed before the first navigation, so the boot's are in.
+        page.Console += (_, message) =>
+        {
+            if (message.Type is "error" or "warning")
+            {
+                Log($"console [{message.Type}] {message.Text}");
+            }
+        };
+
         var session = new StorefrontSession(context, page);
 
         // Vite compiles on first request, so with a clone the run's first navigation is the slow one.

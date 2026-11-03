@@ -34,9 +34,9 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Tokens | `Infrastructure/TestTokenService.cs`, `TokenResponse.cs`, `TestTokenEndpoints.cs` | Production-shaped JWTs via `IUserClaimsPrincipalFactory` + `ITokenClaimProvider`s; `/connect/token`, `/revoke/token` (`TestTokenEndpoints`). |
 | Storefront location | `Infrastructure/StorefrontLocation.cs` | Finds the storefront, a clone or a build (see Running); a missing or broken one fails the groups with what to do. |
 | Vite | `Infrastructure/ViteDevServer.cs`, `Infrastructure/SharedViteDevServer.cs` | A clone's dev server, one per run: `node node_modules/vite/bin/vite.js --port N --strictPort` with `APP_BACKEND_URL`, which is fixed at start, so each group's backend takes that port in turn; started by the first group that needs it, stopped by an xunit assembly fixture once every test has run; waits for HTTP 200; bounded kill. |
-| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + browser per xunit collection, on the run's Vite for a clone; `OpenAsync(userId, path)` = signed-in context, in the group's `BrowserTimeZone` when it pins one or in the zone a test passes, with `beforeLoad` to prepare the context (routes) before the first navigation; `CreateTaskAsync` seeds a task through the real mutation; `NewRepAsync` gives a test a rep of its own and `AddTaskAsync` a task for it; `WaitForTaskAsync` and `CountTasksAsync` read task rows between requests, `RunExclusiveAsync` anything else; `ConfigureServices` for a group's own doubles (a module list without TaskManagement); phase log. |
+| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + browser per xunit collection, on the run's Vite for a clone; `OpenAsync(userId, path)` = signed-in context, in the group's `BrowserTimeZone` when it pins one or in the zone a test passes, with `beforeLoad` to prepare the context (routes) before the first navigation; `CreateTaskAsync` seeds a task through the real mutation; `NewRepAsync` gives a test a rep of its own and `AddTaskAsync` a task for it; `WaitForTaskAsync` and `CountTasksAsync` read task rows between requests, `RunExclusiveAsync` anything else; `ConfigureServices` for a group's own doubles (a module list without TaskManagement); before the group's tests, a rep of its own opens My customers and waits for the hub's menu, which fails the whole group at once when the storefront did not load the plugin; phase log, with the pages' console errors and warnings. |
 | Request gate | `Infrastructure/RequestGate.cs` | One turn at a time, for both hosts: their requests wait at it, and test-side reads take a turn through `RunExclusiveAsync`. |
-| Session | `Infrastructure/StorefrontSession.cs` | Records console errors, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message, and a test can assert there were no GraphQL errors. |
+| Session | `Infrastructure/StorefrontSession.cs` | Records console errors and warnings, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message, and a test can assert there were no GraphQL errors. The hub check reads its console lines. |
 | Hub controls | `Infrastructure/HubControls.cs` | The hub's task controls by role and label, the steps the task groups repeat, the Google Calendar stand-in route, and `Exactly`, which tolerates Intl's spaces in an input's value. |
 | Clock | `Infrastructure/NewYork.cs` | Today and instants in New York, the zone the time-sensitive groups pin; the next nights the clocks skip or repeat an hour. |
 | Documents | `Infrastructure/StorefrontDocuments.cs` | Loads the storefront's own `.graphql` operations from the clone (fragments inlined, `@gate` applied). |
@@ -73,7 +73,10 @@ Prerequisites:
   clone next to this repo, then a build two levels up. In a ticket folder those are `sources\vc-frontend` and `front`, so
   nothing needs setting there, Visual Studio included. A clone that is there wins even when it cannot run, and fails
   with `yarn install`: a ticket that moved to a clone keeps its old `front`. The storefront must load plugins, which
-  vc-frontend does since 2.60.0 (vc-frontend#2569).
+  vc-frontend does since 2.60.0 (vc-frontend#2569), and accept the plugin's `requiredHostVersion` (in its
+  `mf-manifest.json`). Each group checks the hub's menu first and, when the storefront did not load the plugin, fails
+  as a whole within a minute: quoting the storefront's refusal, which a clone's development build logs, or naming both
+  versions, as a production build logs nothing.
 - **Hub plugin build:** `yarn build` in `src/VirtoCommerce.SalesRep.Web/StorefrontApp`. A missing build, or one older
   than its sources under `src`, fails the groups with that command; they never rebuild it themselves. Other build
   inputs (`vite.config.ts`, `package.json`, `public/plugin.json`) are not checked: rebuild after changing them.
@@ -90,8 +93,8 @@ E2E_HEADED=1 dotnet test --filter "Category=StorefrontE2E"   # watch the browser
 ```
 
 Diagnostics land in `bin/Debug/net10.0/StorefrontE2E-diagnostics/`: `environment-*.log` (timestamped phases per
-group), `vite-<port>.log` (the run's dev server output, with a clone), `<TestName>.png` (full-page screenshot of a
-failed test).
+group, with the pages' console errors and warnings), `vite-<port>.log` (the run's dev server output, with a clone),
+`<TestName>.png` (full-page screenshot of a failed test; `<Group>Environment_HubLoads.png` for a failed hub check).
 
 ## Harness changes
 
@@ -143,6 +146,10 @@ failed test).
 - Vite compiles on demand and keeps what it compiled. Inside a group, every page after the first loaded in about a
   second, each in a fresh browser context, so a dev server per group cost each group a 20-second first load. One
   dev server serves the whole run now.
+- A storefront that refuses the plugin shows the hub's pages as its 404, so each hub test waited out its own ceiling:
+  a run against 2.60.0 (core 0.2.3; the plugin requires ^0.2.4) took 35 minutes. The refusal left no trace either: a
+  production build's logger is a no-op at every level, so the version gate's `[MF] Skipping …` line shows only in a
+  development build. Each group checks the hub first now.
 
 ## Known gaps (draft)
 
