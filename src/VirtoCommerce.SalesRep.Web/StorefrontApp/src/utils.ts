@@ -19,6 +19,11 @@ export function selectableFilterRules(rules: SalesRepRuleType[]): SalesRepRuleTy
   return rules.filter((rule) => rule.name.toLowerCase() !== "all");
 }
 
+// One display name for a contact everywhere it is shown: the full name, else the account name.
+export function contactDisplayName(contact?: { fullName?: string | null; name?: string | null } | null): string {
+  return contact?.fullName || contact?.name || "";
+}
+
 // Backend leaves address formatting to the storefront; single source of that format so both surfaces
 // render locations consistently.
 type LocationPartsType =

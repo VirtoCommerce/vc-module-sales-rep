@@ -166,7 +166,7 @@
       }
     },
     "communication": {
-      "action": "E-Mail senden",
+      "action": "Nachricht senden",
       "title": "Nachricht senden",
       "subtitle": "Erreicht jedes Mitglied von {organization}",
       "title_label": "Titel",
@@ -194,6 +194,12 @@
         "send_email": "E-Mail senden",
         "create_quote": "Angebot erstellen",
         "schedule_call": "Anruf planen"
+      },
+      "call": {
+        "action": "Kunden anrufen",
+        "action_with_number": "Kunden anrufen, {number}",
+        "no_phone": "Keine Telefonnummer",
+        "choose_number": "Nummer zum Anrufen wählen"
       }
     },
     "orders": {
