@@ -1,9 +1,5 @@
 using System;
-using System.Linq;
 using System.Threading.Tasks;
-using VirtoCommerce.CustomerModule.Core.Model;
-using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
@@ -71,26 +67,6 @@ public sealed class CallsEnvironment : StorefrontEnvironment
 
     /// <summary>A rep of the test's own, serving Northwind and Contoso.</summary>
     internal Task<SalesRepDetails> NewRepAsync() => NewRepAsync(NorthwindId, ContosoId);
-
-    /// <summary>
-    /// Takes a customer away from a rep while a page may be open, between requests, and returns the membership that
-    /// granted it, for <see cref="ServeAgainAsync"/>.
-    /// </summary>
-    internal Task<OrganizationMembership> StopServingAsync(string userId, string organizationId)
-        => RunExclusiveAsync(async context =>
-        {
-            var membership = (await context.GetMembershipsAsync(userId)).Single(x => x.OrganizationId == organizationId);
-            await context.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
-            return membership;
-        });
-
-    /// <summary>Gives the customer back, with the role the removed membership carried.</summary>
-    internal Task ServeAgainAsync(OrganizationMembership membership)
-        => RunExclusiveAsync(context =>
-        {
-            var role = membership.Roles.Single();
-            return context.AddMembershipAsync(membership.UserId, membership.OrganizationId, new Role { Id = role.RoleId, Name = role.RoleName });
-        });
 
     private protected override async Task SeedAsync(SalesRepTestContext context)
     {

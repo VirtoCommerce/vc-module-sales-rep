@@ -9,6 +9,9 @@ using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
+using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.CustomerModule.Core.Services;
+using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.TaskManagement.Data.Models;
@@ -173,6 +176,26 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         var n = (++_reps).ToString(CultureInfo.InvariantCulture);
         return RunExclusiveAsync(context => context.CreateRepInStoreAsync("Rep", n, $"rep{n}@e2e.local", InProcessBackend.StoreId, customerIds));
     }
+
+    /// <summary>
+    /// Takes a customer away from a rep while a page may be open, between requests, and returns the membership that
+    /// granted it, for <see cref="ServeAgainAsync"/>.
+    /// </summary>
+    internal Task<OrganizationMembership> StopServingAsync(string userId, string organizationId)
+        => RunExclusiveAsync(async context =>
+        {
+            var membership = (await context.GetMembershipsAsync(userId)).Single(x => x.OrganizationId == organizationId);
+            await context.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
+            return membership;
+        });
+
+    /// <summary>Gives the customer back, with the role the removed membership carried.</summary>
+    internal Task ServeAgainAsync(OrganizationMembership membership)
+        => RunExclusiveAsync(context =>
+        {
+            var role = membership.Roles.Single();
+            return context.AddMembershipAsync(membership.UserId, membership.OrganizationId, new Role { Id = role.RoleId, Name = role.RoleName });
+        });
 
     /// <summary>A task the rep creates through the real mutation, between requests.</summary>
     internal Task<string> AddTaskAsync(SalesRepDetails rep, string name, DateTime dueDate)
