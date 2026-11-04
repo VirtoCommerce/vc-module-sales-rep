@@ -73,8 +73,11 @@ export function useSalesRepCustomerWidgets(layout: LayoutVisibilityType, organiz
         mtd: {
           value: formatStatMoney(mtd?.total),
           // Informational ratio (gray, no chevron): how much of the year's revenue landed this month. Unsigned, but in
-          // the user's number format like the changes beside it ("35 %" in German).
-          delta: t("sales_rep.hub.dashboard.stats.mtd_of_ytd", { percent: n(mtdShare / 100, { style: "percent" }) }),
+          // the user's number format like the changes beside it ("35 %" in German), on the host's `decimal` format,
+          // so vue-i18n keeps one formatter per locale rather than building one per call.
+          delta: t("sales_rep.hub.dashboard.stats.mtd_of_ytd", {
+            percent: n(mtdShare / 100, { key: "decimal", style: "percent" }),
+          }),
           deltaTone: "neutral",
         },
         orders_ytd: {

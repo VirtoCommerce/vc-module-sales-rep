@@ -66,7 +66,15 @@ vi.mock("vue-i18n", async () => {
   const { createI18n } = await vi.importActual<typeof import("vue-i18n")>("vue-i18n");
   const en = await vi.importActual<typeof import("../locales/en.json")>("../locales/en.json");
   const de = await vi.importActual<typeof import("../locales/de.json")>("../locales/de.json");
-  const i18n = createI18n({ locale: "en", legacy: false, messages: { en, de }, missingWarn: false });
+  // The host registers a `decimal` number format for every locale (its i18n.ts); the hub's percents build on it.
+  const hostFormats = { decimal: { style: "decimal" } } as const;
+  const i18n = createI18n({
+    locale: "en",
+    legacy: false,
+    messages: { en, de },
+    numberFormats: { en: hostFormats, de: hostFormats },
+    missingWarn: false,
+  });
   i18nLocale.set = (locale) => {
     i18n.global.locale.value = locale;
   };

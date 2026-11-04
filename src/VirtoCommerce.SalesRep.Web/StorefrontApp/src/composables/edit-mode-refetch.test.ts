@@ -100,7 +100,8 @@ beforeEach(async () => {
   releases = [];
   requestCount = 0;
   await cache.reset({ discardWatches: true });
-  provideApolloClient(new ApolloClient({ link, cache }));
+  // Devtools off, as the host's client options have them under vitest: their hint arms a 10 s timer per module.
+  provideApolloClient(new ApolloClient({ link, cache, devtools: { enabled: false } }));
 });
 
 describe("entering layout-edit mode", () => {

@@ -10,7 +10,7 @@
 
     <template v-if="count" #append>
       <VcBadge variant="tonal" size="sm" color="neutral" rounded>
-        {{ $n(count, { style: "decimal", notation: "compact" }) }}
+        {{ $n(count, { key: "decimal", notation: "compact" }) }}
       </VcBadge>
     </template>
   </VcMenuItem>

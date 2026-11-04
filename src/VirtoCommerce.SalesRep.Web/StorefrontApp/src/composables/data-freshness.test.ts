@@ -266,7 +266,8 @@ beforeEach(async () => {
   requestCount = 0;
   metric = 1;
   await cache.reset({ discardWatches: true });
-  provideApolloClient(new ApolloClient({ link, cache }));
+  // Devtools off, as the host's client options have them under vitest: their hint arms a 10 s timer per module.
+  provideApolloClient(new ApolloClient({ link, cache, devtools: { enabled: false } }));
 });
 
 // Every hub read, paired with a probe on the field carrying `metric`. Waiting on the probe rather than on
