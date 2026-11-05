@@ -78,5 +78,11 @@ export function toPx(value: string | undefined, basis = 0): number | undefined {
     return undefined;
   }
   const number = Number(amount);
-  return unit === "rem" ? number * 16 : unit === "%" ? (number / 100) * basis : number;
+  if (unit === "rem") {
+    return number * 16;
+  }
+  if (unit === "%") {
+    return (number / 100) * basis;
+  }
+  return number;
 }
