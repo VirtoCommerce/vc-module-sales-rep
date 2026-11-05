@@ -384,8 +384,9 @@ export const OrderStatus = defineComponent({
 
 // ---- The host's dashboard layout engine (VCST-6078) ---------------------------------------------------------
 // Working defaults, since the engine is the host's and specs still run the hub's code on top of it: the pure
-// helpers mirror `client-app/shared/dashboard` in the host, the controller reads as a settled layout that
-// shows nothing, and the two components render through so a spec keeps asserting on the hub's own content.
+// helpers follow `client-app/shared/dashboard` in the host (the number formatters only as simplified stand-ins,
+// see there), the controller reads as a settled layout that shows nothing, and the two components render
+// through so a spec keeps asserting on the hub's own content.
 
 export const MIN_ROWS = 1;
 
@@ -531,6 +532,9 @@ export function buildStatisticsWindows(now: Date = new Date()) {
   };
 }
 
+// Simplified stand-ins for the host's formatters: the same rounding, but `Intl` and a literal `%` instead of the
+// host's vue-i18n number formats, whose exact output the host's own specs pin.
+
 /** The host's stat formatting seam: an absent metric reads as 0 in the globals' culture and currency. */
 export function formatStatCount(value?: number | null): string {
   return new Intl.NumberFormat(globals.cultureName).format(value ?? 0);
@@ -554,7 +558,8 @@ export function formatSignedPercent(percent?: number | null): SignedPercentType 
     return undefined;
   }
 
-  const rounded = Math.round(percent);
+  // Half away from zero, as the host rounds: `Math.round` alone takes -12.5 to -12 but 12.5 to 13.
+  const rounded = Math.sign(percent) * Math.round(Math.abs(percent));
   if (rounded > 0) {
     return { text: `+${rounded}%`, tone: "positive", icon: "chevron-up" };
   }

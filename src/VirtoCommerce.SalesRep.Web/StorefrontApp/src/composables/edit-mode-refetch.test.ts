@@ -124,7 +124,8 @@ describe("entering layout-edit mode", () => {
     await settle();
 
     // The widened flags are a new cache key, so nothing can be served from cache: the query is in flight,
-    // and stat-widget.vue puts `loading` ahead of the value, so every order-fed card renders "—".
+    // and the host's stat card (`VcStatWidget`) shows its loading state instead of the value, so every order-fed
+    // card renders "—".
     expect(loading.value).toBe(true);
     expect(requestCount).toBe(2);
 

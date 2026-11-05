@@ -71,8 +71,8 @@ const isCompact = useBreakpoints(breakpointsTailwind).smaller("xl");
 const { t } = useI18n();
 const { customer, loading, failed, notFound } = useSalesRepCustomer(() => props.organizationId);
 // The cards' figures wait for the customer: the read decides whether the organization is the rep's, so an unserved
-// or unknown one, or one that failed to load, never gets a statistics request. The query keeps no previous result,
-// so the customer of the page left behind does not open the gate for the next one.
+// or unknown one, or one that failed to load, never gets a statistics request. Every link to a profile comes from
+// another page, so the page mounts afresh for each customer and an earlier customer's read never opens the gate.
 const { cards } = useSalesRepCustomerWidgets(
   {
     settled: computed(() => layout.settled.value && Boolean(customer.value)),
