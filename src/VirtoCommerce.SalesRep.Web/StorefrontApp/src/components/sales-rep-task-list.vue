@@ -196,9 +196,9 @@ function titleClass(task: SalesRepTaskType) {
     @apply mt-0.5 block text-xs text-neutral-600;
   }
 
-  // Clamped like the title, and for the same reason: a long name would set the height of its whole row.
+  // Not clamped: the full name tells look-alike customers apart, even if it makes the row taller.
   &__customer {
-    @apply line-clamp-2 text-sm [word-break:break-word];
+    @apply text-sm [word-break:break-word];
   }
 
   &__notes {
