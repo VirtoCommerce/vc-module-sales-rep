@@ -97,7 +97,8 @@ function changePriorities(items: { value: string }[]): void {
 <style lang="scss">
 // @apply: module is self-contained as an MF remote (no global utility layer).
 .sales-rep-task-filters {
-  @apply flex flex-col gap-3 sm:flex-row;
+  // Wraps so the three selects never overflow a narrow row.
+  @apply flex flex-col gap-3 sm:flex-row sm:flex-wrap;
 
   // The multi-selects read "N items selected" next to their clear and chevron buttons, so they take more room.
   &__select {
