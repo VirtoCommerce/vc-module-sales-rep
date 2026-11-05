@@ -64,7 +64,7 @@
       </template>
     </VcTableColumn>
 
-    <VcTableColumn id="customer" :title="t('sales_rep.tasks.table.customer')">
+    <VcTableColumn id="customer" :title="t('sales_rep.tasks.table.customer')" class="sales-rep-task-list__customer-col">
       <template #default="{ item }">
         <span :title="item.customerName" class="sales-rep-task-list__customer">{{ item.customerName ?? "—" }}</span>
       </template>
@@ -147,10 +147,14 @@ function titleClass(task: SalesRepTaskType) {
 
   // Fixed layout, so a long note can no longer size its own column and squeeze the task title beside it.
   // Only the content-shaped columns are measured — a priority, a chip and an icon action — and the remainder is
-  // split equally between Task, Customer and Notes, which is what fixed layout does with columns that declare no
-  // width.
+  // split equally between Task and Notes, which is what fixed layout does with columns that declare no width.
   .vc-table__desktop {
     @apply table-fixed;
+  }
+
+  // A fifth of the table, so customer names stay readable at 1280 px.
+  &__customer-col {
+    @apply w-1/5;
   }
 
   &__priority-col {
