@@ -15,6 +15,8 @@ export interface CompiledRuleType {
   selector: string;
   /** The `min-width` of the enclosing media query, in px; 0 outside one. */
   minWidth: number;
+  /** The `min-width` of the enclosing container query, in px; 0 outside one. */
+  containerMinWidth: number;
   declarations: Record<string, string>;
 }
 
@@ -42,28 +44,37 @@ export async function compiledStyleRules(component: string): Promise<CompiledRul
     const source = style.lang === "scss" ? compileString(style.content).css : style.content;
     const { css: code } = await postcss(postcssPlugins()).process(source, { from: path });
     postcss.parse(code).walkRules((rule) => {
-      const media = rule.parent?.type === "atrule" ? (rule.parent as postcss.AtRule) : undefined;
-      const minWidth = Number(/min-width:\s*(\d+)px/.exec(media?.params ?? "")?.[1] ?? 0);
+      const atRule = rule.parent?.type === "atrule" ? (rule.parent as postcss.AtRule) : undefined;
+      const queryMinWidth = toPx(/min-width:\s*([\d.]+(?:px|rem))/.exec(atRule?.params ?? "")?.[1]) ?? 0;
+      const minWidth = atRule?.name === "media" ? queryMinWidth : 0;
+      const containerMinWidth = atRule?.name === "container" ? queryMinWidth : 0;
       const declarations: Record<string, string> = {};
       rule.walkDecls((declaration) => {
         declarations[declaration.prop] = declaration.value;
       });
-      rule.selectors.forEach((selector) => rules.push({ selector: selector.trim(), minWidth, declarations }));
+      rule.selectors.forEach((selector) =>
+        rules.push({ selector: selector.trim(), minWidth, containerMinWidth, declarations }),
+      );
     });
   }
 
   return rules;
 }
 
-/** A property's value for these classes at a viewport: single-class rules tie on specificity, so the last one wins. */
+/**
+ * A property's value for these classes at a viewport, inside a query container of the given width (none if omitted).
+ * Single-class rules tie on specificity, so the last one wins.
+ */
 export function cascadedValue(
   rules: CompiledRuleType[],
   classes: string[],
   property: string,
   viewport: number,
+  container?: number,
 ): string | undefined {
   return rules
     .filter((rule) => rule.minWidth <= viewport && property in rule.declarations)
+    .filter((rule) => rule.containerMinWidth === 0 || (container ?? 0) >= rule.containerMinWidth)
     .filter((rule) => classes.some((name) => rule.selector === `.${name}`))
     .at(-1)?.declarations[property];
 }

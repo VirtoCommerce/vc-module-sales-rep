@@ -20,34 +20,36 @@
 
     <SalesRepRuleAlert :filter-failed="filterRulesFailed" />
 
-    <div class="sales-rep-tasks-page__toolbar">
-      <VcInput
-        v-model="localKeyword"
-        maxlength="64"
-        class="sales-rep-tasks-page__search-input"
-        :disabled="loading"
-        :placeholder="t('sales_rep.tasks.search_placeholder')"
-        clearable
-        @keydown.enter="applyKeyword"
-        @clear="resetKeyword"
-      >
-        <template #append>
-          <VcButton
-            :aria-label="t('sales_rep.tasks.search_aria')"
-            :disabled="loading"
-            icon="search"
-            icon-size="1.25rem"
-            @click="applyKeyword"
-          />
-        </template>
-      </VcInput>
+    <div class="sales-rep-tasks-page__toolbar-container">
+      <div class="sales-rep-tasks-page__toolbar">
+        <VcInput
+          v-model="localKeyword"
+          maxlength="64"
+          class="sales-rep-tasks-page__search-input"
+          :disabled="loading"
+          :placeholder="t('sales_rep.tasks.search_placeholder')"
+          clearable
+          @keydown.enter="applyKeyword"
+          @clear="resetKeyword"
+        >
+          <template #append>
+            <VcButton
+              :aria-label="t('sales_rep.tasks.search_aria')"
+              :disabled="loading"
+              icon="search"
+              icon-size="1.25rem"
+              @click="applyKeyword"
+            />
+          </template>
+        </VcInput>
 
-      <SalesRepTaskFilters
-        v-model="filters"
-        :statuses="statusRules"
-        :customers="customerOptions"
-        :customers-failed="customersFailed"
-      />
+        <SalesRepTaskFilters
+          v-model="filters"
+          :statuses="statusRules"
+          :customers="customerOptions"
+          :customers-failed="customersFailed"
+        />
+      </div>
     </div>
 
     <!-- The day is one of the filters: a chip of its own, set from the calendar. -->
@@ -429,13 +431,24 @@ function openTaskModal(task?: SalesRepTaskType): void {
     @apply flex flex-none flex-wrap gap-3;
   }
 
-  // The search takes what the three selects leave; below lg they stack under it.
+  // A query container: the toolbar follows the content column's width, which the account sidebar changes.
+  &__toolbar-container {
+    container-type: inline-size;
+  }
+
+  // The search shares a line with the filters only when it keeps a usable width beside them; otherwise it takes a
+  // line of its own above them.
   &__toolbar {
-    @apply flex flex-col gap-3 lg:flex-row lg:items-start;
+    @apply flex flex-col gap-3;
+
+    // Must match sales-rep-task-filters: the search's 15rem, the gap and the filters' 38.5rem row.
+    @container (min-width: 54.25rem) {
+      @apply flex-row items-start;
+    }
   }
 
   &__search-input {
-    @apply grow;
+    @apply min-w-0 grow;
   }
 
   // The month rail splits off at xl, like layout-surface's aside, level with the list column.

@@ -1,5 +1,7 @@
 <template>
   <div class="sales-rep-task-filters">
+    <!-- enable-teleport: each dropdown renders outside the page toolbar's query container, not clipped under it. -->
+
     <!-- In this kit `multiple` holds whole items, not values (vc-frontend#2482 changes that), so the ids are mapped
          to items and back here and the page deals in ids alone. Searched in the browser over the first customers the
          options query brings (see useSalesRepCustomerOptions). -->
@@ -17,6 +19,7 @@
       autocomplete
       clearable
       lazy
+      enable-teleport
       @change="changeCustomers"
     />
 
@@ -30,6 +33,7 @@
       :aria-label="t('sales_rep.tasks.filters.status_label')"
       :placeholder="t('sales_rep.tasks.filters.all_statuses')"
       :clearable="!!modelValue.status"
+      enable-teleport
       @change="changeStatus"
     />
 
@@ -43,6 +47,7 @@
       :placeholder="t('sales_rep.tasks.filters.all_priorities')"
       multiple
       clearable
+      enable-teleport
       @change="changePriorities"
     />
   </div>
@@ -96,16 +101,25 @@ function changePriorities(items: { value: string }[]): void {
 
 <style lang="scss">
 // @apply: module is self-contained as an MF remote (no global utility layer).
+// The selects sit side by side only where all three fit, and stack one per line otherwise, so none is left alone.
+// The query is answered by the page's toolbar container; its own query must match this row's width.
 .sales-rep-task-filters {
-  // Wraps so the three selects never overflow a narrow row.
-  @apply flex flex-col gap-3 sm:flex-row sm:flex-wrap;
+  @apply flex flex-col gap-3;
+
+  @container (min-width: 38.5rem) {
+    @apply shrink-0 flex-row;
+  }
 
   // The multi-selects read "N items selected" next to their clear and chevron buttons, so they take more room.
   &__select {
-    @apply sm:w-44 sm:shrink-0;
+    @container (min-width: 38.5rem) {
+      @apply w-44 shrink-0;
+    }
 
     &--multiple {
-      @apply sm:w-52;
+      @container (min-width: 38.5rem) {
+        @apply w-52;
+      }
     }
   }
 }
