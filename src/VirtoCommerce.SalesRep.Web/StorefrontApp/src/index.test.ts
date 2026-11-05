@@ -3,7 +3,7 @@ import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_ROUTE_NAME, HUB_HEADER_LINK_ID
 import type { MenuType } from "@vc-frontend/core";
 import type { DeepPartial } from "utility-types";
 
-const config = vi.hoisted(() => ({ analyticsEnabled: true, isSalesRep: true }));
+const config = vi.hoisted(() => ({ analyticsEnabled: true, couponsEnabled: true, isSalesRep: true }));
 const mergeMenuSchema = vi.hoisted(() => vi.fn<(schema: DeepPartial<MenuType>) => void>());
 // Block ids init() registered, per scope.
 const registered = vi.hoisted(() => new Map<string, string[]>());
@@ -13,6 +13,7 @@ vi.mock("./composables/useSalesRepsConfig", () => ({
   isSalesRepUser: () => config.isSalesRep,
   isSalesRepTasksEnabled: () => false,
   isSalesRepAnalyticsEnabled: () => config.analyticsEnabled,
+  isSalesRepCouponsEnabled: () => config.couponsEnabled,
 }));
 
 // init() adds routes, merges its locales into the host's i18n, registers its blocks into the host's layout
@@ -59,6 +60,7 @@ async function headerRowLinksAfterInit() {
 
 beforeEach(() => {
   config.analyticsEnabled = true;
+  config.couponsEnabled = true;
   config.isSalesRep = true;
   mergeMenuSchema.mockClear();
 });
@@ -75,6 +77,22 @@ describe("plugin init: the customer activity widget", () => {
     const blocks = await profileBlocksAfterInit();
 
     expect(blocks).not.toContain("customer_activity");
+    expect(blocks.length).toBeGreaterThan(0);
+  });
+});
+
+// The coupons widget (VCST-6158) reads vc-module-marketing: it exists only while that module does.
+describe("plugin init: the coupons widget", () => {
+  it("is on the customer profile while the marketing module is installed", async () => {
+    expect(await profileBlocksAfterInit()).toContain("coupons");
+  });
+
+  it("is not on the customer profile without the marketing module", async () => {
+    config.couponsEnabled = false;
+
+    const blocks = await profileBlocksAfterInit();
+
+    expect(blocks).not.toContain("coupons");
     expect(blocks.length).toBeGreaterThan(0);
   });
 });

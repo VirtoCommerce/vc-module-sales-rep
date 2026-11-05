@@ -602,3 +602,22 @@ export const LayoutWidget = defineComponent({
         { append: slots.append, "default-container": slots["default-container"], default: slots.default },
       ),
 });
+
+// The host's coupon card: only the code and the after-description slot, which is all a plugin contributes.
+export const CouponItem = defineComponent({
+  name: "CouponItem",
+  props: { coupon: { type: Object, required: true }, compact: { type: Boolean, default: false } },
+  setup:
+    (props, { slots }) =>
+    () =>
+      h("div", { class: "coupon-item", "data-compact": String(props.compact) }, [
+        h("span", { class: "coupon-item__code-value" }, String(props.coupon.couponCode ?? "")),
+        slots["after-description"]?.(),
+      ]),
+});
+
+export const CouponItemSkeleton = defineComponent({
+  name: "CouponItemSkeleton",
+  props: { compact: { type: Boolean, default: false } },
+  setup: (props) => () => h("div", { class: "coupon-item-skeleton", "data-compact": String(props.compact) }),
+});
