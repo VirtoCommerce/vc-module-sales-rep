@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "发送电子邮件",
+      "action": "发送消息",
       "title": "发送消息",
       "subtitle": "将送达 {organization} 的所有成员",
+      "subtitle_customers": "将送达所选客户的所有成员",
+      "customers_label": "客户",
+      "customers_placeholder": "按名称搜索客户",
+      "customers_error": "无法加载客户列表。请重试。",
+      "customers_required": "请至少选择一个客户。",
       "title_label": "标题",
       "message_label": "消息",
       "channels_label": "发送方式",
@@ -194,6 +199,12 @@
         "send_email": "发送电子邮件",
         "create_quote": "创建报价",
         "schedule_call": "安排通话"
+      },
+      "call": {
+        "action": "致电客户",
+        "action_with_number": "致电客户，{number}",
+        "no_phone": "无电话号码",
+        "choose_number": "选择要拨打的号码"
       }
     },
     "orders": {

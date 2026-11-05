@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "E-Mail senden",
+      "action": "Nachricht senden",
       "title": "Nachricht senden",
       "subtitle": "Erreicht jedes Mitglied von {organization}",
+      "subtitle_customers": "Erreicht jedes Mitglied der ausgewählten Kunden",
+      "customers_label": "Kunden",
+      "customers_placeholder": "Kunden nach Namen suchen",
+      "customers_error": "Die Kundenliste konnte nicht geladen werden. Bitte versuchen Sie es erneut.",
+      "customers_required": "Wählen Sie mindestens einen Kunden aus.",
       "title_label": "Titel",
       "message_label": "Nachricht",
       "channels_label": "Senden über",
@@ -194,6 +199,12 @@
         "send_email": "E-Mail senden",
         "create_quote": "Angebot erstellen",
         "schedule_call": "Anruf planen"
+      },
+      "call": {
+        "action": "Kunden anrufen",
+        "action_with_number": "Kunden anrufen, {number}",
+        "no_phone": "Keine Telefonnummer",
+        "choose_number": "Nummer zum Anrufen wählen"
       }
     },
     "orders": {

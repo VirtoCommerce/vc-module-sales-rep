@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "Skicka e-post",
+      "action": "Skicka meddelande",
       "title": "Skicka ett meddelande",
       "subtitle": "Når alla medlemmar i {organization}",
+      "subtitle_customers": "Når alla medlemmar i de valda kunderna",
+      "customers_label": "Kunder",
+      "customers_placeholder": "Sök kunder efter namn",
+      "customers_error": "Kundlistan kunde inte laddas. Försök igen.",
+      "customers_required": "Välj minst en kund.",
       "title_label": "Titel",
       "message_label": "Meddelande",
       "channels_label": "Skicka via",
@@ -194,6 +199,12 @@
         "send_email": "Skicka e-post",
         "create_quote": "Skapa offert",
         "schedule_call": "Boka samtal"
+      },
+      "call": {
+        "action": "Ring kunden",
+        "action_with_number": "Ring kunden, {number}",
+        "no_phone": "Inget telefonnummer",
+        "choose_number": "Välj ett nummer att ringa"
       }
     },
     "orders": {

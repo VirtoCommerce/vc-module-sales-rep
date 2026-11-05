@@ -48,6 +48,18 @@ internal sealed class StorefrontSession : IAsyncDisposable
 
     public IPage Page { get; }
 
+    /// <summary>The console's errors and warnings so far, one line each.</summary>
+    public IReadOnlyList<string> ConsoleMessages
+    {
+        get
+        {
+            lock (_console)
+            {
+                return [.. _console];
+            }
+        }
+    }
+
     /// <summary>The GraphQL operations that came back with errors so far, one line each.</summary>
     public IReadOnlyList<string> GraphQlErrors
     {

@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "Lähetä sähköposti",
+      "action": "Lähetä viesti",
       "title": "Lähetä viesti",
       "subtitle": "Tavoittaa kaikki organisaation {organization} jäsenet",
+      "subtitle_customers": "Tavoittaa kaikki valittujen asiakkaiden jäsenet",
+      "customers_label": "Asiakkaat",
+      "customers_placeholder": "Etsi asiakkaita nimellä",
+      "customers_error": "Asiakaslistaa ei voitu ladata. Yritä uudelleen.",
+      "customers_required": "Valitse vähintään yksi asiakas.",
       "title_label": "Otsikko",
       "message_label": "Viesti",
       "channels_label": "Lähetystapa",
@@ -194,6 +199,12 @@
         "send_email": "Lähetä sähköposti",
         "create_quote": "Luo tarjous",
         "schedule_call": "Ajoita puhelu"
+      },
+      "call": {
+        "action": "Soita asiakkaalle",
+        "action_with_number": "Soita asiakkaalle, {number}",
+        "no_phone": "Ei puhelinnumeroa",
+        "choose_number": "Valitse soitettava numero"
       }
     },
     "orders": {

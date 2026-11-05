@@ -10,21 +10,21 @@ public class SalesRepContactType : ExtendableGraphType<SalesRepContact>
     {
         Name = "SalesRepContact";
 
-        Field(x => x.Id, nullable: false).Description("Contact (member) id of the Sales Rep.");
+        Field(x => x.Id, nullable: false).Description("Contact (member) id.");
         Field(x => x.FirstName, nullable: true).Description("First name.");
         Field(x => x.LastName, nullable: true).Description("Last name.");
         Field(x => x.MiddleName, nullable: true).Description("Middle name.");
         Field(x => x.FullName, nullable: true).Description("Full name.");
         Field(x => x.Name, nullable: true).Description("Display name.");
-        Field(x => x.About, nullable: true).Description("About the Sales Rep.");
+        Field(x => x.About, nullable: true).Description("About the contact.");
         Field(x => x.PhotoUrl, nullable: true).Description("Photo URL.");
 
         Field<ListGraphType<StringGraphType>>("emails")
-            .Description("Email addresses to contact the Sales Rep.")
+            .Description("Email addresses of the contact.")
             .Resolve(context => context.Source.Emails);
 
         Field<ListGraphType<StringGraphType>>("phones")
-            .Description("Phone numbers to contact the Sales Rep.")
+            .Description("Phone numbers of the contact.")
             .Resolve(context => context.Source.Phones);
     }
 }

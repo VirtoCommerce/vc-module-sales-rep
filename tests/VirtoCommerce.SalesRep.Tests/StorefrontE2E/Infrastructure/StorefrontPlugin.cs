@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Text.Json;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
@@ -25,10 +26,24 @@ internal static class StorefrontPlugin
 
     private static string AppDirectory => Path.Combine(ModuleDirectory, "StorefrontApp");
 
+    private static string ManifestPath => Path.Combine(BuildDirectory, "mf-manifest.json");
+
+    /// <summary>
+    /// The storefront core versions the build accepts, its manifest's <c>requiredHostVersion</c>: a storefront outside
+    /// them refuses the plugin. Null when the manifest declares none.
+    /// </summary>
+    public static string ReadRequiredHostVersion()
+    {
+        using var manifest = JsonDocument.Parse(File.ReadAllText(ManifestPath));
+        return manifest.RootElement.TryGetProperty("metaData", out var metaData) && metaData.TryGetProperty("requiredHostVersion", out var version)
+            ? version.GetString()
+            : null;
+    }
+
     public static void EnsureBuilt()
     {
         // Written on every build, so its time is the build's.
-        var build = new FileInfo(Path.Combine(BuildDirectory, "mf-manifest.json"));
+        var build = new FileInfo(ManifestPath);
         if (!build.Exists)
         {
             throw new InvalidOperationException($"The storefront plugin is not built: run `yarn build` in {AppDirectory}.");

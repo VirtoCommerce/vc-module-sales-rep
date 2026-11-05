@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "Wyślij e-mail",
+      "action": "Wyślij wiadomość",
       "title": "Wyślij wiadomość",
       "subtitle": "Dociera do każdego członka organizacji {organization}",
+      "subtitle_customers": "Dociera do każdego członka wybranych klientów",
+      "customers_label": "Klienci",
+      "customers_placeholder": "Szukaj klientów według nazwy",
+      "customers_error": "Nie udało się wczytać listy klientów. Spróbuj ponownie.",
+      "customers_required": "Wybierz co najmniej jednego klienta.",
       "title_label": "Tytuł",
       "message_label": "Wiadomość",
       "channels_label": "Wyślij przez",
@@ -194,6 +199,12 @@
         "send_email": "Wyślij e-mail",
         "create_quote": "Utwórz ofertę",
         "schedule_call": "Zaplanuj rozmowę"
+      },
+      "call": {
+        "action": "Zadzwoń do klienta",
+        "action_with_number": "Zadzwoń do klienta, {number}",
+        "no_phone": "Brak numeru telefonu",
+        "choose_number": "Wybierz numer, na który chcesz zadzwonić"
       }
     },
     "orders": {

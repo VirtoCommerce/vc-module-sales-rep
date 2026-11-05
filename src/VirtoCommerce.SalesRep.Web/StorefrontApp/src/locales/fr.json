@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "Envoyer un e-mail",
+      "action": "Envoyer un message",
       "title": "Envoyer un message",
       "subtitle": "Atteint tous les membres de {organization}",
+      "subtitle_customers": "Atteint tous les membres des clients sélectionnés",
+      "customers_label": "Clients",
+      "customers_placeholder": "Rechercher des clients par nom",
+      "customers_error": "La liste des clients n'a pas pu être chargée. Veuillez réessayer.",
+      "customers_required": "Sélectionnez au moins un client.",
       "title_label": "Titre",
       "message_label": "Message",
       "channels_label": "Envoyer par",
@@ -194,6 +199,12 @@
         "send_email": "Envoyer un e-mail",
         "create_quote": "Créer un devis",
         "schedule_call": "Planifier un appel"
+      },
+      "call": {
+        "action": "Appeler le client",
+        "action_with_number": "Appeler le client, {number}",
+        "no_phone": "Aucun numéro de téléphone",
+        "choose_number": "Choisissez un numéro à appeler"
       }
     },
     "orders": {

@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "Send e-post",
+      "action": "Send melding",
       "title": "Send en melding",
       "subtitle": "Når alle medlemmer i {organization}",
+      "subtitle_customers": "Når alle medlemmer i de valgte kundene",
+      "customers_label": "Kunder",
+      "customers_placeholder": "Søk etter kunder på navn",
+      "customers_error": "Kundelisten kunne ikke lastes. Prøv igjen.",
+      "customers_required": "Velg minst én kunde.",
       "title_label": "Tittel",
       "message_label": "Melding",
       "channels_label": "Send via",
@@ -194,6 +199,12 @@
         "send_email": "Send e-post",
         "create_quote": "Opprett tilbud",
         "schedule_call": "Planlegg samtale"
+      },
+      "call": {
+        "action": "Ring kunden",
+        "action_with_number": "Ring kunden, {number}",
+        "no_phone": "Ingen telefonnummer",
+        "choose_number": "Velg et nummer å ringe"
       }
     },
     "orders": {

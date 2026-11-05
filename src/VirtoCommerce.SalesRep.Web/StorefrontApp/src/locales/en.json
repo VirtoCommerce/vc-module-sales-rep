@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "Send email",
+      "action": "Send message",
       "title": "Send a message",
       "subtitle": "Reaches every member of {organization}",
+      "subtitle_customers": "Reaches every member of the selected customers",
+      "customers_label": "Customers",
+      "customers_placeholder": "Search customers by name",
+      "customers_error": "The customer list could not be loaded. Please try again.",
+      "customers_required": "Select at least one customer.",
       "title_label": "Title",
       "message_label": "Message",
       "channels_label": "Send via",
@@ -194,6 +199,12 @@
         "send_email": "Send email",
         "create_quote": "Create quote",
         "schedule_call": "Schedule call"
+      },
+      "call": {
+        "action": "Call customer",
+        "action_with_number": "Call customer, {number}",
+        "no_phone": "No phone number",
+        "choose_number": "Choose a number to call"
       }
     },
     "orders": {

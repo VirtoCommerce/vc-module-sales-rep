@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "Отправить эл. письмо",
+      "action": "Отправить сообщение",
       "title": "Отправить сообщение",
       "subtitle": "Получат все участники организации {organization}",
+      "subtitle_customers": "Получат все участники выбранных клиентов",
+      "customers_label": "Клиенты",
+      "customers_placeholder": "Поиск клиентов по названию",
+      "customers_error": "Не удалось загрузить список клиентов. Пожалуйста, попробуйте снова.",
+      "customers_required": "Выберите хотя бы одного клиента.",
       "title_label": "Заголовок",
       "message_label": "Сообщение",
       "channels_label": "Отправить через",
@@ -194,6 +199,12 @@
         "send_email": "Отправить эл. письмо",
         "create_quote": "Создать предложение",
         "schedule_call": "Запланировать звонок"
+      },
+      "call": {
+        "action": "Позвонить клиенту",
+        "action_with_number": "Позвонить клиенту, {number}",
+        "no_phone": "Нет номера телефона",
+        "choose_number": "Выберите номер для звонка"
       }
     },
     "orders": {

@@ -166,9 +166,14 @@
       }
     },
     "communication": {
-      "action": "メールを送信",
+      "action": "メッセージを送信",
       "title": "メッセージを送信",
       "subtitle": "{organization} のすべてのメンバーに届きます",
+      "subtitle_customers": "選択した顧客のすべてのメンバーに届きます",
+      "customers_label": "顧客",
+      "customers_placeholder": "名前で顧客を検索",
+      "customers_error": "顧客リストを読み込めませんでした。もう一度お試しください。",
+      "customers_required": "顧客を1つ以上選択してください。",
       "title_label": "タイトル",
       "message_label": "メッセージ",
       "channels_label": "送信方法",
@@ -194,6 +199,12 @@
         "send_email": "メールを送信",
         "create_quote": "見積もりを作成",
         "schedule_call": "通話を予約"
+      },
+      "call": {
+        "action": "顧客に電話",
+        "action_with_number": "顧客に電話、{number}",
+        "no_phone": "電話番号がありません",
+        "choose_number": "発信する番号を選択"
       }
     },
     "orders": {

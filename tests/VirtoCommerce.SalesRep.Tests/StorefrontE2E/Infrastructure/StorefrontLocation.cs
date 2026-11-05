@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text.Json;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
@@ -42,6 +43,22 @@ internal sealed class StorefrontLocation
 
     /// <summary>The clone: what Vite runs when there is no build, and where the <c>.graphql</c> documents are. Null for a build alone.</summary>
     public string SourceDirectory { get; }
+
+    /// <summary>
+    /// The clone's <c>@vc-frontend/core</c> version, which the storefront checks a plugin's <c>requiredHostVersion</c>
+    /// against. Null for a build alone.
+    /// </summary>
+    public string ReadCoreVersion()
+    {
+        var package = SourceDirectory == null ? null : Path.Combine(SourceDirectory, "client-app", "core-api", "package.json");
+        if (package == null || !File.Exists(package))
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(File.ReadAllText(package));
+        return document.RootElement.TryGetProperty("version", out var version) ? version.GetString() : null;
+    }
 
     internal static StorefrontLocation Resolve(string configuredBuild, string configuredSource, string repositoryDirectory)
     {

@@ -1,7 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
-import { buildStatisticsWindows, formatStatCount, formatStatMoney, formatTimeAgo, salesRepOrderRoute } from "./utils";
-import type { SalesRepCustomerOrderRowType } from "./types";
+import {
+  buildStatisticsWindows,
+  contactDisplayName,
+  customerRow,
+  formatStatCount,
+  formatStatMoney,
+  formatTimeAgo,
+  mergeCustomerOptions,
+  salesRepOrderRoute,
+} from "./utils";
+import type { OrganizationRowType, SalesRepCustomerOrderRowType } from "./types";
 
 // Pinned so the expectations don't depend on the runtime's default locale.
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
@@ -139,6 +148,66 @@ describe("buildStatisticsWindows", () => {
       const date = new Date(bound);
       expect([date.getHours(), date.getMinutes(), date.getSeconds(), date.getMilliseconds()]).toEqual([0, 0, 0, 0]);
     }
+  });
+});
+
+describe("contactDisplayName", () => {
+  it("prefers the full name, then the account name", () => {
+    expect(contactDisplayName({ fullName: "Jane Smith", name: "jsmith" })).toBe("Jane Smith");
+    expect(contactDisplayName({ fullName: "", name: "jsmith" })).toBe("jsmith");
+    expect(contactDisplayName({})).toBe("");
+    expect(contactDisplayName(undefined)).toBe("");
+  });
+});
+
+describe("customerRow", () => {
+  it("names a customer by its id when the caller has no name", () => {
+    expect(customerRow("org-1")).toEqual({
+      organizationId: "org-1",
+      organizationName: "org-1",
+      location: "",
+      imageUrl: "",
+    });
+    expect(customerRow("org-1", "").organizationName).toBe("org-1");
+  });
+
+  it("keeps the caller's name", () => {
+    expect(customerRow("org-1", "Acme").organizationName).toBe("Acme");
+  });
+});
+
+describe("mergeCustomerOptions", () => {
+  const names = (rows: OrganizationRowType[]) => rows.map((row) => row.organizationName);
+
+  it("lists a customer the options stop short of, sorted in by name", () => {
+    const options = [customerRow("org-1", "Acme"), customerRow("org-3", "Initech")];
+
+    expect(names(mergeCustomerOptions(options, [customerRow("org-2", "Globex")]))).toEqual([
+      "Acme",
+      "Globex",
+      "Initech",
+    ]);
+  });
+
+  it("keeps the options' own row for a customer they already list", () => {
+    const listed = { ...customerRow("org-1", "Acme"), location: "Richmond, Virginia" };
+
+    const merged = mergeCustomerOptions([listed], [customerRow("org-1", "Acme")]);
+
+    expect(merged).toEqual([listed]);
+  });
+
+  it("leaves the options as they are when there is nobody to add", () => {
+    const options = [customerRow("org-1", "Acme"), customerRow("org-2", "Globex")];
+
+    expect(mergeCustomerOptions(options, [])).toEqual(options);
+  });
+
+  // The backend sorts the options itself; sorting again in the browser could only reorder what it returned.
+  it("keeps the backend's order when every held customer is already listed", () => {
+    const options = [customerRow("org-2", "globex"), customerRow("org-1", "Acme")];
+
+    expect(mergeCustomerOptions(options, [customerRow("org-1", "Acme")])).toBe(options);
   });
 });
 

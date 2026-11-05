@@ -3,6 +3,7 @@ import { ContentType, globals, QueryParamName, ROUTES } from "@vc-frontend/core"
 import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
 import type { MoneyType, SalesRepCustomerOrdersQuery, SalesRepOrdersQuery } from "./api/graphql/types";
 import type {
+  OrganizationRowType,
   SalesRepActivityItemType,
   SalesRepCustomerOrderRowType,
   SalesRepDocumentType,
@@ -17,6 +18,11 @@ import type { RouteLocationRaw } from "vue-router";
 // Selectable filter options exclude the backend "all" rule (chips already prepend a synthetic "All" baseline).
 export function selectableFilterRules(rules: SalesRepRuleType[]): SalesRepRuleType[] {
   return rules.filter((rule) => rule.name.toLowerCase() !== "all");
+}
+
+// One display name for a contact everywhere it is shown: the full name, else the account name.
+export function contactDisplayName(contact?: { fullName?: string | null; name?: string | null } | null): string {
+  return contact?.fullName || contact?.name || "";
 }
 
 // Backend leaves address formatting to the storefront; single source of that format so both surfaces
@@ -37,6 +43,30 @@ export function formatCustomerLocation(address: LocationPartsType, options?: { w
   // List rows: postal code (prefixed "#"), city, region — middot-separated (e.g. "#23220 · Richmond · Virginia").
   const code = postalCode ? `#${postalCode}` : "";
   return [code, address?.city, address?.regionName].filter(Boolean).join(" · ");
+}
+
+// A customer the caller knows only by id and, maybe, name, as a picker row. The location and the logo come with the
+// options, when they list the customer.
+export function customerRow(organizationId: string, organizationName?: string): OrganizationRowType {
+  return { organizationId, organizationName: organizationName || organizationId, location: "", imageUrl: "" };
+}
+
+// The customer options stop at a cap, so a customer the caller already holds (a list's recipient, a task's customer,
+// the customer a popup opened for) may sit past it. Listing it keeps its row in the picker, where it can be unticked;
+// it is sorted in by name rather than put above every option the search box shows. With nobody missing, the options
+// keep the backend's own order.
+export function mergeCustomerOptions(
+  options: OrganizationRowType[],
+  customers: OrganizationRowType[],
+): OrganizationRowType[] {
+  const listed = new Set(options.map((option) => option.organizationId));
+  const missing = customers.filter((customer) => !listed.has(customer.organizationId));
+
+  if (!missing.length) {
+    return options;
+  }
+
+  return [...missing, ...options].sort((a, b) => a.organizationName.localeCompare(b.organizationName));
 }
 
 // ISO date windows shared by the statistics ops: current bounds end at the END of the user's current day
