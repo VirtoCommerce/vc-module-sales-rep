@@ -41,6 +41,11 @@ export const CUSTOMER_ORDER_ROUTE_SEGMENT = `${CUSTOMER_ORDERS_ROUTE_SEGMENT}/:o
 export const CUSTOMER_ACTIVITIES_ROUTE_NAME = "SalesRepCustomerActivities";
 export const CUSTOMER_ACTIVITIES_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/activities`;
 
+// All promotion coupons, under a customer's profile like their orders (VCST-6158). The list is store-wide, not
+// per customer; the route keeps the rep in the customer's context.
+export const CUSTOMER_COUPONS_ROUTE_NAME = "SalesRepCustomerCoupons";
+export const CUSTOMER_COUPONS_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/coupons`;
+
 // The storefront's own order page: an order the rep placed opens there, where their buyer actions still
 // work. The hub's page is read-only for everyone.
 export const BUYER_ORDER_ROUTE_NAME = "OrderDetails" satisfies HostRouteNameType;
@@ -160,6 +165,15 @@ export const CALL_DEFAULT_TIME = "09:00";
 export const CALL_TIME_STEP_MINUTES = 15;
 // The form picks a call's start only; a calendar event needs an end, so a call goes there as half an hour.
 export const CALL_DURATION_MINUTES = 30;
+
+// Coupons (VCST-6158). Backed by vc-module-marketing, an OPTIONAL backend dependency, gated like tasks.
+export const MARKETING_MODULE_ID = "VirtoCommerce.Marketing";
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
+export const COUPONS_BLOCK_ID = "coupons";
+export const COUPONS_DEFAULT_ROWS = 5;
+export const COUPONS_MAX_ROWS = 20;
+// Page size of the all-coupons page (offset-as-cursor, like the documents page).
+export const COUPONS_PAGE_SIZE = 10;
 
 // Backs the "New orders" card; order filter rules are raw order statuses, so this uses the "New"
 // status (an unrecognized name fails closed — keep it aligned with a real status). The card's label

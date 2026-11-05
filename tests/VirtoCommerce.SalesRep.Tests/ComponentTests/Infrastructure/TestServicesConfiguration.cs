@@ -28,6 +28,11 @@ using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
 using VirtoCommerce.FileExperienceApi.Data.Services;
 using VirtoCommerce.LuceneSearchModule.Data;
+using VirtoCommerce.MarketingModule.Core.Search;
+using VirtoCommerce.MarketingModule.Core.Services;
+using VirtoCommerce.MarketingModule.Data.Repositories;
+using VirtoCommerce.MarketingModule.Data.Search;
+using VirtoCommerce.MarketingModule.Data.Services;
 using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Bus;
@@ -226,6 +231,25 @@ internal static class TestServicesConfiguration
 
         services.AddTransient<IWorkTaskService, WorkTaskService>();
         services.AddTransient<IWorkTaskSearchService, WorkTaskSearchService>();
+
+        return services;
+    }
+
+    // Optional, like TaskManagement, and off by default: only salesRepCoupons reads it. A context built without it
+    // leaves the marketing services unregistered, which is what a deployment without vc-module-marketing looks like.
+    public static IServiceCollection AddMarketingSlice(this IServiceCollection services, DbContextOptions<MarketingDbContext> marketingDbOptions)
+    {
+        services.AddSingleton(marketingDbOptions);
+        services.AddScoped<MarketingDbContext>();
+        services.AddTransient<IMarketingRepository, MarketingRepository>();
+        services.AddSingleton<Func<IMarketingRepository>>(sp => () => sp.CreateScope().ServiceProvider.GetRequiredService<IMarketingRepository>());
+
+        services.AddTransient<IPromotionService, PromotionService>();
+        services.AddTransient<IPromotionSearchService, PromotionSearchService>();
+        services.AddTransient<ICouponService, CouponService>();
+        services.AddTransient<ICouponSearchService, CouponSearchService>();
+        services.AddTransient<IPromotionUsageService, PromotionUsageService>();
+        services.AddTransient<IPromotionUsageSearchService, PromotionUsageSearchService>();
 
         return services;
     }
