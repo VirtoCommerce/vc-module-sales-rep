@@ -62,8 +62,8 @@ public sealed class StorefrontBootContractTests
             new { storeId = InProcessBackend.StoreId, userId = rep.UserId, currencyCode = "EUR", cultureName = "en-US" });
         await PostAsync(client, "GetSearchHistory", "common/queries/getSearchHistory/getSearchHistory.graphql",
             new { storeId = InProcessBackend.StoreId, maxCount = 5 });
-        await PostAsync(client, "GetOrganizationAddresses", "organization/queries/getOrganizationAddresses/getOrganizationAddressesQuery.graphql",
-            new { id = "boot-org", userId = rep.UserId, first = 10 });
+        await PostAsync(client, "GetCurrentOrganizationAddresses", "organization/queries/getCurrentOrganizationAddresses/getCurrentOrganizationAddresses.graphql",
+            new { first = 10 });
     }
 
     private static async Task<JsonElement> PostAsync(HttpClient client, string operationName, string document, object variables)

@@ -6,7 +6,9 @@ using GraphQL.Types;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using VirtoCommerce.Platform.Core.Security;
+using VirtoCommerce.ProfileExperienceApiModule.Data.Models;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Queries;
+using VirtoCommerce.ProfileExperienceApiModule.Data.Queries.AddressesQuery;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Schemas;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
@@ -23,7 +25,8 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 /// <summary>
 /// The root fields the storefront shell asks for before and around any sales-rep page, captured from the real
-/// storefront on 2026-10-01: pageContext, childCategories, cart, menu, searchHistory, organization (plus store,
+/// storefront on 2026-10-01, and on 2026-11-05 for the address book that replaced the organization's addresses:
+/// pageContext, childCategories, cart, menu, searchHistory, organization, currentOrganizationAddresses (plus store,
 /// registered through the real Xapi builder). Schema-complete, so every selection set the storefront sends
 /// validates against the REAL response types; data-empty wherever the data is not under test. A root field that is
 /// simply missing fails the whole operation with a validation error, and the storefront toasts those.
@@ -57,6 +60,15 @@ internal sealed class StorefrontShellSchemaBuilder : ISchemaBuilder
                 new QueryArgument<NonNullGraphType<StringGraphType>> { Name = "id" },
                 new QueryArgument<StringGraphType> { Name = "userId" }),
             _ => null);
+
+        // X-Profile's address book of the organization a rep signed in for, which the storefront reads on every load
+        // for its ship-to selector since vc-frontend VCST-4857. The real field is a connection: `first` and `after` come
+        // with it, not with the query's own arguments.
+        var addressArguments = Arguments<CurrentOrganizationAddressesQuery>();
+        addressArguments.Add(new QueryArgument<IntGraphType> { Name = "first" });
+        addressArguments.Add(new QueryArgument<StringGraphType> { Name = "after" });
+        AddEmpty(schema, "currentOrganizationAddresses", typeof(MemberAddressConnectionType<MemberAddressType>), addressArguments,
+            _ => new MemberAddressConnection<MemberAddress>([], 0, 0, 0));
 
         AddEmpty(schema, "menu", typeof(MenuLinkListType),
             new QueryArguments(
