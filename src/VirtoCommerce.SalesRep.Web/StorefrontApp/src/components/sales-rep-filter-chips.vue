@@ -1,11 +1,15 @@
 <template>
   <!-- The applied filters as chips, each one removable, then one that removes them all. Nothing while none apply. -->
   <div v-if="chips.length" class="sales-rep-filter-chips">
+    <!-- A long label, such as a customer's full name, ends in "…" instead of widening the page; the tooltip and the
+         close button's name keep all of it. -->
     <VcChip
       v-for="chip in chips"
       :key="chip.id"
       color="secondary"
       closable
+      truncate
+      :title="chip.label"
       :close-button-aria-label="t('sales_rep.filters.remove_filter', { label: chip.label })"
       @close="$emit('remove', chip)"
     >

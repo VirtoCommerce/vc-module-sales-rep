@@ -9,10 +9,10 @@ vi.mock("vue-i18n", () => ({
 }));
 
 const ChipStub = {
-  props: { closable: Boolean, clickable: Boolean, closeButtonAriaLabel: String },
+  props: { closable: Boolean, clickable: Boolean, truncate: Boolean, closeButtonAriaLabel: String },
   emits: ["close", "click"],
   template:
-    '<span class="chip" :data-closable="String(!!closable)" @click="$emit(\'click\')"><slot />' +
+    '<span class="chip" :data-closable="String(!!closable)" :data-truncate="String(!!truncate)" @click="$emit(\'click\')"><slot />' +
     '<button v-if="closable" class="chip-close" :aria-label="closeButtonAriaLabel" @click.stop="$emit(\'close\')" />' +
     "</span>",
 };
@@ -45,6 +45,15 @@ describe("SalesRepFilterChips", () => {
       'sales_rep.filters.remove_filter {"label":"Due today"}',
       'sales_rep.filters.remove_filter {"label":"Cabin Co."}',
     ]);
+  });
+
+  // A customer's full name can be longer than the row: cut short, it still has to be readable somewhere.
+  it("cuts a long label short and keeps all of it in the tooltip", () => {
+    const wrapper = createWrapper();
+
+    const chips = wrapper.findAll(".chip");
+    expect(chips.map((chip) => chip.attributes("data-truncate"))).toEqual(["true", "true", "false"]);
+    expect(chips.map((chip) => chip.attributes("title"))).toEqual(["Due today", "Cabin Co.", undefined]);
   });
 
   it("hands back the chip closed", async () => {
