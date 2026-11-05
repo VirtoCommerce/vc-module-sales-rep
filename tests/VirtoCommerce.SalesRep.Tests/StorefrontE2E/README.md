@@ -38,6 +38,7 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Request gate | `Infrastructure/RequestGate.cs` | One turn at a time, for both hosts: their requests wait at it, and test-side reads take a turn through `RunExclusiveAsync`. |
 | Session | `Infrastructure/StorefrontSession.cs` | Records console errors, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message, and a test can assert there were no GraphQL errors. |
 | Hub controls | `Infrastructure/HubControls.cs` | The hub's task controls by role and label, the steps the task groups repeat, the Google Calendar stand-in route, and `Exactly`, which tolerates Intl's spaces in an input's value. |
+| Layout audit | `Infrastructure/LayoutAudit.cs` | QA's audit widths and overflow audit (rule BL-UI-004) for the layout tests: prepares a page for measuring, walks the widths, and lists every width and element that broke (see Layout tests). |
 | Clock | `Infrastructure/NewYork.cs` | Today and instants in New York, the zone the time-sensitive groups pin; the next nights the clocks skip or repeat an hour. |
 | Documents | `Infrastructure/StorefrontDocuments.cs` | Loads the storefront's own `.graphql` operations from the clone (fragments inlined, `@gate` applied). |
 | Contract | `StorefrontBootContractTests.cs` | Browser-less: the backend answers the storefront's boot documents for a signed-in rep (≈4 s). |
@@ -46,6 +47,7 @@ storefront asks `store.plugins` for it, the platform's own `AppManifestService` 
 | Group 3 | `Calls/` | Browser in New York time. Carl has calls and plain tasks, which the editing tests change; a test that books a call or takes a customer away signs in as a rep of its own. `CallsTests`: schedule a call from a customer's page, also adding it to Google and Apple Calendar, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. `CallTimesTests`: the edges of a day, the nights the clocks skip and repeat an hour, Los Angeles, a time off the select's steps, the select itself. `CallSavesTests`: a call without a customer, a save refused because the customer is no longer the rep's (with the Google tab; without it, skipped until VCST-6455), the Google tab blocked, a double click, a cancelled draft. Each test is asserted on the page and on `WorkTask` rows. |
 | Group 4 | `Tasks/` | Rep with plain tasks, browser in New York time: overdue, today, later, completed, canceled and dateless ones. An edit that changes only the date, a canceled and a completed task edited, a dateless one opened and dated, a delete, completing and reopening across the statuses, and the filters: customers, statuses, priorities, the search and the day, their chips, Reset filters, and the calendar's dots following them. The dashboard's overdue link: the list on Overdue over every date, the link's parameter dropped from the address, Back to the dashboard. |
 | Group 5 | `WithoutTaskManagement/` | A module list without TaskManagement: the customer page offers "Schedule call" disabled, the hub menu has no Tasks, and the tasks page sends the rep to a dashboard without the tasks widget. |
+| Group 6 | `Tasks/`, the `TasksLayout…` files | The tasks page's layout, in New York time, with QA's stress content: a 100-character customer name, two names that differ only at their ends, one with no break in it, an 80-character title, an unbroken SKU and long notes. The page as it opens, under every filter, with the Customers filter open, and with a task's edit popup, each at QA's 19 widths (see Layout tests). |
 
 Groups are xunit collections with `DisableParallelization = true`: each runs alone, so one backend and one browser
 exist at a time, and a clone's one Vite serves them in turn. Tests inside a group share the environment and its seed;
@@ -84,14 +86,55 @@ The contract test reads the storefront's `.graphql` files, which only a clone ha
 skipped and says why; `VC_STOREFRONT_DIR` naming the clone the build came from runs it too.
 
 ```
-dotnet test --filter "Category=StorefrontE2E"                # contract + every storefront group
+dotnet test --filter "Category=StorefrontE2E"                # contract + every storefront group, layout included
 dotnet test --filter "Category!=IntegrationTest"             # everything else, as vc-build Test runs it
 E2E_HEADED=1 dotnet test --filter "Category=StorefrontE2E"   # watch the browser
 ```
 
+The layout tests can also run apart from the functional ones (see Layout tests).
+
 Diagnostics land in `bin/Debug/net10.0/StorefrontE2E-diagnostics/`: `environment-*.log` (timestamped phases per
 group), `vite-<port>.log` (the run's dev server output, with a clone), `<TestName>.png` (full-page screenshot of a
 failed test).
+
+## Layout tests
+
+Group 6 checks what fits, not what works. Its class carries `Kind=Layout` besides the two categories every group
+carries, so a run can pick the tests by kind. The `E2E tests` workflow runs them all.
+
+```
+dotnet test --filter "Category=StorefrontE2E"                            # functional and layout, as the workflow runs them
+dotnet test --filter "Kind=Layout"                                       # layout only, e.g. after a style change
+dotnet test --filter "Category=StorefrontE2E&Kind!=Layout"               # functional only
+dotnet test --filter "Category=StorefrontE2E&FullyQualifiedName~Tasks"   # one page, both kinds
+```
+
+Each test opens one state of the page and walks QA's audit widths: every ui-kit breakpoint (480, 640, 768, 1024,
+1280, 1500), the pixel below it, the middles between them, and 375 and 1920 (ai-tools
+`scripts/lib/design-tokens.generated.ts`, `AUDIT_VIEWPORTS_PX`). At each width it applies QA's overflow audit, rule
+BL-UI-004 (ai-tools `scripts/lib/measure-layout.ts`):
+- the page never scrolls sideways: the document's scroll width stays within its client width;
+- no text inside the page or its open popup is cut off by `overflow: hidden` without an ellipsis (`text-overflow` or
+  `line-clamp`). Text for screen readers only, and boxes with no text, don't count.
+
+A failure lists every width and element at once, for example `768 px: the page scrolls sideways, 805 px of content in
+768: span.vc-chip__content in div.sales-rep-filter-chips “Northwind Wholesale…” ends at 804`, and leaves screenshots
+of the first three widths that failed as `<test>-<width>px.png` in the diagnostics folder.
+
+What keeps the results the same from run to run:
+- the group seeds its own data, and the browser is the Chromium build Playwright pins;
+- the checks compare each element with its own box, never with a pixel value;
+- before measuring, the page loses its transitions and animations;
+- the storefront's own font (Lato, from Google Fonts) must have loaded. A fallback font changes the width of every text,
+  and the fallbacks differ by OS, so a font that did not load fails the test rather than measuring something else;
+- after each resize the audit waits until the page's size holds still.
+
+The results still depend on the storefront build: its account layout decides how wide the content column is at each
+width, so a defect can show at fewer widths here than on a deployed store.
+
+Not checked: touch targets and their spacing at phone widths (BL-UI-006), German labels, a mobile browser context (the
+tests resize a desktop one), and whether text that fits is also readable: two look-alike names cut with an ellipsis
+pass.
 
 ## Harness changes
 
