@@ -1166,8 +1166,14 @@ public class SalesRepTasksGraphQlTests
         var membership = (await ctx.GetMembershipsAsync(rep.UserId)).Single(x => x.OrganizationId == OrgA);
         await ctx.GetRequiredService<IOrganizationMembershipService>().DeleteAsync([membership.Id]);
 
-        (await ListTasksAsync(ctx, rep, $"customerIds: [\"{OrgA}\"]")).GetProperty("totalCount").GetInt32().Should().Be(0);
-        (await ListTasksAsync(ctx, rep, "customerIds: [\"no-such-organization\"]")).GetProperty("totalCount").GetInt32().Should().Be(0);
+        // Checked on the raw response: no task may slip into the items, whatever the count says.
+        foreach (var customerId in new[] { OrgA, "no-such-organization" })
+        {
+            var json = await QueryAsync(ctx, rep, $"salesRepTasks(customerIds: [\"{customerId}\"]) {{ totalCount items {{ name customerName }} }}");
+
+            SalesRepTestContext.Node(json, "salesRepTasks").GetProperty("totalCount").GetInt32().Should().Be(0);
+            json.Should().NotContain("Task for");
+        }
 
         // A served customer next to an unserved one still finds its own tasks, and only those.
         (await NamesForAsync(ctx, rep, $"customerIds: [\"{OrgA}\", \"{OrgB}\"]")).Should().Equal("Task for B");

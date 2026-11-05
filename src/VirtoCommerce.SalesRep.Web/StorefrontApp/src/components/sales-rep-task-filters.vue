@@ -100,25 +100,22 @@ function changePriorities(items: { value: string }[]): void {
 </script>
 
 <style lang="scss">
+@use "./sales-rep-task-toolbar" as toolbar;
+
 // @apply: module is self-contained as an MF remote (no global utility layer).
 // The selects sit side by side only where all three fit, and stack one per line otherwise, so none is left alone.
-// The query is answered by the page's toolbar container; its own query must match this row's width.
+// The query is answered by the page's toolbar container.
 .sales-rep-task-filters {
-  @apply flex flex-col gap-3;
+  @apply flex flex-col gap-[#{toolbar.$gap}];
 
-  @container (min-width: 38.5rem) {
+  @container (min-width: #{toolbar.$filters-row}) {
     @apply shrink-0 flex-row;
-  }
 
-  // The multi-selects read "N items selected" next to their clear and chevron buttons, so they take more room.
-  &__select {
-    @container (min-width: 38.5rem) {
-      @apply w-44 shrink-0;
-    }
+    &__select {
+      @apply w-[#{toolbar.$select}] shrink-0;
 
-    &--multiple {
-      @container (min-width: 38.5rem) {
-        @apply w-52;
+      &--multiple {
+        @apply w-[#{toolbar.$multiple-select}];
       }
     }
   }

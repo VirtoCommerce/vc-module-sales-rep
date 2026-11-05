@@ -16,11 +16,13 @@
 
     <template v-else>
       <div class="customer-orders__toolbar">
+        <!-- Usable while the list loads: a new search just replaces the pending one, and a disabled box would drop the
+             keyboard focus, after Enter here or once the chips below hand it over. -->
         <VcInput
+          ref="searchInputRef"
           v-model="localKeyword"
           maxlength="64"
           class="customer-orders__search-input"
-          :disabled="loading"
           :placeholder="t('sales_rep.customer_orders.search_placeholder')"
           clearable
           @keydown.enter="applyKeyword"
@@ -29,7 +31,6 @@
           <template #append>
             <VcButton
               :aria-label="t('sales_rep.customer_orders.search_aria')"
-              :disabled="loading"
               icon="search"
               icon-size="1.25rem"
               @click="applyKeyword"
@@ -46,7 +47,12 @@
         />
       </div>
 
-      <SalesRepFilterChips :chips="filterChips" @remove="removeFilterChip" @reset="resetFilters" />
+      <SalesRepFilterChips
+        :chips="filterChips"
+        :fallback-focus="focusSearch"
+        @remove="removeFilterChip"
+        @reset="resetFilters"
+      />
 
       <!-- A failed read keeps the previous rows, so the failure needs its own view (VCST-5586). -->
       <VcEmptyView v-if="failed && !loading" :text="t('sales_rep.orders.load_failed')" variant="error" />
@@ -138,7 +144,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, useTemplateRef, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { formatDateLocale, OrderStatus, tryParseDate, useBreadcrumbs, usePageHead } from "@vc-frontend/core";
 import SalesRepFilterChips from "../components/sales-rep-filter-chips.vue";
@@ -188,6 +194,7 @@ const { sortInfo, applySort } = useSalesRepColumnSort({
 });
 
 const localKeyword = ref("");
+const searchInputRef = useTemplateRef<{ inputElement?: HTMLInputElement | null }>("searchInputRef");
 
 // The keyword is reset when the list switches customers; the input holds its own draft, so it follows.
 watch(keyword, (value) => {
@@ -325,6 +332,11 @@ function resetKeyword(): void {
   localKeyword.value = "";
   keyword.value = "";
   page.value = 1;
+}
+
+// Where the chips hand the keyboard focus once they are all gone: the search box just above them.
+function focusSearch(): void {
+  searchInputRef.value?.inputElement?.focus();
 }
 
 function changePage(newPage: number): void {

@@ -7,7 +7,7 @@ import { emptyTaskFilters, localDayKey, localDayWindow } from "../tasks";
 import TasksPage from "./sales-rep-tasks-page.vue";
 import type { SalesRepFilterChipType } from "../types";
 import type { SalesRepTaskFiltersType, SalesRepTaskType } from "../types/tasks";
-import type { Ref } from "vue";
+import type { Ref, SetupContext } from "vue";
 import { VcButton } from "@vc-frontend/core";
 
 const state = await vi.hoisted(async () => {
@@ -115,12 +115,18 @@ const BreadcrumbsStub = {
   template: '<nav class="crumbs" />',
 };
 
+// Exposes its <input> as inputElement, like VcInput: the page focuses it.
 const SearchStub = {
   name: "VcInput",
   props: ["modelValue", "disabled", "placeholder"],
   emits: ["update:modelValue", "clear"],
+  setup(_props: unknown, { expose }: SetupContext) {
+    const inputElement = ref<HTMLInputElement>();
+    expose({ inputElement });
+    return { inputElement };
+  },
   template:
-    '<div class="search"><input class="search-input" :value="modelValue"' +
+    '<div class="search"><input ref="inputElement" class="search-input" :value="modelValue"' +
     ' @input="$emit(\'update:modelValue\', $event.target.value)" /><slot name="append" /></div>',
 };
 
@@ -133,7 +139,7 @@ const FiltersStub = {
 
 const ChipsStub = {
   name: "SalesRepFilterChips",
-  props: ["chips"],
+  props: ["chips", "fallbackFocus"],
   emits: ["remove", "reset"],
   template: '<div class="chips" />',
 };
@@ -160,8 +166,9 @@ const EmptyViewStub = {
 
 // Plain mount (not createWrapperFactory): this file mocks the vue-i18n module, and the shared factory's
 // defaults build a real i18n plugin from it.
-function createWrapper() {
+function createWrapper(options: { attachTo?: HTMLElement } = {}) {
   return mount(TasksPage, {
+    attachTo: options.attachTo,
     global: {
       renderStubDefaultSlot: false,
       stubs: {
@@ -579,6 +586,22 @@ describe("Tasks page chips", () => {
     expect(taskOptions().filters.value).toEqual(emptyTaskFilters());
     expect(markerFilters().value).toEqual(emptyTaskFilters());
     expect(taskOptions().period.value).toBeUndefined();
+  });
+
+  // The chips hand a keyboard user's focus to the search box once they are all gone. Disabled by the reload that
+  // follows, the box would drop it again.
+  it("gives the chips the search box to move the focus to, usable while the list loads", async () => {
+    state.loading.value = true;
+    const wrapper = createWrapper({ attachTo: document.body });
+    await flushPromises();
+
+    expect(wrapper.getComponent(SearchStub).props("disabled")).toBeUndefined();
+    expect(wrapper.get(".search button").attributes("disabled")).toBeUndefined();
+
+    (wrapper.getComponent(ChipsStub).props("fallbackFocus") as () => void)();
+
+    expect(document.activeElement).toBe(wrapper.get(".search-input").element);
+    wrapper.unmount();
   });
 });
 

@@ -41,7 +41,9 @@ export async function compiledStyleRules(component: string): Promise<CompiledRul
   const rules: CompiledRuleType[] = [];
 
   for (const style of descriptor.styles) {
-    const source = style.lang === "scss" ? compileString(style.content).css : style.content;
+    // The component's folder as a load path: its @use rules are relative to it, as in the build.
+    const source =
+      style.lang === "scss" ? compileString(style.content, { loadPaths: [dirname(path)] }).css : style.content;
     const { css: code } = await postcss(postcssPlugins()).process(source, { from: path });
     postcss.parse(code).walkRules((rule) => {
       const atRule = rule.parent?.type === "atrule" ? (rule.parent as postcss.AtRule) : undefined;

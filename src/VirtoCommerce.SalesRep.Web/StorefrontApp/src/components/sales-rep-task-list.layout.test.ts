@@ -22,6 +22,16 @@ const VcTableColumnStub = defineComponent({
   },
 });
 
+// One cell alone: the Customer column renders its cell template for a task, the other columns nothing.
+const CustomerCellStub = defineComponent({
+  props: { id: { type: String, required: true } },
+
+  setup(props, { slots }) {
+    return () =>
+      props.id === "customer" ? h("div", slots.default?.({ item: { customerName: "Northwind Hospitality" } })) : null;
+  },
+});
+
 // The desktop table's width and cell padding, measured on the stand at each viewport.
 const TABLES = [
   { viewport: 1280, table: 639 },
@@ -31,7 +41,7 @@ const TABLES = [
 ];
 const CELL_PADDING = 32;
 
-// A long customer name (25 characters) in full on the cell's two clamped lines, at the stand's text width per character.
+// A long customer name (25 characters) in full on two lines of the cell, at the stand's text width per character.
 const LONG_NAME = 25;
 const PX_PER_CHARACTER = 63.7 / 9;
 const READABLE_TEXT_WIDTH = Math.ceil(LONG_NAME / 2) * PX_PER_CHARACTER;
@@ -53,6 +63,16 @@ function columnWidths(rules: CompiledRuleType[], viewport: number, table: number
   const unsized = columns.filter((column) => column.width === undefined).length;
 
   return new Map(columns.map((column) => [column.id, column.width ?? (table - sized) / unsized]));
+}
+
+// The classes the customer name renders with, so the checks follow the template.
+function customerCellClasses(): string[] {
+  const wrapper = mount(SalesRepTaskList, {
+    props: { tasks: [] },
+    global: { stubs: { VcTable: VcTableStub, VcTableColumn: CustomerCellStub } },
+  });
+
+  return wrapper.get("span").classes();
 }
 
 describe("SalesRepTaskList layout", () => {
@@ -78,5 +98,22 @@ describe("SalesRepTaskList layout", () => {
     const widths = columnWidths(rules, 1280, 639);
 
     expect(widths.get(id)! - CELL_PADDING).toBeGreaterThanOrEqual(NARROWEST_TEXT_WIDTH);
+  });
+
+  it("does not clip the customer name, at any viewport", () => {
+    const classes = customerCellClasses();
+
+    for (const viewport of [1024, 1280, 1920]) {
+      const value = (property: string) => cascadedValue(rules, classes, property, viewport);
+
+      expect(value("-webkit-line-clamp")).toBeUndefined();
+      expect(value("overflow")).not.toBe("hidden");
+      expect(value("text-overflow")).toBeUndefined();
+      expect(value("white-space")).not.toBe("nowrap");
+    }
+  });
+
+  it("still lets a long word wrap inside the customer column", () => {
+    expect(cascadedValue(rules, customerCellClasses(), "word-break", 1280)).toBe("break-word");
   });
 });

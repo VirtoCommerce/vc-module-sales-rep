@@ -22,11 +22,13 @@
 
     <div class="sales-rep-tasks-page__toolbar-container">
       <div class="sales-rep-tasks-page__toolbar">
+        <!-- Usable while the list loads: a new search just replaces the pending one, and a disabled box would drop the
+             keyboard focus, after Enter here or once the chips below hand it over. -->
         <VcInput
+          ref="searchInputRef"
           v-model="localKeyword"
           maxlength="64"
           class="sales-rep-tasks-page__search-input"
-          :disabled="loading"
           :placeholder="t('sales_rep.tasks.search_placeholder')"
           clearable
           @keydown.enter="applyKeyword"
@@ -35,7 +37,6 @@
           <template #append>
             <VcButton
               :aria-label="t('sales_rep.tasks.search_aria')"
-              :disabled="loading"
               icon="search"
               icon-size="1.25rem"
               @click="applyKeyword"
@@ -53,7 +54,12 @@
     </div>
 
     <!-- The day is one of the filters: a chip of its own, set from the calendar. -->
-    <SalesRepFilterChips :chips="filterChips" @remove="removeFilterChip" @reset="resetFilters" />
+    <SalesRepFilterChips
+      :chips="filterChips"
+      :fallback-focus="focusSearch"
+      @remove="removeFilterChip"
+      @reset="resetFilters"
+    />
 
     <div class="sales-rep-tasks-page__body">
       <div class="sales-rep-tasks-page__main">
@@ -132,7 +138,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onScopeDispose, ref, shallowRef, useId, watch } from "vue";
+import { watchDebounced } from "@vueuse/core";
+import { computed, ref, shallowRef, useId, useTemplateRef } from "vue";
 import { useI18n } from "vue-i18n";
 import { useBreadcrumbs, useModal, useRouteQueryParam } from "@vc-frontend/core";
 import SalesRepFilterChips from "../components/sales-rep-filter-chips.vue";
@@ -197,6 +204,7 @@ const filters = ref<SalesRepTaskFiltersType>({ ...emptyTaskFilters(), status: li
 
 // Unapplied search term; committed to the filters on Enter or the search button.
 const localKeyword = ref("");
+const searchInputRef = useTemplateRef<{ inputElement?: HTMLInputElement | null }>("searchInputRef");
 
 const {
   rules: filterRules,
@@ -222,18 +230,14 @@ const { selectableRules: statusRules } = useSalesRepRuleSelection(selectedStatus
  * never asked for.
  */
 const queryFilters = shallowRef(filters.value);
-let pendingFilters: ReturnType<typeof setTimeout> | undefined;
 
-watch(filters, (value) => {
-  clearTimeout(pendingFilters);
-  if (value !== queryFilters.value) {
-    pendingFilters = setTimeout(() => {
-      queryFilters.value = value;
-    }, TASKS_FILTERS_DEBOUNCE_MS);
-  }
-});
-
-onScopeDispose(() => clearTimeout(pendingFilters));
+watchDebounced(
+  filters,
+  (value) => {
+    queryFilters.value = value;
+  },
+  { debounce: TASKS_FILTERS_DEBOUNCE_MS },
+);
 
 // Drives the dots query. The calendar owns which month is on screen and reports it back.
 const { month, setMonth } = useMonthAnchor();
@@ -347,8 +351,8 @@ function resetFilters(): void {
   day.value = undefined;
   filters.value = { ...emptyTaskFilters(), keyword: filters.value.keyword };
 
-  // One change, not a pick in a burst: the queries take it now, with the day, so the list refetches once.
-  clearTimeout(pendingFilters);
+  // One change, not a pick in a burst: the queries take it now, with the day, so the list refetches once. The
+  // debounced write that follows brings this same object, which the shallowRef ignores.
   queryFilters.value = filters.value;
 }
 
@@ -359,6 +363,11 @@ function applyKeyword(): void {
 function resetKeyword(): void {
   localKeyword.value = "";
   filters.value = { ...filters.value, keyword: "" };
+}
+
+// Where the chips hand the keyboard focus once they are all gone: the search box just above them.
+function focusSearch(): void {
+  searchInputRef.value?.inputElement?.focus();
 }
 
 function changePage(value: number): void {
@@ -413,6 +422,8 @@ function openTaskModal(task?: SalesRepTaskType): void {
 </script>
 
 <style lang="scss">
+@use "../components/sales-rep-task-toolbar" as toolbar;
+
 // @apply: module is self-contained as an MF remote (no global utility layer).
 .sales-rep-tasks-page {
   &__head {
@@ -439,10 +450,9 @@ function openTaskModal(task?: SalesRepTaskType): void {
   // The search shares a line with the filters only when it keeps a usable width beside them; otherwise it takes a
   // line of its own above them.
   &__toolbar {
-    @apply flex flex-col gap-3;
+    @apply flex flex-col gap-[#{toolbar.$gap}];
 
-    // Must match sales-rep-task-filters: the search's 15rem, the gap and the filters' 38.5rem row.
-    @container (min-width: 54.25rem) {
+    @container (min-width: #{toolbar.$full-row}) {
       @apply flex-row items-start;
     }
   }
