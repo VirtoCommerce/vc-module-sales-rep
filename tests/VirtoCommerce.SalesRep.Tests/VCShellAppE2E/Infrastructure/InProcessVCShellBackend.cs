@@ -49,9 +49,9 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
     public string AppUrl => Url + VCShellServices.AppPath + "/";
 
     /// <summary>
-    /// Runs test-side work against the harness between requests. Its in-memory SQLite databases each live on one
-    /// connection, which is not thread-safe, so the host answers one request at a time and a test's reads take the
-    /// same turn: the blade may still be refreshing after the save or block it waited for.
+    /// Runs test-side work against the harness between requests. The host answers one request at a time and a test's
+    /// reads take the same turn, so a test reads after the blade's requests, not between them: the blade may still be
+    /// refreshing after the save or block it waited for.
     /// </summary>
     public Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work) => _gate.RunAsync(() => work(Context));
 

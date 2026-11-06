@@ -49,9 +49,9 @@ internal sealed class InProcessBackend : IAsyncDisposable
     public TestTokenService Tokens => Context.GetRequiredService<TestTokenService>();
 
     /// <summary>
-    /// Runs test-side work against the harness between requests. Its in-memory SQLite databases each live on one
-    /// connection, which is not thread-safe, so the host answers one request at a time and a test's reads take the
-    /// same turn: the page may still be refetching after it confirms a save.
+    /// Runs test-side work against the harness between requests. The host answers one request at a time and a test's
+    /// reads take the same turn (<see cref="RequestGate"/>), so a test reads after the page's requests, not between
+    /// them: the page may still be refetching after it confirms a save.
     /// </summary>
     public Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work) => _gate.RunAsync(() => work(Context));
 

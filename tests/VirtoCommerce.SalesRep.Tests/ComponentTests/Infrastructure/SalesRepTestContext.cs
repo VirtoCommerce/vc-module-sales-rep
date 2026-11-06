@@ -79,7 +79,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 /// <item>The currencies are USD (primary) and EUR at 1.25 (1 EUR = 1.25 USD, the platform's "rate relative to the
 /// primary" convention).</item>
 /// <item>The Order.Status dictionary is the one <see cref="OrderStatuses"/> lists, as an administrator configured it.</item>
-/// <item>Each database lives on one SQLite connection, which isn't thread-safe: a test runs one call at a time.</item>
+/// <item>Each DbContext reaches its module's in-memory database through a connection of its own
+/// (<see cref="ModuleDatabases"/>), as on a database server, so the module may query on several at once.</item>
 /// </list>
 /// </remarks>
 internal sealed class SalesRepTestContext : IDisposable
@@ -640,9 +641,8 @@ internal sealed class SalesRepTestContext : IDisposable
     public async Task<IList<PushMessage>> GetPushMessagesAsync()
     {
         var criteria = AbstractTypeFactory<PushMessageSearchCriteria>.TryCreateInstance();
-        criteria.Take = int.MaxValue;
 
-        return (await GetRequiredService<IPushMessageSearchService>().SearchAsync(criteria)).Results;
+        return await GetRequiredService<IPushMessageSearchService>().SearchAllAsync(criteria);
     }
 
     /// <summary>The files the assets' blob provider holds, as blob URLs relative to its root.</summary>

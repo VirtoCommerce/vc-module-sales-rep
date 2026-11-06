@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -24,7 +25,7 @@ internal static class SeededDates
 
         foreach (var row in dated)
         {
-            db.Database.ExecuteSqlRaw(row.Sql, row.Parameters);
+            EnsureOneRow(db.Database.ExecuteSqlRaw(row.Sql, row.Parameters), row.Row);
         }
 
         return result;
@@ -38,13 +39,13 @@ internal static class SeededDates
 
         foreach (var row in dated)
         {
-            await db.Database.ExecuteSqlRawAsync(row.Sql, row.Parameters);
+            EnsureOneRow(await db.Database.ExecuteSqlRawAsync(row.Sql, row.Parameters), row.Row);
         }
 
         return result;
     }
 
-    private static List<(string Sql, object[] Parameters)> Capture(DbContext db)
+    private static List<(string Sql, object[] Parameters, string Row)> Capture(DbContext db)
     {
         return db.ChangeTracker.Entries<IAuditable>()
             .Where(x => x.State == EntityState.Added && x.Entity.CreatedDate != default)
@@ -53,10 +54,11 @@ internal static class SeededDates
     }
 
     // Built from the entity's mapping (its table, its columns), so a TPH row updates its base table.
-    private static (string Sql, object[] Parameters) ToUpdate(EntityEntry<IAuditable> entry)
+    private static (string Sql, object[] Parameters, string Row) ToUpdate(EntityEntry<IAuditable> entry)
     {
         var type = entry.Metadata;
         var key = type.FindPrimaryKey()!.Properties.Single();
+        var keyValue = entry.Property(key.Name).CurrentValue;
         var table = type.GetTableName();
 
         var sql = "UPDATE \"" + table + "\" SET \"" + type.FindProperty(nameof(IAuditable.CreatedDate))!.GetColumnName() +
@@ -67,7 +69,17 @@ internal static class SeededDates
         [
             new SqliteParameter("@created", entry.Entity.CreatedDate),
             new SqliteParameter("@modified", entry.Entity.ModifiedDate ?? entry.Entity.CreatedDate),
-            new SqliteParameter("@key", entry.Property(key.Name).CurrentValue),
-        ]);
+            new SqliteParameter("@key", keyValue),
+        ], $"{table} '{keyValue}'");
+    }
+
+    // An UPDATE that matched no row would leave the row stamped with the current time without a word, and a test that
+    // depends on the date would then pass or fail for the wrong reason.
+    private static void EnsureOneRow(int updated, string row)
+    {
+        if (updated != 1)
+        {
+            throw new InvalidOperationException($"Backdating {row} updated {updated} rows instead of one.");
+        }
     }
 }
