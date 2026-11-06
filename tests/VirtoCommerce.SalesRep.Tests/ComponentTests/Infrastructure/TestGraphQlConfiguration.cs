@@ -229,6 +229,10 @@ internal static class TestGraphQlConfiguration
         // production), so the harness must provide it too.
         services.AddSingleton<IFacetMapper, FacetMapper>();
         services.AddSingleton<IXOrderMapper, XOrderMapper>();
+
+        // X-Order's graph types (OrderLineItemType among them, since 3.1014) map through the shared IXapiMapper, which
+        // Xapi.Data's AddXCore registers in production.
+        services.AddSingleton<IXapiMapper, XapiMapper>();
         services.AddSingleton<ISalesRepMapper, SalesRepMapper>();
 
         // Field-selection → order response group, injected into the orders handler and lastOrder resolver.

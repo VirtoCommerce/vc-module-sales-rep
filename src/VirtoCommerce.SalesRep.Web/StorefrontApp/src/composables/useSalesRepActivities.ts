@@ -1,8 +1,7 @@
 import { computed, toValue } from "vue";
-import { globals, Logger } from "@vc-frontend/core";
+import { formatStatMoney, globals, Logger } from "@vc-frontend/core";
 import { SalesRepActivitiesDocument } from "../api/graphql/types";
 import { ACTIVITY_PAGE_SIZE, HUB_FETCH_POLICY } from "../constants";
-import { formatStatMoney } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { SalesRepActivityCategoryCountType, SalesRepActivityItemType } from "../types";
 import type { Ref } from "vue";

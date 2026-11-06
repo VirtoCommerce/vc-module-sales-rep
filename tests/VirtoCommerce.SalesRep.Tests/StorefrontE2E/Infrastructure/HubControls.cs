@@ -76,6 +76,9 @@ internal static class HubControls
     /// <summary>A quick action on a customer's page, by its label.</summary>
     public static ILocator QuickAction(IPage page, string label) => page.GetByRole(AriaRole.Button, new() { Name = label, Exact = true });
 
+    /// <summary>An order in a recent orders widget, which links the bare number (the customers list prefixes it with '#').</summary>
+    public static ILocator OrderLink(IPage page, string number) => page.GetByRole(AriaRole.Link, new() { Name = number, Exact = true });
+
     /// <summary>"Schedule call" on a customer's page.</summary>
     public static async Task<ILocator> ScheduleCallAsync(IPage page)
     {

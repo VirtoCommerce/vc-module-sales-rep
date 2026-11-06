@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using FluentValidation;
 using GraphQL;
 using GraphQL.Types;
 using MediatR;
@@ -26,7 +27,6 @@ using VirtoCommerce.Platform.Security.OpenIddict;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Aggregates;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Aggregates.Contact;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Aggregates.Organization;
-using VirtoCommerce.ProfileExperienceApiModule.Data.Schemas;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Services;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using VirtoCommerce.StoreModule.Core.Services;
@@ -39,6 +39,15 @@ using VirtoCommerce.Xapi.Core.Subscriptions;
 using VirtoCommerce.Xapi.Data.Queries;
 using VirtoCommerce.Xapi.Data.Services;
 using VirtoCommerce.XCart.Core.Services;
+using VirtoCommerce.XFrontend.Core.Layouts.Commands;
+using VirtoCommerce.XFrontend.Core.Layouts.Models;
+using VirtoCommerce.XFrontend.Core.Layouts.Queries;
+using VirtoCommerce.XFrontend.Core.Layouts.Schemas;
+using VirtoCommerce.XFrontend.Core.Layouts.Services;
+using VirtoCommerce.XFrontend.Data.Layouts.Commands;
+using VirtoCommerce.XFrontend.Data.Layouts.Queries;
+using VirtoCommerce.XFrontend.Data.Layouts.Services;
+using VirtoCommerce.XFrontend.Data.Layouts.Validation;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 using ProfileUserType = VirtoCommerce.ProfileExperienceApiModule.Data.Schemas.UserType;
 using StoreModuleConstants = VirtoCommerce.StoreModule.Core.ModuleConstants;
@@ -107,8 +116,8 @@ internal static class StorefrontServices
         services.AddTransient<IFavoriteAddressService, FavoriteAddressService>();
         services.AddTransient<IMemberAddressService, MemberAddressService>();
 
-        // Constructor dependencies of the real cart graph types (cart resolves to null, but the type must build).
-        services.AddSingleton<IXapiMapper, XapiMapper>();
+        // Constructor dependency of the real cart graph types (cart resolves to null, but the type must build); their
+        // IXapiMapper comes with the harness.
         services.AddSingleton<ICartAvailMethodsService, NoCartAvailMethodsService>();
 
         // The shell's remaining root fields: schema-complete (real response types, so the storefront's selection sets
@@ -120,7 +129,16 @@ internal static class StorefrontServices
         services.AddTransient<SearchHistoryResultType>();
 
         services.AddGraphQL(builder => builder.AddGraphTypes(typeof(ProfileUserType).Assembly));
-        services.AddTransient<OrganizationType, StorefrontOrganizationType>();
+
+        // layout / saveLayout: X-Frontend's REAL builders, handlers and service, which keep the layouts in the
+        // harness's customer preferences. The hub's dashboard and customer profile read and save theirs through them.
+        services.AddSingleton<ISchemaBuilder, LayoutQueryBuilder>();
+        services.AddSingleton<ISchemaBuilder, SaveLayoutCommandBuilder>();
+        services.AddTransient<IRequestHandler<LayoutQuery, Layout>, LayoutQueryHandler>();
+        services.AddTransient<IRequestHandler<SaveLayoutCommand, Layout>, SaveLayoutCommandHandler>();
+        services.AddTransient<ILayoutService, LayoutService>();
+        services.AddTransient<AbstractValidator<SaveLayoutCommand>, SaveLayoutCommandValidator>();
+        services.AddGraphQL(builder => builder.AddGraphTypes(typeof(LayoutType).Assembly));
 
         // One schema over every registered builder (sales-rep + store + shell): the storefront sends ALL operations
         // to /graphql; the scoped /graphql/sales-rep endpoint only serves codegen.

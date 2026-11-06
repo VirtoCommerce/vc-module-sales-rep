@@ -245,13 +245,13 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
-import { downloadFile, getFileSize, useRouteQueryParam } from "@vc-frontend/core";
+import { downloadFile, formatStatCount, getFileSize, useRouteQueryParam } from "@vc-frontend/core";
 import SalesRepRuleChips from "../components/sales-rep-rule-chips.vue";
 import { useSalesRepDocument } from "../composables/useSalesRepDocument";
 import { useSalesRepDocuments } from "../composables/useSalesRepDocuments";
 import { DOCUMENTS_PAGE_SIZE } from "../constants";
 import { isInlineRenderable, openAuthorizedFile } from "../files";
-import { documentIcon, documentMeta, documentTypeLabel, formatStatCount } from "../utils";
+import { documentIcon, documentMeta, documentTypeLabel } from "../utils";
 import type { SalesRepDocumentType, SalesRepRuleType } from "../types";
 
 const { t, d, n } = useI18n();
