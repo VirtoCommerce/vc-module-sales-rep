@@ -9,46 +9,41 @@ using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using GraphQL;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using OpenIddict.Abstractions;
 using VirtoCommerce.AssetsModule.Core.Assets;
-using VirtoCommerce.AssetsModule.Core.Events;
 using VirtoCommerce.AssetsModule.Data.Repositories;
-using VirtoCommerce.CartModule.Core.Events;
 using VirtoCommerce.CartModule.Data.Repositories;
 using VirtoCommerce.CatalogModule.Data.Model;
 using VirtoCommerce.CatalogModule.Data.Repositories;
+using VirtoCommerce.CoreModule.Core.Currency;
 using VirtoCommerce.CustomerModule.Core.Model;
 using VirtoCommerce.CustomerModule.Core.Services;
-using VirtoCommerce.CustomerModule.Data.Handlers;
 using VirtoCommerce.CustomerModule.Data.Repositories;
-using VirtoCommerce.CustomerModule.Data.Search;
 using VirtoCommerce.CustomerModule.Data.Search.Indexing;
 using VirtoCommerce.FileExperienceApi.Core.Models;
 using VirtoCommerce.FileExperienceApi.Core.Services;
-using VirtoCommerce.MarketingModule.Data.Repositories;
-using VirtoCommerce.OrdersModule.Core.Events;
+using VirtoCommerce.NotificationsModule.Core.Model;
+using VirtoCommerce.NotificationsModule.Core.Model.Search;
+using VirtoCommerce.NotificationsModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.OrdersModule.Data.Search.Indexed;
 using VirtoCommerce.Platform.Caching;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.Events;
-using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
-using VirtoCommerce.Platform.Core.Security.Events;
 using VirtoCommerce.Platform.Core.Settings;
-using VirtoCommerce.Platform.Modules;
 using VirtoCommerce.Platform.Security.Caching;
 using VirtoCommerce.Platform.Security.Repositories;
+using VirtoCommerce.PushMessages.Core.Models;
+using VirtoCommerce.PushMessages.Core.Services;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
-using VirtoCommerce.SalesRep.Data.Handlers;
 using VirtoCommerce.SalesRep.Data.Models;
 using VirtoCommerce.SalesRep.Data.Repositories;
 using VirtoCommerce.SalesRep.ExperienceApi;
@@ -56,203 +51,174 @@ using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
+using VirtoCommerce.StoreModule.Core.Model;
+using VirtoCommerce.StoreModule.Core.Services;
 using VirtoCommerce.TaskManagement.Data.Repositories;
 using VirtoCommerce.Xapi.Core.Infrastructure;
+using CustomerSettings = VirtoCommerce.CustomerModule.Core.ModuleConstants.Settings.General;
+using OrderSettings = VirtoCommerce.OrdersModule.Core.ModuleConstants.Settings.General;
 using OrdersModuleConstants = VirtoCommerce.OrdersModule.Core.ModuleConstants;
 using SalesRepModuleConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
 /// <summary>
-/// Isolated per-test harness: real SalesRep + platform-security + customer + order services over in-memory
-/// SQLite databases, wired exactly as the modules wire them (registrations ported from their Module.Initialize).
-/// Tests act through the real <see cref="SalesRepController"/> (REST) and the real Sales Rep GraphQL schema
-/// (X-API) and assert against the databases / results.
+/// Isolated per-test harness: the module as the platform runs it, its own <c>Module.Initialize</c> and
+/// <c>Module.PostInitialize</c> included, among the real platform and modules around it (<see cref="PlatformModules"/>:
+/// settings, accounts, stores, currencies, contacts and organizations, the catalog, orders, carts, marketing, assets,
+/// notifications, push messages, task management, X-API, X-Catalog, X-Cart, X-Order), every database an in-memory
+/// SQLite one and the search index Lucene's in RAM. Tests seed through those modules' services as an administrator
+/// would, act through the module's REST controller and its GraphQL schema executed in-process, and assert on the
+/// results, the rows, the messages the modules saved and the SQL they ran.
 /// </summary>
+/// <remarks>
+/// <list type="bullet">
+/// <item>The stores <see cref="DefaultStoreId"/> and <see cref="OtherStoreId"/> exist, in USD and EUR (EUR their
+/// default, ≠ the USD primary, so a store default visibly wins over the primary fallback), en-US and de-DE, on the
+/// catalog <see cref="TestCatalogId"/>, with every store-level setting at its default until a test saves one.</item>
+/// <item>The currencies are USD (primary) and EUR at 1.25 (1 EUR = 1.25 USD, the platform's "rate relative to the
+/// primary" convention).</item>
+/// <item>The Order.Status dictionary is the one <see cref="OrderStatuses"/> lists, as an administrator configured it.</item>
+/// <item>Each DbContext reaches its module's in-memory database through a connection of its own
+/// (<see cref="ModuleDatabases"/>), as on a database server, so the module may query on several at once.</item>
+/// </list>
+/// </remarks>
 internal sealed class SalesRepTestContext : IDisposable
 {
-    /// <summary>Catalog id every harness store reports; the seeded Top Sellers categories live under it.</summary>
+    /// <summary>Catalog id every harness store has; the seeded Top Sellers categories live under it.</summary>
     public const string TestCatalogId = "test-catalog";
 
-    private readonly SqliteConnection _securityConnection;
-    private readonly SqliteConnection _customerConnection;
-    private readonly SqliteConnection _orderConnection;
-    private readonly SqliteConnection _cartConnection;
-    private readonly SqliteConnection _catalogConnection;
-    private readonly SqliteConnection _assetsConnection;
-    private readonly SqliteConnection _salesRepConnection;
-    private readonly SqliteConnection _taskConnection;
-    private readonly SqliteConnection _marketingConnection;
-    private readonly IServiceProvider _provider;
-    // False when a host (the storefront E2E Kestrel app) built and owns the provider; it disposes it then.
-    private readonly bool _ownsProvider;
-    private readonly DbContextOptions<TaskManagementDbContext> _taskOptions;
-    private readonly DbContextOptions<SecurityDbContext> _securityOptions;
-    private readonly DbContextOptions<CustomerDbContext> _customerOptions;
-    private readonly DbContextOptions<OrderDbContext> _orderOptions;
-    private readonly DbContextOptions<CartDbContext> _cartOptions;
-    private readonly DbContextOptions<CatalogDbContext> _catalogOptions;
-    private readonly DbContextOptions<AssetsDbContext> _assetsOptions;
-    private readonly DbContextOptions<SalesRepDbContext> _salesRepOptions;
+    /// <summary>The store a rep is created in by default: a real rep account carries a store.</summary>
+    public const string DefaultStoreId = "B2B-store";
 
-    private SalesRepTestContext(
-        SqliteConnection securityConnection,
-        SqliteConnection customerConnection,
-        SqliteConnection orderConnection,
-        SqliteConnection cartConnection,
-        SqliteConnection catalogConnection,
-        SqliteConnection assetsConnection,
-        SqliteConnection salesRepConnection,
-        SqliteConnection taskConnection,
-        SqliteConnection marketingConnection,
-        IServiceProvider provider,
-        bool ownsProvider,
-        DbContextOptions<TaskManagementDbContext> taskOptions,
-        DbContextOptions<SecurityDbContext> securityOptions,
-        DbContextOptions<CustomerDbContext> customerOptions,
-        DbContextOptions<OrderDbContext> orderOptions,
-        DbContextOptions<CartDbContext> cartOptions,
-        DbContextOptions<CatalogDbContext> catalogOptions,
-        DbContextOptions<AssetsDbContext> assetsOptions,
-        DbContextOptions<SalesRepDbContext> salesRepOptions)
+    /// <summary>A second store, for the tests about a store other than the rep's.</summary>
+    public const string OtherStoreId = "other-store";
+
+    /// <summary>The order statuses the store's Order.Status dictionary lists, in its order.</summary>
+    public static readonly string[] OrderStatuses = ["New", "Processing", "Completed", "Cancelled", "Failed"];
+
+    private readonly IServiceProvider _provider;
+    // False when a host (an E2E Kestrel app) built and owns the provider; it disposes it then.
+    private readonly bool _ownsProvider;
+    private readonly string _assetsRootPath;
+
+    private SalesRepTestContext(IServiceProvider provider, bool ownsProvider, string assetsRootPath)
     {
-        _securityConnection = securityConnection;
-        _customerConnection = customerConnection;
-        _orderConnection = orderConnection;
-        _cartConnection = cartConnection;
-        _catalogConnection = catalogConnection;
-        _assetsConnection = assetsConnection;
-        _salesRepConnection = salesRepConnection;
-        _taskConnection = taskConnection;
-        _marketingConnection = marketingConnection;
         _provider = provider;
         _ownsProvider = ownsProvider;
-        _taskOptions = taskOptions;
-        _securityOptions = securityOptions;
-        _customerOptions = customerOptions;
-        _orderOptions = orderOptions;
-        _cartOptions = cartOptions;
-        _catalogOptions = catalogOptions;
-        _assetsOptions = assetsOptions;
-        _salesRepOptions = salesRepOptions;
+        _assetsRootPath = assetsRootPath;
     }
 
+    /// <summary>
+    /// What the platform's shipped appsettings.json sets that the hosted code reads; every other option keeps its
+    /// default: the store X-API's store query falls back to for a domain no store claims, the GraphQL playground (and
+    /// with it schema introspection), the authentication types GraphQL ignores, and the order full-text search, which
+    /// the module's order lists read through. The platform's country lists, which it ships in its own content root, are
+    /// the copies in <c>Platform/localization</c>. And what the module's README tells a deployment to add: the
+    /// documents library's upload scope, as its example declares it.
+    /// </summary>
+    public static IReadOnlyDictionary<string, string> ConfigurationValues { get; } = new Dictionary<string, string>
+    {
+        ["VirtoCommerce:Stores:DefaultStore"] = DefaultStoreId,
+        ["VirtoCommerce:GraphQLPlayground:Enable"] = "true",
+        ["VirtoCommerce:GraphQL:ForbiddenAuthenticationTypes:0"] = "Identity.Application",
+        ["VirtoCommerce:CountriesFilePath"] = Path.Combine(AppContext.BaseDirectory, "Platform", "localization", "common", "countries.json"),
+        ["VirtoCommerce:CountryRegionsFilePath"] = Path.Combine(AppContext.BaseDirectory, "Platform", "localization", "common", "countriesRegions.json"),
+        ["Search:OrderFullTextSearchEnabled"] = "true",
+        ["FileUpload:Scopes:0:Scope"] = SalesRepModuleConstants.DocumentsScope,
+        ["FileUpload:Scopes:0:MaxFileSize"] = "52428800",
+        ["FileUpload:Scopes:0:AllowAnonymousUpload"] = "false",
+        ["FileUpload:Scopes:0:AllowedExtensions:0"] = ".pdf",
+        ["FileUpload:Scopes:0:AllowedExtensions:1"] = ".doc",
+        ["FileUpload:Scopes:0:AllowedExtensions:2"] = ".docx",
+        ["FileUpload:Scopes:0:AllowedExtensions:3"] = ".xls",
+        ["FileUpload:Scopes:0:AllowedExtensions:4"] = ".xlsx",
+        ["FileUpload:Scopes:0:AllowedExtensions:5"] = ".ppt",
+        ["FileUpload:Scopes:0:AllowedExtensions:6"] = ".pptx",
+        ["FileUpload:Scopes:0:AllowedExtensions:7"] = ".txt",
+        ["FileUpload:Scopes:0:AllowedExtensions:8"] = ".csv",
+        ["FileUpload:Scopes:0:AllowedExtensions:9"] = ".zip",
+        ["FileUpload:Scopes:0:AllowedExtensions:10"] = ".png",
+        ["FileUpload:Scopes:0:AllowedExtensions:11"] = ".jpg",
+        ["FileUpload:Scopes:0:AllowedExtensions:12"] = ".jpeg",
+        ["FileUpload:Scopes:0:AllowedExtensions:13"] = ".gif",
+        ["FileUpload:Scopes:0:AllowedExtensions:14"] = ".webp",
+    };
+
     /// <param name="configureOverrides">
-    /// Optional last-wins registrations applied after the standard slices — a test uses it to shadow a default service
-    /// with a project-override double (e.g. <see cref="OrderFilterRuleOverride.WithCompositeInactiveStatus"/> to
-    /// exercise composite order-status resolution). Omit for the default (real-service) harness.
+    /// Registrations added after the platform's and the module's: a project's override of one of the module's services
+    /// (e.g. <see cref="OrderFilterRuleOverride.WithCompositeInactiveStatus"/>), the stand-in for Google's API
+    /// (<see cref="TestAnalytics.Register"/>), or an E2E host's shell. The last registration wins.
     /// </param>
-    /// <param name="withMarketing">Adds vc-module-marketing for salesRepCoupons; off by default, only the coupon tests need it.</param>
-    /// <param name="providerFactory">
-    /// Optional: builds the service provider from the fully configured collection instead of the plain
-    /// <c>BuildServiceProvider()</c>. The storefront E2E host passes a factory that copies the registrations into a
-    /// Kestrel <c>WebApplication</c>, so the very same services answer real HTTP from the real storefront.
-    /// The caller then owns (and disposes) that provider.
+    /// <param name="withTaskManagement">Whether VirtoCommerce.TaskManagement is installed; a deployment may leave it out.</param>
+    /// <param name="beforeModuleStart">
+    /// What the platform's database already held when the module started (an earlier version's roles, say): run after
+    /// the platform and the other modules started and before the module's own PostInitialize, which seeds around it.
+    /// </param>
+    /// <param name="buildHost">
+    /// Builds the host from the configured collection instead of a bare application builder over it. The E2E hosts pass
+    /// one that copies the registrations into a Kestrel <c>WebApplication</c> with its request pipeline so far, so the
+    /// startup below adds the GraphQL endpoints to it and the same services answer real HTTP; the caller then owns that host.
     /// </param>
     public static SalesRepTestContext Create(
         Action<IServiceCollection> configureOverrides = null,
         bool withTaskManagement = true,
-        bool withMarketing = false,
-        Func<IServiceCollection, IServiceProvider> providerFactory = null)
+        Func<SalesRepTestContext, Task> beforeModuleStart = null,
+        Func<IServiceCollection, IApplicationBuilder> buildHost = null)
     {
-        // The platform resolves the current user id from these claim types; they are configured at platform
-        // startup, so set them here for the GraphQL current-user resolution to work in tests. "sub" first, as
-        // the platform's OpenIddict tokens carry it, so a production-shaped JWT (storefront E2E) resolves too.
-        ClaimsPrincipalExtensions.UserIdClaimTypes = [OpenIddictConstants.Claims.Subject, ClaimTypes.NameIdentifier];
-
-        var securityConnection = SqliteTestDbContextFactory.CreateConnection();
-        var customerConnection = SqliteTestDbContextFactory.CreateConnection();
-        var orderConnection = SqliteTestDbContextFactory.CreateConnection();
-        var cartConnection = SqliteTestDbContextFactory.CreateConnection();
-        var catalogConnection = SqliteTestDbContextFactory.CreateConnection();
-        var assetsConnection = SqliteTestDbContextFactory.CreateConnection();
-        var salesRepConnection = SqliteTestDbContextFactory.CreateConnection();
-        var securityOptions = SqliteTestDbContextFactory.CreateOptions<SecurityDbContext>(
-            securityConnection,
-            builder => builder.ReplaceService<IModelCustomizer, LockoutEndSqliteModelCustomizer>());
-        var customerOptions = SqliteTestDbContextFactory.CreateOptions<CustomerDbContext>(customerConnection);
-        var orderOptions = SqliteTestDbContextFactory.CreateOptions<OrderDbContext>(orderConnection);
-        var cartOptions = SqliteTestDbContextFactory.CreateOptions<CartDbContext>(cartConnection);
-        var catalogOptions = SqliteTestDbContextFactory.CreateOptions<CatalogDbContext>(catalogConnection);
-        var assetsOptions = SqliteTestDbContextFactory.CreateOptions<AssetsDbContext>(assetsConnection);
-        var salesRepOptions = SqliteTestDbContextFactory.CreateOptions<SalesRepDbContext>(salesRepConnection);
-        var taskConnection = withTaskManagement ? SqliteTestDbContextFactory.CreateConnection() : null;
-        var marketingConnection = withMarketing ? SqliteTestDbContextFactory.CreateConnection() : null;
-        DbContextOptions<TaskManagementDbContext> taskOptions = null;
-
-        var services = new ServiceCollection()
-            .AddSecuritySlice(securityOptions)
-            .AddCustomerSlice(customerOptions)
-            .AddAssetsSlice(assetsOptions)
-            .AddSalesRepSlice(salesRepOptions)
-            .AddOrderSlice(orderOptions)
-            .AddCartSlice(cartOptions)
-            .AddCatalogSlice(catalogOptions)
-            .AddSalesRepGraphQl();
-
-        // Platform.Web's Startup registers this open generic; the harness does not boot it.
-        services.Add(ServiceDescriptor.Singleton(typeof(IOptionalDependency<>), typeof(OptionalDependencyManager<>)));
-
-        if (withTaskManagement)
-        {
-            taskOptions = SqliteTestDbContextFactory.CreateOptions<TaskManagementDbContext>(
-                taskConnection,
-                builder => builder.ReplaceService<IModelCustomizer, WorkTaskNumberSqliteModelCustomizer>());
-            services.AddTaskManagementSlice(taskOptions);
-        }
-
-        if (withMarketing)
-        {
-            services.AddMarketingSlice(SqliteTestDbContextFactory.CreateOptions<MarketingDbContext>(marketingConnection));
-        }
-
-        // Per-test last-wins overrides (e.g. a composite order-status resolver), applied after the defaults.
-        configureOverrides?.Invoke(services);
-
-        var ownsProvider = providerFactory == null;
-        var provider = ownsProvider ? services.BuildServiceProvider() : providerFactory(services);
-
-        // Subscribe the customer delete-cascade handler to the in-process bus — mirrors the customer module's
-        // appBuilder.RegisterEventHandler<UserChangedEvent, DeleteOrganizationMembershipUserChangedEventHandler>().
-        provider.GetRequiredService<IEventHandlerRegistrar>()
-            .RegisterEventHandler<UserChangedEvent>(provider.GetRequiredService<DeleteOrganizationMembershipUserChangedEventHandler>());
-
-        // Subscribe the documents sidecar-cleanup handler — mirrors the module's
-        // appBuilder.RegisterEventHandler<AssetEntryChangedEvent, DeleteDocumentMetadataAssetEntryChangedEventHandler>().
-        provider.GetRequiredService<IEventHandlerRegistrar>()
-            .RegisterEventHandler<AssetEntryChangedEvent>(provider.GetRequiredService<DeleteDocumentMetadataAssetEntryChangedEventHandler>());
-
-        // Subscribe the statistics cache invalidation handlers — mirrors the module's
-        // appBuilder.RegisterEventHandler<CartChangedEvent, ...> / <OrderChangedEvent, ...> (VCST-5755).
-        provider.GetRequiredService<IEventHandlerRegistrar>()
-            .RegisterEventHandler<CartChangedEvent>(provider.GetRequiredService<SalesRepStatisticsCartChangedEventHandler>());
-        provider.GetRequiredService<IEventHandlerRegistrar>()
-            .RegisterEventHandler<OrderChangedEvent>(provider.GetRequiredService<SalesRepStatisticsOrderChangedEventHandler>());
-
-        // Register the Member search-request builder (done in the customer module's PostInitialize) so keyword
-        // member searches — which route to the index and resolve a builder by document type — work in tests.
-        provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
-            .Register(KnownDocumentTypes.Member, provider.GetRequiredService<MemberSearchRequestBuilder>);
-
-        // Same for orders (the orders module's PostInitialize): salesRepCustomerOrders resolves its request builder
-        // by document type.
-        provider.GetRequiredService<ISearchRequestBuilderRegistrar>()
-            .Register(OrdersModuleConstants.OrderIndexDocumentType, provider.GetRequiredService<CustomerOrderSearchRequestBuilder>);
-
-        return new SalesRepTestContext(
-            securityConnection, customerConnection, orderConnection, cartConnection, catalogConnection,
-            assetsConnection, salesRepConnection, taskConnection, marketingConnection,
-            provider, ownsProvider, taskOptions, securityOptions, customerOptions, orderOptions, cartOptions, catalogOptions,
-            assetsOptions, salesRepOptions);
+        // The platform blocks on its startup the same way (and the module's PostInitialize does): a test calls this
+        // without a synchronization context.
+        return CreateAsync(configureOverrides, withTaskManagement, beforeModuleStart, buildHost).GetAwaiter().GetResult();
     }
 
-    /// <summary>The real REST controller resolved from DI (the REST tests' entry point).</summary>
-    public SalesRepController Controller => _provider.GetRequiredService<SalesRepController>();
+    private static async Task<SalesRepTestContext> CreateAsync(
+        Action<IServiceCollection> configureOverrides,
+        bool withTaskManagement,
+        Func<SalesRepTestContext, Task> beforeModuleStart,
+        Func<IServiceCollection, IApplicationBuilder> buildHost)
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(ConfigurationValues).Build();
+        var hosted = new HostedModules(
+            TaskManagement: withTaskManagement,
+            AssetsRootPath: Path.Combine(Path.GetTempPath(), "VirtoCommerce.SalesRep.Tests", "assets", Guid.NewGuid().ToString("N")));
+        var module = TestedModule.Create(configuration);
+
+        var services = new ServiceCollection().AddPlatformModules(configuration, hosted);
+        module.Initialize(services);
+        // The module's database on SQLite, in place of the one its Initialize builds from the connection string.
+        services.AddModuleDatabase<SalesRepDbContext>();
+        configureOverrides?.Invoke(services);
+
+        var ownsProvider = buildHost == null;
+        var app = ownsProvider
+            ? new ApplicationBuilder(services.AddSingleton<IConfiguration>(configuration).BuildServiceProvider())
+            : buildHost(services);
+
+        var context = new SalesRepTestContext(app.ApplicationServices, ownsProvider, hosted.AssetsRootPath);
+
+        await PlatformModules.PostInitializeAsync(app, hosted);
+        if (beforeModuleStart != null)
+        {
+            await beforeModuleStart(context);
+        }
+
+        module.PostInitialize(app);
+        await PlatformModules.StartAsync(app.ApplicationServices);
+        await context.SeedAsync();
+
+        return context;
+    }
+
+    /// <summary>The real REST controller, created per access from the container as MVC's activator creates it.</summary>
+    public SalesRepController Controller => ActivatorUtilities.CreateInstance<SalesRepController>(_provider);
 
     public T GetRequiredService<T>() where T : notnull => _provider.GetRequiredService<T>();
 
     /// <summary>The root provider (the Kestrel app's when a host built it).</summary>
     public IServiceProvider Services => _provider;
+
+    /// <summary>The SQL the modules' databases ran; clear it before the action a test measures.</summary>
+    public SqlCommandLog Sql => GetRequiredService<SqlCommandLog>();
 
     /// <summary>
     /// User id of the most recently created Sales Rep. <c>SeedOrder</c> defaults a seeded order's CustomerId to this,
@@ -261,29 +227,56 @@ internal sealed class SalesRepTestContext : IDisposable
     /// </summary>
     public string LastCreatedRepUserId { get; private set; }
 
-    /// <summary>Overrides one module setting for this context; left unset, a setting reports its descriptor default.</summary>
-    public void SetSetting(SettingDescriptor descriptor, object value)
-        => _provider.GetRequiredService<TestServicesConfiguration.TestSettingsManager>()
-            .Values[descriptor.Name] = value;
+    /// <summary>Saves a module-level setting, as an administrator does in the platform's settings.</summary>
+    public Task SetSettingAsync(SettingDescriptor descriptor, object value)
+        => GetRequiredService<ISettingsManager>().SetValueAsync(descriptor.Name, value);
 
     /// <summary>
-    /// Configure the <c>Customer.ContactDefaultStatus</c> setting the harness's <see cref="IStoreService"/> double
-    /// reports for a store, so a rep created in that store inherits it as its member status (mirrors the real
-    /// store setting, e.g. "Approved" for B2B-store).
+    /// Saves the store's <c>Customer.ContactDefaultStatus</c>, which a rep created in that store inherits as their
+    /// member status (e.g. "Approved" for B2B-store).
     /// </summary>
-    public void SetStoreContactDefaultStatus(string storeId, string status)
-        => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
-            .ContactDefaultStatusByStore[storeId] = status;
+    public Task SetStoreContactDefaultStatusAsync(string storeId, string status)
+        => SaveStoreAsync(storeId, store => store.Settings.Single(x => x.Name == CustomerSettings.ContactDefaultStatus.Name).Value = status);
 
-    /// <summary>Configure a store's sender From address (so the email channel resolves it and passes its store scoping).</summary>
-    public void SetStoreEmail(string storeId, string email)
-        => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
-            .EmailByStore[storeId] = email;
+    /// <summary>Saves a store's sender address, which the email channel sends from.</summary>
+    public Task SetStoreEmailAsync(string storeId, string email)
+        => SaveStoreAsync(storeId, store => store.Email = email);
 
-    /// <summary>Configure a store's trusted groups (mirrors Store.TrustedGroups for the email store-access check).</summary>
-    public void SetStoreTrustedGroups(string storeId, params string[] groups)
-        => _provider.GetRequiredService<TestServicesConfiguration.TestStoreService>()
-            .TrustedGroupsByStore[storeId] = [.. groups];
+    /// <summary>Saves the stores a store trusts (its TrustedGroups): a rep of one of them may act for it.</summary>
+    public Task SetStoreTrustedGroupsAsync(string storeId, params string[] groups)
+        => SaveStoreAsync(storeId, store => store.TrustedGroups = [.. groups]);
+
+    /// <summary>Changes a store as an administrator does on the store's page: the store is loaded, changed and saved.</summary>
+    public async Task SaveStoreAsync(string storeId, Action<Store> change)
+    {
+        var stores = GetRequiredService<IStoreService>();
+        var store = await stores.GetByIdAsync(storeId) ?? throw new InvalidOperationException($"No store '{storeId}'.");
+        change(store);
+
+        await stores.SaveChangesAsync([store]);
+    }
+
+    /// <summary>
+    /// Translates order statuses in the Order.Status dictionary, as an administrator does in its editor, which saves the
+    /// whole dictionary: every status, each (status, language, label) given becoming the status's label in that language.
+    /// </summary>
+    public async Task TranslateOrderStatusesAsync(params (string Status, string LanguageCode, string Label)[] translations)
+    {
+        var statuses = await GetRequiredService<ISettingsManager>().GetObjectSettingAsync(OrderSettings.OrderStatus.Name);
+        var items = statuses.AllowedValues
+            .Select(x => x.ToString())
+            .Select(status => new DictionaryItem
+            {
+                Alias = status,
+                LocalizedValues = translations
+                    .Where(x => x.Status == status)
+                    .Select(x => new LocalizedValue { LanguageCode = x.LanguageCode, Value = x.Label })
+                    .ToList(),
+            })
+            .ToList();
+
+        await GetRequiredService<ILocalizableSettingService>().SaveAsync(OrderSettings.OrderStatus.Name, items);
+    }
 
     /// <summary>
     /// Prime the platform's <see cref="UserManager{T}"/> memory cache for a user (as any read that goes
@@ -311,22 +304,8 @@ internal sealed class SalesRepTestContext : IDisposable
     /// Create an additional role that grants <c>sales-rep:access</c> (as an admin would when adding a custom
     /// Sales Rep role in the Security admin), so switching a rep between two granting roles can be exercised.
     /// </summary>
-    public async Task<Role> CreateGrantingRoleAsync(string name)
-    {
-        using var roleManager = _provider.GetRequiredService<Func<RoleManager<Role>>>()();
-        var role = AbstractTypeFactory<Role>.TryCreateInstance();
-        role.Id = Guid.NewGuid().ToString("N");
-        role.Name = name;
-        role.Permissions = [new Permission { Name = SalesRep.Core.ModuleConstants.Security.Permissions.Access }];
-
-        var result = await roleManager.CreateAsync(role);
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
-
-        return role;
-    }
+    public Task<Role> CreateGrantingRoleAsync(string name)
+        => CreateRoleAsync(name, SalesRepModuleConstants.Security.Permissions.Access);
 
     /// <summary>
     /// Create a role with an arbitrary permission set (as an admin building custom roles in the Security UI
@@ -340,11 +319,7 @@ internal sealed class SalesRepTestContext : IDisposable
         role.Name = name;
         role.Permissions = [.. permissions.Select(x => new Permission { Name = x })];
 
-        var result = await roleManager.CreateAsync(role);
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
+        EnsureSucceeded(await roleManager.CreateAsync(role));
 
         return role;
     }
@@ -353,22 +328,7 @@ internal sealed class SalesRepTestContext : IDisposable
     /// Create a role that does NOT grant <c>sales-rep:access</c> (e.g. a buyer/manager role an org member could
     /// hold), so behaviors that must preserve unrelated roles/memberships can be exercised.
     /// </summary>
-    public async Task<Role> CreateNonGrantingRoleAsync(string name)
-    {
-        using var roleManager = _provider.GetRequiredService<Func<RoleManager<Role>>>()();
-        var role = AbstractTypeFactory<Role>.TryCreateInstance();
-        role.Id = Guid.NewGuid().ToString("N");
-        role.Name = name;
-        role.Permissions = [new Permission { Name = "customer:read" }];
-
-        var result = await roleManager.CreateAsync(role);
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
-
-        return role;
-    }
+    public Task<Role> CreateNonGrantingRoleAsync(string name) => CreateRoleAsync(name, "customer:read");
 
     /// <summary>
     /// Create a bare login account linked to an existing contact member, with NO global roles — the state of a
@@ -383,11 +343,7 @@ internal sealed class SalesRepTestContext : IDisposable
         user.MemberId = memberId;
         user.UserType = "Customer";
 
-        var result = await userManager.CreateAsync(user, "P@ssw0rd123!");
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
+        EnsureSucceeded(await userManager.CreateAsync(user, "P@ssw0rd123!"));
 
         return user.Id;
     }
@@ -413,11 +369,7 @@ internal sealed class SalesRepTestContext : IDisposable
         user.Email = user.UserName;
         user.UserType = "Customer";
 
-        var result = await userManager.CreateAsync(user, "P@ssw0rd123!");
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
+        EnsureSucceeded(await userManager.CreateAsync(user, "P@ssw0rd123!"));
     }
 
     /// <summary>
@@ -432,11 +384,7 @@ internal sealed class SalesRepTestContext : IDisposable
         var user = (await userManager.FindByIdAsync(userId)).CloneTyped();
         user.IsAdministrator = true;
 
-        var result = await userManager.UpdateAsync(user);
-        if (!result.Succeeded)
-        {
-            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
-        }
+        EnsureSucceeded(await userManager.UpdateAsync(user));
     }
 
     /// <summary>Delete the login account, leaving any member and membership rows behind.</summary>
@@ -478,7 +426,7 @@ internal sealed class SalesRepTestContext : IDisposable
     /// Backdate the rep's assignment date (the membership's creation date) for the given organization. The dashboard
     /// "new customers" counter counts organizations first assigned within a window, so a test controls the assignment
     /// date rather than relying on when <see cref="CreateRepAsync"/> happened to run. Uses a direct UPDATE so no audit
-    /// interceptor re-stamps the date.
+    /// trigger re-stamps the date.
     /// </summary>
     public async Task SetMembershipAssignmentDateAsync(string userId, string organizationId, DateTime assignedDate)
     {
@@ -500,9 +448,6 @@ internal sealed class SalesRepTestContext : IDisposable
     /// </summary>
     public Task<SalesRepDetails> CreateRepAsync(string firstName, string lastName, string email, params string[] organizationIds)
         => CreateRepInStoreAsync(firstName, lastName, email, DefaultStoreId, organizationIds);
-
-    // A real rep account carries a store; CreateRepInStoreAsync(storeId: null) asks for one that does not.
-    public const string DefaultStoreId = "B2B-store";
 
     /// <summary>As <see cref="CreateRepAsync"/>, but binds the rep's account to a specific store.</summary>
     public async Task<SalesRepDetails> CreateRepInStoreAsync(string firstName, string lastName, string email, string storeId, params string[] organizationIds)
@@ -634,21 +579,40 @@ internal sealed class SalesRepTestContext : IDisposable
         return ExecuteGraphQlInternalAsync(query, new ClaimsPrincipal(new ClaimsIdentity()));
     }
 
+    // The module's own schema (/graphql/sales-rep), built from its schema builders only, executed as the GraphQL
+    // middleware executes a request: in a DI scope of its own, within the HTTP request it came with (a JSON POST by the
+    // caller), which X-API's content type rule, the request cache and the audit stamps read. Serialized with X-API's own
+    // serializer, as the endpoint answers.
     private async Task<string> ExecuteGraphQlInternalAsync(string query, ClaimsPrincipal principal)
     {
-        var executer = _provider.GetRequiredService<IDocumentExecuter>();
-        var schema = _provider.GetRequiredService<ScopedSchemaFactory<XapiAssemblyMarker>>();
-        var serializer = _provider.GetRequiredService<IGraphQLTextSerializer>();
+        await using var scope = _provider.CreateAsyncScope();
 
-        var result = await executer.ExecuteAsync(options =>
+        var httpContextAccessor = _provider.GetRequiredService<IHttpContextAccessor>();
+        var httpContext = new DefaultHttpContext { RequestServices = scope.ServiceProvider, User = principal };
+        httpContext.Request.Method = HttpMethods.Post;
+        httpContext.Request.ContentType = "application/json";
+        httpContextAccessor.HttpContext = httpContext;
+
+        try
         {
-            options.Schema = schema;
-            options.Query = query;
-            options.RequestServices = _provider;
-            options.UserContext = new GraphQLUserContext(principal);
-        });
+            var executer = scope.ServiceProvider.GetRequiredService<IDocumentExecuter>();
+            var serializer = scope.ServiceProvider.GetRequiredService<IGraphQLTextSerializer>();
+            var schema = _provider.GetRequiredService<ScopedSchemaFactory<XapiAssemblyMarker>>();
 
-        return serializer.Serialize(result);
+            var result = await executer.ExecuteAsync(options =>
+            {
+                options.Schema = schema;
+                options.Query = query;
+                options.RequestServices = scope.ServiceProvider;
+                options.UserContext = new GraphQLUserContext(principal);
+            });
+
+            return serializer.Serialize(result);
+        }
+        finally
+        {
+            httpContextAccessor.HttpContext = null;
+        }
     }
 
     /// <summary>The requested field of a GraphQL response's <c>data</c> node, after asserting the response carries no errors.</summary>
@@ -660,30 +624,70 @@ internal sealed class SalesRepTestContext : IDisposable
         return root.GetProperty("data").GetProperty(field).Clone();
     }
 
+    /// <summary>
+    /// The email messages the notifications module saved (a scheduled notification is rendered and saved as a message
+    /// before it is sent; this platform has no email gateway), oldest first.
+    /// </summary>
+    public async Task<IList<EmailNotificationMessage>> GetEmailMessagesAsync()
+    {
+        var criteria = AbstractTypeFactory<NotificationMessageSearchCriteria>.TryCreateInstance();
+        criteria.Take = int.MaxValue;
+        var messages = await GetRequiredService<INotificationMessageSearchService>().SearchMessageAsync(criteria);
+
+        return messages.Results.OfType<EmailNotificationMessage>().OrderBy(x => x.CreatedDate).ToList();
+    }
+
+    /// <summary>The push messages the push messages module saved.</summary>
+    public async Task<IList<PushMessage>> GetPushMessagesAsync()
+    {
+        var criteria = AbstractTypeFactory<PushMessageSearchCriteria>.TryCreateInstance();
+
+        return await GetRequiredService<IPushMessageSearchService>().SearchAllAsync(criteria);
+    }
+
+    /// <summary>The files the assets' blob provider holds, as blob URLs relative to its root.</summary>
+    public IList<string> GetBlobUrls()
+    {
+        return Directory.Exists(_assetsRootPath)
+            ? Directory.EnumerateFiles(_assetsRootPath, "*", SearchOption.AllDirectories)
+                .Select(x => Path.GetRelativePath(_assetsRootPath, x).Replace('\\', '/'))
+                .ToList()
+            : [];
+    }
+
+    /// <summary>The assets' folder on disk, for a test that makes the file system refuse a change.</summary>
+    public string AssetsRootPath => _assetsRootPath;
+
+    /// <summary>Fresh DbContext on a module's database, for seeding and for asserting on rows (no tracking conflicts).</summary>
+    public TContext NewDbContext<TContext>() where TContext : DbContext
+        => (TContext)Activator.CreateInstance(typeof(TContext), GetRequiredService<DbContextOptions<TContext>>())!;
+
     /// <summary>Fresh DbContext on the customer DB for assertions (avoids tracking conflicts).</summary>
-    public CustomerDbContext NewCustomerDbContext() => new(_customerOptions);
+    public CustomerDbContext NewCustomerDbContext() => NewDbContext<CustomerDbContext>();
 
     /// <summary>Fresh DbContext on the security DB for assertions.</summary>
-    public SecurityDbContext NewSecurityDbContext() => new(_securityOptions);
+    public SecurityDbContext NewSecurityDbContext() => NewDbContext<SecurityDbContext>();
 
     /// <summary>Fresh DbContext on the order DB for seeding/assertions.</summary>
-    public OrderDbContext NewOrderDbContext() => new(_orderOptions);
+    public OrderDbContext NewOrderDbContext() => NewDbContext<OrderDbContext>();
 
     /// <summary>Fresh DbContext on the cart DB for seeding/assertions.</summary>
-    public CartDbContext NewCartDbContext() => new(_cartOptions);
+    public CartDbContext NewCartDbContext() => NewDbContext<CartDbContext>();
 
     /// <summary>Fresh DbContext on the catalog DB for seeding/assertions.</summary>
-    public CatalogDbContext NewCatalogDbContext() => new(_catalogOptions);
+    public CatalogDbContext NewCatalogDbContext() => NewDbContext<CatalogDbContext>();
 
     /// <summary>Fresh DbContext on the assets DB for seeding/assertions.</summary>
-    public AssetsDbContext NewAssetsDbContext() => new(_assetsOptions);
+    public AssetsDbContext NewAssetsDbContext() => NewDbContext<AssetsDbContext>();
 
     /// <summary>Fresh DbContext on the sales-rep DB (document metadata) for assertions.</summary>
-    public SalesRepDbContext NewSalesRepDbContext() => new(_salesRepOptions);
+    public SalesRepDbContext NewSalesRepDbContext() => NewDbContext<SalesRepDbContext>();
 
     /// <summary>Fresh DbContext on the task-management DB (WorkTask rows) for assertions.</summary>
     public TaskManagementDbContext NewTaskManagementDbContext()
-        => new(_taskOptions ?? throw new InvalidOperationException("The context was built without the task-management slice."));
+        => _provider.GetService<DbContextOptions<TaskManagementDbContext>>() is { } options
+            ? new TaskManagementDbContext(options)
+            : throw new InvalidOperationException("The context was built without the task-management module.");
 
     /// <summary>
     /// Backdate a document's metadata creation date (the documents default sort key) so ordering tests are
@@ -740,9 +744,9 @@ internal sealed class SalesRepTestContext : IDisposable
     }
 
     /// <summary>
-    /// Seed catalog categories (under <see cref="TestCatalogId"/>, which every harness store reports as its catalog)
-    /// so the real Top Sellers category filter has a tree to list top-level badges from and expand into a subtree.
-    /// Pass <c>parentId = null</c> for a top-level category; the catalog row is created on first call.
+    /// Seed catalog categories (under <see cref="TestCatalogId"/>, which every harness store has as its catalog) so the
+    /// real Top Sellers category filter has a tree to list top-level badges from and expand into a subtree. Pass
+    /// <c>parentId = null</c> for a top-level category; the catalog row is created on first call.
     /// </summary>
     public async Task SeedCategoriesAsync(params (string Id, string Name, string ParentId, bool IsActive)[] categories)
     {
@@ -770,30 +774,88 @@ internal sealed class SalesRepTestContext : IDisposable
             });
         }
 
-        await db.SaveChangesAsync();
+        await db.SaveChangesKeepingDatesAsync();
     }
 
     /// <summary>Unwraps the value from a controller action result (actions return <c>Ok(value)</c>).</summary>
     public static T Unwrap<T>(ActionResult<T> result)
     {
-        return result.Result is OkObjectResult ok ? (T)ok.Value : result.Value;
+        var value = result.Result is OkObjectResult ok ? (T)ok.Value : result.Value;
+        if (value is null)
+        {
+            // A failed call names its reason here instead of surfacing later as a null.
+            var answer = result.Result is ObjectResult objectResult
+                ? $"{objectResult.StatusCode}: {objectResult.Value}"
+                : result.Result?.GetType().Name ?? "no result";
+            throw new InvalidOperationException($"The controller answered without a value ({answer}).");
+        }
+
+        return value;
+    }
+
+    /// <summary>
+    /// What every test starts with, set up through the core, store and settings services as an administrator sets up a
+    /// platform: the currencies, the stores and the Order.Status dictionary.
+    /// </summary>
+    private async Task SeedAsync()
+    {
+        await GetRequiredService<ICurrencyService>().SaveChangesAsync(
+        [
+            new Currency { Code = "USD", Name = "US Dollar", Symbol = "$", ExchangeRate = 1m, IsPrimary = true },
+            new Currency { Code = "EUR", Name = "Euro", Symbol = "€", ExchangeRate = 1.25m },
+        ]);
+
+        await GetRequiredService<IStoreService>().SaveChangesAsync([NewStore(DefaultStoreId), NewStore(OtherStoreId)]);
+
+        var settingsManager = GetRequiredService<ISettingsManager>();
+        var orderStatuses = await settingsManager.GetObjectSettingAsync(OrderSettings.OrderStatus.Name);
+        orderStatuses.AllowedValues = [.. OrderStatuses];
+        await settingsManager.SaveObjectSettingsAsync([orderStatuses]);
+
+        // With the analytics module hosted (and Google stood in), its property, as an administrator configures it.
+        if (_provider.GetService<TestAnalytics>() is { } analytics)
+        {
+            await analytics.ConfigureAsync(this, [DefaultStoreId, OtherStoreId]);
+        }
+    }
+
+    private static Store NewStore(string storeId) => new()
+    {
+        Id = storeId,
+        Name = storeId,
+        Catalog = TestCatalogId,
+        DefaultLanguage = "en-US",
+        Languages = ["en-US", "de-DE"],
+        DefaultCurrency = "EUR",
+        Currencies = ["USD", "EUR"],
+    };
+
+    private static void EnsureSucceeded(IdentityResult result)
+    {
+        if (!result.Succeeded)
+        {
+            throw new InvalidOperationException(string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
     }
 
     public void Dispose()
     {
         if (_ownsProvider)
         {
+            // The provider owns the databases (ModuleDatabases), so they go with it.
             (_provider as IDisposable)?.Dispose();
         }
 
-        _securityConnection.Dispose();
-        _customerConnection.Dispose();
-        _orderConnection.Dispose();
-        _cartConnection.Dispose();
-        _catalogConnection.Dispose();
-        _assetsConnection.Dispose();
-        _salesRepConnection.Dispose();
-        _taskConnection?.Dispose();
-        _marketingConnection?.Dispose();
+        try
+        {
+            if (Directory.Exists(_assetsRootPath))
+            {
+                Directory.Delete(_assetsRootPath, recursive: true);
+            }
+        }
+        catch (IOException)
+        {
+            // A file a failing test left open; the temp folder is the OS's to clean.
+        }
     }
 }

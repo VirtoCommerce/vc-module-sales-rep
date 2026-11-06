@@ -10,6 +10,7 @@ using VirtoCommerce.SalesRep.Core;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Queries;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using Xunit;
 using AnalyticsConstants = VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.ModuleConstants;
 using SalesRepConstants = VirtoCommerce.SalesRep.Core.ModuleConstants;
@@ -18,8 +19,9 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
 /// End-to-end component tests for the <c>salesRepActivities</c> X-API query (VCST-5337 activity feed): seed real
-/// orders, memberships, catalog products and a fake analytics pool, and assert the merged feed, category counts,
-/// product resolution and — above all — the data-isolation invariant (a rep never sees a foreign org's activity).
+/// orders, memberships, catalog products and the analytics events Google answers with (<see cref="TestAnalytics"/>, the
+/// stand-in for its Data API under the real analytics module), and assert the merged feed, category counts, product
+/// resolution and — above all — the data-isolation invariant (a rep never sees a foreign org's activity).
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepActivitiesGraphQlTests
@@ -44,6 +46,8 @@ public class SalesRepActivitiesGraphQlTests
         await ctx.SetMembershipAssignmentDateAsync(rep.UserId, "org-2", _mar);
         SeedOrder(ctx, "o1", "org-1", _feb);
         SeedOrder(ctx, "o2", "org-1", _apr);
+        // The store labels the status for en-US, as an administrator does in the Order.Status dictionary.
+        await ctx.TranslateOrderStatusesAsync(("New", "en-US", "Received"));
 
         var json = await ctx.ExecuteGraphQlAsync($"query {{ salesRepActivities(cultureName:\"en-US\") {{ {AllFields} }} }}", userId: rep.UserId);
 
@@ -63,7 +67,7 @@ public class SalesRepActivitiesGraphQlTests
         var order = items[0];
         order.GetProperty("orderNumber").GetString().Should().Be("o2");
         order.GetProperty("orderStatus").GetString().Should().Be("New");
-        order.GetProperty("orderStatusDisplayValue").GetString().Should().Be("New (en-US)"); // culture reached the localizer
+        order.GetProperty("orderStatusDisplayValue").GetString().Should().Be("Received"); // culture reached the localizer
         order.GetProperty("orderTotal").GetProperty("amount").GetDecimal().Should().Be(100m);
         order.GetProperty("organizationId").GetString().Should().Be("org-1");
         order.GetProperty("organizationName").GetString().Should().Be("org-1"); // batch-loaded from the member service
@@ -614,10 +618,10 @@ public class SalesRepActivitiesGraphQlTests
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "group-a", "org-1");
         SeedOrder(ctx, "o-1", "org-1", _feb);
-        ctx.SetStoreTrustedGroups("Other-store", "group-a");
+        await ctx.SetStoreTrustedGroupsAsync(SalesRepTestContext.OtherStoreId, "group-a");
 
         var trusted = await ctx.ExecuteGraphQlAsync(
-            $"query {{ salesRepActivities(storeId: \"Other-store\") {{ {AllFields} }} }}",
+            $"query {{ salesRepActivities(storeId: \"{SalesRepTestContext.OtherStoreId}\") {{ {AllFields} }} }}",
             userId: rep.UserId);
 
         trusted.Should().NotContain("\"errors\"");
@@ -864,7 +868,7 @@ public class SalesRepActivitiesGraphQlTests
             catalog.Virtual = true;
         }
 
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 
     internal static void SeedProduct(
@@ -900,6 +904,6 @@ public class SalesRepActivitiesGraphQlTests
         }
 
         db.Add(item);
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 }

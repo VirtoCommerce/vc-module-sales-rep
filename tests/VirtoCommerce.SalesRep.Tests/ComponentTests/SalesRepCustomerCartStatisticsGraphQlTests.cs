@@ -7,6 +7,7 @@ using VirtoCommerce.CartModule.Core;
 using VirtoCommerce.CartModule.Data.Model;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
@@ -881,7 +882,7 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
         });
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 
     private static void SeedCartItem(
@@ -906,6 +907,6 @@ public class SalesRepCustomerCartStatisticsGraphQlTests
             CreatedDate = modifiedDate,
             ModifiedDate = modifiedDate,
         });
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 }
