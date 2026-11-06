@@ -2,7 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using VirtoCommerce.TaskManagement.Data.Models;
 
-namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+namespace VirtoCommerce.SalesRep.Tests.Infrastructure;
 
 // WorkTaskEntity.Number is ValueGeneratedOnAdd() on a NON-KEY long, which real providers make an identity
 // column. SQLite can only auto-generate an INTEGER PRIMARY KEY, so EF omits it from the INSERT and the NOT NULL

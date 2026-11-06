@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -68,7 +67,8 @@ public sealed class StorefrontBootContractTests
 
     private static async Task<JsonElement> PostAsync(HttpClient client, string operationName, string document, object variables)
     {
-        var response = await client.PostAsJsonAsync("/graphql", new
+        // As the storefront's Apollo client posts: application/json exactly, the only JSON type X-API accepts.
+        var response = await GraphQlHttp.PostAsync(client, new
         {
             operationName,
             query = StorefrontDocuments.Load(document, InstalledModules),

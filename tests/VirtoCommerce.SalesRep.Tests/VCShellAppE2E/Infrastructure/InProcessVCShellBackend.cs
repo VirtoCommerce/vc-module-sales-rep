@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -10,22 +9,24 @@ using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.VCShellAppE2E.Infrastructure;
 
 /// <summary>
 /// The component harness hosted as the VC-Shell app's backend inside the test process: the same
-/// <see cref="SalesRepTestContext"/> (in-memory SQLite databases, RAM Lucene, hand-written doubles) behind Kestrel
+/// <see cref="SalesRepTestContext"/> (the module and the platform around it, over in-memory SQLite) behind Kestrel
 /// on a random loopback port, serving the module's REST controllers and the built VC-Shell app from the same
 /// origin, so no dev server or proxy sits between the browser and the harness.
 /// </summary>
 internal sealed class InProcessVCShellBackend : IAsyncDisposable
 {
-    public const string StoreId = "B2B-store";
+    public const string StoreId = SalesRepTestContext.DefaultStoreId;
 
     private readonly WebApplication _app;
     private readonly RequestGate _gate;
@@ -61,21 +62,35 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
 
         var context = SalesRepTestContext.Create(
             configureOverrides: VCShellServices.AddVCShellOverrides,
-            providerFactory: services =>
+            buildHost: services =>
             {
                 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
                 {
                     // MVC loads the assembly of this name as its first application part: the test assembly itself.
                     ApplicationName = typeof(InProcessVCShellBackend).Assembly.GetName().Name,
+                    // As a platform runs locally.
+                    EnvironmentName = Environments.Development,
                 });
                 builder.Logging.SetMinimumLevel(LogLevel.Warning);
                 builder.WebHost.UseUrls("http://127.0.0.1:0");
 
-                // The harness registers its own IConfiguration (the order full-text flag). The host already owns one,
-                // so the key moves into the host configuration and the harness descriptor stays out.
-                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string> { ["Search:OrderFullTextSearchEnabled"] = "true" });
+                // A Development platform validates its container at start; so does this host, for every service it
+                // registers. Not the lifetimes: the module captures a scoped service in a singleton through X-Cart's
+                // wishlist authorization (scoped ISalesRepRoleResolver <- SalesRepCustomerCartSharingScopePolicy <-
+                // CartSharingService <- singleton CanAccessCartAuthorizationHandler), which a Development platform
+                // refuses to start with. A production one starts with it, as this host does. A known issue: VCST-6476
+                // (vc-module-sales-rep#29, not merged yet) makes the resolver a singleton; turn ValidateScopes on once
+                // this branch has it.
+                builder.Host.UseDefaultServiceProvider(options =>
+                {
+                    options.ValidateOnBuild = true;
+                    options.ValidateScopes = false;
+                });
 
-                foreach (var descriptor in services.Where(x => x.ServiceType != typeof(IConfiguration)))
+                // The host's own configuration, with what the platform's appsettings.json sets that the hosted code reads.
+                builder.Configuration.AddInMemoryCollection(SalesRepTestContext.ConfigurationValues);
+
+                foreach (var descriptor in services)
                 {
                     builder.Services.Add(descriptor);
                 }
@@ -85,16 +100,16 @@ internal sealed class InProcessVCShellBackend : IAsyncDisposable
                 app = builder.Build();
                 VCShellServices.ConfigurePipeline(app, appDirectory, gate);
 
-                // Not started yet: the harness still wires event handlers and search builders on this provider.
-                return app.Services;
+                // Not started yet: the platform's and the modules' startup still adds their endpoints to it.
+                return app;
             });
 
-        // The store select of the details blade shows this name.
-        context.GetRequiredService<TestServicesConfiguration.TestStoreService>().Customize = store => store.Name = "E2E store";
+        // The store select of the details blade shows its name, as an administrator named it.
+        await context.SaveStoreAsync(StoreId, store => store.Name = "E2E store");
 
         // What Startup.Configure does once per process: the JSON contract consults this static when it serializes a
-        // member's dynamic properties.
-        DynamicPropertyMetadata.Initialize(EmptyDynamicPropertyMetaDataResolver.Instance);
+        // member's dynamic properties. Process-wide, it holds the process's own resolver, not this host's.
+        DynamicPropertyMetadata.Initialize(PlatformStatics.Services.GetRequiredService<IDynamicPropertyMetaDataResolver>());
 
         await app.StartAsync();
 

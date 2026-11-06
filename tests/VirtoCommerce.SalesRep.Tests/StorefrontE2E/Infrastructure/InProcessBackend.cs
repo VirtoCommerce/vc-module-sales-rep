@@ -1,16 +1,15 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Net.Http;
-using System.Net.Http.Json;
 using System.Threading.Tasks;
+using GraphQL.Types;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using GraphQL.Types;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -18,13 +17,14 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 /// <summary>
 /// The component harness hosted as a real HTTP backend inside the test process: the same
-/// <see cref="SalesRepTestContext"/> (in-memory SQLite databases, RAM Lucene, hand-written doubles) behind Kestrel on
-/// a loopback port, so the real storefront can talk to it while the tests seed and assert through the very same
-/// DbContexts. No second dotnet process, nothing read from <c>back/modules</c>.
+/// <see cref="SalesRepTestContext"/> (the module and the platform around it, as they start up, over in-memory SQLite)
+/// behind Kestrel on a loopback port, with the modules the storefront shell queries (<see cref="StorefrontShellModules"/>),
+/// so the real storefront talks to it while the tests seed and assert through the very same services and databases.
+/// No second dotnet process, nothing read from <c>back/modules</c>.
 /// </summary>
 internal sealed class InProcessBackend : IAsyncDisposable
 {
-    public const string StoreId = "B2B-store";
+    public const string StoreId = SalesRepTestContext.DefaultStoreId;
 
     private readonly WebApplication _app;
     private readonly RequestGate _gate;
@@ -56,30 +56,45 @@ internal sealed class InProcessBackend : IAsyncDisposable
     public Task<T> RunExclusiveAsync<T>(Func<SalesRepTestContext, Task<T>> work) => _gate.RunAsync(() => work(Context));
 
     /// <param name="storefrontBuild">A built storefront to serve from the backend's own origin; null when there is none to serve.</param>
-    /// <param name="configureServices">A group's own registrations, applied after the shell's: the last one wins.</param>
+    /// <param name="withTaskManagement">Whether VirtoCommerce.TaskManagement is installed: the module and its place in the module list.</param>
     /// <param name="port">The loopback port to listen on; 0 takes any free one.</param>
-    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null, Action<IServiceCollection> configureServices = null, int port = 0)
+    public static async Task<InProcessBackend> StartAsync(string storefrontBuild = null, bool withTaskManagement = true, int port = 0)
     {
         WebApplication app = null;
         var gate = new RequestGate();
 
         var context = SalesRepTestContext.Create(
-            configureOverrides: services =>
+            configureOverrides: StorefrontServices.AddStorefrontShell,
+            withTaskManagement: withTaskManagement,
+            buildHost: services =>
             {
-                StorefrontServices.AddStorefrontShell(services);
-                configureServices?.Invoke(services);
-            },
-            providerFactory: services =>
-            {
-                var builder = WebApplication.CreateBuilder(new WebApplicationOptions { ApplicationName = "VirtoCommerce.SalesRep.StorefrontE2E" });
+                // Development, as a platform runs locally: X-API then puts a failing resolver's exception in the response,
+                // and so in the test output.
+                var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+                {
+                    ApplicationName = "VirtoCommerce.SalesRep.StorefrontE2E",
+                    EnvironmentName = Environments.Development,
+                });
                 builder.Logging.SetMinimumLevel(LogLevel.Warning);
                 builder.WebHost.UseUrls($"http://127.0.0.1:{port}");
 
-                // The harness registers its own IConfiguration (the order full-text flag). The host already owns one,
-                // so the key moves into the host configuration and the harness descriptor stays out.
-                builder.Configuration.AddInMemoryCollection(new Dictionary<string, string> { ["Search:OrderFullTextSearchEnabled"] = "true" });
+                // A Development platform validates its container at start; so does this host, for every service it
+                // registers. Not the lifetimes: the module captures a scoped service in a singleton through X-Cart's
+                // wishlist authorization (scoped ISalesRepRoleResolver <- SalesRepCustomerCartSharingScopePolicy <-
+                // CartSharingService <- singleton CanAccessCartAuthorizationHandler), which a Development platform
+                // refuses to start with. A production one starts with it, as this host does. A known issue: VCST-6476
+                // (vc-module-sales-rep#29, not merged yet) makes the resolver a singleton; turn ValidateScopes on once
+                // this branch has it.
+                builder.Host.UseDefaultServiceProvider(options =>
+                {
+                    options.ValidateOnBuild = true;
+                    options.ValidateScopes = false;
+                });
 
-                foreach (var descriptor in services.Where(x => x.ServiceType != typeof(IConfiguration)))
+                // The host's own configuration, with what the platform's appsettings.json sets that the hosted code reads.
+                builder.Configuration.AddInMemoryCollection(SalesRepTestContext.ConfigurationValues);
+
+                foreach (var descriptor in services)
                 {
                     builder.Services.Add(descriptor);
                 }
@@ -89,11 +104,12 @@ internal sealed class InProcessBackend : IAsyncDisposable
                 app = builder.Build();
                 StorefrontServices.ConfigurePipeline(app, gate, storefrontBuild);
 
-                // Not started yet: the harness still wires event handlers and search builders on this provider.
-                return app.Services;
+                // Not started yet: the platform's and the modules' startup still adds their endpoints to it.
+                return app;
             });
 
-        StorefrontServices.ConfigureStoreDouble(context);
+        await StorefrontShellModules.PostInitializeAsync(app);
+        await StorefrontServices.ConfigureStoreAsync(context);
 
         // Eagerly, so a graph type whose dependency is missing fails here with the DI message, not as an opaque
         // "Error executing document" on the storefront's first request.
@@ -116,9 +132,9 @@ internal sealed class InProcessBackend : IAsyncDisposable
     private async Task SelfCheckAsync()
     {
         using var client = new HttpClient { BaseAddress = new Uri(Url) };
-        var response = await client.PostAsJsonAsync("/graphql", new
+        var response = await GraphQlHttp.PostAsync(client, new
         {
-            query = "{ store(domain: \"127.0.0.1\") { storeId defaultLanguage { cultureName } settings { modules { moduleId settings { name value } } } } }",
+            query = "{ store(domain: \"127.0.0.1\") { storeId defaultLanguage { cultureName } settings { modules { moduleId settings { name value } } } plugins(appId: \"vc-frontend\") { id } } }",
         });
         var json = await response.Content.ReadAsStringAsync();
 
@@ -133,7 +149,7 @@ internal sealed class InProcessBackend : IAsyncDisposable
         await _app.StopAsync();
         await _app.DisposeAsync();
 
-        // The provider was the app's and is gone; this closes the in-memory SQLite connections.
+        // The provider was the app's: its databases went with it; this removes the harness's assets folder.
         Context.Dispose();
         _gate.Dispose();
     }

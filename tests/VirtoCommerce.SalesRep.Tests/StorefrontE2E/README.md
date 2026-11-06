@@ -1,12 +1,12 @@
 # Storefront E2E (draft)
 
 Playwright tests that drive the **real storefront** against the **component harness hosted inside the test process**.
-No second dotnet process: the same `SalesRepTestContext` (in-memory SQLite, RAM Lucene, hand-written doubles) sits
-behind Kestrel on a loopback port, so a test seeds through the DbContexts, acts through the browser and asserts
-against the same rows.
+No second dotnet process: the same `SalesRepTestContext` (the module and the platform around it, on in-memory SQLite
+and a RAM Lucene index) sits behind Kestrel on a loopback port, so a test seeds through the modules' services, acts
+through the browser and asserts against the same rows.
 
 ```
-test process ─┬─ Kestrel (InProcessBackend) ── SalesRepTestContext (SQLite + Lucene + doubles)
+test process ─┬─ Kestrel (InProcessBackend) ── SalesRepTestContext (platform + modules, SQLite + Lucene)
               ├─ Playwright → Chromium ──► a clone:  https://localhost:<port> (Vite dev server, one node process per run)
               │                            a build:  http://127.0.0.1:<kestrel port> (Kestrel serves it)
               └─ Vite proxy (a clone only): /graphql, /connect/token, /revoke/token, /modules/…/plugins/vc-frontend/
@@ -21,20 +21,80 @@ The hub reaches the storefront the way it does in production: as the module's Mo
 storefront asks `store.plugins` for it, the platform's own `AppManifestService` answers from the module's
 `plugins/vc-frontend/plugin.json`, and Kestrel serves the build on the platform's route for it.
 
+## Platform and modules
+
+The backend runs the platform's and the modules' own code, as a deployment runs it; the test's own code is only the
+sign-in token endpoint and the list of installed modules (see Stand-ins below).
+- **Data:** every module and the platform keep their data in an in-memory SQLite database of their own
+  (`Infrastructure/ModuleDatabases.cs`), created from their EF model when first used. Each DbContext opens a connection
+  of its own to it (shared-cache mode), as on a database server: a module's code may query on several DbContexts at
+  once. The SQL they run goes to `SqlCommandLog`, which a test reads where it asks how often a module was called.
+- **Search:** the search module's gateway serves the Lucene provider with its index in RAM.
+- **Registrations** (`Infrastructure/PlatformModules*.cs`): the platform's own extensions where it has them (Platform.Data's
+  `AddPlatformServices`: settings, localizable settings, dynamic properties, translations, the change log, the caches,
+  the event bus; its `UseDbTriggers`, once per process: the audit stamps), and Platform.Web's `Startup` restated where
+  it is the host's own (ASP.NET Identity with the platform's user and role managers and two-factor sign-in,
+  authorization, the distributed lock service, the HTTP client factory, Kestrel's synchronous IO). Each module
+  registers what its `Module.Initialize` registers at the package version referenced here, minus export and import,
+  bulk actions, background jobs and the event handlers that only enqueue one, and admin authorization: store, core
+  (currencies), customer, catalog, pricing, marketing, assets on the file system blob provider with the file experience
+  API, inventory, payment, shipping, cart, orders, notifications (with its Liquid renderer, no email gateway, and its
+  registrar restated so that a notification reaches the shared type factory complete: `HarnessNotificationRegistrar`), push
+  messages (with its GraphQL), task management, and Google Analytics when a test stands Google in. X-API, X-Catalog, X-Cart and X-Order
+  register through their own extensions. The module under test is not restated: its own `Module.Initialize` and
+  `Module.PostInitialize` run, which register its settings, permissions, notification and event handlers, map
+  `/graphql/sales-rep` and seed its roles and the Call task type.
+- **The storefront shell** (`StorefrontShellModules.cs`): X-Profile 3.1019.0 (the newest on the X-Order 3.1011 this
+  module references: `me`, the organization, the address books), X-Frontend 3.1006.0 (the newest on that X-Profile:
+  `pageContext`) with the SEO module behind its slug, X-CMS over the content module's menus (`menu`) and X-Recommend
+  (`searchHistory`), each as its `Module.cs` registers it.
+- **Configuration:** what the platform's shipped `appsettings.json` sets that this code reads (the default store, the
+  GraphQL playground (on), the authentication types GraphQL ignores, the order full-text search), the platform's
+  country lists (copies in `Platform/localization`), and the documents library's upload scope as the module's README
+  tells a deployment to declare it.
+- **Startup:** the other modules' `PostInitialize` (settings, permissions, dynamic property types, search request
+  builders, the GraphQL endpoints), then the module's, then what the notifications module does once the application has
+  started (it saves every registered notification). The host runs as Development, so a failing resolver puts its
+  exception in the response, and validates its container at start as a Development platform does, except for the
+  lifetimes (see What the run taught).
+- **Seed:** what an administrator would set up, through the modules' services: the currencies (USD primary, EUR), the
+  stores, the Order.Status dictionary, and for the hub one language, the hub's public store setting on, guests allowed,
+  push messages off and X-API's ReturnModuleVersion on (`StorefrontServices.ConfigureStoreAsync`). Reps, organizations and tasks come from
+  each group's seed, through the module's own controller and mutations.
+
+Where a module ships provider-specific SQL (SQL Server, PostgreSQL, MySQL), the harness runs the module's PostgreSQL
+statements on SQLite: `SqliteCatalogRawDatabaseCommand` and `SqliteCartRawDatabaseCommand`. Statements nothing here
+reaches throw with their name instead.
+
+### Stand-ins
+
+Two pieces stand in for the platform's, and one for an outside service:
+- **Tokens:** the platform's OpenIddict server isn't hosted. `TestTokenService` mints a bearer token with the claims a
+  token carries (the platform's claims principal factory and the modules' claim providers: the customer module adds the
+  organization), for an account of the security database, and the test endpoints answer the storefront's refresh grant
+  and revoke.
+- **Installed modules:** the platform builds that list by discovering module folders at startup.
+  `Infrastructure/InstalledModuleService.cs` reports the module (from its real `module.manifest`), X-Frontend, the app
+  whose plugins `store.plugins` lists, and task management when the group hosts it.
+- **Google's Analytics API** (component tests only): `ComponentTests/Infrastructure/TestAnalytics.cs` answers the
+  analytics module's report client from a seeded event pool; the module's own service, data source and settings
+  resolver run.
+
 ## Layout
 
 | Piece | File | Role |
 |---|---|---|
-| Backend host | `Infrastructure/InProcessBackend.cs` | Copies the harness registrations into a `WebApplication`, starts Kestrel on port 0 (with a clone, on the port the run's Vite proxies to), builds the schema eagerly, self-checks the `store` query; `RunExclusiveAsync` gives test-side reads a turn between requests. |
-| Shell services | `Infrastructure/StorefrontServices.cs` | Real X-API `store` handler, real profile handlers and graph types, real claim producers, the platform's `AppManifestService` for `store.plugins`; JWT bearer auth; pipeline (a built storefront's files, plugin files, one request at a time). |
-| Shell schema | `Infrastructure/StorefrontShellSchemaBuilder.cs`, plus a file per response model and per graph type: `PageContextResponse`, `MenuLinkList`, `MenuLink`, `SearchHistoryResult`, each with its `…Type` | `pageContext`, `childCategories`, `cart`, `organization`, `currentOrganizationAddresses` (the address book the storefront reads since vc-frontend VCST-4857), `menu`, `searchHistory`: real response types, empty data. |
-| Doubles | `Infrastructure/`: `EmptyStoreSearchService.cs`, `CurrencyServiceStoreCurrencyResolver.cs`, `PasswordOnlyStoreAuthenticationService.cs`, `StorefrontModuleService.cs`, `StorefrontSettingsManager.cs`, `NoCartAvailMethodsService.cs` | Store search/currency/auth schemes, module list (the module's own `module.manifest` plus two dependencies at a version the storefront's "outdated backend" check cannot flag; a group can leave TaskManagement out), settings (`ReturnModuleVersion`, task types), cart methods. |
+| Backend host | `Infrastructure/InProcessBackend.cs` | Copies the harness registrations into a `WebApplication` (Development, its container validated), lets the platform's and the modules' startup add their endpoints, starts the shell modules, sets the store up, builds the schema eagerly, starts Kestrel on port 0 (with a clone, on the port the run's Vite proxies to) and self-checks the `store` query; `RunExclusiveAsync` gives test-side reads a turn between requests. |
+| Platform and modules | `../Infrastructure/PlatformModules*.cs`, `PlatformStatics.cs`, `ModuleDatabases.cs`, `SqlCommandLog.cs`, `PlatformDbTriggers.cs`, `SeededDates.cs`, `TestedModule.cs` | Shared with the component tests: see Platform and modules. |
+| Shell modules | `Infrastructure/StorefrontShellModules.cs` | X-Profile, X-Frontend with the SEO module, X-CMS with the content module, X-Recommend: everything the storefront shell asks for around the hub's pages, answered by those modules. |
+| Shell services | `Infrastructure/StorefrontServices.cs` | The shell modules, the token service and the platform's `AppManifestService` for `store.plugins`; Kestrel's synchronous IO and JWT bearer auth; the pipeline before the modules' endpoints (a built storefront's files, plugin files, one request at a time); the store as an administrator sets it up for the hub. |
+| GraphQL over HTTP | `Infrastructure/GraphQlHttp.cs` | A GraphQL POST as Apollo sends one: `application/json` exactly, the only JSON type X-API accepts. |
 | Hub plugin | `Infrastructure/StorefrontPlugin.cs` | The module's plugin build (`plugins/vc-frontend`) and its route; a missing build, or one older than its sources under `StorefrontApp/src`, fails the group. |
-| Package skew | `Infrastructure/StorefrontOrganizationType.cs` | The storefront selects `isLockedForCurrentUser`; the pinned profile package predates it. |
-| Tokens | `Infrastructure/TestTokenService.cs`, `TokenResponse.cs`, `TestTokenEndpoints.cs` | Production-shaped JWTs via `IUserClaimsPrincipalFactory` + `ITokenClaimProvider`s; `/connect/token`, `/revoke/token` (`TestTokenEndpoints`). |
+| Module list | `../Infrastructure/InstalledModuleService.cs` | A stand-in (see Stand-ins): the module's own `module.manifest` plus two dependencies at a version the storefront's "outdated backend" check cannot flag. |
+| Tokens | `Infrastructure/TestTokenService.cs`, `TokenResponse.cs`, `TestTokenEndpoints.cs` | A stand-in (see Stand-ins): production-shaped JWTs via `IUserClaimsPrincipalFactory` + `ITokenClaimProvider`s; `/connect/token`, `/revoke/token` (`TestTokenEndpoints`). |
 | Storefront location | `Infrastructure/StorefrontLocation.cs` | Finds the storefront, a clone or a build (see Running); a missing or broken one fails the groups with what to do. |
 | Vite | `Infrastructure/ViteDevServer.cs`, `Infrastructure/SharedViteDevServer.cs` | A clone's dev server, one per run: `node node_modules/vite/bin/vite.js --port N --strictPort` with `APP_BACKEND_URL`, which is fixed at start, so each group's backend takes that port in turn; started by the first group that needs it, stopped by an xunit assembly fixture once every test has run; waits for HTTP 200; bounded kill. |
-| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + browser per xunit collection, on the run's Vite for a clone; `OpenAsync(userId, path)` = signed-in context, in the group's `BrowserTimeZone` when it pins one or in the zone a test passes, with `beforeLoad` to prepare the context (routes) before the first navigation; `CreateTaskAsync` seeds a task through the real mutation; `NewRepAsync` gives a test a rep of its own and `AddTaskAsync` a task for it; `WaitForTaskAsync` and `CountTasksAsync` read task rows between requests, `RunExclusiveAsync` anything else; `ConfigureServices` for a group's own doubles (a module list without TaskManagement); phase log. |
+| Group fixture | `Infrastructure/StorefrontEnvironment.cs` | Backend + seed + browser per xunit collection, on the run's Vite for a clone; `OpenAsync(userId, path)` = signed-in context, in the group's `BrowserTimeZone` when it pins one or in the zone a test passes, with `beforeLoad` to prepare the context (routes) before the first navigation; `CreateTaskAsync` seeds a task through the real mutation; `NewRepAsync` gives a test a rep of its own and `AddTaskAsync` a task for it; `WaitForTaskAsync` and `CountTasksAsync` read task rows between requests, `RunExclusiveAsync` anything else; `WithTaskManagement` for a group on a platform without the task management module; phase log. |
 | Request gate | `Infrastructure/RequestGate.cs` | One turn at a time, for both hosts: their requests wait at it, and test-side reads take a turn through `RunExclusiveAsync`. |
 | Session | `Infrastructure/StorefrontSession.cs` | Records console errors, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message, and a test can assert there were no GraphQL errors. |
 | Hub controls | `Infrastructure/HubControls.cs` | The hub's task controls by role and label, the steps the task groups repeat, the Google Calendar stand-in route, and `Exactly`, which tolerates Intl's spaces in an input's value. |
@@ -138,27 +198,53 @@ pass.
 
 ## Harness changes
 
-- `SalesRepTestContext.Create(..., providerFactory)` lets a host build (and own) the provider; `NewTaskManagementDbContext()`;
-  `UserIdClaimTypes` now lists `sub` first (the platform's token claim) and `NameIdentifier` (the component tests').
-- `TestStoreService.Customize` lets the host add languages, currencies and public module settings to the store double.
+- `SalesRepTestContext.Create(configureOverrides, withTaskManagement, beforeModuleStart, buildHost)`: `buildHost` lets a
+  host build (and own) the web host, on which the platform's and the modules' startup then runs; `withTaskManagement`
+  installs the task management module or leaves it out; `beforeModuleStart` seeds what the database held before the
+  module started.
+- The store is configured through the store service (`SaveStoreAsync`), settings through the settings manager
+  (`SetSettingAsync`); `UserIdClaimTypes` lists `sub` first (the platform's token claim) and `NameIdentifier` (the
+  component tests'), as Platform.Web sets them.
 
 ## What the run taught
 
-- The storefront sends every operation, sales-rep ones included, to `/graphql`: one combined `SchemaFactory` is needed,
-  not the scoped one the component tests use.
-- "Schema-complete, data-empty" holds: a root field that is missing fails the whole operation with a validation error,
-  so the shell fields exist with their real response types even where they return nothing.
-- Package skew is the recurring cost: the storefront is built against newer X-API packages than the module pins
-  (profile 3.1011 lacks `isLockedForCurrentUser`), and a package bump changes the graph types' constructor
-  dependencies (X-Cart 3.1039 added `IXapiMapper` to the cart types; the pre-bump package had none). The eager
-  schema build names the missing service; the contract test turns a missing field into a four-second failure.
+- The storefront sends every operation, sales-rep ones included, to `/graphql`: X-API's own schema there holds every
+  hosted module's fields, the sales-rep ones too; the scoped `/graphql/sales-rep` serves the component tests and codegen.
+- A root field that is missing fails the whole operation with a validation error. With the shell's modules hosted for
+  real, every field the storefront shell asks for is the module's own: `pageContext`, `me`, the organization and the
+  address books (`isLockedForCurrentUser` included), `menu`, `searchHistory`, the cart.
+- Package versions: the storefront is built against newer X-API modules than the module pins. X-Profile 3.1019.0 is the
+  newest that fits the X-Order 3.1011 this module references (3.1020 needs X-Order 3.1014), and X-Frontend 3.1006.0 the
+  newest on that X-Profile. The eager schema build names a missing service; the contract test turns a missing field
+  into a four-second failure.
+- On the real platform the host needed what a platform has and the old stand-ins didn't ask for: Kestrel's synchronous
+  IO (X-API's serializer reads the body synchronously), `application/json` exactly on a GraphQL POST, and the customer
+  module's token claim provider, which puts the organization in the token (without it the contact's `organizationId`
+  is empty).
+- As Development, the host validates its container at start, and that named what the restated registrations had left
+  out (two-factor sign-in, the distributed lock service, purchased products, product suggestions, the account sessions
+  factory), and one thing that is the module's: its `SalesRepCustomerCartSharingScopePolicy` (transient) takes
+  `ISalesRepOrganizationAccessService`, which takes the SCOPED `ISalesRepRoleResolver`, and X-Cart's singleton
+  `CanAccessCartAuthorizationHandler` takes the policy through `ICartSharingService`. A Development platform refuses to
+  start with that; a production one starts, and the role resolver behind the wish list check then lives for the
+  application's lifetime, with the granting roles it memoized. The host checks everything but the lifetimes. A known
+  issue: VCST-6476 (vc-module-sales-rep#29, not merged yet) makes the resolver a singleton; the hosts check the
+  lifetimes again once this branch has it.
+- The real push messages module brought what a store has by default: push messages on (a public store setting). The
+  storefront then queried `pushMessages`, which the module's GraphQL package answers, and subscribed to new ones over a
+  WebSocket. X-API authenticates that socket through OpenIddict's validation scheme, and the socket, alive as long as
+  the page, sits outside the request gate: its operations ran beside the page's requests on the databases' single
+  connections of the time, and the tasks page stalled (GraphQL requests timed out). The hub has no part in push messages, so the E2E
+  store has them off.
 - The storefront's primary contact for a customer is the organization owner, falling back to its oldest contact,
   and a rep is a contact of the organizations they serve: a test that wants a buyer's details must seed the owner.
 - Since #13 the hub is the module's Module Federation plugin, and vc-frontend `dev` ships no built-in hub: without
   `store.plugins` every hub page is the storefront's 404.
-- The hub's pages send their queries in parallel, and each in-memory SQLite database lives on one connection, which is
+- The hub's pages send their queries in parallel, and each in-memory SQLite database lived on one connection, which is
   not thread-safe. The symptoms were "database is locked" and index errors inside the connection's command list. So the
-  host answers one request at a time, and a test's own reads take the same turn (`RunExclusiveAsync`).
+  host answers one request at a time, and a test's own reads take the same turn (`RunExclusiveAsync`). Each DbContext
+  has a connection of its own now (the component tests needed it: the cart statistics load their periods in parallel);
+  the turn stays, so that a test reads after the page's requests, not between them.
 - The storefront compares the module versions it is told with its own `backend-packages.json`. When one is lower, it
   shows an "outdated backend" error on every page, which covers the page's top-right buttons ("New task" among them)
   for fifteen seconds. The module under test reports its real manifest version; the stand-ins report a version no
@@ -187,8 +273,11 @@ pass.
 
 ## Known gaps (draft)
 
-- Only the shell fields the captured pages use are served; the account dashboard and company info pages would also
-  need `pendingOrganizationInvites`, `orders`, `currentOrganizationAddresses`, `fileUploadOptions`.
-- No WebSocket transport: push messages are not in the module list, so the storefront never opens the subscription.
+- Push messages are off in the E2E store (every store has them on by default): the storefront would subscribe to them
+  over a WebSocket, which stays outside the one-caller-at-a-time gate (see What the run taught). The module and its
+  GraphQL are hosted; no test opens the bell.
 - The sign-in page is reachable through the password grant, but no test uses it yet.
-- `isLockedForCurrentUser` always answers `false` (the pinned customer package has no membership lock).
+- Other modules' event handlers that enqueue background jobs are not registered (change logs, event-based indexing,
+  order and task notifications): the tests index what they read and read no change log.
+- Nothing is sent: an email is rendered and saved as a message, a push message is saved; the account sessions service
+  is OpenIddict's and goes with the token server.

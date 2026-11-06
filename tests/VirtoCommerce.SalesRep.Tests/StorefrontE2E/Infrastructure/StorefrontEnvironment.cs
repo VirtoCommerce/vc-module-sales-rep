@@ -6,7 +6,6 @@ using System.Linq.Expressions;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Playwright;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -49,7 +48,7 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
         var port = storefront.BuildDirectory == null ? SharedViteDevServer.BackendPort : 0;
 
         Log("backend starting");
-        _backend = await InProcessBackend.StartAsync(storefront.BuildDirectory, ConfigureServices, port);
+        _backend = await InProcessBackend.StartAsync(storefront.BuildDirectory, WithTaskManagement, port);
         Log($"backend ready at {_backend.Url}");
 
         await SeedAsync(_backend.Context);
@@ -87,10 +86,8 @@ public abstract class StorefrontEnvironment : IAsyncLifetime
     /// <summary>The browser's IANA time zone; null keeps the machine's. A group that checks times of day pins it.</summary>
     private protected virtual string BrowserTimeZone => null;
 
-    /// <summary>A group's own doubles, registered after the storefront shell's, so they win: another module list, say.</summary>
-    private protected virtual void ConfigureServices(IServiceCollection services)
-    {
-    }
+    /// <summary>Whether the group's platform has VirtoCommerce.TaskManagement installed: the module and its place in the module list.</summary>
+    private protected virtual bool WithTaskManagement => true;
 
     /// <summary>A task the rep creates through the real mutation the storefront uses; the due date goes in to the second.</summary>
     private protected static async Task<string> CreateTaskAsync(SalesRepTestContext context, SalesRepDetails rep, string name, DateTime dueDate,

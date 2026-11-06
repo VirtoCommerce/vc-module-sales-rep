@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using VirtoCommerce.Platform.Core.Security;
 
-namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+namespace VirtoCommerce.SalesRep.Tests.Infrastructure;
 
 /// <summary>
 /// EF Core's SQLite provider can't translate comparisons on <see cref="DateTimeOffset"/> (which is how
