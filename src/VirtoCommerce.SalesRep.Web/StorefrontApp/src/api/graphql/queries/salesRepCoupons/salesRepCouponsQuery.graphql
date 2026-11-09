@@ -1,0 +1,8 @@
+query SalesRepCoupons($storeId: String!, $cultureName: String, $first: Int, $after: String) {
+  salesRepCoupons(storeId: $storeId, cultureName: $cultureName, first: $first, after: $after) {
+    totalCount
+    items {
+      ...salesRepCouponFields
+    }
+  }
+}

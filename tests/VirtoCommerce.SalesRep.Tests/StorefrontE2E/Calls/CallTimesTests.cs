@@ -39,8 +39,10 @@ public sealed class CallTimesTests(CallsEnvironment env)
             await BookCallAsync(page, midnight, dayAfter, "12:00 AM");
 
             await ShowAllAsync(page);
-            await Expect(Row(page, late)).ToContainTextAsync($"Due {Listed(tomorrow)}, 11:45 PM · {CallsEnvironment.ContosoName} · Call");
-            await Expect(Row(page, midnight)).ToContainTextAsync($"Due {Listed(dayAfter)}, 12:00 AM · {CallsEnvironment.ContosoName} · Call");
+            await Expect(Row(page, late)).ToContainTextAsync($"Due {Listed(tomorrow)}, 11:45 PM · Call");
+            await Expect(CustomerCell(page, late)).ToHaveTextAsync(CallsEnvironment.ContosoName);
+            await Expect(Row(page, midnight)).ToContainTextAsync($"Due {Listed(dayAfter)}, 12:00 AM · Call");
+            await Expect(CustomerCell(page, midnight)).ToHaveTextAsync(CallsEnvironment.ContosoName);
 
             // Each day lists its own call only. The other call goes first: its absence waits for the day's own list.
             await PickDueDayAsync(page, tomorrow, NewYork.Today);
@@ -71,7 +73,7 @@ public sealed class CallTimesTests(CallsEnvironment env)
             await BookCallAsync(page, name, day, "2:30 AM");
 
             await ShowAllAsync(page);
-            await Expect(Row(page, name)).ToContainTextAsync($"Due {Listed(day)}, 3:30 AM · {CallsEnvironment.ContosoName} · Call");
+            await Expect(Row(page, name)).ToContainTextAsync($"Due {Listed(day)}, 3:30 AM · Call");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == name);
@@ -93,7 +95,7 @@ public sealed class CallTimesTests(CallsEnvironment env)
             await BookCallAsync(page, name, day, "1:30 AM");
 
             await ShowAllAsync(page);
-            await Expect(Row(page, name)).ToContainTextAsync($"Due {Listed(day)}, 1:30 AM · {CallsEnvironment.ContosoName} · Call");
+            await Expect(Row(page, name)).ToContainTextAsync($"Due {Listed(day)}, 1:30 AM · Call");
         });
 
         // 1:30 AM happens twice that night. The browser reads a time of day with the offset from before the change, the
@@ -143,7 +145,8 @@ public sealed class CallTimesTests(CallsEnvironment env)
         {
             await ShowAllAsync(page);
             await Expect(Row(page, CallsEnvironment.CallFromNewYork))
-                .ToContainTextAsync($"Due {Listed(there.Date)}, {TimeOfDay(there)} · {CallsEnvironment.NorthwindName} · Call");
+                .ToContainTextAsync($"Due {Listed(there.Date)}, {TimeOfDay(there)} · Call");
+            await Expect(CustomerCell(page, CallsEnvironment.CallFromNewYork)).ToHaveTextAsync(CallsEnvironment.NorthwindName);
 
             var dialog = await EditAsync(page, CallsEnvironment.CallFromNewYork, "Edit call");
             await Expect(DueDate(dialog)).ToHaveValueAsync(Typed(there.Date));
@@ -176,7 +179,8 @@ public sealed class CallTimesTests(CallsEnvironment env)
             await SaveAsync(page, dialog);
 
             await Expect(Row(page, CallsEnvironment.CallOffTheQuarterHour))
-                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 10:07 AM · {CallsEnvironment.ContosoName} · Call");
+                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 10:07 AM · Call");
+            await Expect(CustomerCell(page, CallsEnvironment.CallOffTheQuarterHour)).ToHaveTextAsync(CallsEnvironment.ContosoName);
         });
 
         // The update replaces the task, so the time, seconds included, and the customer have to go back as they were.

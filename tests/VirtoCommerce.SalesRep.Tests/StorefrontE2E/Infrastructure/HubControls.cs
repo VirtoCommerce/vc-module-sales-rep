@@ -50,22 +50,41 @@ internal static class HubControls
     public static ILocator RowAction(IPage page, string name)
         => Row(page, name).GetByRole(AriaRole.Button, new() { NameRegex = new Regex($"^(Mark as complete|Reopen): “{Regex.Escape(name)}”$") });
 
-    /// <summary>A tab of the tasks page (Today, All, Upcoming, Overdue, Completed), named by its label and badge.</summary>
-    public static ILocator Tab(IPage page, string label) => page.GetByRole(AriaRole.Button, new() { NameRegex = new Regex($@"^{Regex.Escape(label)} \d+$") });
+    /// <summary>A row's Customer cell: the customer's name, or a dash for none. Task, Priority, then Customer.</summary>
+    public static ILocator CustomerCell(IPage page, string name) => Row(page, name).GetByRole(AriaRole.Cell).Nth(2);
 
-    /// <summary>A tab whose badge shows <paramref name="count"/>.</summary>
-    public static ILocator Tab(IPage page, string label, int count) => page.GetByRole(AriaRole.Button, new() { Name = $"{label} {count}", Exact = true });
-
-    /// <summary>The number a tab's badge shows.</summary>
-    public static async Task<int> BadgeAsync(IPage page, string label)
-    {
-        var text = await Tab(page, label).InnerTextAsync(new() { Timeout = 60_000 });
-        return int.Parse(Regex.Match(text, @"(\d+)\s*$").Groups[1].Value, CultureInfo.InvariantCulture);
-    }
-
-    /// <summary>The list header's count, announced with the list's title: "1 task", "3 tasks".</summary>
+    /// <summary>The list header's count, announced as it changes: "1 task", "3 tasks".</summary>
     public static ILocator HeaderCount(IPage page, int count)
         => page.GetByRole(AriaRole.Status).GetByText(count == 1 ? "1 task" : $"{count} tasks", new() { Exact = true });
+
+    /// <summary>One of the tasks page's filters by its name: "Customers", "Status" or "Priorities".</summary>
+    public static ILocator Filter(IPage page, string name) => page.GetByRole(AriaRole.Combobox, new() { Name = name, Exact = true });
+
+    /// <summary>
+    /// Picks an option of a filter. Escape closes the list afterwards: a multi-select stays open for the next pick, and
+    /// a single select has closed already, when Escape does nothing.
+    /// </summary>
+    public static async Task PickFilterAsync(IPage page, string name, string option)
+    {
+        await Filter(page, name).ClickAsync(new() { Timeout = 60_000 });
+        await Option(page, option).ClickAsync();
+        await Filter(page, name).PressAsync("Escape");
+    }
+
+    /// <summary>The close button of an applied filter's chip, named after the filter it removes.</summary>
+    public static ILocator RemoveFilterButton(IPage page, string label)
+        => page.GetByRole(AriaRole.Button, new() { Name = $"Remove filter “{label}”", Exact = true });
+
+    public static Task ResetFiltersAsync(IPage page)
+        => page.GetByRole(AriaRole.Button, new() { Name = "Reset filters", Exact = true }).ClickAsync();
+
+    /// <summary>Searches the tasks by name and notes; the term applies on Enter.</summary>
+    public static async Task SearchAsync(IPage page, string text)
+    {
+        var search = page.GetByRole(AriaRole.Textbox, new() { Name = "Search tasks", Exact = true });
+        await search.FillAsync(text);
+        await search.PressAsync("Enter");
+    }
 
     public static async Task<ILocator> NewTaskAsync(IPage page)
     {
@@ -106,8 +125,9 @@ internal static class HubControls
         return Dialog(page, title);
     }
 
-    /// <summary>The "All" tab: the page opens on today.</summary>
-    public static Task ShowAllAsync(IPage page) => Tab(page, "All").ClickAsync(new() { Timeout = 60_000 });
+    /// <summary>Every date: the page opens on today, and the Due dates calendar's Clear unpicks it.</summary>
+    public static Task ShowAllAsync(IPage page)
+        => DueDates(page).GetByRole(AriaRole.Button, new() { Name = "Clear", Exact = true }).ClickAsync(new() { Timeout = 60_000 });
 
     public static async Task PickAsync(IPage page, ILocator field, string option)
     {
@@ -157,16 +177,22 @@ internal static class HubControls
     /// </summary>
     public static async Task PickDueDayAsync(IPage page, DateTime day, DateTime shown)
     {
-        var calendar = page.GetByRole(AriaRole.Complementary, new() { Name = "Due dates", Exact = true });
         var months = (day.Year - shown.Year) * 12 + day.Month - shown.Month;
-        var pager = calendar.GetByRole(AriaRole.Button, new() { Name = months > 0 ? "Next month" : "Previous month", Exact = true });
+        var pager = DueDates(page).GetByRole(AriaRole.Button, new() { Name = months > 0 ? "Next month" : "Previous month", Exact = true });
         for (var i = 0; i < Math.Abs(months); i++)
         {
             await pager.ClickAsync();
         }
 
-        await calendar.GetByRole(AriaRole.Button, new() { Name = day.ToString("dddd, MMMM d, yyyy", CultureInfo.InvariantCulture), Exact = true }).ClickAsync();
+        await DueDay(page, day).ClickAsync();
     }
+
+    /// <summary>The tasks page's Due dates calendar.</summary>
+    public static ILocator DueDates(IPage page) => page.GetByRole(AriaRole.Complementary, new() { Name = "Due dates", Exact = true });
+
+    /// <summary>A day of the Due dates calendar; its description says how many tasks its dots stand for.</summary>
+    public static ILocator DueDay(IPage page, DateTime day)
+        => DueDates(page).GetByRole(AriaRole.Button, new() { Name = day.ToString("dddd, MMMM d, yyyy", CultureInfo.InvariantCulture), Exact = true });
 
     /// <summary>A day as the date picker takes it typed.</summary>
     public static string Typed(DateTime day) => day.ToString("MM/dd/yyyy", CultureInfo.InvariantCulture);
