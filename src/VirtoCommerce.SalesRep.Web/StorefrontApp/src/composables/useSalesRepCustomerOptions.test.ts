@@ -89,7 +89,7 @@ describe("useSalesRepCustomerOptions", () => {
     // No keyword: `VcSelect` filters over the items it was handed and gives the composable no search text to send.
     expect(passedVariables()).toEqual({
       storeId: "test-store",
-      first: 100,
+      first: 1000,
       after: "0",
       keyword: "",
       sort: "name:asc",
@@ -139,11 +139,11 @@ describe("useSalesRepCustomerOptions", () => {
     it("warns that the overflow is unreachable, naming both numbers", async () => {
       build();
 
-      await respondWith(500, [{ organizationId: "org-1", organizationName: "Acme" }] as CustomerItemsType);
+      await respondWith(1500, [{ organizationId: "org-1", organizationName: "Acme" }] as CustomerItemsType);
 
       expect(loggerMock.warn).toHaveBeenCalledOnce();
-      expect(loggerMock.warn.mock.calls[0][0]).toContain("100");
-      expect(loggerMock.warn.mock.calls[0][0]).toContain("500");
+      expect(loggerMock.warn.mock.calls[0][0]).toContain("1000");
+      expect(loggerMock.warn.mock.calls[0][0]).toContain("1500");
     });
 
     it("says nothing while the whole set fits", async () => {
@@ -157,10 +157,10 @@ describe("useSalesRepCustomerOptions", () => {
     it("asks for one page and never advances the offset", async () => {
       build();
 
-      await respondWith(500, [{ organizationId: "org-1", organizationName: "Acme" }] as CustomerItemsType);
+      await respondWith(1500, [{ organizationId: "org-1", organizationName: "Acme" }] as CustomerItemsType);
 
       expect(passedVariables().after).toBe("0");
-      expect(passedVariables().first).toBe(100);
+      expect(passedVariables().first).toBe(1000);
     });
   });
 

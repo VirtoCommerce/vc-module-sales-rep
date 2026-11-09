@@ -11,11 +11,15 @@ namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Tasks;
 /// Group 4: a rep's plain tasks on the tasks page, in New York time: open ones due yesterday, today and later, one each
 /// completed, canceled and without a due date, and one with a type, a priority, notes and a time to the second. Each is
 /// created through the real mutation; the states the storefront cannot produce (canceled, no due date) are then set
-/// through task management's own service, as its admin app would set them.
+/// through task management's own service, as its admin app would set them. A second customer, Contoso, is there for the
+/// tests' own reps to file tasks under; Tom serves Northwind alone.
 /// </summary>
 public sealed class TasksEnvironment : StorefrontEnvironment
 {
     public const string NorthwindId = "e2e-org-northwind";
+    public const string NorthwindName = "Northwind Traders";
+    public const string ContosoId = "e2e-org-contoso";
+    public const string ContosoName = "Contoso";
 
     public const string TaskToRedate = "Review the contract";
     public const string TaskToRedateNotes = "Bring the redlines";
@@ -35,7 +39,8 @@ public sealed class TasksEnvironment : StorefrontEnvironment
 
     private protected override async Task SeedAsync(SalesRepTestContext context)
     {
-        await context.SeedOrganizationAsync(NorthwindId, org => org.Name = "Northwind Traders");
+        await context.SeedOrganizationAsync(NorthwindId, org => org.Name = NorthwindName);
+        await context.SeedOrganizationAsync(ContosoId, org => org.Name = ContosoName);
 
         var rep = await context.CreateRepInStoreAsync("Tom", "Rep", "tom.rep@e2e.local", InProcessBackend.StoreId, NorthwindId);
         RepUserId = rep.UserId;

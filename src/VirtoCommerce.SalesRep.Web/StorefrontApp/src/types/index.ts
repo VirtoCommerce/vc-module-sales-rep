@@ -172,6 +172,12 @@ export type SalesRepFacetOptionType = {
   count: number;
 };
 
+// An applied filter, drawn as a removable chip; `id` is unique within its row.
+export type SalesRepFilterChipType = {
+  id: string;
+  label: string;
+};
+
 export type SalesRepCustomerOrderRowType = {
   id: string;
   number: string;
