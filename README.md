@@ -40,7 +40,7 @@ The Sales Rep module turns selected users into sales representatives who serve a
 
 ## XAPI Specification
 
-The storefront queries are exposed on a dedicated scoped schema at `POST /graphql/sales-rep` (with a GraphiQL UI at `/ui/graphiql/sales-rep`). Every query requires an authenticated caller and is store- and membership-scoped, so a rep only sees the customers they serve and a buyer only sees their own reps.
+The storefront queries are exposed on a dedicated scoped schema at `POST /graphql/sales-rep` (with a GraphiQL UI at `/ui/graphiql/sales-rep`). Every query requires an authenticated caller and is store- and membership-scoped, so a rep only sees the customers they serve and a buyer only sees their own reps. The one store-wide read is `salesRepCoupons`: a store's public coupons, the same for every rep of that store.
 
 > **Authentication.** Every query needs a bearer token. When the rep's login account is **store-bound**, the `POST /connect/token` password grant must include the `storeId` form parameter (e.g. `storeId=B2B-store`) — otherwise the grant fails with `400 invalid_grant`.
 
@@ -604,10 +604,15 @@ not to a customer — and no dedicated permission beyond being a sales rep.
   # `period` is a due-date window (a calendar month, or one day); it INTERSECTS with `filter` rather than
   # replacing it, so "this month" + "overdue" composes.
   # `storeId` narrows to the tasks stamped with that store (the creating rep's account store); omit for all.
+  # `keyword` matches the name or the notes (`description`), case-sensitive on PostgreSQL (the collation decides).
+  # `customerIds` and `priorities` intersect as well, each matching ANY of its values: the customers the tasks are
+  # linked to (only customers the caller serves count, so none served returns nothing), and priority names in any case
+  # (an unrecognized name returns nothing rather than the unfiltered list).
   salesRepTasks(
     first: 20, after: "0", keyword: "contract", sort: "due-date",
     filter: "overdue", today: "2026-05-28T05:00:00Z", storeId: "B2B-store",
-    period: { from: "2026-05-01T05:00:00Z", to: "2026-06-01T04:59:59Z" }
+    period: { from: "2026-05-01T05:00:00Z", to: "2026-06-01T04:59:59Z" },
+    customerIds: ["7b8c..."], priorities: ["High", "Highest"]
   ) {
     totalCount
     pageInfo { hasNextPage endCursor }
@@ -653,18 +658,49 @@ the count and show the list. A dedicated "no due date" tab is **not implementabl
 bounds the due date with `>=` / `<=` (which drop NULLs) and offers no way to say "is null", so it would need a new
 flag in `VirtoCommerce.TaskManagement` first.
 
-⚠️ **"Stays in the unfiltered list" is true of this API, not of any storefront screen.** `salesRepTasks` with
-neither `filter` nor `period` does return a dateless task — but the calendar sends a `period` for the selected day
-whenever no tab is active, and that window uses the same `>=` / `<=` bounds that drop NULLs. So every reachable
-view is either day-scoped or tab-scoped, and a rep never sees one. Deliberate: the storefront cannot create these,
-and they are managed where they come from — the admin Tasks screen. Worth stating because the sentence above
-describes the API's contract, and a reader can easily take it as a promise about the UI.
+⚠️ **On the storefront, only the Tasks page with no day and no status picked lists them.** `salesRepTasks` with
+neither `filter` nor `period` returns a dateless task, and that is what the page asks for once the rep clears the
+day. A picked day sends a `period`, whose `>=` / `<=` bounds drop NULLs, and a status sends a `filter`; the calendar
+marks no day for a dateless task, and the dashboard widget lists one day. The storefront cannot create these, and they
+are managed where they come from — the admin Tasks screen.
 
 🛠 **Extenders:** `SalesRepTaskHandlerBase.GetVisibleResponsibleIdsAsync` is the seam for widening whose tasks a
 caller may see and change — today always their own. Override it (e.g. a team lead seeing their reps') and every
 read, and every mutation of an existing task, follows with no call site to change. **Creation is not part of the
 seam** — it stamps the caller directly, so it can only ever produce a task they own; creating on someone's behalf
 needs its own change. Returning an empty list means "nothing", never "everything".
+
+#### Promotion coupons
+
+The coupons a rep can hand to any customer of the store, read from **`VirtoCommerce.Marketing`** — an **optional**
+dependency. With that module absent or disabled the query answers empty. The caller must be a sales rep allowed in
+`storeId`; an empty `storeId` is refused rather than read as "every store".
+
+The set is xAPI `promotionCoupons`' (active public promotions of the store with one shared code), minus what a
+customer could not redeem today:
+
+- expired coupons;
+- used-up coupons. The uses are counted the way checkout counts them, not taken from the cached coupon, whose
+  `totalUsesCount` is not refreshed when a coupon is used;
+- coupons registered to a contact or organization: checkout accepts those only from that member, and the list isn't
+  scoped to one customer.
+
+Ordered by `endDate`, soonest first. `endDate` is when the coupon stops working: the earlier of the coupon's own
+expiration and the promotion's end.
+
+```graphql
+{
+  # `cultureName` localizes the promotion's name, label and description; omit it for the invariant values.
+  salesRepCoupons(storeId: "B2B-store", cultureName: "en-US", first: 20, after: "0") {
+    totalCount
+    items {
+      id couponCode promotionId name label description
+      startDate endDate promotionEndDate expirationDate
+      maxUsesNumber maxUsesPerUser totalUsesCount
+    }
+  }
+}
+```
 
 ### Mutation
 
@@ -765,7 +801,7 @@ editable.
 (`SalesRepDetails.StoreId` is optional) therefore creates tasks with **no** store, which a `storeId`-filtered
 read cannot return. Supported configuration rather than a fault — the storefront never sends `storeId`.
 
-**Calls and the customer link.** `customerId` links a task to one of the caller's customers. It is checked against
+**The customer link.** `customerId` links a task to one of the caller's customers. It is checked against
 the organizations they serve — one they do not serve fails with `Customer not found.`, exactly like an unknown id —
 and stored in task-management's generic object link (`ObjectType = "SalesRepCustomer"`, `ObjectId` = the organization
 id), so there is no new column. `customerId` and `customerName` read back only while the caller still serves that
@@ -774,9 +810,9 @@ task reads keeps it, while another customer replaces it. A task linked to someth
 or an `ObjectId` without one; e.g. a workflow task about an order) keeps that link: it reads with no customer, an edit
 leaves the link alone, and setting a customer on it is refused.
 
-A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show the call
-editor (time and customer). Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
-page's other unavailable quick actions. The popup's customer picker offers the rep's first 100 customers by name, the
+A **call** is a task of type `Call` — what the storefront's "Schedule call" writes, and how it knows to show a time of
+day as well. Without TaskManagement, "Schedule call" stays on the customer page but disabled, like the
+page's other unavailable quick actions. The popup's customer picker offers the rep's first 1000 customers by name, the
 list-sharing picker's list, filtered in the browser: a rep who serves more cannot pick the rest there until the picker
 searches on the server (VCST-5923). "Schedule call" on a customer's page fills in that customer whatever the count,
 and an edit keeps the customer already linked. So that admins can pick and filter it, the module keeps `Call` in the
@@ -1051,6 +1087,7 @@ Two limits are worth knowing. A write that runs inside an `EventSuppressor` scop
 | `VirtoCommerce.Xapi` | GraphQL infrastructure for the scoped storefront schema. |
 | `VirtoCommerce.FileExperienceApi` | Documents library file intake (`POST /api/files/{scope}`), storage facade (`IFileUploadService`), authorized download (`GET /api/files/{id}`), and the `IFileAuthorizationRequirementFactory` seam the module plugs its authorization into. |
 | `VirtoCommerce.Assets` | `AssetEntryChangedEvent` subscription — cascades the documents metadata row when a file record is deleted. |
+| `VirtoCommerce.Marketing` | **Optional.** Promotion coupons for `salesRepCoupons` (`IPromotionSearchService`, `ICouponSearchService`, `IPromotionUsageSearchService`, all in its `.Core`, shipped through `module.keep`). Consumed through `IOptionalDependency<T>`: absent or disabled, the query answers empty. |
 | `VirtoCommerce.TaskManagement` | **Optional.** Storage and CRUD for the rep's tasks (`IWorkTaskService`, `IWorkTaskSearchService`, both in its `.Core`). Consumed through `IOptionalDependency<T>`: absent or disabled, task reads answer empty and task writes error cleanly. The module is otherwise treated as a compiled library — this module adds no validation, migrations or model changes to it. |
 
 ## Tests
@@ -1060,7 +1097,7 @@ Two limits are worth knowing. A write that runs inside an `EventSuppressor` scop
 | Category | Where | What runs | Backend |
 |----------|-------|-----------|---------|
 | `Unit` | `UnitTests/` and the classes at the project root | Validators, mappers, resolvers, response groups and authorization handlers in isolation. | Mocks. |
-| `Component` | `ComponentTests/` | The module's real services, repositories, GraphQL schema and REST controllers, called in-process. | The component harness (`SalesRepTestContext`): one in-memory SQLite database per module context, created with `EnsureCreated`; a RAM Lucene index; hand-written doubles for the platform parts the module only reads (store, settings, currency). |
+| `Component` | `ComponentTests/` | The module's real services, repositories, GraphQL schema and REST controllers, called in-process. | The component harness (`SalesRepTestContext`): the module as the platform runs it (its own `Module.Initialize` and `PostInitialize`) among the real platform and the modules it runs with, each registered as its own `Module.cs` registers it (`Infrastructure/PlatformModules*.cs`); one in-memory SQLite database per module context, created with `EnsureCreated`; a RAM Lucene index. Three stand-ins only: the installed-module list, the sign-in token in the storefront tests, and Google's Analytics API, which answers from a seeded event pool when a test hosts the analytics module. |
 | `StorefrontE2E`, `VCShellAppE2E` | `StorefrontE2E/`, `VCShellAppE2E/` | The real UIs, driven by Playwright. | The same harness, hosted on Kestrel inside the test process. |
 
 `dotnet test` runs all three. The end-to-end tests also carry the `IntegrationTest` category, which `vc-build Test`, and so the module CI, leaves out by default (see below).
@@ -1072,12 +1109,12 @@ The idea is to keep the component-test shape — seed through the harness, exerc
 | | `StorefrontE2E` | `VCShellAppE2E` |
 |---|---|---|
 | UI | The B2B storefront (`vc-theme-b2b-vue`): a vc-frontend clone on its Vite dev server, which the tests start once per run, or a build (the theme zip's `default` folder) that the test host serves. | The sales-rep VC-Shell app (`src/VirtoCommerce.SalesRep.Web/App`), served by the test host as static files under `/apps/vc-sales-rep/`. |
-| Groups | `Customers/`: the rep's customers and a customer's page. `Calendar/` and `Tasks/`: the tasks page. `Calls/`: scheduled calls, from booking to the calendars. `WithoutTaskManagement/`: the hub without the task management module. The group README below says what each covers. | `SalesReps/`: an administrator creates a rep through the details blade and blocks one. |
+| Groups | `Customers/`: the rep's customers and a customer's page. `Calendar/` and `Tasks/`: the tasks page. `Calls/`: scheduled calls, from booking to the calendars. `WithoutTaskManagement/`: the hub without the task management module. `Tasks/` also holds the tasks page's layout group (`TasksLayout…`), which checks what fits at QA's audit widths rather than what works. The group README below says what each covers. | `SalesReps/`: an administrator creates a rep through the details blade and blocks one. |
 | Backend surface | `/graphql` (one combined X-API schema) and `/connect/token`, plus the hub plugin's build on the platform's route for it, found through `store.plugins` as in production. | `/api/sales-rep/**` (the module's controllers, hosted as they are) plus replicas of the platform endpoints the VC-Shell framework and the blades call. |
 | Sign-in | A JWT minted from the real claim producers, placed in `localStorage` before the first navigation. | The platform's Identity cookie, obtained from the host before the first navigation. |
 | Needs on the machine | A storefront: `VC_STOREFRONT_BUILD` (a build) or `VC_STOREFRONT_DIR` (a clone), else a `vc-frontend` clone next to this repo, else a build two levels up; in a ticket folder that is `sources\vc-frontend`, then `front`. A clone needs `node_modules` and Node 22 on PATH. Plus the hub plugin built: `yarn build` in `StorefrontApp/`; a missing build, or one older than its sources, fails the groups with that command. | The built app: `yarn build:app` once in `App/` (output `App/dist`); `Content/vc-sales-rep` or `VC_VCSHELL_APP_DIR` also count. No node process at test time. |
 | Without it | The groups fail with what is missing. | The group fails with the command that builds the app. |
-| Run | `dotnet test --filter "Category=StorefrontE2E"` | `dotnet test --filter "Category=VCShellAppE2E"` |
+| Run | `dotnet test --filter "Category=StorefrontE2E"`; the layout tests alone with `--filter "Kind=Layout"`, the rest with `--filter "Category=StorefrontE2E&Kind!=Layout"` | `dotnet test --filter "Category=VCShellAppE2E"` |
 | Diagnostics | `bin/Debug/net10.0/StorefrontE2E-diagnostics/` | `bin/Debug/net10.0/VCShellAppE2E-diagnostics/` |
 | Details | [StorefrontE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/StorefrontE2E/README.md) | [VCShellAppE2E/README.md](tests/VirtoCommerce.SalesRep.Tests/VCShellAppE2E/README.md) |
 
@@ -1097,8 +1134,11 @@ The run builds that storefront, the hub plugin and the VC-Shell app, serves the 
 
 * Databases are created with `EnsureCreated`, so nothing that only migrations create exists; every account, administrators included, comes from the seed (`ApplicationUser.IsAdministrator = true` makes one).
 * Nothing indexes on its own (there are no background jobs): a read that goes through the index needs `IndexMembersAsync` / `IndexOrdersAsync` in the seed. Member searches with a type filter and keyword searches are such reads.
-* Store, settings and currency are doubles; store-level configuration is set on the store double (`TestStoreService.Customize`), not by inserting rows.
-* Each in-memory SQLite database lives on one connection, which is not thread-safe, so each host answers one request at a time. The page may still be fetching when a test reads, so tests reach the harness only through the environment's `RunExclusiveAsync`, which takes the same turn.
+* Stores, settings, currencies and notifications are the platform's own. A test configures them as an administrator does: a store's sender address, trusted stores or settings through the store service (`SaveStoreAsync`, `SetStoreEmailAsync`), a module setting through the settings manager (`SetSettingAsync`), the Order.Status labels through the localizable settings (`TranslateOrderStatusesAsync`).
+* The module's own startup runs: its roles and the Call task type exist before the test does anything (`beforeModuleStart` seeds what an earlier database held).
+* The platform's audit trigger stamps every inserted row with the current time, whatever date it carries. A row from the past is saved and then backdated with a direct UPDATE (`SaveChangesKeepingDates`), as time passing would.
+* Nothing is sent: an email is rendered from the module's template and saved as a message (`GetEmailMessagesAsync`), a push message is saved (`GetPushMessagesAsync`); there is no email gateway and no background job engine.
+* Each host answers one request at a time. The page may still be fetching when a test reads, so tests reach the harness only through the environment's `RunExclusiveAsync`, which takes the same turn: a test reads after the page's requests, not between them. (The turn began when each in-memory SQLite database lived on one connection, which is not thread-safe; each DbContext now opens its own.)
 * Nothing is cleaned up: the databases and the index live in memory and go with the group. In the storefront groups, a test that adds tasks or takes a customer away signs in as a rep of its own (`NewRepAsync`), so what it changes is nobody else's.
 * With a clone, the run's first storefront page load takes about twenty seconds (Vite compiles on demand, then the storefront loads the hub plugin); every later one, in any group, takes about a second, as does a page from a build or the VC-Shell app.
 
@@ -1115,7 +1155,7 @@ The run builds that storefront, the hub plugin and the VC-Shell app, serves the 
   * [VCST-5332: Publish a shopping list to a customer organization](https://virtocommerce.atlassian.net/browse/VCST-5332)
   * [#12 — VCST-5730: Sales Rep documents library](https://github.com/VirtoCommerce/vc-module-sales-rep/pull/12)
 
-> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers, coupon tracking and list management) is built on top of this module in the frontend and is not part of this repository.
+> **Scope note.** The [Sales Rep Hub epic](https://virtocommerce.atlassian.net/browse/VCST-5142) describes the full storefront experience (KPI dashboards, customer tier badges, cross-customer order views, customer lists, etc.). This module delivers the backend foundation for it — the administration app, the REST API and the storefront X-API data surface, including the dashboard **statistics** data (order/cart/customer KPIs and filter rules). The complete storefront Sales Rep Hub UI (and features such as loyalty tiers and list management) is built on top of this module in the frontend and is not part of this repository.
 
 ## References
 
