@@ -5,6 +5,7 @@
     :month="month"
     :size="size"
     :day-descriptions="dayDescriptions"
+    :show-footer="clearable"
     @update:model-value="onSelect"
     @update:month="$emit('update:month', $event)"
   >
@@ -39,10 +40,12 @@ interface IProps {
   /** ISO day → what that day carries: the conditions to dot, and how many tasks are due. */
   dayMarkers?: SalesRepTaskDayMarkersType;
   size?: VcCalendarSizeType;
+  /** The day can be unselected: the footer's Clear (beside Today), or a second click on the selected day. */
+  clearable?: boolean;
 }
 
 const emit = defineEmits<{
-  (event: "update:modelValue", day: string): void;
+  (event: "update:modelValue", day: string | undefined): void;
   (event: "update:month", month: string): void;
 }>();
 
@@ -51,6 +54,7 @@ const props = withDefaults(defineProps<IProps>(), {
   month: undefined,
   dayMarkers: undefined,
   size: "md",
+  clearable: false,
 });
 
 const { t } = useI18n();
@@ -90,10 +94,10 @@ const dayDescriptions = computed<Record<string, string>>(() => {
   return result;
 });
 
-// VcCalendar can clear its selection; these surfaces always show some day, so a clear is ignored rather than
-// leaving the list with nothing to scope to.
+// VcCalendar can clear its selection. Unless the day may be cleared, the surface always shows some day, so a clear is
+// ignored rather than leaving the list with nothing to scope to.
 function onSelect(day: string | undefined): void {
-  if (day) {
+  if (day || props.clearable) {
     emit("update:modelValue", day);
   }
 }

@@ -3,6 +3,7 @@ import {
   buildDayMarkers,
   dueDateForDay,
   dueDateForDayAndTime,
+  emptyTaskFilters,
   formatTimeOfDay,
   isCallTask,
   localCalendarWindow,
@@ -11,6 +12,8 @@ import {
   localDayWindow,
   localTimeKey,
   startOfLocalDay,
+  taskFilterVariables,
+  taskPriorityLabelKey,
   taskStatus,
   taskSubline,
   timeKeysOfDay,
@@ -384,5 +387,49 @@ describe("taskSubline", () => {
     expect(taskSubline(makeTask({ type: "Other" }), t, d, "fr-FR")).toBe(
       "sales_rep.tasks.due_relative.due(Oct 15) · Other",
     );
+  });
+
+  it("names the customer of any task", () => {
+    expect(taskSubline(makeTask({ type: "Other", customerName: "Cabin Co." }), t, d, "en-US")).toBe(
+      "sales_rep.tasks.due_relative.due(Oct 15) · Cabin Co. · Other",
+    );
+  });
+
+  // The Tasks table gives the customer a column of its own, so its line leaves the customer out, a call's too.
+  it("leaves the customer out when a column names it", () => {
+    const options = { withCustomer: false };
+
+    expect(taskSubline(makeTask({ type: "Other", customerName: "Cabin Co." }), t, d, "en-US", options)).toBe(
+      "sales_rep.tasks.due_relative.due(Oct 15) · Other",
+    );
+    expect(taskSubline(makeTask({ type: "Call", dueDate: CALL_DUE_DATE }), t, d, "en-US", options)).toBe(
+      `sales_rep.tasks.due_relative.due(Oct 15, ${formatTimeOfDay(CALL_DUE_DATE, "en-US")}) · Call`,
+    );
+  });
+});
+
+describe("taskFilterVariables", () => {
+  it("passes every filter that is set", () => {
+    expect(
+      taskFilterVariables({ keyword: "renewal", status: "overdue", customerIds: ["org-1"], priorities: ["High"] }),
+    ).toEqual({ keyword: "renewal", filter: "overdue", customerIds: ["org-1"], priorities: ["High"] });
+  });
+
+  // An argument sent empty would still change the request, and with it the Apollo cache entry, from the one a
+  // surface without filters asks for.
+  it("leaves out the filters that are not set", () => {
+    expect(taskFilterVariables(emptyTaskFilters())).toEqual({
+      keyword: undefined,
+      filter: undefined,
+      customerIds: undefined,
+      priorities: undefined,
+    });
+    expect(taskFilterVariables()).toEqual(taskFilterVariables(emptyTaskFilters()));
+  });
+});
+
+describe("taskPriorityLabelKey", () => {
+  it("names a priority by its lower-cased name", () => {
+    expect(taskPriorityLabelKey("Highest")).toBe("sales_rep.tasks.priority.highest");
   });
 });

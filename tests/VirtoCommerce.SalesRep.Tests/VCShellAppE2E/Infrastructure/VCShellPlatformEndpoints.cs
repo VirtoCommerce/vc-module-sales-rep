@@ -11,7 +11,6 @@ using VirtoCommerce.CustomerModule.Core.Model.Search;
 using VirtoCommerce.CustomerModule.Core.Services;
 using VirtoCommerce.Platform.Core;
 using VirtoCommerce.Platform.Core.Common;
-using VirtoCommerce.Platform.Core.GenericCrud;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.StoreModule.Core.Model.Search;
 using VirtoCommerce.StoreModule.Core.Services;
@@ -22,8 +21,8 @@ namespace VirtoCommerce.SalesRep.Tests.VCShellAppE2E.Infrastructure;
 /// The platform and module endpoints the app calls that no referenced package implements (their controllers live
 /// in non-packable .Web projects): sign-in and sign-out, the current-user, notifications and apps calls the shell
 /// makes at boot, the customization and provider calls of the sign-in page, and the store and organization
-/// searches the details blade fills its selects from. Thin replicas over the harness services, serialized with
-/// the platform's JSON contract.
+/// searches the details blade fills its selects from. Thin replicas of the controllers over the real services,
+/// serialized with the platform's JSON contract.
 /// </summary>
 internal static class VCShellPlatformEndpoints
 {
@@ -98,11 +97,12 @@ internal static class VCShellPlatformEndpoints
         });
     }
 
-    // StoreModuleController.SearchStores: the harness store double is the only store there is.
-    private static async Task<IResult> SearchStoresAsync(IStoreService storeService)
+    // StoreModuleController.SearchStores over the real store search.
+    private static async Task<IResult> SearchStoresAsync(HttpContext http, IStoreSearchService storeSearchService)
     {
-        var store = await storeService.GetByIdAsync(InProcessVCShellBackend.StoreId);
-        return PlatformJson.Result(new StoreSearchResult { TotalCount = 1, Results = [store] });
+        var criteria = await PlatformJson.ReadAsync<StoreSearchCriteria>(http.Request) ?? AbstractTypeFactory<StoreSearchCriteria>.TryCreateInstance();
+
+        return PlatformJson.Result(await storeSearchService.SearchAsync(criteria));
     }
 
     // CustomerModuleController.SearchOrganizations over the real, database-backed member search service.

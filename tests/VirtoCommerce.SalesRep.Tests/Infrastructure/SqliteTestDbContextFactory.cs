@@ -27,7 +27,22 @@ public static class SqliteTestDbContextFactory
     public static DbContextOptions<TContext> CreateOptions<TContext>(SqliteConnection connection, Action<DbContextOptionsBuilder> configure = null)
         where TContext : DbContext
     {
-        var builder = new DbContextOptionsBuilder<TContext>().UseSqlite(connection);
+        return EnsureCreated(new DbContextOptionsBuilder<TContext>().UseSqlite(connection), configure);
+    }
+
+    /// <summary>
+    /// As the overload above, but each context opens a connection of its own from <paramref name="connectionString"/>
+    /// (a shared-cache in-memory database, which a connection the caller keeps open holds alive).
+    /// </summary>
+    public static DbContextOptions<TContext> CreateOptions<TContext>(string connectionString, Action<DbContextOptionsBuilder> configure = null)
+        where TContext : DbContext
+    {
+        return EnsureCreated(new DbContextOptionsBuilder<TContext>().UseSqlite(connectionString), configure);
+    }
+
+    private static DbContextOptions<TContext> EnsureCreated<TContext>(DbContextOptionsBuilder<TContext> builder, Action<DbContextOptionsBuilder> configure)
+        where TContext : DbContext
+    {
         configure?.Invoke(builder);
         var options = builder.Options;
 

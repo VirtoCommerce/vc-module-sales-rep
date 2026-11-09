@@ -6,9 +6,10 @@ using Microsoft.AspNetCore.Builder;
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
 /// <summary>
-/// One turn at a time for whatever touches the harness. Its in-memory SQLite databases each live on one connection, which
-/// is not thread-safe, while the UIs send their requests in parallel ("database is locked", races in the connection's
-/// command list). A host puts its requests behind the gate; a test's own reads take a turn as well.
+/// One turn at a time for whatever touches the harness. A host puts its requests behind the gate and a test's own reads
+/// take a turn as well, so a test reads after the UI's requests, not between them. (The gate began when each in-memory
+/// SQLite database lived on one connection, which is not thread-safe, while the UIs send their requests in parallel:
+/// "database is locked", races in the connection's command list. Each DbContext now opens its own.)
 /// </summary>
 internal sealed class RequestGate : IDisposable
 {

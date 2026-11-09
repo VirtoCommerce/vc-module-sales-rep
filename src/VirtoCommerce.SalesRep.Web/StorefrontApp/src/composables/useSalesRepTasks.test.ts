@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ref } from "vue";
 import { TASKS_PAGE_SIZE } from "../constants";
-import { localDayWindow } from "../tasks";
+import { emptyTaskFilters, localDayWindow } from "../tasks";
 import { useSalesRepTasks } from "./useSalesRepTasks";
+import type { SalesRepTaskFiltersType } from "../types/tasks";
 
 // vi.hoisted runs before this file's imports, so it must import vue itself.
 const queryMock = await vi.hoisted(async () => {
@@ -21,7 +22,15 @@ const queryMock = await vi.hoisted(async () => {
 vi.mock("@vue/apollo-composable", () => ({ useQuery: queryMock.useQuery }));
 
 /** The reactive `variables` computed the composable handed to useQuery. */
-function passedVariables(): { first: number; after: string; filter?: string; period?: { from: string; to: string } } {
+function passedVariables(): {
+  first: number;
+  after: string;
+  keyword?: string;
+  filter?: string;
+  customerIds?: string[];
+  priorities?: string[];
+  period?: { from: string; to: string };
+} {
   const call = (queryMock.useQuery.mock.calls.at(-1) ?? []) as unknown[];
   return (call[1] as { value: ReturnType<typeof passedVariables> }).value;
 }
@@ -53,14 +62,44 @@ describe("useSalesRepTasks paging", () => {
     expect(passedVariables()).toMatchObject({ after: "0", period: localDayWindow("2026-10-16") });
   });
 
-  it("returns to page 1 when the tab changes", () => {
-    const filter = ref<string | undefined>(undefined);
-    const { page } = useSalesRepTasks({ filter });
+  it("returns to page 1 when a filter changes", () => {
+    const filters = ref<SalesRepTaskFiltersType>(emptyTaskFilters());
+    const { page } = useSalesRepTasks({ filters });
     page.value = 2;
 
-    filter.value = "overdue";
+    filters.value = { ...filters.value, customerIds: ["org-1"] };
 
     expect(page.value).toBe(1);
-    expect(passedVariables()).toMatchObject({ after: "0", filter: "overdue" });
+    expect(passedVariables()).toMatchObject({ after: "0", customerIds: ["org-1"] });
+  });
+});
+
+describe("useSalesRepTasks filters", () => {
+  it("sends every filter that is set", () => {
+    const filters = ref<SalesRepTaskFiltersType>({
+      keyword: "renewal",
+      status: "overdue",
+      customerIds: ["org-1", "org-2"],
+      priorities: ["High", "Highest"],
+    });
+
+    useSalesRepTasks({ filters });
+
+    expect(passedVariables()).toMatchObject({
+      keyword: "renewal",
+      filter: "overdue",
+      customerIds: ["org-1", "org-2"],
+      priorities: ["High", "Highest"],
+    });
+  });
+
+  // An empty filter is no argument at all, so the list asks exactly what a surface without filters asks.
+  it("leaves the filters that are not set out of the request", () => {
+    useSalesRepTasks({ filters: ref(emptyTaskFilters()) });
+
+    const variables = passedVariables();
+    for (const name of ["keyword", "filter", "customerIds", "priorities"] as const) {
+      expect(variables[name]).toBeUndefined();
+    }
   });
 });
