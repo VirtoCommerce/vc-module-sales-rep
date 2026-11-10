@@ -14,31 +14,54 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.4.0" />
     <PackageReference Include="Microsoft.Playwright" Version="1.63.0" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.4" />
+    <!-- The platform and the modules the harnesses host, as each registers itself, on SQLite and a RAM Lucene index
+         (Infrastructure/PlatformModules*.cs): the .Data packages at the versions this module references, or at the .Core
+         version the graph resolves where a dependency asks for a newer one (Catalog 3.1048, File Experience API 3.1006,
+         X-Catalog 3.1023); plus the storefront shell's (StorefrontE2E/Infrastructure/StorefrontShellModules.cs): X-Profile
+         3.1020 and X-Order 3.1014 (what the X-Frontend prerelease with the layout API builds on), X-CMS with the content
+         module, X-Recommend. -->
     <PackageReference Include="VirtoCommerce.AssetsModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1012.0" />
-    <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1032.0" />
+    <PackageReference Include="VirtoCommerce.CatalogModule.Data" Version="3.1048.0" />
+    <PackageReference Include="VirtoCommerce.ContentModule.Data" Version="3.1008.0" />
+    <PackageReference Include="VirtoCommerce.ContentModule.FileSystem" Version="3.1008.0" />
+    <PackageReference Include="VirtoCommerce.CoreModule.Data" Version="3.1012.0" />
     <PackageReference Include="VirtoCommerce.CustomerModule.Data" Version="3.1028.0" />
     <PackageReference Include="VirtoCommerce.FileExperienceApi.Data" Version="3.1006.0" />
-    <!-- Test-only, and deliberately .Data: it carries the real AnalyticsService plus the two provider seams the
-         component harness doubles, so these tests run the analytics module rather than restate it. -->
+    <PackageReference Include="VirtoCommerce.FileSystemAssetsModule.Core" Version="3.1006.0" />
+    <!-- Test-only, and deliberately .Data: the whole analytics module runs (its service, data source and settings
+         resolver); only its report client, which calls Google, gives way to the stand-in (TestAnalytics). -->
     <PackageReference Include="VirtoCommerce.GoogleEcommerceAnalyticsModule.Data" Version="4.1006.0" />
+    <PackageReference Include="VirtoCommerce.InventoryModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.LuceneSearchModule.Data" Version="3.1002.0" />
     <PackageReference Include="VirtoCommerce.MarketingModule.Data" Version="3.1009.0" />
+    <PackageReference Include="VirtoCommerce.NotificationsModule.Data" Version="3.1018.0" />
+    <PackageReference Include="VirtoCommerce.NotificationsModule.LiquidRenderer" Version="3.1018.0" />
     <PackageReference Include="VirtoCommerce.OrdersModule.Data" Version="3.1018.0" />
+    <PackageReference Include="VirtoCommerce.PaymentModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.Platform.Caching" Version="3.1091.0" />
     <PackageReference Include="VirtoCommerce.Platform.DistributedLock" Version="3.1091.0" />
     <PackageReference Include="VirtoCommerce.Platform.Modules" Version="3.1091.0" />
+    <PackageReference Include="VirtoCommerce.PricingModule.Data" Version="3.1008.0" />
     <PackageReference Include="VirtoCommerce.ProfileExperienceApiModule.Data" Version="3.1020.0" />
+    <PackageReference Include="VirtoCommerce.PushMessages.Data" Version="3.1004.0" />
+    <PackageReference Include="VirtoCommerce.PushMessages.ExperienceApi" Version="3.1004.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Core" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.SearchModule.Data" Version="3.1010.0" />
-    <PackageReference Include="VirtoCommerce.StoreModule.Core" Version="3.1009.0" />
-    <PackageReference Include="VirtoCommerce.TaskManagement.Data" Version="3.1005.0" />
+    <PackageReference Include="VirtoCommerce.Seo.Data" Version="3.1005.0" />
+    <PackageReference Include="VirtoCommerce.ShippingModule.Data" Version="3.1009.0" />
+    <PackageReference Include="VirtoCommerce.StoreModule.Data" Version="3.1009.0" />
+    <PackageReference Include="VirtoCommerce.TaskManagement.Data" Version="3.1007.0" />
+    <PackageReference Include="VirtoCommerce.WhiteLabeling.ExperienceApi" Version="3.1005.0" />
     <PackageReference Include="VirtoCommerce.Xapi.Data" Version="3.1027.0" />
     <PackageReference Include="VirtoCommerce.XCart.Data" Version="3.1039.0" />
-    <!-- Test-only: the hub's dashboards read and save their layouts through X-Frontend, which the module depends on in its
-         manifest alone; the storefront E2E host serves its real layout API. Keep the version the manifest names. -->
+    <PackageReference Include="VirtoCommerce.XCatalog.Data" Version="3.1023.0" />
+    <PackageReference Include="VirtoCommerce.XCMS.Data" Version="3.1009.0" />
+    <!-- The hub's dashboards read and save their layouts through X-Frontend, which the module depends on in its manifest
+         alone; the storefront E2E host serves its real layout API. Keep the version the manifest names. -->
     <PackageReference Include="VirtoCommerce.XFrontend.Data" Version="3.1008.0-alpha.64-vcst-6078-user-dashboard" />
     <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1014.0" />
+    <PackageReference Include="VirtoCommerce.XRecommend.Data" Version="3.1002.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -47,6 +70,10 @@
   </ItemGroup>
   <ItemGroup>
     <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-pgww-w46g-26qg" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The platform's country lists, which it ships in its own content root (Platform.Web 3.1091.0), not on NuGet. -->
+    <None Update="Platform\**\*.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />

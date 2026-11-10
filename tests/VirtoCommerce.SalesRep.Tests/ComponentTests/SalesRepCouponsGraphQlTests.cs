@@ -27,7 +27,7 @@ public class SalesRepCouponsGraphQlTests
     [Fact]
     public async Task ListsTheStoresActivePublicPromotionsWithOneCoupon()
     {
-        using var ctx = SalesRepTestContext.Create(withMarketing: true);
+        using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "ann@test.com");
 
         await SeedPromotionAsync(ctx, "p-listed", [Store], ["LISTED"]);
@@ -48,7 +48,7 @@ public class SalesRepCouponsGraphQlTests
     [Fact]
     public async Task CouponRegisteredToAMember_IsNotListed()
     {
-        using var ctx = SalesRepTestContext.Create(withMarketing: true);
+        using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "ann@test.com");
         await SeedPromotionAsync(ctx, "p-personal", [Store], ["PERSONAL"], memberId: "org-z");
         await SeedPromotionAsync(ctx, "p-open", [Store], ["OPEN"]);
@@ -62,7 +62,7 @@ public class SalesRepCouponsGraphQlTests
     [Fact]
     public async Task UsedUpCoupon_IsHiddenAfterItsLastUse_ThoughMarketingStillCachesTheCoupon()
     {
-        using var ctx = SalesRepTestContext.Create(withMarketing: true);
+        using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "ann@test.com");
         await SeedPromotionAsync(ctx, "p-once", [Store], ["ONCE"], maxUses: 1);
         await SeedPromotionAsync(ctx, "p-thrice", [Store], ["THRICE"], maxUses: 3);
@@ -95,7 +95,7 @@ public class SalesRepCouponsGraphQlTests
     [Fact]
     public async Task Anonymous_IsDenied_AndANonRepSeesNothing()
     {
-        using var ctx = SalesRepTestContext.Create(withMarketing: true);
+        using var ctx = SalesRepTestContext.Create();
         await SeedPromotionAsync(ctx, "p-listed", [Store], ["LISTED"]);
         var query = $"query {{ salesRepCoupons(storeId: \"{Store}\") {{ totalCount items {{ couponCode }} }} }}";
 
@@ -113,13 +113,13 @@ public class SalesRepCouponsGraphQlTests
     [Fact]
     public async Task ARepOfAnotherStore_SeesNothing_UntilTheStoreTrustsTheirs()
     {
-        using var ctx = SalesRepTestContext.Create(withMarketing: true);
+        using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "bob@test.com", storeId: "other-store");
         await SeedPromotionAsync(ctx, "p-listed", [Store], ["LISTED"]);
 
         (await ListCouponsAsync(ctx, rep)).GetProperty("totalCount").GetInt32().Should().Be(0);
 
-        ctx.SetStoreTrustedGroups(Store, "other-store");
+        await ctx.SetStoreTrustedGroupsAsync(Store, "other-store");
 
         Codes(await ListCouponsAsync(ctx, rep)).Should().Equal("LISTED");
     }
@@ -127,7 +127,7 @@ public class SalesRepCouponsGraphQlTests
     [Fact]
     public async Task Paging_TakesTheOffsetAsTheCursor_OverTheSoonestToExpireOrder()
     {
-        using var ctx = SalesRepTestContext.Create(withMarketing: true);
+        using var ctx = SalesRepTestContext.Create();
         var rep = await SeedRepAsync(ctx, "ann@test.com");
         await SeedPromotionAsync(ctx, "p-third", [Store], ["THIRD"], endDate: DateTime.UtcNow.AddDays(15));
         await SeedPromotionAsync(ctx, "p-first", [Store], ["FIRST"], endDate: DateTime.UtcNow.AddDays(5));

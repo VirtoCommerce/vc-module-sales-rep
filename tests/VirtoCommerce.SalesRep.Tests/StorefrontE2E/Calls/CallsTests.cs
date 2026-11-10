@@ -115,20 +115,20 @@ public sealed class CallsTests(CallsEnvironment env)
     }
 
     [Fact(Timeout = 300_000)]
-    public async Task NewTask_PickingCall_AddsCustomerAndTime_AndSavesACall()
+    public async Task NewTask_PickingCall_AddsTheTime_AndSavesACall()
     {
         const string name = "Call about the spring order";
 
         var rep = await env.NewRepAsync();
         await using var session = await OpenAsync(rep.UserId, "/company/tasks");
 
-        await session.RunAsync(nameof(NewTask_PickingCall_AddsCustomerAndTime_AndSavesACall), async page =>
+        await session.RunAsync(nameof(NewTask_PickingCall_AddsTheTime_AndSavesACall), async page =>
         {
             var dialog = await NewTaskAsync(page);
             await dialog.GetByLabel("Title").FillAsync(name);
 
-            // A plain task until it becomes a call: no customer, no time of day, no calendars.
-            await Expect(Field(dialog, "Customer")).ToHaveCountAsync(0);
+            // A plain task until it becomes a call: a customer like any task (VCST-6157), but no time of day, no calendars.
+            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(string.Empty);
             await Expect(Field(dialog, "Time")).ToHaveCountAsync(0);
             await Expect(Calendars(dialog)).ToHaveCountAsync(0);
 
@@ -172,9 +172,9 @@ public sealed class CallsTests(CallsEnvironment env)
             await PickAsync(page, Field(dialog, "Type"), Call);
             await PickCustomerAsync(page, dialog, CallsEnvironment.NorthwindName);
 
-            // Another type takes the call's fields away again, the customer picked there included.
+            // Another type takes the call's own fields away again. The customer is any task's, so it stays.
             await PickAsync(page, Field(dialog, "Type"), "Other");
-            await Expect(Field(dialog, "Customer")).ToHaveCountAsync(0);
+            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.NorthwindName);
             await Expect(Field(dialog, "Time")).ToHaveCountAsync(0);
             await Expect(Calendars(dialog)).ToHaveCountAsync(0);
 
@@ -185,8 +185,8 @@ public sealed class CallsTests(CallsEnvironment env)
         var task = await env.WaitForTaskAsync(x => x.Name == name);
         task.Should().NotBeNull();
         task.Type.Should().Be("Other");
-        task.ObjectType.Should().BeNull();
-        task.ObjectId.Should().BeNull();
+        task.ObjectType.Should().Be(CustomerLink);
+        task.ObjectId.Should().Be(CallsEnvironment.NorthwindId);
     }
 
     [Fact(Timeout = 300_000)]
@@ -200,12 +200,13 @@ public sealed class CallsTests(CallsEnvironment env)
         {
             await ShowAllAsync(page);
 
-            await Expect(Row(page, CallsEnvironment.ListedCall))
-                .ToContainTextAsync($"Due {day}, 10:15 AM · {CallsEnvironment.ContosoName} · Call");
-            await Expect(Row(page, CallsEnvironment.ListedCallWithoutCustomer))
-                .ToContainTextAsync($"Due {day}, 11:00 AM · Customer not assigned · Call");
+            // The customer has a column of its own, a dash for none; the line under the title keeps the time.
+            await Expect(Row(page, CallsEnvironment.ListedCall)).ToContainTextAsync($"Due {day}, 10:15 AM · Call");
+            await Expect(CustomerCell(page, CallsEnvironment.ListedCall)).ToHaveTextAsync(CallsEnvironment.ContosoName);
+            await Expect(Row(page, CallsEnvironment.ListedCallWithoutCustomer)).ToContainTextAsync($"Due {day}, 11:00 AM · Call");
+            await Expect(CustomerCell(page, CallsEnvironment.ListedCallWithoutCustomer)).ToHaveTextAsync("—");
 
-            // A plain task is due on a day: no time, and no customer line.
+            // A plain task is due on a day: no time.
             await Expect(Row(page, CallsEnvironment.ListedTask)).ToContainTextAsync($"Due {day} · Other");
         });
     }
@@ -234,7 +235,8 @@ public sealed class CallsTests(CallsEnvironment env)
             await SaveAsync(page, dialog);
 
             await Expect(Row(page, CallsEnvironment.CallToEdit))
-                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 11:30 AM · {CallsEnvironment.NorthwindName} · Call");
+                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 11:30 AM · Call");
+            await Expect(CustomerCell(page, CallsEnvironment.CallToEdit)).ToHaveTextAsync(CallsEnvironment.NorthwindName);
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == CallsEnvironment.CallToEdit && x.ObjectId == CallsEnvironment.NorthwindId);
@@ -260,7 +262,7 @@ public sealed class CallsTests(CallsEnvironment env)
             await Expect(Field(dialog, "Customer")).ToHaveValueAsync(string.Empty);
             await SaveAsync(page, dialog);
 
-            await Expect(Row(page, CallsEnvironment.CallToUnlink)).ToContainTextAsync("· Customer not assigned · Call");
+            await Expect(CustomerCell(page, CallsEnvironment.CallToUnlink)).ToHaveTextAsync("—");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == CallsEnvironment.CallToUnlink && x.ObjectId == null);
@@ -279,7 +281,7 @@ public sealed class CallsTests(CallsEnvironment env)
             await ShowAllAsync(page);
             var dialog = await EditAsync(page, CallsEnvironment.TaskToTurnIntoCall, "Edit task");
             await Expect(Field(dialog, "Type")).ToHaveValueAsync("Other");
-            await Expect(Field(dialog, "Customer")).ToHaveCountAsync(0);
+            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(string.Empty);
 
             await PickAsync(page, Field(dialog, "Type"), Call);
             await Expect(Field(dialog, "Time")).ToHaveValueAsync(Exactly("9:00 AM"));
@@ -309,7 +311,8 @@ public sealed class CallsTests(CallsEnvironment env)
 
             // The call is still the rep's; the customer no longer is, so the list does not name it.
             await Expect(Row(page, CallsEnvironment.CallAboutFormerCustomer))
-                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 3:00 PM · Customer not assigned · Call");
+                .ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 3:00 PM · Call");
+            await Expect(CustomerCell(page, CallsEnvironment.CallAboutFormerCustomer)).ToHaveTextAsync("—");
             await Expect(page.GetByRole(AriaRole.Main)).Not.ToContainTextAsync(CallsEnvironment.FabrikamName);
 
             var dialog = await EditAsync(page, CallsEnvironment.CallAboutFormerCustomer, "Edit call");

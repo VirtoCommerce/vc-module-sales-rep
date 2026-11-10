@@ -18,7 +18,7 @@ namespace VirtoCommerce.SalesRep.Tests;
 /// Pure-logic tests for the default <see cref="SalesRepOrderFilterRuleResolver"/> — each status the store's orders
 /// actually use becomes its own status option (1:1), labeled from the configured Order.Status dictionary, and
 /// resolution maps selected statuses to the union of their underlying order statuses. (Composite/override behavior is
-/// exercised end-to-end by the component tests via a stub service.)
+/// exercised end-to-end by the component tests, over the platform's own localizable settings.)
 /// </summary>
 [Trait("Category", "Unit")]
 public class SalesRepOrderFilterRuleResolverTests
