@@ -1,5 +1,5 @@
 <template>
-  <div class="reporting-panel">
+  <div :class="['reporting-panel', { 'reporting-panel--compact': compact }]">
     <div class="reporting-panel__toolbar">
       <div class="reporting-panel__periods" role="group" :aria-label="t('sales_rep.reporting.period_label')">
         <VcTabSwitch
@@ -78,7 +78,7 @@
         test-id="sales-rep-reporting-aov"
       />
 
-      <ReportingTable :months="months" :currency-code="currencyCode" :loading="loading" />
+      <ReportingTable v-if="withTable" :months="months" :currency-code="currencyCode" :loading="loading" />
 
       <p class="reporting-panel__footnote">
         <VcIcon name="info" size="xs" />
@@ -105,9 +105,15 @@ import type { ReportingPeriodType } from "../reporting";
 interface IProps {
   /** One customer; empty for all the rep's customers. */
   organizationId: string;
+  /** For a narrow column: the tiles stay two by two at every width. */
+  compact?: boolean;
+  /** "Show as table"; off where a link to the Reporting page carries it instead. */
+  withTable?: boolean;
 }
 
-const props = defineProps<IProps>();
+const props = withDefaults(defineProps<IProps>(), {
+  withTable: true,
+});
 
 // The owner decides where the period lives: the Reporting page keeps it in the URL.
 const period = defineModel<ReportingPeriodType>("period", { required: true });
@@ -244,6 +250,12 @@ const footnote = computed(() => {
 
     @media (width >= theme("screens.lg")) {
       @apply grid-cols-4;
+    }
+  }
+
+  &--compact &__tiles {
+    @media (width >= theme("screens.lg")) {
+      @apply grid-cols-2;
     }
   }
 

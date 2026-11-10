@@ -130,6 +130,9 @@
         "phone": "Telefon",
         "account_type": "Kontotype",
         "ship_to": "Leveringsadresse"
+      },
+      "sales": {
+        "open_in_reporting": "Åpne i Rapporter"
       }
     },
     "customer_orders": {

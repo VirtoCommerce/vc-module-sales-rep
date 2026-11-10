@@ -54,7 +54,9 @@ function monthsIn(...states: ReportingMonthSlotType["state"][]): ReportingMonthT
   return states.map((monthState, i) => toReportingMonth(slot(i, monthState), { totals: { amount: 100, count: 1 } }));
 }
 
-function mountPanel(props: { organizationId?: string; period?: ReportingPeriodType } = {}, slots = {}) {
+type PanelPropsType = { organizationId?: string; period?: ReportingPeriodType; compact?: boolean; withTable?: boolean };
+
+function mountPanel(props: PanelPropsType = {}, slots = {}) {
   return mount(ReportingPanel, {
     props: { organizationId: "", period: "q1", ...props },
     slots,
@@ -62,7 +64,7 @@ function mountPanel(props: { organizationId?: string; period?: ReportingPeriodTy
       stubs: {
         ReportingChart: { props: ["loading", "kind"], template: "<div class='chart-stub' :data-loading='loading' />" },
         ReportingKpiTile: true,
-        ReportingTable: true,
+        ReportingTable: { template: "<div class='table-stub' />" },
         VcTabSwitch: {
           props: ["value"],
           emits: ["change"],
@@ -147,5 +149,18 @@ describe("ReportingPanel", () => {
 
   it("leaves no empty actions box without them", () => {
     expect(mountPanel().find(".reporting-panel__actions").exists()).toBe(false);
+  });
+
+  it("offers the table by default", () => {
+    expect(mountPanel().find(".table-stub").exists()).toBe(true);
+  });
+
+  it("leaves the table out on request", () => {
+    expect(mountPanel({ withTable: false }).find(".table-stub").exists()).toBe(false);
+  });
+
+  it("marks itself compact for a narrow column", () => {
+    expect(mountPanel({ compact: true }).classes()).toContain("reporting-panel--compact");
+    expect(mountPanel().classes()).not.toContain("reporting-panel--compact");
   });
 });
