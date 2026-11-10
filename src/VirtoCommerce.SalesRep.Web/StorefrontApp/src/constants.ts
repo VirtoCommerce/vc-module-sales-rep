@@ -41,6 +41,11 @@ export const CUSTOMER_ORDER_ROUTE_SEGMENT = `${CUSTOMER_ORDERS_ROUTE_SEGMENT}/:o
 export const CUSTOMER_ACTIVITIES_ROUTE_NAME = "SalesRepCustomerActivities";
 export const CUSTOMER_ACTIVITIES_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/activities`;
 
+// All promotion coupons, under a customer's profile like their orders (VCST-6158). The list is store-wide, not
+// per customer; the route keeps the rep in the customer's context.
+export const CUSTOMER_COUPONS_ROUTE_NAME = "SalesRepCustomerCoupons";
+export const CUSTOMER_COUPONS_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/coupons`;
+
 // The storefront's own order page: an order the rep placed opens there, where their buyer actions still
 // work. The hub's page is read-only for everyone.
 export const BUYER_ORDER_ROUTE_NAME = "OrderDetails" satisfies HostRouteNameType;
@@ -136,6 +141,9 @@ export const TASKS_NAV_LINK_ID = "sales-rep-tasks";
 export const TASKS_BLOCK_ID = "tasks";
 // Page size for the Tasks page's task table (offset-as-cursor, like useSalesRepDocuments).
 export const TASKS_PAGE_SIZE = 15;
+// How long the Tasks page's list and dots wait for its filters to settle: a multi-select stays open for the next pick,
+// so picks come in bursts, and each would otherwise refetch both.
+export const TASKS_FILTERS_DEBOUNCE_MS = 300;
 // Dashboard widget row cap — follows documents: default 5, max 10.
 export const TASKS_DEFAULT_ROWS = 5;
 export const TASKS_MAX_ROWS = 10;
@@ -143,9 +151,8 @@ export const TASKS_MAX_ROWS = 10;
 // fails closed — keep it aligned with a real rule); no surface offers a sort control, so the rule list itself is
 // not fetched.
 export const TASKS_SORT_RULE = "due-date";
-// The filter rule the dashboard's overdue notice deep-links to. Same string the counts query aliases in
-// salesRepTaskCountsQuery.graphql; a name the project does not offer falls back to the day view, because
-// the chips drop a selection no rule matches.
+// The filter rule the dashboard's overdue notice links to and counts with (salesRepOverdueTaskCountQuery.graphql).
+// A name the project does not offer falls back to every status, because the Tasks page drops a status no rule matches.
 export const TASKS_OVERDUE_RULE = "overdue";
 // Upper bound on the month query behind the calendar dots. A rep's month is tens of tasks; the cap only
 // stops a pathological book of business from pulling an unbounded page for three dots a day.
@@ -158,6 +165,15 @@ export const CALL_DEFAULT_TIME = "09:00";
 export const CALL_TIME_STEP_MINUTES = 15;
 // The form picks a call's start only; a calendar event needs an end, so a call goes there as half an hour.
 export const CALL_DURATION_MINUTES = 30;
+
+// Coupons (VCST-6158). Backed by vc-module-marketing, an OPTIONAL backend dependency, gated like tasks.
+export const MARKETING_MODULE_ID = "VirtoCommerce.Marketing";
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
+export const COUPONS_BLOCK_ID = "coupons";
+export const COUPONS_DEFAULT_ROWS = 5;
+export const COUPONS_MAX_ROWS = 20;
+// Page size of the all-coupons page (offset-as-cursor, like the documents page).
+export const COUPONS_PAGE_SIZE = 10;
 
 // Backs the "New orders" card; order filter rules are raw order statuses, so this uses the "New"
 // status (an unrecognized name fails closed — keep it aligned with a real status). The card's label

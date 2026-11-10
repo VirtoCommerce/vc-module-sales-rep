@@ -533,27 +533,28 @@ describe("SalesRepTaskModal calls", () => {
   });
 
   // The type decides which fields follow, so it sits right under the title instead of at the bottom.
-  it("puts Type right under Title, above the fields it controls", () => {
+  it("puts Type right under Title, then Customer, above the date", () => {
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
 
     const labels = wrapper.findAll("[data-label]").map((input) => input.attributes("data-label"));
-    expect(labels.slice(0, 3)).toEqual([
+    expect(labels.slice(0, 4)).toEqual([
       "sales_rep.tasks.form.name_label",
       "sales_rep.tasks.form.type_label",
+      "sales_rep.tasks.form.customer_label",
       "sales_rep.tasks.form.due_date_label",
     ]);
   });
 
-  it("asks a task for a time and a customer only once it is a call", async () => {
+  // Any task can be about a customer (VCST-6157); only a call is due at a time of day.
+  it("asks every task for a customer, and a task for a time only once it is a call", async () => {
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
 
+    expect(exists(wrapper, "customer_label")).toBe(true);
     expect(exists(wrapper, "time_label")).toBe(false);
-    expect(exists(wrapper, "customer_label")).toBe(false);
 
     await field(wrapper, "type_label").setValue("Call");
 
     expect(exists(wrapper, "time_label")).toBe(true);
-    expect(exists(wrapper, "customer_label")).toBe(true);
   });
 
   // A non-call task is date-only, so its midnight is no time anybody picked; becoming a call starts at 9:00.
@@ -565,7 +566,7 @@ describe("SalesRepTaskModal calls", () => {
     expect(field(wrapper, "time_label").attributes("value")).toBe("09:00");
   });
 
-  it("drops the customer picked for a call when the task stops being one", async () => {
+  it("keeps the customer picked for a call when the task stops being one", async () => {
     const wrapper = createWrapper({ defaultDay: "2026-10-15" });
     await field(wrapper, "name_label").setValue("Follow up");
     await field(wrapper, "type_label").setValue("Call");
@@ -574,19 +575,37 @@ describe("SalesRepTaskModal calls", () => {
     await field(wrapper, "type_label").setValue("Other");
     await save(wrapper);
 
-    expect(mutations.create).toHaveBeenCalledWith(expect.objectContaining({ type: "Other", customerId: undefined }));
+    expect(mutations.create).toHaveBeenCalledWith(expect.objectContaining({ type: "Other", customerId: "org-1" }));
   });
 
-  // Customer is a call's field, but the API can link one to any task. Such a link is not shown, and is still sent
-  // back as it came, because updateSalesRepTask replaces the task.
-  it("keeps the unshown customer of a task that is not a call", async () => {
+  it("links a customer to a task that is not a call", async () => {
+    const wrapper = createWrapper({ defaultDay: "2026-10-15" });
+    await field(wrapper, "name_label").setValue("Send the price list");
+    await field(wrapper, "customer_label").setValue("org-1");
+
+    await save(wrapper);
+
+    expect(mutations.create).toHaveBeenCalledWith(expect.objectContaining({ type: undefined, customerId: "org-1" }));
+  });
+
+  it("shows the customer of a task that is not a call, and sends it back as it came", async () => {
     const wrapper = createWrapper({ task: makeTask({ customerId: "org-1", customerName: "Lakeview Outfitters" }) });
 
-    expect(exists(wrapper, "customer_label")).toBe(false);
+    expect(field(wrapper, "customer_label").attributes("value")).toBe("org-1");
 
     await save(wrapper);
 
     expect(mutations.update).toHaveBeenCalledWith("task-1", expect.objectContaining({ customerId: "org-1" }));
+  });
+
+  // updateSalesRepTask replaces the task, so no customer is what unlinks one.
+  it("unlinks the customer the rep cleared", async () => {
+    const wrapper = createWrapper({ task: makeTask({ customerId: "org-1", customerName: "Lakeview Outfitters" }) });
+
+    await field(wrapper, "customer_label").setValue("");
+    await save(wrapper);
+
+    expect(mutations.update).toHaveBeenCalledWith("task-1", expect.objectContaining({ customerId: undefined }));
   });
 });
 
