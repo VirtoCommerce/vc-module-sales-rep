@@ -104,6 +104,12 @@ provideBlockChrome({
       @apply cursor-grabbing;
     }
 
+    // The host's global ring sits in a cascade layer; this unlayered sheet's `--editing` outline beats it.
+    &:focus-visible {
+      outline: var(--vc-focus-ring-width) solid var(--vc-focus-ring-color);
+      outline-offset: var(--vc-focus-ring-offset);
+    }
+
     // Self-sufficient: useKeyboardSort moves the card and restores focus a tick later,
     // so the ring must not depend on `:focus-visible`. The grab itself reads from
     // `--grabbed` (opacity + shadow), which is why no second ring is needed here.

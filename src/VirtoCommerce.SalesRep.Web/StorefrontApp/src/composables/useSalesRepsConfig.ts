@@ -2,6 +2,7 @@ import { useModuleSettings, useUser } from "@vc-frontend/core";
 import {
   ENABLED_KEY,
   GOOGLE_ANALYTICS_MODULE_ID,
+  MARKETING_MODULE_ID,
   MODULE_ID,
   SALES_REP_ACCESS_PERMISSION,
   TASK_MANAGEMENT_MODULE_ID,
@@ -34,4 +35,9 @@ export function isSalesRepTasksEnabled(): boolean {
 // host's own and goes on either way.
 export function isSalesRepAnalyticsEnabled(): boolean {
   return isSalesRepUser() && useModuleSettings(GOOGLE_ANALYTICS_MODULE_ID).hasModuleSettings.value;
+}
+
+// Coupons (VCST-6158) ride on vc-module-marketing the same way: present in the store's module list => enabled.
+export function isSalesRepCouponsEnabled(): boolean {
+  return isSalesRepUser() && useModuleSettings(MARKETING_MODULE_ID).hasModuleSettings.value;
 }
