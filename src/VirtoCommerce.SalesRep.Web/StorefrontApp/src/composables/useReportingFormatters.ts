@@ -57,5 +57,24 @@ export function useReportingFormatters() {
     return text.charAt(0).toLocaleUpperCase(locale.value) + text.slice(1);
   }
 
-  return { money, compactMoney, currencySymbol, share, change, signedChange, month, monthYear, sentenceCase };
+  /**
+   * "bis 4. Nov.." → "bis 4. Nov.": a date that ends in an abbreviation dot ("Nov.", "4.11.", "2026 г.") and closes a
+   * sentence shares its dot with the sentence. Collapses exactly two dots, so an ellipsis stays.
+   */
+  function singleFullStop(text: string): string {
+    return text.replace(/(?<!\.)\.\.(?!\.)/g, ".");
+  }
+
+  return {
+    money,
+    compactMoney,
+    currencySymbol,
+    share,
+    change,
+    signedChange,
+    month,
+    monthYear,
+    sentenceCase,
+    singleFullStop,
+  };
 }
