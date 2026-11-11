@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 
@@ -17,9 +18,7 @@ internal static class StorefrontPlugin
     public const string RequestPath = "/modules/$(VirtoCommerce.SalesRep)/plugins/vc-frontend";
 
     /// <summary>The module's root as the platform sees it (its FullPhysicalPath): the Web project.</summary>
-    public static string ModuleDirectory { get; } = Path.GetFullPath(
-        // bin/Debug/net10.0 -> tests project -> tests -> repo
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "VirtoCommerce.SalesRep.Web"));
+    public static string ModuleDirectory => TestedModule.Directory;
 
     public static string BuildDirectory => Path.Combine(ModuleDirectory, "plugins", "vc-frontend");
 

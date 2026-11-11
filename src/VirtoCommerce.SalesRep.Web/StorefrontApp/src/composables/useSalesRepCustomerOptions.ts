@@ -6,10 +6,11 @@ import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { OrganizationRowType } from "../types";
 
 // The picker filters client-side, so a rep serving more customers than this cannot reach the overflow (warned below).
-// Paging them all in waits on server-side search in `VcSelect`; VCST-5923.
-const OPTIONS_LIMIT = 100;
+// 1000 covers the most customers a rep is expected to serve (100-200 is typical); the select draws every option it
+// lists, so beyond that it needs the server-side search and paging in `VcSelect` (VCST-5923, VCST-6273).
+const OPTIONS_LIMIT = 1000;
 
-/** A customer the rep may pick, in the list-sharing picker or as a call's customer. */
+/** A customer the rep may pick: in the list-sharing picker, as a task's customer, or in the Tasks page's filter. */
 export type SalesRepCustomerOptionType = OrganizationRowType;
 
 // The rep's served customer organizations, resolved server-side from their claims. Uses its own narrow query rather

@@ -1,7 +1,13 @@
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using VirtoCommerce.NotificationsModule.Core.Model;
+using VirtoCommerce.NotificationsModule.Data.Caching;
+using VirtoCommerce.NotificationsModule.Data.Model;
+using VirtoCommerce.NotificationsModule.Data.Repositories;
 using VirtoCommerce.PushMessages.Core.Models;
 using VirtoCommerce.SalesRep.Core.Notifications;
 using VirtoCommerce.SalesRep.Core.Services;
@@ -13,9 +19,10 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
 /// Component tests for the <c>sendCustomerCommunication</c> mutation (VCST-5310 / VCST-5331): real recipient
-/// resolution over the real member search + real security scoping, with capturing doubles for the two external
-/// delivery services. Asserts the push and email channels are fed from the SAME resolved audience, attempt
-/// independently, and report their outcome (per-channel booleans + stable warning codes).
+/// resolution over the real member search + real security scoping, delivered through the real push messages and
+/// notifications modules: the push message is saved, the email rendered from the module's template and saved as a
+/// message. Asserts the push and email channels are fed from the SAME resolved audience, attempt independently, and
+/// report their outcome (per-channel booleans + stable warning codes).
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepCommunicationComponentTests
@@ -68,19 +75,51 @@ public class SalesRepCommunicationComponentTests
             """;
     }
 
-    private static TestGraphQlConfiguration.CapturingPushMessageService Push(SalesRepTestContext ctx)
-        => ctx.GetRequiredService<TestGraphQlConfiguration.CapturingPushMessageService>();
+    /// <summary>The push messages the push messages module saved (it fans them out to devices on its own).</summary>
+    private static Task<IList<PushMessage>> PushMessagesAsync(SalesRepTestContext ctx) => ctx.GetPushMessagesAsync();
 
-    private static TestGraphQlConfiguration.CapturingNotificationSender Email(SalesRepTestContext ctx)
-        => ctx.GetRequiredService<TestGraphQlConfiguration.CapturingNotificationSender>();
+    /// <summary>
+    /// The emails the notifications module rendered from the module's own template and saved as messages: this platform
+    /// has no email gateway, so they stay there, and the sender is asked for nothing else.
+    /// </summary>
+    private static Task<IList<EmailNotificationMessage>> EmailsAsync(SalesRepTestContext ctx) => ctx.GetEmailMessagesAsync();
 
-    private static TestGraphQlConfiguration.StubNotificationSearchService EmailTemplates(SalesRepTestContext ctx)
-        => ctx.GetRequiredService<TestGraphQlConfiguration.StubNotificationSearchService>();
+    /// <summary>
+    /// The one way the real sender fails a send: saving the message, which it does after rendering it (a template that
+    /// fails to render is saved too, with an error status, not thrown). With the messages' table gone, that write throws,
+    /// as on a database that refuses it.
+    /// </summary>
+    private static async Task RefuseEmailMessagesAsync(SalesRepTestContext ctx)
+    {
+        await using var db = ctx.NewDbContext<NotificationDbContext>();
+        var table = db.Model.FindEntityType(typeof(NotificationMessageEntity))!.GetTableName();
+
+        var sql = "DROP TABLE \"" + table + "\"";
+
+        await db.Database.ExecuteSqlRawAsync(sql);
+    }
+
+    /// <summary>
+    /// The module's notification missing from the notifications module's database, where its searches read it (the
+    /// notifications module saves every registered one at start): the rows go, and the caches the raw write bypasses.
+    /// </summary>
+    private static async Task RemoveEmailNotificationAsync(SalesRepTestContext ctx)
+    {
+        await using (var db = ctx.NewDbContext<NotificationDbContext>())
+        {
+            await db.Set<NotificationEntity>()
+                .Where(x => x.Type == nameof(SalesRepMessageEmailNotification))
+                .ExecuteDeleteAsync();
+        }
+
+        NotificationSearchCacheRegion.ExpireRegion();
+        NotificationCacheRegion.ExpireRegion();
+    }
 
     /// <summary>Seed a customer org with two contacts (each with an email), served by a rep bound to a store that has a sender address.</summary>
     private static async Task<string> SeedServedOrgWithContactsAsync(SalesRepTestContext ctx)
     {
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; c.FirstName = "Cee"; c.LastName = "One"; });
         await ctx.SeedContactAsync("c2", c => { c.Organizations = ["org-1"]; c.Emails = ["c2@test.com"]; c.FirstName = "Cee"; c.LastName = "Two"; });
@@ -101,20 +140,20 @@ public class SalesRepCommunicationComponentTests
         json.Should().Contain("\"warnings\":[]");
 
         // Push: exactly one message, addressed to member ids, carrying the text, marked Sent.
-        Push(ctx).Saved.Should().HaveCount(1);
-        var pushMessage = Push(ctx).Saved[0];
+        (await PushMessagesAsync(ctx)).Should().HaveCount(1);
+        var pushMessage = (await PushMessagesAsync(ctx))[0];
         pushMessage.Status.Should().Be(PushMessageStatus.Sent);
         pushMessage.ShortMessage.Should().Be("See https://x.test/list");
         pushMessage.MemberIds.Should().Contain(["c1", "c2"]);
 
         // Email: one per resolved member that has an address; content carried through.
-        var emails = Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().ToList();
-        emails.Should().OnlyContain(x => x.Message == "See https://x.test/list");
+        var emails = (await EmailsAsync(ctx)).ToList();
+        emails.Should().OnlyContain(x => x.Subject == "Update" && x.Body.Contains("See https://x.test/list"));
         emails.Select(x => x.To).Should().Contain(["c1@test.com", "c2@test.com"]);
         emails.Should().OnlyContain(x => x.From == StoreEmail);
 
         // Same audience: both channels cover the same number of recipients (each seeded member has one email).
-        Email(ctx).Scheduled.Should().HaveCount(pushMessage.MemberIds.Count);
+        (await EmailsAsync(ctx)).Should().HaveCount(pushMessage.MemberIds.Count);
     }
 
     [Fact]
@@ -128,7 +167,7 @@ public class SalesRepCommunicationComponentTests
             services.AddTransient<ISalesRepPrimaryContactResolver, SalesRepPrimaryContactResolver>();
             services.AddTransient<ISalesRepRecipientResolver, PrimaryContactRecipientResolver>();
         });
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationAsync("org-1", o => o.OwnerId = "c1"); // c1 is the org's primary contact (its owner)
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; c.FirstName = "Primary"; c.LastName = "Contact"; });
         await ctx.SeedContactAsync("c2", c => { c.Organizations = ["org-1"]; c.Emails = ["c2@test.com"]; c.FirstName = "Other"; c.LastName = "Member"; });
@@ -140,8 +179,8 @@ public class SalesRepCommunicationComponentTests
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":true");
 
         // Only the primary contact is addressed on both channels — the other member (c2) is excluded, unlike AllMembers.
-        Push(ctx).Saved.Single().MemberIds.Should().Equal("c1");
-        Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).Should().Equal("c1@test.com");
+        (await PushMessagesAsync(ctx)).Single().MemberIds.Should().Equal("c1");
+        (await EmailsAsync(ctx)).Select(x => x.To).Should().Equal("c1@test.com");
     }
 
     [Fact]
@@ -154,8 +193,8 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":false");
         json.Should().Contain("\"warnings\":[]");
-        Push(ctx).Saved.Should().HaveCount(1);
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().HaveCount(1);
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -168,8 +207,8 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":false").And.Contain("\"emailSent\":true");
         json.Should().Contain("\"warnings\":[]");
-        Push(ctx).Saved.Should().BeEmpty();
-        Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).Should().Contain(["c1@test.com", "c2@test.com"]);
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
+        (await EmailsAsync(ctx)).Select(x => x.To).Should().Contain(["c1@test.com", "c2@test.com"]);
     }
 
     [Fact]
@@ -185,8 +224,8 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)access denied");
-        Push(ctx).Saved.Should().BeEmpty();
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -199,8 +238,8 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)anonym");
-        Push(ctx).Saved.Should().BeEmpty();
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -215,7 +254,7 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)1000");
-        Push(ctx).Saved.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -230,7 +269,7 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)128");
-        Push(ctx).Saved.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -238,7 +277,7 @@ public class SalesRepCommunicationComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         var repUserId = await SeedServedOrgWithContactsAsync(ctx);
-        Email(ctx).ThrowOnSchedule = true; // email delivery fails (e.g. sender queue error)
+        await RefuseEmailMessagesAsync(ctx); // the notification store refuses the message: the real sender's only failure
 
         var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: true, email: true), userId: repUserId);
 
@@ -246,7 +285,7 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":false");
         json.Should().Contain("\"warnings\":[\"EmailSendFailed\"]");
-        Push(ctx).Saved.Should().HaveCount(1);
+        (await PushMessagesAsync(ctx)).Should().HaveCount(1);
     }
 
     [Fact]
@@ -254,7 +293,7 @@ public class SalesRepCommunicationComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         var repUserId = await SeedServedOrgWithContactsAsync(ctx);
-        Email(ctx).ThrowOnSchedule = true;
+        await RefuseEmailMessagesAsync(ctx);
 
         var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: false, email: true), userId: repUserId);
 
@@ -268,7 +307,7 @@ public class SalesRepCommunicationComponentTests
     public async Task SendCommunication_ExcludesInitiatingRep()
     {
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
         // The rep serves org-1, so their own contact is a member of it — the rep must NOT receive their own send.
@@ -280,11 +319,11 @@ public class SalesRepCommunicationComponentTests
         json.Should().Contain("\"succeeded\":true");
 
         // Push: the customer contact is addressed; the initiating rep's own member id is excluded.
-        var pushMessage = Push(ctx).Saved.Single();
+        var pushMessage = (await PushMessagesAsync(ctx)).Single();
         pushMessage.MemberIds.Should().Contain("c1").And.NotContain(rep.Id);
 
         // Email: the customer's address is used; the rep's own address is excluded.
-        var emails = Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).ToList();
+        var emails = (await EmailsAsync(ctx)).Select(x => x.To).ToList();
         emails.Should().Contain("c1@test.com").And.NotContain("jane@test.com");
     }
 
@@ -293,14 +332,14 @@ public class SalesRepCommunicationComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         var repUserId = await SeedServedOrgWithContactsAsync(ctx);
-        EmailTemplates(ctx).TemplateAvailable = false; // store has no email template configured
+        await RemoveEmailNotificationAsync(ctx); // the notification is not in the notifications module's database
 
         var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: false, email: true), userId: repUserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":false").And.Contain("\"emailSent\":false");
         json.Should().Contain("\"warnings\":[\"EmailUnavailable\"]");
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -308,7 +347,7 @@ public class SalesRepCommunicationComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         var repUserId = await SeedServedOrgWithContactsAsync(ctx);
-        EmailTemplates(ctx).TemplateAvailable = false;
+        await RemoveEmailNotificationAsync(ctx);
 
         var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: true, email: true), userId: repUserId);
 
@@ -316,8 +355,8 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":false");
         json.Should().Contain("\"warnings\":[\"EmailUnavailable\"]");
-        Push(ctx).Saved.Should().HaveCount(1);
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().HaveCount(1);
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -325,7 +364,7 @@ public class SalesRepCommunicationComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         // Store resolves (via ContactDefaultStatus) and IS the caller's store, but has no sender From address.
-        ctx.SetStoreContactDefaultStatus(Store, "Approved");
+        await ctx.SetStoreContactDefaultStatusAsync(Store, "Approved");
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
         var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
@@ -335,14 +374,14 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":false");
         json.Should().Contain("\"warnings\":[\"EmailUnavailable\"]");
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
     public async Task SendCommunication_EmailOnly_NoRecipientAddresses_ReturnsEmailNoRecipients()
     {
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationAsync("org-1");
         // Contacts exist but none carries an email address.
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.FirstName = "Cee"; c.LastName = "One"; });
@@ -353,14 +392,14 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":false");
         json.Should().Contain("\"warnings\":[\"EmailNoRecipients\"]");
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
     public async Task SendCommunication_PushAndEmail_NoRecipientAddresses_PushStillSent()
     {
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.FirstName = "Cee"; c.LastName = "One"; });
         var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
@@ -371,8 +410,8 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":false");
         json.Should().Contain("\"warnings\":[\"EmailNoRecipients\"]");
-        Push(ctx).Saved.Should().HaveCount(1);
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().HaveCount(1);
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -388,15 +427,15 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":false");
         json.Should().Contain("\"warnings\":[\"NoRecipients\"]");
-        Push(ctx).Saved.Should().BeEmpty();
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
     public async Task SendCommunication_EmailOnly_ForeignStore_ReturnsEmailStoreAccessDenied()
     {
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
         var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
@@ -407,14 +446,14 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":false");
         json.Should().Contain("\"warnings\":[\"EmailStoreAccessDenied\"]");
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
     public async Task SendCommunication_ForeignStore_EmailDeniedButPushStillSends()
     {
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
         var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", Store, "org-1");
@@ -425,8 +464,8 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":false");
         json.Should().Contain("\"warnings\":[\"EmailStoreAccessDenied\"]");
-        Push(ctx).Saved.Should().HaveCount(1);
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().HaveCount(1);
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -434,8 +473,8 @@ public class SalesRepCommunicationComponentTests
     {
         using var ctx = SalesRepTestContext.Create();
         // The rep's home store is "group-a"; the requested store trusts that group, so email is allowed.
-        ctx.SetStoreEmail(Store, StoreEmail);
-        ctx.SetStoreTrustedGroups(Store, "group-a");
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
+        await ctx.SetStoreTrustedGroupsAsync(Store, "group-a");
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
         var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "group-a", "org-1");
@@ -445,22 +484,22 @@ public class SalesRepCommunicationComponentTests
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":true").And.Contain("\"emailSent\":true");
         json.Should().Contain("\"warnings\":[]");
-        Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To).Should().Contain("c1@test.com");
+        (await EmailsAsync(ctx)).Select(x => x.To).Should().Contain("c1@test.com");
     }
 
     // Store ids are ids, and ids compare ignore-case in memory. Ordinal here refused a rep whose own store id
-    // differs only in case from the one the store trusts.
-    [Theory]
-    [InlineData("GROUP-A")]
-    [InlineData("B2B-STORE")]
-    public async Task SendCommunication_StoreIdDiffersOnlyInCase_EmailAllowed(string repStoreId)
+    // differs only in case from the one the store trusts: trusted groups are typed by an administrator. (The store's
+    // own id in another case is no real input, since a rep's store is picked from the stores; on the platform such a
+    // lookup also misses the case-sensitive database and caches that miss under the lowercased id, for every casing.)
+    [Fact]
+    public async Task SendCommunication_StoreIdDiffersOnlyInCase_EmailAllowed()
     {
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetStoreEmail(Store, StoreEmail);
-        ctx.SetStoreTrustedGroups(Store, "group-a");
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
+        await ctx.SetStoreTrustedGroupsAsync(Store, "group-a");
         await ctx.SeedOrganizationAsync("org-1");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
-        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", repStoreId, "org-1");
+        var rep = await ctx.CreateRepInStoreAsync("Jane", "Rep", "jane@test.com", "GROUP-A", "org-1");
 
         var json = await ctx.ExecuteGraphQlAsync(Mutation("org-1", push: false, email: true), userId: rep.UserId);
 
@@ -473,7 +512,7 @@ public class SalesRepCommunicationComponentTests
     {
         // VCST-5850: one send to several served organizations; a contact in two of them gets the message once.
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetStoreEmail(Store, StoreEmail);
+        await ctx.SetStoreEmailAsync(Store, StoreEmail);
         await ctx.SeedOrganizationsAsync("org-1", "org-2");
         await ctx.SeedContactAsync("c1", c => { c.Organizations = ["org-1"]; c.Emails = ["c1@test.com"]; });
         await ctx.SeedContactAsync("c2", c => { c.Organizations = ["org-1", "org-2"]; c.Emails = ["c2@test.com"]; });
@@ -484,8 +523,8 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"succeeded\":true").And.Contain("\"pushSent\":true").And.Contain("\"emailSent\":true");
-        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c2", "c3");
-        Email(ctx).Scheduled.OfType<SalesRepMessageEmailNotification>().Select(x => x.To)
+        (await PushMessagesAsync(ctx)).Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c2", "c3");
+        (await EmailsAsync(ctx)).Select(x => x.To)
             .Should().BeEquivalentTo("c1@test.com", "c2@test.com", "c3@test.com");
     }
 
@@ -502,7 +541,7 @@ public class SalesRepCommunicationComponentTests
         var json = await ctx.ExecuteGraphQlAsync(MultiOrgMutation(["org-2"], legacyOrganizationId: "org-1", email: false), userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        Push(ctx).Saved.Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c3");
+        (await PushMessagesAsync(ctx)).Should().ContainSingle().Which.MemberIds.Should().BeEquivalentTo("c1", "c3");
     }
 
     [Fact]
@@ -519,8 +558,8 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)access denied");
-        Push(ctx).Saved.Should().BeEmpty();
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -538,8 +577,8 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"errors\"");
         json.Should().MatchRegex("(?i)1000");
-        Push(ctx).Saved.Should().BeEmpty();
-        Email(ctx).Scheduled.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
+        (await EmailsAsync(ctx)).Should().BeEmpty();
     }
 
     [Fact]
@@ -553,6 +592,6 @@ public class SalesRepCommunicationComponentTests
 
         json.Should().Contain("\"errors\"");
         json.Should().Contain("Organization is required");
-        Push(ctx).Saved.Should().BeEmpty();
+        (await PushMessagesAsync(ctx)).Should().BeEmpty();
     }
 }

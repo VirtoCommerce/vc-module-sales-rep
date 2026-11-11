@@ -3,19 +3,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.ApplicationParts;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.FileProviders;
-using OpenIddict.Abstractions;
-using VirtoCommerce.CustomerModule.Data.OpenIddict;
-using VirtoCommerce.Platform.Core.DynamicProperties;
-using VirtoCommerce.Platform.Core.Security;
-using VirtoCommerce.Platform.Security;
-using VirtoCommerce.Platform.Security.Authorization;
-using VirtoCommerce.Platform.Security.OpenIddict;
 using VirtoCommerce.SalesRep.Tests.StorefrontE2E.Infrastructure;
 using VirtoCommerce.SalesRep.Web.Controllers.Api;
 
@@ -32,33 +24,21 @@ internal static class VCShellServices
     public const string AppId = "vc-sales-rep";
     public const string AppPath = "/apps/" + AppId;
 
-    /// <summary>Applied as the harness's last-wins overrides, so the component tests keep their own defaults.</summary>
+    /// <summary>Added after the platform's and the module's registrations.</summary>
     public static void AddVCShellOverrides(IServiceCollection services)
     {
-        // Same identity claim types and REAL claim producers as the storefront host: the token carries sub/name/role/
-        // permission/memberId exactly as /connect/token mints them.
-        services.Configure<IdentityOptions>(options =>
-        {
-            options.ClaimsIdentity.UserIdClaimType = OpenIddictConstants.Claims.Subject;
-            options.ClaimsIdentity.UserNameClaimType = OpenIddictConstants.Claims.Name;
-            options.ClaimsIdentity.RoleClaimType = OpenIddictConstants.Claims.Role;
-            options.ClaimsIdentity.EmailClaimType = OpenIddictConstants.Claims.Email;
-        });
-        services.AddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, CustomUserClaimsPrincipalFactory>();
-        services.AddTransient<ITokenClaimProvider, OrganizationIdClaimProvider>();
         services.AddSingleton<TestTokenService>();
 
         // [Authorize("permission")] on the module controllers, decided the platform's way.
         services.AddSingleton<IAuthorizationPolicyProvider, PermissionPolicyProvider>();
-        services.AddSingleton<IAuthorizationHandler, DefaultPermissionAuthorizationHandler>();
-
-        // No dynamic properties in the harness; the JSON contract and anything else asking get "none".
-        services.AddSingleton<IDynamicPropertyMetaDataResolver>(EmptyDynamicPropertyMetaDataResolver.Instance);
     }
 
-    /// <summary>Web-host-only registrations: MVC over the module's controllers, cookie authentication.</summary>
+    /// <summary>Web-host-only registrations: the platform's Kestrel options, MVC over the module's controllers, cookie authentication.</summary>
     public static void AddWebServices(IServiceCollection services)
     {
+        // As Platform.Web's Startup: X-API's Newtonsoft serializer reads a request's body synchronously.
+        services.Configure<KestrelServerOptions>(options => options.AllowSynchronousIO = true);
+
         var moduleWeb = typeof(SalesRepController).Assembly;
 
         services.AddControllers()
@@ -88,8 +68,6 @@ internal static class VCShellServices
                 return Task.CompletedTask;
             };
         });
-
-        services.AddDataProtection().UseEphemeralDataProtectionProvider();
     }
 
     public static void ConfigurePipeline(WebApplication app, string appDirectory, RequestGate gate)

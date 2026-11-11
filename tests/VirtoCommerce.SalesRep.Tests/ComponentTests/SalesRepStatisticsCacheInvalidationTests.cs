@@ -15,6 +15,7 @@ using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using Xunit;
 using CartLineItemEntity = VirtoCommerce.CartModule.Data.Model.LineItemEntity;
 using CartModuleConstants = VirtoCommerce.CartModule.Core.ModuleConstants;
@@ -93,7 +94,7 @@ public class SalesRepStatisticsCacheInvalidationTests
     {
         const string org = "invalidation-cart-flag-org";
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetSetting(ModuleConstants.Settings.Caching.CartStatisticsInvalidateOnChange, false);
+        await ctx.SetSettingAsync(ModuleConstants.Settings.Caching.CartStatisticsInvalidateOnChange, false);
         var rep = await CreateRepAsync(ctx, org);
         SeedCartWithItem(ctx, "c1", org, quantity: 2);
 
@@ -111,7 +112,7 @@ public class SalesRepStatisticsCacheInvalidationTests
     {
         const string org = "invalidation-cart-nocache-org";
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetSetting(ModuleConstants.Settings.Caching.CartStatisticsCacheExpiration, 0);
+        await ctx.SetSettingAsync(ModuleConstants.Settings.Caching.CartStatisticsCacheExpiration, 0);
         var rep = await CreateRepAsync(ctx, org);
         SeedCartWithItem(ctx, "c1", org, quantity: 2);
 
@@ -271,7 +272,7 @@ public class SalesRepStatisticsCacheInvalidationTests
     {
         const string org = "invalidation-topseller-flag-org";
         using var ctx = SalesRepTestContext.Create();
-        ctx.SetSetting(ModuleConstants.Settings.Caching.TopSellerInvalidateOnChange, true);
+        await ctx.SetSettingAsync(ModuleConstants.Settings.Caching.TopSellerInvalidateOnChange, true);
         var rep = await CreateRepAsync(ctx, org);
         SeedOrder(ctx, "o1", org, total: 100m, categoryId: "cat-1");
 
@@ -490,7 +491,7 @@ public class SalesRepStatisticsCacheInvalidationTests
             CreatedDate = _feb2026,
             ModifiedDate = _feb2026,
         });
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 
     private static void SeedOrder(
@@ -532,6 +533,6 @@ public class SalesRepStatisticsCacheInvalidationTests
         }
 
         db.Add(order);
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 }

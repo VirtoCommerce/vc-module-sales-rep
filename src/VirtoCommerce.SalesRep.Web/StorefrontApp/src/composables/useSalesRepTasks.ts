@@ -2,10 +2,10 @@ import { computed, ref, toValue, watch } from "vue";
 import { Logger } from "@vc-frontend/core";
 import { SalesRepTasksDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY, TASKS_PAGE_SIZE } from "../constants";
-import { startOfLocalDay, startOfLocalDayIso, taskStatus } from "../tasks";
+import { startOfLocalDay, startOfLocalDayIso, taskFilterVariables, taskStatus } from "../tasks";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { SalesRepTaskFieldsFragment } from "../api/graphql/types";
-import type { SalesRepTaskType } from "../types/tasks";
+import type { SalesRepTaskFiltersType, SalesRepTaskType } from "../types/tasks";
 import type { Ref } from "vue";
 
 /** Wire row -> view model, with the status derived on the caller's day boundary (see tasks.ts). */
@@ -30,11 +30,8 @@ type UseSalesRepTasksOptionsType = {
   pageSize?: number | Ref<number | undefined> | (() => number | undefined);
   /** Fixed due-date window, e.g. the day a calendar cell selected. */
   period?: Ref<{ from: string; to: string } | undefined>;
-  /**
-   * The chosen server filter rule. Passed in by a surface whose `period` depends on it — the Tasks page
-   * drops the day window while a status tab is active, which it cannot express if the ref lives in here.
-   */
-  filter?: Ref<string | undefined>;
+  /** The Tasks page's search term, status, customers and priorities; every one of them narrows the list. */
+  filters?: Ref<SalesRepTaskFiltersType>;
   sort?: string;
 };
 
@@ -43,14 +40,12 @@ type UseSalesRepTasksOptionsType = {
  * visible blocks.
  */
 export function useSalesRepTasks(options: UseSalesRepTasksOptionsType = {}) {
-  // undefined = the synthetic "All" baseline, matching sales-rep-rule-chips' convention.
-  const filter = options.filter ?? ref<string | undefined>(undefined);
   const sortRule = ref<string | undefined>(options.sort);
   const page = ref(1);
 
   const pageSize = computed(() => toValue(options.pageSize) ?? TASKS_PAGE_SIZE);
 
-  // Resolved once per composable, not per render: a boundary that moved mid-session would reshuffle the tabs
+  // Resolved once per composable, not per render: a boundary that moved mid-session would move tasks between statuses
   // under the user, and it also has to stay stable for the backend's criteria cache to engage.
   const dayStart = startOfLocalDay();
   const today = startOfLocalDayIso();
@@ -60,9 +55,9 @@ export function useSalesRepTasks(options: UseSalesRepTasksOptionsType = {}) {
     // xAPI connections take the offset as the cursor.
     after: String((page.value - 1) * pageSize.value),
     sort: sortRule.value,
-    filter: filter.value,
     today,
     period: options.period?.value,
+    ...taskFilterVariables(options.filters?.value),
   }));
 
   const { result, loading, error, onError, refetch } = useSalesRepHubQuery(SalesRepTasksDocument, variables, {
@@ -94,18 +89,17 @@ export function useSalesRepTasks(options: UseSalesRepTasksOptionsType = {}) {
   // flush: "sync" resets the page before the variables watcher runs, so a scope change fires one request. The
   // period is in the list too: a day picked from page 3 would otherwise ask for offset 30 of a day with two tasks.
   watch(
-    [filter, sortRule, () => options.period?.value?.from],
+    [() => options.filters?.value, sortRule, () => options.period?.value?.from],
     () => {
       page.value = 1;
     },
-    { flush: "sync" },
+    { flush: "sync", deep: true },
   );
 
   return {
     refetch,
     loading,
     error,
-    filter,
     sortRule,
     page,
     pages,

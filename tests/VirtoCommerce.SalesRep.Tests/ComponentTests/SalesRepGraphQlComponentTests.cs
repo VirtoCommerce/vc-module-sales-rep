@@ -2,7 +2,6 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using FluentAssertions;
-using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
@@ -147,17 +146,19 @@ public class SalesRepGraphQlComponentTests
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        // The store labels the status for en-US, as an administrator does in the Order.Status dictionary.
+        await ctx.TranslateOrderStatusesAsync(("Cancelled", "en-US", "Canceled"));
 
         // The cultureName argument on salesRepCustomers must reach the nested lastOrder SalesRepOrderType resolvers
         // (the builder copies it to the UserContext). Asserted on both culture-dependent fields: statusDisplayValue
-        // (StubLocalizableSettingService renders "<raw> (<culture>)") and total.formattedAmount.
+        // (the en-US label, the raw status without the culture) and total.formattedAmount.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomers(cultureName:\"en-US\") { items { lastOrder { status statusDisplayValue total { formattedAmount } } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"status\":\"Cancelled\"");
-        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\"");
+        json.Should().Contain("\"statusDisplayValue\":\"Canceled\"");
         json.Should().Contain("\"formattedAmount\":\"$123.45\""); // money localized on the lastOrder path too
     }
 
@@ -457,8 +458,9 @@ public class SalesRepGraphQlComponentTests
         {
             o.BusinessCategory = "Retailer";
             o.IconUrl = "https://cdn.test/org-1.png";
-            // CountryName + RegionName are set so MemberService.FillAddressNames doesn't call the (dataless)
-            // CountriesService in the harness. The storefront formats the display string from these structured parts.
+            // CountryName + RegionName are set, as an address saved from a form carries them (MemberService fills only
+            // the missing ones from the platform's country list). The storefront formats the display string from these
+            // structured parts.
             o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
         });
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
@@ -1044,17 +1046,19 @@ public class SalesRepGraphQlComponentTests
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        // The store labels the status for en-US, as an administrator does in the Order.Status dictionary.
+        await ctx.TranslateOrderStatusesAsync(("Cancelled", "en-US", "Canceled"));
 
         // statusDisplayValue is the order's RAW status localized via X-API's LocalizedField. The cultureName argument
-        // is copied to the UserContext by the builder, so it reaches the per-item resolver (StubLocalizableSettingService
-        // renders "<raw> (<culture>)"), which also proves the culture actually propagated.
+        // is copied to the UserContext by the builder, so it reaches the per-item resolver, which reads the en-US label;
+        // without the culture it would answer the raw status.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrders(organizationId:\"org-1\", cultureName:\"en-US\") { items { number status statusDisplayValue } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"status\":\"Cancelled\"");                        // raw status preserved
-        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\""); // raw status localized in the requested culture
+        json.Should().Contain("\"statusDisplayValue\":\"Canceled\""); // raw status localized in the requested culture
     }
 
     [Fact]

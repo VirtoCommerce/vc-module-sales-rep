@@ -1,13 +1,28 @@
 # The calendar dots need a day and a state per task, not the task: the list's fragment would also resolve its
-# customer, a membership and member lookup per fetch for a name the grid never shows.
+# customer, a membership and member lookup per fetch for a name the grid never shows. The same filters as the list,
+# so the dots mark where the filtered tasks are.
 query SalesRepTaskMarkers(
   $first: Int
   $after: String
   $sort: String
+  $keyword: String
+  $filter: String
   $today: DateTime
   $period: SalesRepStatisticsPeriodInput
+  $customerIds: [String!]
+  $priorities: [String!]
 ) {
-  salesRepTasks(first: $first, after: $after, sort: $sort, today: $today, period: $period) {
+  salesRepTasks(
+    first: $first
+    after: $after
+    sort: $sort
+    keyword: $keyword
+    filter: $filter
+    today: $today
+    period: $period
+    customerIds: $customerIds
+    priorities: $priorities
+  ) {
     items {
       id
       dueDate

@@ -40,7 +40,8 @@ public sealed class CallSavesTests(CallsEnvironment env)
             await SaveAsync(page, dialog);
 
             await ShowAllAsync(page);
-            await Expect(Row(page, name)).ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 9:00 AM · Customer not assigned · Call");
+            await Expect(Row(page, name)).ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 9:00 AM · Call");
+            await Expect(CustomerCell(page, name)).ToHaveTextAsync("—");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == name);
