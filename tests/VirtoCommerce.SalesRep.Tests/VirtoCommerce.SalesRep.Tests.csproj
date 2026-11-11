@@ -18,7 +18,7 @@
          (Infrastructure/PlatformModules*.cs): the .Data packages at the versions this module references, or at the .Core
          version the graph resolves where a dependency asks for a newer one (Catalog 3.1048, File Experience API 3.1006,
          X-Catalog 3.1023); plus the storefront shell's (StorefrontE2E/Infrastructure/StorefrontShellModules.cs): X-Profile
-         3.1020 and X-Order 3.1014 (what the X-Frontend prerelease with the layout API builds on), X-CMS with the content
+         3.1020 (what X-Frontend 3.1010 builds on) and X-Order 3.1014, X-CMS with the content
          module, X-Recommend. -->
     <PackageReference Include="VirtoCommerce.AssetsModule.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.CartModule.Data" Version="3.1012.0" />
@@ -59,7 +59,7 @@
     <PackageReference Include="VirtoCommerce.XCMS.Data" Version="3.1009.0" />
     <!-- The hub's dashboards read and save their layouts through X-Frontend, which the module depends on in its manifest
          alone; the storefront E2E host serves its real layout API. Keep the version the manifest names. -->
-    <PackageReference Include="VirtoCommerce.XFrontend.Data" Version="3.1008.0-alpha.64-vcst-6078-user-dashboard" />
+    <PackageReference Include="VirtoCommerce.XFrontend.Data" Version="3.1010.0" />
     <PackageReference Include="VirtoCommerce.XOrder.Data" Version="3.1014.0" />
     <PackageReference Include="VirtoCommerce.XRecommend.Data" Version="3.1002.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
