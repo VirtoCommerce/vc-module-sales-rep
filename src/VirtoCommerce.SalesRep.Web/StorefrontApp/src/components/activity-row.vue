@@ -96,10 +96,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { getProductRoute, OrderStatus } from "@vc-frontend/core";
+import { formatStatCount, getProductRoute, OrderStatus } from "@vc-frontend/core";
 import { useActivityClock } from "../composables/useActivityClock";
 import { BUYER_ORDER_ROUTE_NAME } from "../constants";
-import { activityCategoryIcon, formatStatCount, formatTimeAgo, searchResultsRoute } from "../utils";
+import { activityCategoryIcon, formatTimeAgo, searchResultsRoute } from "../utils";
 import type { SalesRepActivityItemType } from "../types";
 
 interface IProps {
