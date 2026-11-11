@@ -122,15 +122,13 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { useI18n } from "vue-i18n";
-import { getProductRoute } from "@vc-frontend/core";
-import { useBlockChrome } from "../composables/useBlockChrome";
+import { getProductRoute, LayoutWidget, useBlockChrome } from "@vc-frontend/core";
 import { useSalesRepColumnSort } from "../composables/useSalesRepColumnSort";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
 import { useSalesRepRules } from "../composables/useSalesRepRules";
 import { useSalesRepTopSellers } from "../composables/useSalesRepTopSellers";
 import { TOP_SELLERS_DEFAULT_TAKE } from "../constants";
 import { selectableFilterRules } from "../utils";
-import LayoutWidget from "./layout-widget.vue";
 import SalesRepRuleAlert from "./sales-rep-rule-alert.vue";
 import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
 

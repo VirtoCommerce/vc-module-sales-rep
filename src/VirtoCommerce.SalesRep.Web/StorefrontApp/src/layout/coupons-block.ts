@@ -1,11 +1,12 @@
 import { defineAsyncComponent, markRaw } from "vue";
-import { COUPONS_BLOCK_ID, COUPONS_DEFAULT_ROWS, COUPONS_MAX_ROWS, MIN_ROWS } from "../constants";
-import type { SalesRepBlockType } from "../types/layout";
+import { MIN_ROWS } from "@vc-frontend/core";
+import { COUPONS_BLOCK_ID, COUPONS_DEFAULT_ROWS, COUPONS_MAX_ROWS } from "../constants";
+import type { BlockType } from "@vc-frontend/core";
 
 const SalesRepCoupons = markRaw(defineAsyncComponent(() => import("../components/sales-rep-coupons.vue")));
 
 // Registered (via registerBlock in index.ts) only when vc-module-marketing is installed.
-export const couponsBlock: SalesRepBlockType = {
+export const couponsBlock: BlockType = {
   id: COUPONS_BLOCK_ID,
   region: "mainLeft",
   titleKey: "sales_rep.coupons.title",
