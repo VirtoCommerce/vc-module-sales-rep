@@ -207,9 +207,11 @@ const footnote = computed(() => {
     from: formatters.monthYear(first.year, first.month),
     to: formatters.monthYear(last.year, last.month),
   };
-  return last.state === "current"
-    ? t("sales_rep.reporting.footnote", { ...range, today: d(today.value, { month: "short", day: "numeric" }) })
-    : t("sales_rep.reporting.footnote_closed", range);
+  return formatters.singleFullStop(
+    last.state === "current"
+      ? t("sales_rep.reporting.footnote", { ...range, today: d(today.value, { month: "short", day: "numeric" }) })
+      : t("sales_rep.reporting.footnote_closed", range),
+  );
 });
 </script>
 

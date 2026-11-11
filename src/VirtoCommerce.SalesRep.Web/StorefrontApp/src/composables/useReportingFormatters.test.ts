@@ -34,6 +34,19 @@ describe("useReportingFormatters", () => {
     expect(signedChange(0)).toBe("0.0%");
   });
 
+  it("lets a date that ends in an abbreviation dot share it with the sentence", () => {
+    const { singleFullStop } = formatters();
+
+    expect(singleFullStop("Okt. 2026 – Nov. 2026, laufender Monat bis 4. Nov.. Umsatz netto.")).toBe(
+      "Okt. 2026 – Nov. 2026, laufender Monat bis 4. Nov. Umsatz netto.",
+    );
+    expect(singleFullStop("окт. 2026 г. – дек. 2026 г.. Продажи — нетто.")).toBe(
+      "окт. 2026 г. – дек. 2026 г. Продажи — нетто.",
+    );
+    expect(singleFullStop("kuluva kuu 4.11. asti.")).toBe("kuluva kuu 4.11. asti.");
+    expect(singleFullStop("Loading...")).toBe("Loading...");
+  });
+
   it("prints a missing amount as a dash", () => {
     expect(formatters().money(null, "USD")).toBe("—");
   });

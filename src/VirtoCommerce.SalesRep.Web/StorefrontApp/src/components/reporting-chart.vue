@@ -55,11 +55,11 @@
 
       <template #legend-append>
         <li class="reporting-chart__legend-change">
-          <VcBadge color="success" variant="soft" size="sm" rounded nowrap>
+          <VcBadge class="reporting-chart__legend-badge" color="success" variant="soft" size="sm" rounded nowrap>
             ↑ {{ t("sales_rep.reporting.legend.up") }}
           </VcBadge>
 
-          <VcBadge color="danger" variant="soft" size="sm" rounded nowrap>
+          <VcBadge class="reporting-chart__legend-badge" color="danger" variant="soft" size="sm" rounded nowrap>
             ↓ {{ t("sales_rep.reporting.legend.down") }}
           </VcBadge>
 
@@ -291,6 +291,11 @@ function tooltipRows(month: ReportingMonthType): ITooltipRow[] {
 
   &__legend-change {
     @apply flex items-center gap-2;
+  }
+
+  // Lower-case words alone sit below the badge's centre; 1px lifts their x-height to it, as VcBadge's xs size does.
+  &__legend-badge {
+    @apply pb-px;
   }
 
   &__note {
