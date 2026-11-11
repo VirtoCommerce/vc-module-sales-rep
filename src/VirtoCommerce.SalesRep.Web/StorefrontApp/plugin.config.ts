@@ -6,6 +6,8 @@ import {
   ALL_CUSTOMER_ORDERS_ROUTE_SEGMENT,
   CUSTOMER_ACTIVITIES_ROUTE_NAME,
   CUSTOMER_ACTIVITIES_ROUTE_SEGMENT,
+  CUSTOMER_COUPONS_ROUTE_NAME,
+  CUSTOMER_COUPONS_ROUTE_SEGMENT,
   CUSTOMER_ORDER_ROUTE_NAME,
   CUSTOMER_ORDER_ROUTE_SEGMENT,
   CUSTOMER_ORDERS_ROUTE_NAME,
@@ -38,8 +40,9 @@ const hubRoute = (path: string, name: string) => ({ path, parent: "Company" as c
 
 // What the storefront learns before any of this plugin's code is fetched. init() still registers all of it.
 //
-// The hub's left-rail section is not declared: a declared entry renders its title key before this plugin's
-// locales have merged, so the rail would show `sales_rep.hub.title` until they arrive.
+// The hub's left-rail section and its header icon-row link are not declared: a declared entry renders its title
+// key before this plugin's locales have merged, so both would show `sales_rep.hub.title` until they arrive.
+// init() adds both; only reps see them.
 export default definePluginManifest({
   when: settingEnabled(MODULE_ID, ENABLED_KEY),
   routes: [
@@ -54,6 +57,7 @@ export default definePluginManifest({
     hubRoute(TASKS_ROUTE_SEGMENT, TASKS_ROUTE_NAME),
     hubRoute(ACTIVITIES_ROUTE_SEGMENT, ACTIVITIES_ROUTE_NAME),
     hubRoute(CUSTOMER_ACTIVITIES_ROUTE_SEGMENT, CUSTOMER_ACTIVITIES_ROUTE_NAME),
+    hubRoute(CUSTOMER_COUPONS_ROUTE_SEGMENT, CUSTOMER_COUPONS_ROUTE_NAME),
     {
       path: DOCUMENTS_ROUTE_SEGMENT,
       parent: "Company",

@@ -1,10 +1,10 @@
 using System;
 using System.Linq;
-using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
-using VirtoCommerce.OrdersModule.Core.Model;
-using VirtoCommerce.Platform.Core.Common;
+using Microsoft.EntityFrameworkCore;
+using VirtoCommerce.OrdersModule.Data.Model;
+using VirtoCommerce.OrdersModule.Data.Repositories;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 using Xunit;
 
@@ -261,6 +261,8 @@ public class SalesRepCustomerOrdersGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, status: "New", createdByUserId: "buyer-1");
+        // The store labels the status for en-US, as an administrator does in the Order.Status dictionary.
+        await ctx.TranslateOrderStatusesAsync(("New", "en-US", "Received"));
 
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomerOrder(id:\"o-1\", cultureName:\"en-US\") { number status statusDisplayValue } }",
@@ -268,9 +270,8 @@ public class SalesRepCustomerOrdersGraphQlTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"status\":\"New\"");
-        // The harness's stub renders a status as "<raw> (<culture>)", so a culture that never reached the
-        // resolver would come back as the bare "New".
-        json.Should().Contain("\"statusDisplayValue\":\"New (en-US)\"");
+        // A culture that never reached the resolver would come back as the bare "New".
+        json.Should().Contain("\"statusDisplayValue\":\"Received\"");
     }
 
     [Fact]
@@ -294,26 +295,28 @@ public class SalesRepCustomerOrdersGraphQlTests
 
     // The response group a selection produces is asserted where production computes it - over the real schema -
     // because the raw paths arrive wrapped in the connection, so the same word "items" means the page in one
-    // position and the order's line items in the other.
+    // position and the order's line items in the other. It shows in what the orders module then does: the group with
+    // prices keeps the order's money (without it the total reads zero), and only a group with the line items reads
+    // their table, which is in the SQL the module ran.
     [Theory]
     // The storefront's own columns.
     [InlineData("totalCount items { number status statusDisplayValue createdDate organizationName total { formattedAmount } }",
-        CustomerOrderResponseGroup.WithPrices, "ORD-1")]
+        false, "$123.45")]
     // The same, as Apollo sends it: it injects __typename into every selection set and the storefront does not
     // turn that off, so a meta field the parser did not recognize would send every real page to the full graph.
     [InlineData("__typename totalCount items { __typename number status total { __typename formattedAmount } }",
-        CustomerOrderResponseGroup.WithPrices, "ORD-1")]
+        false, "$123.45")]
     // The order's own line items - the wrapper's "items" one level deeper.
-    [InlineData("items { number items { sku } }", CustomerOrderResponseGroup.Full, "SKU-0")]
-    public async Task CustomerOrders_Selection_ProducesTheExpectedResponseGroup(
-        string selection, CustomerOrderResponseGroup expected, string expectedContent)
+    [InlineData("items { number items { sku } }", true, "SKU-0")]
+    public async Task CustomerOrders_Selection_LoadsWhatItShows(string selection, bool readsLineItems, string expectedContent)
     {
-        using var ctx = SalesRepTestContext.Create(IndexedOrderSearchOverride.Recording);
+        using var ctx = SalesRepTestContext.Create();
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
 
         OrderSeeder.Seed(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: _june, itemsCount: 2, createdByUserId: "buyer-1");
         await ctx.IndexOrdersAsync("o-1");
+        ctx.Sql.Clear();
 
         var json = await ctx.ExecuteGraphQlAsync(
             $"query {{ salesRepCustomerOrders {{ {selection} }} }}",
@@ -321,7 +324,7 @@ public class SalesRepCustomerOrdersGraphQlTests
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain(expectedContent);
-        RecordedResponseGroup(ctx).Should().Be(expected);
+        ReadsTable<LineItemEntity>(ctx).Should().Be(readsLineItems);
     }
 
     // A group without WithPrices comes back with the money zeroed — by ResetPrices on the entity and again by
@@ -373,10 +376,12 @@ public class SalesRepCustomerOrdersGraphQlTests
         json.ToUpperInvariant().Should().Contain(expected);
     }
 
-    private static CustomerOrderResponseGroup RecordedResponseGroup(SalesRepTestContext ctx)
+    /// <summary>Whether the orders module read <typeparamref name="TEntity"/>'s table since the SQL log was cleared.</summary>
+    private static bool ReadsTable<TEntity>(SalesRepTestContext ctx)
     {
-        var responseGroup = ctx.GetRequiredService<RecordingIndexedCustomerOrderSearchService>().ResponseGroups.Single();
+        using var db = ctx.NewOrderDbContext();
+        var table = db.Model.FindEntityType(typeof(TEntity))!.GetTableName();
 
-        return EnumUtility.SafeParseFlags(responseGroup, CustomerOrderResponseGroup.Full);
+        return ctx.Sql.Of<OrderDbContext>().Any(x => x.Contains($"FROM \"{table}\"", StringComparison.Ordinal));
     }
 }
