@@ -24,12 +24,10 @@
           <ul class="customer-call-action__menu" @focusout="closeWhenFocusLeaves($event, close)">
             <li v-for="phone in phones" :key="phone.href">
               <VcMenuItem :external-link="phone.href" size="sm" @click="close()">
-                <template v-if="phone.name">
-                  <span class="customer-call-action__name">{{ phone.name }}</span>
-                  ·
-                </template>
-
-                <span class="customer-call-action__number">{{ phone.number }}</span>
+                <span class="customer-call-action__entry">
+                  <span v-if="phone.name" class="customer-call-action__name">{{ phone.name }} ·</span>
+                  <span class="customer-call-action__number">{{ phone.number }}</span>
+                </span>
               </VcMenuItem>
             </li>
           </ul>
@@ -128,13 +126,17 @@ const buttonProps = computed(() =>
     @apply flex min-w-56 max-w-[calc(100vw-2rem)] flex-col py-1;
   }
 
-  // A long organization name wraps; the number never breaks.
+  // A long organization name wraps; the number never breaks and moves to the next line whole when it does not fit.
+  &__entry {
+    @apply flex flex-wrap items-baseline gap-x-1 [word-break:normal];
+  }
+
   &__name {
-    @apply min-w-0 font-medium text-neutral-900 [overflow-wrap:anywhere] [word-break:normal];
+    @apply font-medium text-neutral-900 [overflow-wrap:anywhere];
   }
 
   &__number {
-    @apply shrink-0 whitespace-nowrap text-neutral-600 [font-variant-numeric:tabular-nums];
+    @apply whitespace-nowrap text-neutral-600 [font-variant-numeric:tabular-nums];
   }
 }
 </style>
