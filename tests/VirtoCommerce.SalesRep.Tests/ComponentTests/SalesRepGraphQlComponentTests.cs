@@ -99,9 +99,9 @@ public class SalesRepGraphQlComponentTests
         // org-1: the owner is the primary contact, and one of its phones is the customer's phone. The member service
         // orders phones by their generated row ids, not by entry, so either number can come first.
         json.Should().Contain("owner-1").And.Contain("999-0001").And.Contain("999-0002");
-        json.Should().MatchRegex("\"organizationId\":\"org-1\",\"phone\":\"\\\\u002B1-999-000[12]\"");
+        json.Should().MatchRegex("\"organizationId\":\"org-1\",\"phone\":\"\\+1-999-000[12]\"");
         // org-2's owner has no phone, so `phone` falls back to the organization's.
-        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"\\u002B1-222-0000\"");
+        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"+1-222-0000\"");
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"\\u002B1-999-0001\"");
-        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"\\u002B1-222-0000\"");
+        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"+1-999-0001\"");
+        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"+1-222-0000\"");
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"\\u002B1-333-0001\",\"primaryContact\":{\"id\":\"customer-1\"}");
+        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"+1-333-0001\",\"primaryContact\":{\"id\":\"customer-1\"}");
         // org-2's only contact member is the rep, so it has no primary contact and no phone.
         json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":null,\"primaryContact\":null");
         json.Should().NotContain("555-0100"); // the rep's phone
@@ -1733,8 +1733,8 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        var orgB = json.IndexOf("\"organizationId\":\"org-b\",\"phone\":\"\\u002B1-200-0000\"", StringComparison.Ordinal);
-        var orgA = json.IndexOf("\"organizationId\":\"org-a\",\"phone\":\"\\u002B1-100-0000\"", StringComparison.Ordinal);
+        var orgB = json.IndexOf("\"organizationId\":\"org-b\",\"phone\":\"+1-200-0000\"", StringComparison.Ordinal);
+        var orgA = json.IndexOf("\"organizationId\":\"org-a\",\"phone\":\"+1-100-0000\"", StringComparison.Ordinal);
         orgB.Should().BeGreaterThanOrEqualTo(0);
         orgA.Should().BeGreaterThan(orgB);
 
@@ -1744,7 +1744,7 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"organizationId\":\"org-a\",\"phone\":\"\\u002B1-100-0000\"").And.NotContain("org-b");
+        json.Should().Contain("\"organizationId\":\"org-a\",\"phone\":\"+1-100-0000\"").And.NotContain("org-b");
     }
 
     [Fact]
