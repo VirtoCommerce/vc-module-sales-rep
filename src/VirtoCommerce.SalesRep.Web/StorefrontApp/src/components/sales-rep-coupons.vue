@@ -18,11 +18,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useBlockChrome } from "../composables/useBlockChrome";
+import { LayoutWidget, useBlockChrome } from "@vc-frontend/core";
 import { useSalesRepCoupons } from "../composables/useSalesRepCoupons";
 import { COUPONS_DEFAULT_ROWS, CUSTOMER_COUPONS_ROUTE_NAME } from "../constants";
 import CouponList from "./coupon-list.vue";
-import LayoutWidget from "./layout-widget.vue";
 
 interface IProps {
   // Omit inside a layout; LayoutWidget then falls back to the block's titleKey.

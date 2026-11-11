@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using FluentValidation;
 using GraphQL.MicrosoftDI;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
@@ -34,6 +35,12 @@ using VirtoCommerce.TaxModule.Core.Model;
 using VirtoCommerce.Xapi.Core.Extensions;
 using VirtoCommerce.Xapi.Core.Infrastructure;
 using VirtoCommerce.Xapi.Core.Pipelines;
+using VirtoCommerce.XFrontend.Core.Layouts.Commands;
+using VirtoCommerce.XFrontend.Core.Layouts.Services;
+using VirtoCommerce.XFrontend.Core.Statistics.Services;
+using VirtoCommerce.XFrontend.Data.Layouts.Services;
+using VirtoCommerce.XFrontend.Data.Layouts.Validation;
+using VirtoCommerce.XFrontend.Data.Statistics.Services;
 using VirtoCommerce.XRecommend.Core.Services;
 using VirtoCommerce.XRecommend.Data.Authorization;
 using VirtoCommerce.XRecommend.Data.Repositories;
@@ -100,9 +107,17 @@ internal static class StorefrontShellModules
         return services;
     }
 
-    /// <summary>X-Frontend (3.1006.0, the newest on that X-Profile): the page context, composed of X-Profile's user, X-API's store and slug.</summary>
+    /// <summary>
+    /// X-Frontend (the VCST-6078 prerelease the csproj names): the page context, composed of X-Profile's user, X-API's store
+    /// and slug, and the layout API the hub's dashboard and customer profile read and save theirs through. The services
+    /// are the module's own registrations.
+    /// </summary>
     private static IServiceCollection AddXFrontendModule(this IServiceCollection services)
     {
+        services.AddTransient<IOrderStatisticsService, OrderStatisticsService>();
+        services.AddTransient<IStatisticsCurrencyResolver, StatisticsCurrencyResolver>();
+        services.AddTransient<ILayoutService, LayoutService>();
+        services.AddTransient<AbstractValidator<SaveLayoutCommand>, SaveLayoutCommandValidator>();
         _ = new GraphQLBuilder(services, builder => builder.AddSchema(services, typeof(XFrontendCore.CoreAssemblyMarker), typeof(XFrontendData.DataAssemblyMarker)));
 
         return services;

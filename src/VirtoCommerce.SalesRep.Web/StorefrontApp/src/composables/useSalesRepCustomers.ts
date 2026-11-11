@@ -1,8 +1,8 @@
 import { computed, ref, watch } from "vue";
-import { globals, Logger } from "@vc-frontend/core";
+import { buildStatisticsWindows, formatStatMoney, globals, Logger } from "@vc-frontend/core";
 import { SalesRepCustomersDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
-import { buildStatisticsWindows, formatCustomerLocation, formatStatMoney } from "../utils";
+import { formatCustomerLocation } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { SalesRepCustomerType } from "../types";
 

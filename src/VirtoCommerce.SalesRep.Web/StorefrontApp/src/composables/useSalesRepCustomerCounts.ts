@@ -1,24 +1,15 @@
 import { computed, toValue } from "vue";
-import { globals, Logger } from "@vc-frontend/core";
+import { buildStatisticsWindows, globals, Logger } from "@vc-frontend/core";
 import { SalesRepCustomerCountsDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
 import { needsCustomerCounts } from "../layout/stat-data-needs";
-import { buildStatisticsWindows } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
-import { useStatDataNeeds } from "./useStatDataNeeds";
-import type { SalesRepLayoutScopeType } from "../types/layout";
-import type { Ref } from "vue";
-
-type UseSalesRepCustomerCountsOptionsType = {
-  /** The surface whose visible cards decide whether this runs at all. */
-  scope: SalesRepLayoutScopeType;
-  organizationId?: string | Ref<string | undefined> | (() => string | undefined);
-};
+import type { HubStatisticsOptionsType } from "../types/widgets";
 
 // Owns the salesRepCustomerCounts op: served/ordered/new customer counts, backing the "My customers" card.
 // That one card is the whole reason for the round trip, so with it hidden the query does not run.
-export function useSalesRepCustomerCounts(options: UseSalesRepCustomerCountsOptionsType) {
-  const { needs, ready } = useStatDataNeeds(options.scope);
+export function useSalesRepCustomerCounts(options: HubStatisticsOptionsType) {
+  const { needs, ready } = options.needs;
 
   const variables = computed(() => {
     const windows = buildStatisticsWindows();

@@ -44,9 +44,8 @@ sign-in token endpoint and the list of installed modules (see Stand-ins below).
   register through their own extensions. The module under test is not restated: its own `Module.Initialize` and
   `Module.PostInitialize` run, which register its settings, permissions, notification and event handlers, map
   `/graphql/sales-rep` and seed its roles and the Call task type.
-- **The storefront shell** (`StorefrontShellModules.cs`): X-Profile 3.1019.0 (the newest on the X-Order 3.1011 this
-  module references: `me`, the organization, the address books), X-Frontend 3.1006.0 (the newest on that X-Profile:
-  `pageContext`) with the SEO module behind its slug, X-CMS over the content module's menus (`menu`) and X-Recommend
+- **The storefront shell** (`StorefrontShellModules.cs`): X-Profile 3.1020.0 (`me`, the organization, the address
+  books), X-Frontend's VCST-6078 prerelease (`pageContext`, and `layout` / `saveLayout` for the hub's dashboards) with the SEO module behind its slug, X-CMS over the content module's menus (`menu`) and X-Recommend
   (`searchHistory`), each as its `Module.cs` registers it.
 - **Configuration:** what the platform's shipped `appsettings.json` sets that this code reads (the default store, the
   GraphQL playground (on), the authentication types GraphQL ignores, the order full-text search), the platform's
@@ -99,15 +98,17 @@ Two pieces stand in for the platform's, and one for an outside service:
 | Session | `Infrastructure/StorefrontSession.cs` | Records console errors, dialogs and GraphQL errors; a failing test gets them plus a screenshot in its message, and a test can assert there were no GraphQL errors. |
 | Hub controls | `Infrastructure/HubControls.cs` | The hub's task controls by role and label, the steps the task groups repeat, the Google Calendar stand-in route, and `Exactly`, which tolerates Intl's spaces in an input's value. |
 | Layout audit | `Infrastructure/LayoutAudit.cs` | QA's audit widths and overflow audit (rule BL-UI-004) for the layout tests: prepares a page for measuring, walks the widths, and lists every width and element that broke (see Layout tests). |
+| Layout controls | `Infrastructure/LayoutControls.cs` | Layout editing on a hub page: the Edit layout toggle, a stat hidden by keyboard, and a save proved by the edit bar going away. |
 | Clock | `Infrastructure/NewYork.cs` | Today and instants in New York, the zone the time-sensitive groups pin; the next nights the clocks skip or repeat an hour. |
 | Documents | `Infrastructure/StorefrontDocuments.cs` | Loads the storefront's own `.graphql` operations from the clone (fragments inlined, `@gate` applied). |
 | Contract | `StorefrontBootContractTests.cs` | Browser-less: the backend answers the storefront's boot documents for a signed-in rep (≈4 s). |
-| Group 1 | `Customers/` | Rep with two organizations and one order, and an organization the rep does not serve: list, profile, the profile's quick actions, the not-found page. |
+| Group 1 | `Customers/` | Rep with two organizations and one order, and an organization the rep does not serve: list, profile, the profile's quick actions, the not-found page. `CustomerProfileGateTests`: an unserved, unknown or unreadable customer gets no statistics query, and a served one gets its statistics only once the customer has been read. `CustomerProfileLayoutTests`: a stat hidden on a customer's page is saved under that page's own scope and no longer fetched (a rep of its own). |
 | Group 2 | `Calendar/` | Rep with one task: complete it on the tasks page, create one from the form; both asserted on `WorkTask` rows. |
 | Group 3 | `Calls/` | Browser in New York time. Carl has calls and plain tasks, which the editing tests change; a test that books a call or takes a customer away signs in as a rep of its own. `CallsTests`: schedule a call from a customer's page, also adding it to Google and Apple Calendar, book one from the task form, edit calls and tasks, check what the list shows of a call, and check a customer the rep stopped serving. `CallTimesTests`: the edges of a day, the nights the clocks skip and repeat an hour, Los Angeles, a time off the select's steps, the select itself. `CallSavesTests`: a call without a customer, a save refused because the customer is no longer the rep's (with the Google tab; without it, skipped until VCST-6455), the Google tab blocked, a double click, a cancelled draft. Each test is asserted on the page and on `WorkTask` rows. |
 | Group 4 | `Tasks/` | Rep with plain tasks, browser in New York time: overdue, today, later, completed, canceled and dateless ones. An edit that changes only the date, a canceled and a completed task edited, a dateless one opened and dated, a delete, completing and reopening across the statuses, and the filters: customers, statuses, priorities, the search and the day, their chips, Reset filters, and the calendar's dots following them. The dashboard's overdue link: the list on Overdue over every date, the link's parameter dropped from the address, Back to the dashboard. |
 | Group 5 | `WithoutTaskManagement/` | A module list without TaskManagement: the customer page offers "Schedule call" disabled, the hub menu has no Tasks, and the tasks page sends the rep to a dashboard without the tasks widget. |
 | Group 6 | `Tasks/`, the `TasksLayout…` files | The tasks page's layout, in New York time, with QA's stress content: a 100-character customer name, two names that differ only at their ends, one with no break in it, an 80-character title, an unbroken SKU and long notes. The page as it opens, under every filter, with the Customers filter open, and with a task's edit popup, each at QA's 19 widths (see Layout tests). |
+| Group 7 | `Dashboard/` | The hub dashboard. Dora placed two orders for Tailspin Toys, one in this store and one in another; a test that saves a layout signs in as a rep of its own. `DashboardLayoutTests`: a stat hidden by keyboard is saved under the hub's scope (read back through X-Frontend's `ILayoutService`) and its period is no longer fetched; the recent orders' row limit is saved and fetched. `DashboardWidgetsTests`: the dashboard covers the current store only, in the widget, on the cards and in the `storeId` its requests carry; with every hub query failing, each widget says so and no error toast appears. |
 
 Groups are xunit collections with `DisableParallelization = true`: each runs alone, so one backend and one browser
 exist at a time, and a clone's one Vite serves them in turn. Tests inside a group share the environment and its seed;
@@ -115,7 +116,7 @@ each test gets its own browser context (fresh localStorage, fresh Apollo cache),
 customer away signs in as a rep of its own (`NewRepAsync`). Nothing is cleaned up: the databases and the index live in
 memory and go with the group, and what a test changes is its own rep's. Each test carries a 5-minute timeout.
 
-Measured on the workstation that produced this draft, against a clone: the contract test and the five groups run in
+Measured on the workstation that produced this draft, against a clone: the contract test and the first five groups run in
 about three minutes; a group's environment is up in under a second (the run's first, which starts Vite, in about
 four); the run's first page load costs ≈20 seconds (Vite compiles on demand, then the storefront loads the hub
 plugin), every later one 1–2 seconds, the first page of each later group included.
@@ -213,9 +214,8 @@ pass.
 - A root field that is missing fails the whole operation with a validation error. With the shell's modules hosted for
   real, every field the storefront shell asks for is the module's own: `pageContext`, `me`, the organization and the
   address books (`isLockedForCurrentUser` included), `menu`, `searchHistory`, the cart.
-- Package versions: the storefront is built against newer X-API modules than the module pins. X-Profile 3.1019.0 is the
-  newest that fits the X-Order 3.1011 this module references (3.1020 needs X-Order 3.1014), and X-Frontend 3.1006.0 the
-  newest on that X-Profile. The eager schema build names a missing service; the contract test turns a missing field
+- Package versions: the storefront is built against newer X-API modules than the module pins. The X-Frontend prerelease
+  with the layout API (VCST-6078) builds on X-Profile 3.1020.0, which needs X-Order 3.1014, so the tests reference those. The eager schema build names a missing service; the contract test turns a missing field
   into a four-second failure.
 - On the real platform the host needed what a platform has and the old stand-ins didn't ask for: Kestrel's synchronous
   IO (X-API's serializer reads the body synchronously), `application/json` exactly on a GraphQL POST, and the customer
@@ -240,6 +240,10 @@ pass.
   and a rep is a contact of the organizations they serve: a test that wants a buyer's details must seed the owner.
 - Since #13 the hub is the module's Module Federation plugin, and vc-frontend `dev` ships no built-in hub: without
   `store.plugins` every hub page is the storefront's 404.
+- Since VCST-6078 the hub's dashboard and customer profile keep their layouts through X-Frontend's `layout` and
+  `saveLayout`. A host without them still passed every test: each hub dashboard showed its default arrangement under
+  "The saved layout could not be loaded…", with no Edit layout button. The host serves X-Frontend's real layout code
+  now, from a test-only package reference that follows the manifest's version.
 - The hub's pages send their queries in parallel, and each in-memory SQLite database lived on one connection, which is
   not thread-safe. The symptoms were "database is locked" and index errors inside the connection's command list. So the
   host answers one request at a time, and a test's own reads take the same turn (`RunExclusiveAsync`). Each DbContext
@@ -264,6 +268,9 @@ pass.
   session of its own.
 - A save's toast replaces the one before it, which stays in the page for its leave animation, so two can show for a
   moment. A save is proved by its dialog closing; the last toast is the new one.
+- A layout save is proved by the edit bar going away. The Edit layout toggle stays on screen while editing, so waiting
+  for it proved nothing: a session closed right after the click cancelled the save still queued at the request gate,
+  and the test then read no layout.
 - Intl puts a narrow no-break space before AM/PM. A text assertion given a string collapses whitespace on both sides,
   that space included, so it matches plain text; an input's value is compared as it is, so the time field takes
   `Exactly`.
