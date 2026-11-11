@@ -1,5 +1,5 @@
-import { formatStatCount } from "../utils";
-import type { StatCardDataType } from "./stat-cards";
+import { formatStatCount } from "@vc-frontend/core";
+import type { StatCardDataType } from "@vc-frontend/core";
 import type { SalesRepCustomerCartStatisticsQuery } from "../api/graphql/types";
 import type { ComposerTranslation } from "vue-i18n";
 

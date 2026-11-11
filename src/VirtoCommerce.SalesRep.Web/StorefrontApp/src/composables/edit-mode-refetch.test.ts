@@ -1,12 +1,11 @@
 import { ApolloClient, ApolloLink, InMemoryCache, Observable } from "@apollo/client/core";
 import { provideApolloClient } from "@vue/apollo-composable";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { effectScope, nextTick } from "vue";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { effectScope, nextTick, ref } from "vue";
+import { useStatDataNeeds } from "@vc-frontend/core";
 import { DASHBOARD_LAYOUT_SCOPE } from "../constants";
-import { layoutTypePolicies } from "../layout/cache-policies";
 import { STAT_CARDS } from "../layout/stat-cards";
 import { useSalesRepOrderStatistics } from "./useSalesRepOrderStatistics";
-import { clearStatVisibility, publishStatVisibility } from "./useStatDataNeeds";
 
 /**
  * Entering layout-edit mode widens `needs` to every card, which changes the document's `@include` flags,
@@ -21,9 +20,8 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   globals: { storeId: "test-store", currencyCode: "USD", cultureName: "en-US" },
 }));
 
-// The spec needs *an* Apollo cache, not the host's instance — the policies it exercises are the
-// module's own, and a plugin has no access to the host's cache object anyway.
-const cache = new InMemoryCache({ typePolicies: layoutTypePolicies });
+// The spec needs *an* Apollo cache, not the host's instance: a plugin has no access to the host's cache object.
+const cache = new InMemoryCache();
 
 const money = (amount: number) => ({ __typename: "MoneyType", amount, formattedAmount: `$${amount}` });
 const period = (count: number) => ({
@@ -77,24 +75,33 @@ async function settle(times = 3): Promise<void> {
   }
 }
 
-const everyCard = STAT_CARDS[DASHBOARD_LAYOUT_SCOPE].map((card) => card.key);
+const cards = STAT_CARDS[DASHBOARD_LAYOUT_SCOPE];
+const everyCard = cards.map((card) => card.key);
 // Hiding an order-fed card is what makes edit mode widen the flags; a rep with everything visible sees
 // no variable change at all, which is why this only bites the reps the feature is for.
 const withoutWeek = everyCard.filter((key) => key !== "orders_placed_week");
 
-function publish(visible: readonly string[], editing: boolean): void {
-  publishStatVisibility(DASHBOARD_LAYOUT_SCOPE, { settled: true, visible, editing });
+// The page's layout as the statistics read it: settled, with the visible stat cards and the edit flag the
+// test moves. `publish` plays the surface — the rep hiding a card, then opening the editor.
+const visible = ref<readonly string[]>([]);
+const editing = ref(false);
+const layout = { settled: ref(true), editing, visibleIn: () => visible.value };
+
+function publish(shown: readonly string[], editMode: boolean): void {
+  visible.value = shown;
+  editing.value = editMode;
+}
+
+function orderStatisticsOfTheDashboard() {
+  return useSalesRepOrderStatistics({ needs: useStatDataNeeds(layout, cards) });
 }
 
 beforeEach(async () => {
   releases = [];
   requestCount = 0;
   await cache.reset({ discardWatches: true });
-  provideApolloClient(new ApolloClient({ link, cache }));
-});
-
-afterEach(() => {
-  clearStatVisibility(DASHBOARD_LAYOUT_SCOPE);
+  // Devtools off, as the host's client options have them under vitest: their hint arms a 10 s timer per module.
+  provideApolloClient(new ApolloClient({ link, cache, devtools: { enabled: false } }));
 });
 
 describe("entering layout-edit mode", () => {
@@ -102,7 +109,7 @@ describe("entering layout-edit mode", () => {
     publish(withoutWeek, false);
 
     const owner = effectScope();
-    const { statistics, loading } = owner.run(() => useSalesRepOrderStatistics({ scope: DASHBOARD_LAYOUT_SCOPE }))!;
+    const { statistics, loading } = owner.run(orderStatisticsOfTheDashboard)!;
 
     await settle();
     release();
@@ -117,7 +124,8 @@ describe("entering layout-edit mode", () => {
     await settle();
 
     // The widened flags are a new cache key, so nothing can be served from cache: the query is in flight,
-    // and stat-widget.vue puts `loading` ahead of the value, so every order-fed card renders "—".
+    // and the host's stat card (`VcStatWidget`) shows its loading state instead of the value, so every order-fed
+    // card renders "—".
     expect(loading.value).toBe(true);
     expect(requestCount).toBe(2);
 
@@ -137,7 +145,7 @@ describe("entering layout-edit mode", () => {
     publish(everyCard, false);
 
     const owner = effectScope();
-    const { loading } = owner.run(() => useSalesRepOrderStatistics({ scope: DASHBOARD_LAYOUT_SCOPE }))!;
+    const { loading } = owner.run(orderStatisticsOfTheDashboard)!;
 
     await settle();
     release();

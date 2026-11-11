@@ -177,13 +177,12 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { getProductRoute } from "@vc-frontend/core";
+import { formatStatCount, getProductRoute, LayoutWidget } from "@vc-frontend/core";
 import { useSalesRepCustomerActivitySummary } from "../composables/useSalesRepCustomerActivitySummary";
 import { CUSTOMER_ACTIVITIES_ROUTE_NAME } from "../constants";
-import { formatStatCount, searchResultsRoute } from "../utils";
+import { searchResultsRoute } from "../utils";
 import CustomerBrowseHistory from "./customer-browse-history.vue";
 import CustomerSearchHistory from "./customer-search-history.vue";
-import LayoutWidget from "./layout-widget.vue";
 import SalesRepRuleChips from "./sales-rep-rule-chips.vue";
 import TrackedMetricHint from "./tracked-metric-hint.vue";
 import type { SalesRepRuleType } from "../types";
