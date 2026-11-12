@@ -10,6 +10,7 @@ using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
+using VirtoCommerce.SalesRep.ExperienceApi.Extensions;
 using VirtoCommerce.SalesRep.ExperienceApi.Models;
 using VirtoCommerce.SalesRep.ExperienceApi.Services;
 using VirtoCommerce.SalesRep.ExperienceApi.Sorts;
@@ -25,6 +26,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
     private readonly ISalesRepCustomerSortRuleResolver _sortRuleResolver;
     private readonly ICustomerOrderStatisticsService _statisticsService;
     private readonly ISalesRepCurrencyResolver _currencyResolver;
+    private readonly ISalesRepPrimaryContactResolver _primaryContactResolver;
 
     public SalesRepCustomersQueryHandler(
         ISalesRepOrganizationAccessService organizationAccessService,
@@ -33,7 +35,8 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         ISalesRepCustomerFilterRuleResolver filterRuleResolver,
         ISalesRepCustomerSortRuleResolver sortRuleResolver,
         ICustomerOrderStatisticsService statisticsService,
-        ISalesRepCurrencyResolver currencyResolver)
+        ISalesRepCurrencyResolver currencyResolver,
+        ISalesRepPrimaryContactResolver primaryContactResolver)
         : base(organizationAccessService)
     {
         _memberSearchService = memberSearchService;
@@ -42,6 +45,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         _sortRuleResolver = sortRuleResolver;
         _statisticsService = statisticsService;
         _currencyResolver = currencyResolver;
+        _primaryContactResolver = primaryContactResolver;
     }
 
     public virtual async Task<SalesRepCustomerSearchResult> Handle(SalesRepCustomersQuery request, CancellationToken cancellationToken)
@@ -92,9 +96,7 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var membersSearchResult = await _memberSearchService.SearchMembersAsync(criteria);
 
         result.TotalCount = membersSearchResult.TotalCount;
-        result.Results = membersSearchResult.Results
-            .Select(x => SalesRepCustomer.FromOrganization(x, request.StoreId, currencyCode))
-            .ToList();
+        result.Results = await ToCustomersAsync(membersSearchResult.Results, request, currencyCode);
         return result;
     }
 
@@ -109,10 +111,13 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var take = criteria.Take;
 
         // Order-derived metrics live in the orders, not the member index, so we can't page in the DB: load every
-        // served-org candidate (bounded by the rep's assignment count), then rank + page in memory.
+        // served-org candidate (bounded by the rep's assignment count), then rank + page in memory. Ranking reads
+        // only ids and names, so the candidates load with the default group and the page reloads with the selected one.
+        var responseGroup = criteria.ResponseGroup;
         criteria.Skip = 0;
         criteria.Take = criteria.ObjectIds?.Count ?? 0;
         criteria.Sort = null;
+        criteria.ResponseGroup = nameof(MemberResponseGroup.Default);
         var candidatesResult = await _memberSearchService.SearchMembersAsync(criteria);
         var candidates = candidatesResult.Results;
         if (candidates.Count == 0)
@@ -130,12 +135,56 @@ public class SalesRepCustomersQueryHandler : SalesRepQueryHandlerBase, IQueryHan
         var byOrganization = await _statisticsService.GetStatisticsByOrganizationAsync(statisticsCriteria);
 
         result.TotalCount = candidates.Count;
-        result.Results = RankByMetric(candidates, byOrganization, sortSpec)
+        var rankedPage = RankByMetric(candidates, byOrganization, sortSpec)
             .Skip(skip)
             .Take(take)
-            .Select(x => SalesRepCustomer.FromOrganization(x, request.StoreId, currencyCode))
             .ToList();
+        var page = await ReloadWithResponseGroupAsync(rankedPage, responseGroup);
+        result.Results = await ToCustomersAsync(page, request, currencyCode);
         return result;
+    }
+
+    protected virtual async Task<IList<Member>> ReloadWithResponseGroupAsync(IList<Member> organizations, string responseGroup)
+    {
+        if (organizations.Count == 0 || responseGroup == nameof(MemberResponseGroup.Default))
+        {
+            return organizations;
+        }
+
+        var criteria = AbstractTypeFactory<MembersSearchCriteria>.TryCreateInstance();
+        criteria.ObjectIds = organizations.Select(x => x.Id).ToList();
+        criteria.MemberType = nameof(Organization);
+        criteria.RootMembersOnly = false;
+        criteria.ResponseGroup = responseGroup;
+        criteria.Take = organizations.Count;
+        var reloaded = (await _memberSearchService.SearchMembersAsync(criteria)).Results
+            .DistinctBy(x => x.Id, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(x => x.Id, StringComparer.OrdinalIgnoreCase);
+
+        return organizations
+            .Select(x => reloaded.TryGetValue(x.Id, out var organization) ? organization : x)
+            .ToList();
+    }
+
+    protected virtual async Task<IList<SalesRepCustomer>> ToCustomersAsync(
+        IList<Member> organizations,
+        SalesRepCustomersQuery request,
+        string currencyCode)
+    {
+        var primaryContacts = request.IncludeFields.IncludesPrimaryContact()
+            ? await _primaryContactResolver.ResolvePrimaryContactsAsync(
+                organizations.OfType<Organization>().ToList(),
+                request.IncludeFields.GetPrimaryContactResponseGroup())
+            : new Dictionary<string, Contact>();
+
+        var customers = new List<SalesRepCustomer>(organizations.Count);
+        foreach (var organization in organizations)
+        {
+            primaryContacts.TryGetValue(organization.Id, out var primaryContact);
+            customers.Add(SalesRepCustomer.FromOrganization(organization, request.StoreId, currencyCode, primaryContact));
+        }
+
+        return customers;
     }
 
     private static IEnumerable<Member> RankByMetric(

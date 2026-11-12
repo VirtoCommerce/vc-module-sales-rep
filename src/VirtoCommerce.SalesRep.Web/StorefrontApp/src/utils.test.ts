@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BUYER_ORDER_ROUTE_NAME, CUSTOMER_ORDER_ROUTE_NAME } from "./constants";
-import { formatTimeAgo, salesRepOrderRoute } from "./utils";
+import { contactDisplayName, formatTimeAgo, salesRepOrderRoute } from "./utils";
 import type { SalesRepCustomerOrderRowType } from "./types";
 
 // Pinned so the expectations don't depend on the runtime's default locale.
@@ -8,6 +8,15 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   globals: { cultureName: "en-US" },
 }));
+
+describe("contactDisplayName", () => {
+  it("prefers the full name, then the account name", () => {
+    expect(contactDisplayName({ fullName: "Jane Smith", name: "jsmith" })).toBe("Jane Smith");
+    expect(contactDisplayName({ fullName: "", name: "jsmith" })).toBe("jsmith");
+    expect(contactDisplayName({})).toBe("");
+    expect(contactDisplayName(undefined)).toBe("");
+  });
+});
 
 describe("salesRepOrderRoute", () => {
   const row = (isOwn: boolean): SalesRepCustomerOrderRowType => ({

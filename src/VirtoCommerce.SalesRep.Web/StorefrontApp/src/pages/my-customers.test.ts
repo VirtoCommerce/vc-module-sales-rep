@@ -1,5 +1,7 @@
 import { mount } from "@vue/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { defineComponent, h, inject, provide } from "vue";
+import type { InjectionKey } from "vue";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
 import MyCustomers from "./my-customers.vue";
 
@@ -65,10 +67,12 @@ const createWrapper = createWrapperFactory(mount, MyCustomers, {
       VcButton: true,
       VcIcon: true,
       VcLink: true,
+      VcTooltip: true,
       // Rendered rather than stubbed away: the assertion is about which message the alert carries.
       VcAlert: { template: '<div class="vc-alert"><slot /></div>' },
       SalesRepRuleChips: true,
       CustomerCommunicationModal: true,
+      CustomerCallAction: true,
     },
   },
 });
@@ -146,5 +150,87 @@ describe("MyCustomers states", () => {
 
     expect(views).toHaveLength(1);
     expect(views[0].attributes("variant")).toBe("search");
+  });
+});
+
+type RowType = Record<string, unknown>;
+
+const ROW: InjectionKey<RowType> = Symbol("row");
+
+/** Renders each row the way VcTable does: the mobile card from its slot, and every column with the row's item. */
+const RowStub = defineComponent({
+  props: { item: { type: Object, required: true } },
+
+  setup(props, { slots }) {
+    provide(ROW, props.item as RowType);
+    return () => slots.default?.();
+  },
+});
+
+const VcTableStub = defineComponent({
+  props: { items: { type: Array, default: () => [] } },
+
+  setup(props, { slots }) {
+    return () =>
+      h(
+        "div",
+        (props.items as RowType[]).map((item) =>
+          h(RowStub, { item, key: String(item.organizationId) }, () => [
+            h("div", { class: "mobile" }, slots["mobile-item"]?.({ item })),
+            h("div", { class: "desktop" }, slots.default?.()),
+          ]),
+        ),
+      );
+  },
+});
+
+const VcTableColumnStub = defineComponent({
+  props: { id: { type: String, required: true } },
+
+  setup(props, { slots }) {
+    const item = inject(ROW);
+    return () => h("div", { class: `column-${props.id}` }, slots.default?.({ item }));
+  },
+});
+
+const rowStubs = {
+  VcTable: VcTableStub,
+  VcTableColumn: VcTableColumnStub,
+  VcButton: { template: "<button class='button'><slot /></button>" },
+  VcTooltip: {
+    template:
+      "<div class='tooltip'><slot :trigger-props='{}' /><span class='tooltip-text'><slot name='content' /></span></div>",
+  },
+  CustomerCallAction: {
+    props: ["phones", "variant"],
+    template: "<span class='call' :data-variant='variant ?? \"icon\"' :data-count='phones.length' />",
+  },
+};
+
+describe("MyCustomers row actions", () => {
+  const phone = { name: "Jane Smith", number: "+1 555 010 2030", href: "tel:+15550102030" };
+
+  beforeEach(() => {
+    state.items.value = [
+      { organizationId: "o1", organizationName: "Acme", ytdTotal: "$1.00", ytdCount: 1, phones: [phone, phone] },
+    ];
+  });
+
+  it("puts the call action beside the message action in the table, both under design-system tooltips", () => {
+    const wrapper = createWrapper({ global: { stubs: rowStubs } });
+    const actions = wrapper.find(".desktop .column-actions");
+
+    expect(actions.find(".button").attributes("aria-label")).toBe("sales_rep.communication.action");
+    expect(actions.find(".tooltip-text").text()).toBe("sales_rep.communication.action");
+    expect(actions.find(".button").attributes("title")).toBeUndefined();
+    expect(actions.find(".call").attributes()).toMatchObject({ "data-variant": "icon", "data-count": "2" });
+  });
+
+  it("gives the mobile card a labelled Send message button and the labelled call button", () => {
+    const wrapper = createWrapper({ global: { stubs: rowStubs } });
+    const card = wrapper.find(".mobile");
+
+    expect(card.find(".button").text()).toBe("sales_rep.communication.action");
+    expect(card.find(".call").attributes()).toMatchObject({ "data-variant": "button", "data-count": "2" });
   });
 });

@@ -2,6 +2,7 @@ import { computed, ref, watch } from "vue";
 import { globals, Logger } from "@vc-frontend/core";
 import { CustomerSalesRepsDocument } from "../api/graphql/types";
 import { HUB_FETCH_POLICY } from "../constants";
+import { contactDisplayName } from "../utils";
 import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { SalesRepType, SalesRepSortType } from "../types";
 
@@ -42,7 +43,7 @@ export function useSalesReps() {
   const items = computed<SalesRepType[]>(() =>
     (result.value?.customerSalesReps?.items ?? []).map((rep) => ({
       id: rep.id,
-      name: rep.fullName || rep.name || "",
+      name: contactDisplayName(rep),
       email: rep.emails?.[0] ?? "",
       phone: rep.phones?.[0] ?? "",
     })),
