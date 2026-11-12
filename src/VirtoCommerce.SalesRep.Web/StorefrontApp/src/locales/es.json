@@ -126,7 +126,7 @@
       }
     },
     "communication": {
-      "action": "Enviar correo",
+      "action": "Enviar mensaje",
       "title": "Enviar un mensaje",
       "subtitle": "Llega a todos los miembros de {organization}",
       "title_label": "Título",
@@ -154,6 +154,12 @@
         "send_email": "Enviar correo",
         "create_quote": "Crear presupuesto",
         "schedule_call": "Programar llamada"
+      },
+      "call": {
+        "action": "Llamar al cliente",
+        "action_with_number": "Llamar al cliente, {number}",
+        "no_phone": "Sin número de teléfono",
+        "choose_number": "Elija un número para llamar"
       }
     },
     "orders": {

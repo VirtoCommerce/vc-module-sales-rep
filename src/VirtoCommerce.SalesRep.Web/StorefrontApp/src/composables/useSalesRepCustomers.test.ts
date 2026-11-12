@@ -116,7 +116,9 @@ describe("useSalesRepCustomers", () => {
         organizationId: "org-1",
         organizationName: "The Cottage Shop LLC",
         accountType: "Garden Center",
-        address: { postalCode: "22902", city: "Charlottesville", regionName: "Virginia" },
+        address: { postalCode: "22902", city: "Charlottesville", regionName: "Virginia", phone: "434-555-0100" },
+        phone: "+1 434 555 0199",
+        primaryContact: { id: "c-1", fullName: "Jane Smith", name: "jsmith", phones: ["+1 434 555 0199"] },
         ytd: { count: 13, total: { amount: 72165, formattedAmount: "$72,165.00" } },
         lastYear: { count: 11, total: { amount: 64420, formattedAmount: "$64,420.00" } },
         lastOrder: { id: "o-1", number: "21580221", createdDate: "2026-05-19T00:00:00Z" },
@@ -135,6 +137,10 @@ describe("useSalesRepCustomers", () => {
         ytdCount: 13,
         lastYearTotal: "$64,420.00",
         lastOrder: { id: "o-1", number: "21580221", createdDate: "2026-05-19T00:00:00Z" },
+        phones: [
+          { name: "Jane Smith", number: "+1 434 555 0199", href: "tel:+14345550199" },
+          { name: "The Cottage Shop LLC", number: "434-555-0100", href: "tel:4345550100" },
+        ],
       },
       // No address → empty string; absent statistics read as zeros, never as blanks or dashes (VCST-5586).
       {
@@ -146,6 +152,7 @@ describe("useSalesRepCustomers", () => {
         ytdCount: 0,
         lastYearTotal: "$0.00",
         lastOrder: undefined,
+        phones: [],
       },
     ]);
   });
