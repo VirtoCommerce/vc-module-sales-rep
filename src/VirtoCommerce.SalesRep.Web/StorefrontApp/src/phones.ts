@@ -21,11 +21,24 @@ export type CustomerPhoneSourceType = {
   primaryContact?: SalesRepPrimaryContactFieldsFragment;
 };
 
-/** Digits and a leading `+` only: what a dialer needs, and what makes two spellings of one number equal. */
+/** An extension at the end of a stored number: `x45`, `ext. 45`, `extension: 45`, `#45`. */
+const EXTENSION = /(?:#|ext(?:ension)?\.?|x)[\s:]*(\d+)$/i;
+
+/**
+ * Digits and a leading `+`, then a comma and the extension's digits when one is stored: what a dialer needs, and what
+ * makes two spellings of one number equal. The comma is a dialer pause, so the extension is sent as tones once the
+ * call connects. RFC 3966 `;ext=` is not used: Android's dialer turns its letters into keypad digits.
+ */
 export function normalizePhone(value: string): string {
   const trimmed = value.trim();
-  const digits = trimmed.replace(/\D/g, "");
-  return digits && trimmed.startsWith("+") ? `+${digits}` : digits;
+  const extension = EXTENSION.exec(trimmed);
+  const main = extension ? trimmed.slice(0, extension.index) : trimmed;
+  const digits = main.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  const number = main.startsWith("+") ? `+${digits}` : digits;
+  return extension ? `${number},${extension[1]}` : number;
 }
 
 /**
