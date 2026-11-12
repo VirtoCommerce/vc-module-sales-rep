@@ -293,7 +293,7 @@ function tooltipRows(month: ReportingMonthType): ITooltipRow[] {
     @apply flex items-center gap-2;
   }
 
-  // Lower-case words alone sit below the badge's centre; 1px lifts their x-height to it, as VcBadge's xs size does.
+  // The same 1px nudge as reporting-change-badge: Lato sits below the centre of a small VcBadge.
   &__legend-badge {
     @apply pb-px;
   }
