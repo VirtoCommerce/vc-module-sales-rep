@@ -13,9 +13,6 @@ namespace VirtoCommerce.SalesRep.ExperienceApi.Queries;
 
 public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHandler<SalesRepCustomerQuery, SalesRepCustomerDetails>
 {
-    private static readonly string _contactResponseGroup =
-        (MemberResponseGroup.WithPhones | MemberResponseGroup.WithEmails).ToString();
-
     private readonly IMemberService _memberService;
     private readonly ISalesRepMemberResponseGroupParser _responseGroupParser;
     private readonly ISalesRepPrimaryContactResolver _primaryContactResolver;
@@ -59,10 +56,11 @@ public class SalesRepCustomerQueryHandler : SalesRepQueryHandlerBase, IQueryHand
         }
 
         Contact primaryContact = null;
-        if (request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.PrimaryContact))
-            || request.IncludeFields.IncludesField(nameof(SalesRepCustomerDetails.Phone)))
+        if (request.IncludeFields.IncludesPrimaryContact())
         {
-            primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(organization, _contactResponseGroup);
+            primaryContact = await _primaryContactResolver.ResolvePrimaryContactAsync(
+                organization,
+                request.IncludeFields.GetPrimaryContactResponseGroup());
         }
 
         return SalesRepCustomerDetails.FromOrganization(organization, primaryContact);

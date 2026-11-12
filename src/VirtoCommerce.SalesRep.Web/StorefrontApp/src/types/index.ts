@@ -1,3 +1,4 @@
+import type { CustomerPhoneType } from "../phones";
 import type { OrdersFilterDataType } from "@vc-frontend/core";
 
 // View model for the table; mapped from the GraphQL SalesRepContact (see useSalesReps).
@@ -21,6 +22,8 @@ export type SalesRepCustomerType = {
   ytdCount: number;
   lastYearTotal: string;
   lastOrder?: SalesRepCustomerLastOrderType;
+  /** Every number to call, the default first. */
+  phones: CustomerPhoneType[];
 };
 
 export type SalesRepSortDirectionType = "asc" | "desc";

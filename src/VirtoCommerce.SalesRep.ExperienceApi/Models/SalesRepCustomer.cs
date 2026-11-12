@@ -19,14 +19,24 @@ public class SalesRepCustomer
 
     public CoreAddress Address { get; set; }
 
+    public SalesRepContact PrimaryContact { get; set; }
+
+    public string Phone { get; set; }
+
     public string StoreId { get; set; }
 
     public string CurrencyCode { get; set; }
 
     public static SalesRepCustomer FromOrganization(Member organization, string storeId, string currencyCode = null)
     {
+        return FromOrganization(organization, storeId, currencyCode, primaryContact: null);
+    }
+
+    public static SalesRepCustomer FromOrganization(Member organization, string storeId, string currencyCode, Contact primaryContact)
+    {
         var result = AbstractTypeFactory<SalesRepCustomer>.TryCreateInstance();
         result.MapFrom(organization, storeId);
+        result.MapPrimaryContact(organization, primaryContact);
         result.CurrencyCode = currencyCode;
         return result;
     }
@@ -40,5 +50,15 @@ public class SalesRepCustomer
         IconUrl = organization.IconUrl;
         Address = organization.GetDefaultAddress();
         StoreId = storeId;
+    }
+
+    protected virtual void MapPrimaryContact(Member organization, Contact primaryContact)
+    {
+        if (primaryContact != null)
+        {
+            PrimaryContact = SalesRepContact.FromContact(primaryContact);
+        }
+
+        Phone = organization.GetPrimaryPhone(primaryContact);
     }
 }

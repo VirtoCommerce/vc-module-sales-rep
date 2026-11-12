@@ -126,7 +126,7 @@
       }
     },
     "communication": {
-      "action": "Send e-post",
+      "action": "Send melding",
       "title": "Send en melding",
       "subtitle": "Når alle medlemmer i {organization}",
       "title_label": "Tittel",
@@ -154,6 +154,12 @@
         "send_email": "Send e-post",
         "create_quote": "Opprett tilbud",
         "schedule_call": "Planlegg samtale"
+      },
+      "call": {
+        "action": "Ring kunden",
+        "action_with_number": "Ring kunden, {number}",
+        "no_phone": "Ingen telefonnummer",
+        "choose_number": "Velg et nummer å ringe"
       }
     },
     "orders": {

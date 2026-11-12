@@ -25,11 +25,16 @@ query SalesRepCustomers(
       organizationId
       organizationName
       accountType
+      phone
       address {
         postalCode
         zip
         city
         regionName
+        phone
+      }
+      primaryContact {
+        ...salesRepPrimaryContactFields
       }
       ytd: orderStatistics(from: $ytdFrom, to: $ytdTo) {
         total {

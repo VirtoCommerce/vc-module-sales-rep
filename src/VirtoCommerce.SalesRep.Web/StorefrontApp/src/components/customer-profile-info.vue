@@ -10,7 +10,14 @@
           {{ t(row.labelKey) }}
         </dt>
 
-        <dd class="customer-profile-info__value">{{ row.value }}</dd>
+        <!-- The default number calls straight away; the others sit behind the same dropdown as on My customers. -->
+        <dd v-if="row.phones" class="customer-profile-info__value customer-profile-info__phone">
+          <a :href="row.phones[0].href" class="customer-profile-info__link">{{ row.value }}</a>
+
+          <CustomerCallAction v-if="row.phones.length > 1" :phones="row.phones" />
+        </dd>
+
+        <dd v-else class="customer-profile-info__value">{{ row.value }}</dd>
       </div>
     </dl>
   </LayoutWidget>
@@ -19,8 +26,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
-import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import { LayoutWidget } from "@vc-frontend/core";
+import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
+import CustomerCallAction from "./customer-call-action.vue";
+import type { CustomerPhoneType } from "../phones";
 
 interface IProps {
   organizationId: string;
@@ -32,8 +41,17 @@ const { t } = useI18n();
 // Apollo dedupes this query by id, so sharing it with the page header costs no extra request.
 const { customer, loading } = useSalesRepCustomer(() => props.organizationId);
 
+type InfoRowType = {
+  key: string;
+  labelKey: string;
+  icon: string;
+  value?: string;
+  /** The Phone row's numbers, the default first: its value calls `phones[0]`. */
+  phones?: CustomerPhoneType[];
+};
+
 // Only fields the backend returns; blank values are dropped so no label renders empty.
-const rows = computed(() => {
+const rows = computed<InfoRowType[]>(() => {
   const details = customer.value;
   if (!details) {
     return [];
@@ -46,7 +64,13 @@ const rows = computed(() => {
       icon: "user",
       value: details.primaryContactName,
     },
-    { key: "phone", labelKey: "sales_rep.customer_profile.info.phone", icon: "phone", value: details.phone },
+    {
+      key: "phone",
+      labelKey: "sales_rep.customer_profile.info.phone",
+      icon: "phone",
+      value: details.phones[0]?.number,
+      phones: details.phones,
+    },
     {
       key: "account_type",
       labelKey: "sales_rep.customer_profile.info.account_type",
@@ -79,6 +103,14 @@ const rows = computed(() => {
 
   &__value {
     @apply min-w-0 text-end text-sm font-medium text-neutral-900 [word-break:break-word];
+  }
+
+  &__phone {
+    @apply flex items-center justify-end gap-1;
+  }
+
+  &__link {
+    @apply text-[--link-color] hover:text-[--link-hover-color];
   }
 }
 </style>
