@@ -21,11 +21,20 @@ export type CustomerPhoneSourceType = {
   primaryContact?: SalesRepPrimaryContactFieldsFragment;
 };
 
-/** Digits and a leading `+` only: what a dialer needs, and what makes two spellings of one number equal. */
+/** `x45`, `ext. 45`, `#45` at the end of a number. */
+const EXTENSION = /(?:#|ext(?:ension)?\.?|x)[\s:]*(\d+)$/i;
+
+/** Digits with a leading `+`, and `,ext` when there is one: a comma is a dialer pause. */
 export function normalizePhone(value: string): string {
   const trimmed = value.trim();
-  const digits = trimmed.replace(/\D/g, "");
-  return digits && trimmed.startsWith("+") ? `+${digits}` : digits;
+  const extension = EXTENSION.exec(trimmed);
+  const main = extension ? trimmed.slice(0, extension.index) : trimmed;
+  const digits = main.replace(/\D/g, "");
+  if (!digits) {
+    return "";
+  }
+  const number = main.startsWith("+") ? `+${digits}` : digits;
+  return extension ? `${number},${extension[1]}` : number;
 }
 
 /**

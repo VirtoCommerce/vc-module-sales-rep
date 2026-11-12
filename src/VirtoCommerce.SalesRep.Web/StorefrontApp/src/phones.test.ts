@@ -15,8 +15,27 @@ describe("normalizePhone", () => {
     ["  +44 20 7946 0958  ", "+442079460958"],
     ["ext. only", ""],
     ["", ""],
+    ["(555) 010-2032", "5550102032"],
   ])("normalizes %j to %j", (value, expected) => {
     expect(normalizePhone(value)).toBe(expected);
+  });
+
+  it.each([
+    ["+1-555-040-5060 x45", "+15550405060,45"],
+    ["+1-555-040-5060x45", "+15550405060,45"],
+    ["+1 555 040 5060 X 45", "+15550405060,45"],
+    ["+1 555 040 5060 ext. 45", "+15550405060,45"],
+    ["+1 555 040 5060 ext45", "+15550405060,45"],
+    ["+1 555 040 5060 Ext: 45", "+15550405060,45"],
+    ["+1 555 040 5060 extension 45", "+15550405060,45"],
+    ["+1 555 040 5060 #45", "+15550405060,45"],
+    ["(555) 040-5060 x45", "5550405060,45"],
+  ])("dials the extension of %j after a pause: %j", (value, expected) => {
+    expect(normalizePhone(value)).toBe(expected);
+  });
+
+  it.each([["x45"], ["ext. 45"], ["#45"]])("has nothing to call for an extension with no number: %j", (value) => {
+    expect(normalizePhone(value)).toBe("");
   });
 });
 
@@ -66,6 +85,14 @@ describe("buildCustomerPhones", () => {
     );
 
     expect(phones).toEqual([{ name: "Jane Smith", number: "+1 (555) 010-2030", href: "tel:+15550102030" }]);
+  });
+
+  it("lists a number with an extension apart from the same number without one", () => {
+    const phones = buildCustomerPhones(
+      details({ primaryContact: contact(["+1-555-040-5060 x45", "+1 555 040 5060"]) }),
+    );
+
+    expect(phones.map((phone) => phone.href)).toEqual(["tel:+15550405060,45", "tel:+15550405060"]);
   });
 
   it("drops values with no digits", () => {
