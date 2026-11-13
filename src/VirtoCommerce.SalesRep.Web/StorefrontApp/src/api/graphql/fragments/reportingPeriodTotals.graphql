@@ -1,0 +1,6 @@
+fragment reportingPeriodTotals on CustomerOrderStatisticsPeriod {
+  total {
+    amount
+  }
+  count
+}

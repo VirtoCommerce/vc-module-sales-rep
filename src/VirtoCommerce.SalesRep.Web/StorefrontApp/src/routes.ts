@@ -28,6 +28,8 @@ import {
   DOCUMENTS_ROUTE_SEGMENT,
   MY_CUSTOMERS_ROUTE_NAME,
   MY_CUSTOMERS_ROUTE_SEGMENT,
+  REPORTING_ROUTE_NAME,
+  REPORTING_ROUTE_SEGMENT,
   ROUTE_NAME,
   ROUTE_SEGMENT,
   SALES_REP_ACCESS_PERMISSION,
@@ -44,6 +46,7 @@ const DashboardPage = () => import("./pages/dashboard.vue");
 const ActivitiesPage = () => import("./pages/activities.vue");
 const CustomerCouponsPage = () => import("./pages/customer-coupons.vue");
 const DocumentsPage = () => import("./pages/documents.vue");
+const ReportingPage = () => import("./pages/reporting.vue");
 const TasksPage = () => import("./pages/sales-rep-tasks-page.vue");
 
 // Reps only: the My customers gate (SalesRep.Enabled + sales-rep:access) AND every extra permission
@@ -108,6 +111,15 @@ export const dashboardRoute: RouteRecordRaw = {
   path: DASHBOARD_ROUTE_SEGMENT,
   name: DASHBOARD_ROUTE_NAME,
   component: DashboardPage,
+  meta: repRouteMeta,
+  beforeEnter: guardRepRoute,
+};
+
+// Reporting (VCST-6255) -> /company/customer-sales.
+export const reportingRoute: RouteRecordRaw = {
+  path: REPORTING_ROUTE_SEGMENT,
+  name: REPORTING_ROUTE_NAME,
+  component: ReportingPage,
   meta: repRouteMeta,
   beforeEnter: guardRepRoute,
 };
