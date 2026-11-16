@@ -9,8 +9,4 @@
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
-  <ItemGroup>
-    <!-- Transitive AutoMapper 12.0.1 (pulled via VC modules): GHSA-rvv3-g6hj-g44x, stack-overflow DoS on deeply nested maps. -->
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rvv3-g6hj-g44x" />
-  </ItemGroup>
 </Project>
