@@ -72,6 +72,12 @@ export const DASHBOARD_NAV_LINK_ID = "sales-rep-dashboard";
 export const HUB_HEADER_LINK_ID = "sales-rep-hub-header";
 export const HUB_HEADER_LINK_PRIORITY = -10;
 
+// Reporting: monthly revenue, orders and AOV across the rep's customers.
+// Not "reporting": the host owns /company/reporting.
+export const REPORTING_ROUTE_NAME = "SalesRepReporting";
+export const REPORTING_ROUTE_SEGMENT = "customer-sales";
+export const REPORTING_NAV_LINK_ID = "sales-rep-reporting";
+
 // The rep's own activity page (VCST-5337); a sibling of the hub pages under "Company".
 export const ACTIVITIES_ROUTE_NAME = "SalesRepActivities";
 export const ACTIVITIES_ROUTE_SEGMENT = "activities";

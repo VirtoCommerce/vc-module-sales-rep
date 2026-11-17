@@ -53,6 +53,7 @@ export const usePageHead = () => {};
 export const useNavigations = () => ({ mergeMenuSchema: () => {}, registerAccountSection: () => {} });
 export const useExtensionRegistry = () => ({ register: () => {}, registerContribution: () => {} });
 export const useWishlistSharingScopes = () => ({ registerSharingScope: () => {} });
+export const registerCacheTypePolicies = () => {};
 export const registerLocaleLoader = () => {};
 /** The host's `getProductRoute` (core/utilities/product) without its loyalty-catalog branch: a slug becomes the
  *  path, an id alone the "Product" route. */

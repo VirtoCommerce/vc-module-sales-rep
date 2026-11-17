@@ -36,7 +36,7 @@ const items = computed(() => {
   const keys = timeKeysOfDay(props.stepMinutes);
   if (model.value && !keys.includes(model.value)) {
     keys.push(model.value);
-    keys.sort();
+    keys.sort((a, b) => a.localeCompare(b));
   }
 
   // The formatter a call's line in the task list uses too, so both read alike.

@@ -2,15 +2,11 @@
 <Project>
   <!-- These properties will be shared for all projects -->
   <PropertyGroup>
-    <VersionPrefix>3.1024.0</VersionPrefix>
+    <VersionPrefix>3.1027.0</VersionPrefix>
     <VersionSuffix></VersionSuffix>
     <VersionSuffix Condition=" '$(VersionSuffix)' != '' AND '$(BuildNumber)' != '' ">$(VersionSuffix)-$(BuildNumber)</VersionSuffix>
   </PropertyGroup>
   <PropertyGroup>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
-  <ItemGroup>
-    <!-- Transitive AutoMapper 12.0.1 (pulled via VC modules): GHSA-rvv3-g6hj-g44x, stack-overflow DoS on deeply nested maps. -->
-    <NuGetAuditSuppress Include="https://github.com/advisories/GHSA-rvv3-g6hj-g44x" />
-  </ItemGroup>
 </Project>
