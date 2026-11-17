@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using FluentAssertions;
 using VirtoCommerce.OrdersModule.Data.Model;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
@@ -573,6 +574,6 @@ public class SalesRepTopSellersGraphQlTests
         });
 
         db.Add(order);
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 }

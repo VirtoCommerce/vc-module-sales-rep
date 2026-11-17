@@ -1,0 +1,6 @@
+fragment salesRepPrimaryContactFields on SalesRepContact {
+  id
+  fullName
+  name
+  phones
+}

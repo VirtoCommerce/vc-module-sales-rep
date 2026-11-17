@@ -55,11 +55,11 @@
 
       <template #legend-append>
         <li class="reporting-chart__legend-change">
-          <VcBadge color="success" variant="soft" size="sm" rounded nowrap>
+          <VcBadge class="reporting-chart__legend-badge" color="success" variant="soft" size="sm" rounded nowrap>
             ↑ {{ t("sales_rep.reporting.legend.up") }}
           </VcBadge>
 
-          <VcBadge color="danger" variant="soft" size="sm" rounded nowrap>
+          <VcBadge class="reporting-chart__legend-badge" color="danger" variant="soft" size="sm" rounded nowrap>
             ↓ {{ t("sales_rep.reporting.legend.down") }}
           </VcBadge>
 
@@ -291,6 +291,11 @@ function tooltipRows(month: ReportingMonthType): ITooltipRow[] {
 
   &__legend-change {
     @apply flex items-center gap-2;
+  }
+
+  // The same 1px nudge as reporting-change-badge: Lato sits below the centre of a small VcBadge.
+  &__legend-badge {
+    @apply pb-px;
   }
 
   &__note {

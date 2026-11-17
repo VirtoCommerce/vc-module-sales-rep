@@ -1,8 +1,10 @@
 import { enableAutoUnmount, flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ref } from "vue";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
 import { CUSTOMER_PROFILE_ROUTE_NAME, DASHBOARD_ROUTE_NAME } from "../constants";
 import CustomerOrders from "./customer-orders.vue";
+import type { SetupContext } from "vue";
 
 const state = await vi.hoisted(async () => {
   const { ref, shallowRef } = await import("vue");
@@ -92,11 +94,17 @@ const createWrapper = createWrapperFactory(mount, CustomerOrders, {
     renderStubDefaultSlot: false,
     stubs: {
       VcWidget: { template: '<div><slot name="default-container" /></div>' },
+      // Exposes its <input> as inputElement, like VcInput: the page focuses it.
       VcInput: {
         props: ["modelValue"],
         emits: ["update:modelValue", "clear"],
+        setup(_props: unknown, { expose }: SetupContext) {
+          const inputElement = ref<HTMLInputElement>();
+          expose({ inputElement });
+          return { inputElement };
+        },
         template:
-          '<input class="search-input" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+          '<input ref="inputElement" class="search-input" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
       },
       VcBreadcrumbs: BreadcrumbsStub,
       VcTable: true,
@@ -109,7 +117,8 @@ const createWrapper = createWrapperFactory(mount, CustomerOrders, {
       VcChip: {
         props: { closable: Boolean, closeButtonAriaLabel: { type: String, default: undefined } },
         emits: ["close", "click"],
-        template: `<span class="chip" @click="$emit('click')"><slot /><button v-if="closable" class="chip-close" :aria-label="closeButtonAriaLabel" @click.stop="$emit('close')" /></span>`,
+        // The close button also answers Enter: a browser turns it into a click, jsdom does not.
+        template: `<span class="chip" @click="$emit('click')"><slot /><button v-if="closable" class="vc-chip__close-button" :aria-label="closeButtonAriaLabel" @click.stop="$emit('close')" @keydown.enter="$emit('close')" /></span>`,
       },
       SalesRepOrdersFilters: true,
       OrderStatus: true,
@@ -337,9 +346,9 @@ describe("CustomerOrders", () => {
 
     const wrapper = createWrapper();
 
-    expect(wrapper.findAll(".chip-close").map((button) => button.attributes("aria-label"))).toEqual([
-      'sales_rep.customer_orders.filters.remove_filter {"label":"New"}',
-      'sales_rep.customer_orders.filters.remove_filter {"label":"ACME"}',
+    expect(wrapper.findAll(".vc-chip__close-button").map((button) => button.attributes("aria-label"))).toEqual([
+      'sales_rep.filters.remove_filter {"label":"New"}',
+      'sales_rep.filters.remove_filter {"label":"ACME"}',
     ]);
   });
 
@@ -368,7 +377,7 @@ describe("CustomerOrders", () => {
     state.filters.value = { statuses: ["New"], customerNames: ["ACME"], startDate: undefined, endDate: undefined };
 
     const wrapper = createWrapper();
-    await wrapper.findAll(".chip-close")[0].trigger("click");
+    await wrapper.findAll(".vc-chip__close-button")[0].trigger("click");
 
     expect(state.filters.value).toMatchObject({ statuses: [], customerNames: ["ACME"] });
   });
@@ -382,5 +391,23 @@ describe("CustomerOrders", () => {
     await chips[chips.length - 1].trigger("click");
 
     expect(state.filters.value).toEqual({ statuses: [], customerNames: [], startDate: undefined, endDate: undefined });
+  });
+
+  // The chips hand a keyboard user's focus to the search box once the last one is closed. Disabled by the reload
+  // that follows, the box would drop it again.
+  it("hands a keyboard user's focus to the search box once the last chip is closed", async () => {
+    state.filters.value = { statuses: ["New"], customerNames: [], startDate: undefined, endDate: undefined };
+    state.loading.value = true;
+    const wrapper = createWrapper({ attachTo: document.body });
+
+    expect(wrapper.get(".search-input").attributes("disabled")).toBeUndefined();
+
+    const close = wrapper.get<HTMLButtonElement>(".vc-chip__close-button").element;
+    close.focus();
+    close.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+    await flushPromises();
+
+    expect(state.filters.value.statuses).toEqual([]);
+    expect(document.activeElement).toBe(wrapper.get(".search-input").element);
   });
 });

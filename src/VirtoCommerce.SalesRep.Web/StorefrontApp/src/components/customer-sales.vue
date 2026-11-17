@@ -16,9 +16,9 @@
 import { useLocalStorage } from "@vueuse/core";
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { LayoutWidget } from "@vc-frontend/core";
 import { CUSTOMER_SALES_PERIOD_STORAGE_KEY, REPORTING_ROUTE_NAME } from "../constants";
 import { isReportingPeriod, REPORTING_DEFAULT_PERIOD } from "../reporting";
-import LayoutWidget from "./layout-widget.vue";
 import ReportingPanel from "./reporting-panel.vue";
 import type { ReportingPeriodType } from "../reporting";
 

@@ -1,0 +1,19 @@
+// The Tasks toolbar's sizes, shared by the page (pages/sales-rep-tasks-page.vue) and its filters
+// (sales-rep-task-filters.vue): each container-query breakpoint is derived here from the widths it depends on.
+
+// The status select, and the two multi-selects, which read "N items selected" next to their clear and chevron
+// buttons and so take more room.
+$select: 11rem;
+$multiple-select: 13rem;
+
+// Between the selects, and between the search and the filters.
+$gap: 0.75rem;
+
+// The narrowest the search box may get beside the filters.
+$search: 15rem;
+
+// All three selects side by side; below it, they stack one per line.
+$filters-row: $select + 2 * $multiple-select + 2 * $gap;
+
+// The search and the filters on one line; below it, the search takes a line of its own above them.
+$full-row: $search + $gap + $filters-row;

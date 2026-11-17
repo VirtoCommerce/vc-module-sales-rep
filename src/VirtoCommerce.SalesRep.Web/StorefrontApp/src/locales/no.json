@@ -69,46 +69,7 @@
           "items_unit": "vare | varer",
           "not_for_checkout": "{count} ikke til kassen",
           "items_this_week": "{count} vare denne uken | {count} varer denne uken",
-          "mtd_of_ytd": "{percent}% av året",
-          "load_failed": "Kunne ikke laste"
-        }
-      },
-      "layout": {
-        "edit": "Rediger oppsett",
-        "editing": "Redigerer oppsett",
-        "hint": "— dra en blokk etter håndtaket for å endre rekkefølgen, eller skjul den med ✕.",
-        "hint_keyboard": "Tastatur: mellomromstasten tar tak i en blokk, piltastene flytter den, mellomrom slipper den, Esc avbryter.",
-        "save": "Lagre oppsett",
-        "cancel": "Avbryt",
-        "reset": "Tilbakestill",
-        "save_failed": "Oppsettet kunne ikke lagres. Endringene dine er fortsatt her — prøv igjen.",
-        "load_failed": "Det lagrede oppsettet kunne ikke lastes, så standardrekkefølgen vises. Redigering er utilgjengelig til det er lastet — last siden på nytt.",
-        "hidden_widgets": "Skjulte moduler",
-        "visible_stats": "Synlige nøkkeltall",
-        "hidden_stats": "Skjulte nøkkeltall",
-        "empty_visible": "Dra et nøkkeltall hit for å vise det",
-        "empty_hidden": "Dra et nøkkeltall hit for å skjule det",
-        "max_rows": "Maks. rader",
-        "restored": "Standardoppsettet er gjenopprettet.",
-        "empty": {
-          "title": "Alle blokker er skjult",
-          "text": "Alle nøkkeltall og moduler på denne siden er flyttet til {hidden} i oppsettinnstillingene. Gjenopprett standardoppsettet for å få alt tilbake, eller åpne {edit} for å velge nøyaktig hva som skal vises.",
-          "hidden": "Skjulte",
-          "restore": "Gjenopprett standardoppsett"
-        },
-        "a11y": {
-          "reorder": "Endre rekkefølge på {title}",
-          "hide": "Skjul {title}",
-          "show": "Vis {title}",
-          "grabbed": "{title} tatt opp. Posisjon {position} av {total}. Bruk piltastene for å flytte, mellomrom for å slippe, escape for å avbryte.",
-          "grabbed_parkable": "{title} tatt opp. Posisjon {position} av {total}. Bruk venstre og høyre piltast for å flytte, opp og ned for å skjule eller vise, mellomrom for å slippe, escape for å avbryte.",
-          "moved": "{title} flyttet til posisjon {position} av {total}.",
-          "dropped": "{title} sluppet på posisjon {position} av {total}.",
-          "edge": "{title} er allerede på plass {position} av {total}.",
-          "cancelled": "Flytting av {title} avbrutt.",
-          "parked": "{title} skjult.",
-          "restored": "{title} vist.",
-          "max_rows": "Maksimalt antall rader vist av {title}, mellom {min} og {max}"
+          "mtd_of_ytd": "{percent} av året"
         }
       }
     },
@@ -164,12 +125,11 @@
         "last_day": "Siste dag",
         "last_week": "Siste uke",
         "last_month": "Siste måned",
-        "last_year": "Siste år",
-        "remove_filter": "Fjern filteret «{label}»"
+        "last_year": "Siste år"
       }
     },
     "communication": {
-      "action": "Send e-post",
+      "action": "Send melding",
       "title": "Send en melding",
       "subtitle": "Når alle medlemmer i {organization}",
       "title_label": "Tittel",
@@ -197,6 +157,12 @@
         "send_email": "Send e-post",
         "create_quote": "Opprett tilbud",
         "schedule_call": "Planlegg samtale"
+      },
+      "call": {
+        "action": "Ring kunden",
+        "action_with_number": "Ring kunden, {number}",
+        "no_phone": "Ingen telefonnummer",
+        "choose_number": "Velg et nummer å ringe"
       }
     },
     "orders": {
@@ -219,11 +185,12 @@
       "view_all": "Alle oppgaver",
       "new_task": "Ny oppgave",
       "due_dates": "Frister",
-      "today": "I dag",
-      "all": "Alle",
-      "clear_day_aria": "Fjern {date}",
-      "empty": "Ingen oppgaver i denne fanen",
+      "empty": "Ingen oppgaver ennå",
       "empty_day": "Ingenting har frist denne dagen",
+      "no_results": "Ingen oppgaver samsvarer med filtrene",
+      "search_placeholder": "Søk i oppgaver",
+      "search_aria": "Søk i oppgaver",
+      "reset_search": "Tilbakestill søk",
       "load_failed": "Kunne ikke laste oppgavene",
       "day_task_count": "{count} oppgave | {count} oppgaver",
       "overdue_total": "{count} forfalt oppgave | {count} forfalte oppgaver",
@@ -234,6 +201,8 @@
       },
       "table": {
         "task": "Oppgave",
+        "priority": "Prioritet",
+        "customer": "Kunde",
         "status": "Status",
         "notes": "Notater",
         "actions": "Handlinger",
@@ -241,6 +210,15 @@
         "reopen": "Gjenåpne",
         "action_aria": "{action}: «{name}»",
         "edit_aria": "Rediger «{name}»"
+      },
+      "filters": {
+        "all_customers": "Alle kunder",
+        "customers_label": "Kunder",
+        "all_statuses": "Alle statuser",
+        "status_label": "Status",
+        "all_priorities": "Alle prioriteter",
+        "priorities_label": "Prioriteter",
+        "due_today": "Frist i dag"
       },
       "status": {
         "upcoming": "Kommende",
@@ -274,7 +252,7 @@
         "due_date_label": "Frist",
         "time_label": "Klokkeslett",
         "customer_label": "Kunde",
-        "customer_placeholder": "Søk etter kunder på navn",
+        "customer_placeholder": "Ingen kunde",
         "customer_error": "Kundelisten kunne ikke lastes. Prøv igjen.",
         "call_name": "Samtale",
         "priority_label": "Prioritet",
@@ -419,6 +397,19 @@
       },
       "published": "Publisert {date}"
     },
+    "coupons": {
+      "title": "Tilgjengelige kuponger",
+      "empty": "Ingen tilgjengelige kuponger",
+      "load_failed": "Kunne ikke laste inn kuponger",
+      "uses_left": "{left} av {total} bruk igjen",
+      "unlimited": "Ubegrenset",
+      "view_all": "Alle kampanjekuponger",
+      "breadcrumb": "Kampanjekuponger",
+      "page": {
+        "title": "Kampanjekuponger for {customer}",
+        "title_fallback": "Kampanjekuponger"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
@@ -442,6 +433,9 @@
           "All": "Alle"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Fjern filteret «{label}»"
     },
     "list_sharing": {
       "share_customers_label": "Kunder",

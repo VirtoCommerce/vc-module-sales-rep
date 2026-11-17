@@ -32,6 +32,10 @@ public class SalesRepCustomerType : ExtendableGraphType<SalesRepCustomer>
         Field<SalesRepAddressType>("address")
             .Description("The organization's default address (structured; the storefront formats it, e.g. \"City, Region\").")
             .Resolve(context => context.Source.Address);
+        Field(x => x.Phone, nullable: true).Description("Primary phone number (the primary contact's, falling back to the organization's).");
+        Field<SalesRepContactType>("primaryContact")
+            .Description("Primary contact of the organization (its owner, or the first contact member).")
+            .Resolve(context => context.Source.PrimaryContact);
 
         Field<SalesRepOrderType>("lastOrder")
             .Description("The rep's most recent order for this customer (only orders the rep created).")

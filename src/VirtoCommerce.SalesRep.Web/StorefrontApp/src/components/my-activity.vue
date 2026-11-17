@@ -45,6 +45,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { LayoutWidget } from "@vc-frontend/core";
 import { useSalesRepActivities } from "../composables/useSalesRepActivities";
 import { useSharedSalesRepCustomersCount } from "../composables/useSalesRepCustomersCount";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
@@ -52,7 +53,6 @@ import { isSalesRepAnalyticsEnabled } from "../composables/useSalesRepsConfig";
 import { ACTIVITIES_ROUTE_NAME, HUB_ACTIVITY_PERIOD, MY_ACTIVITY_TAKE } from "../constants";
 import { activityKey } from "../utils";
 import ActivityRow from "./activity-row.vue";
-import LayoutWidget from "./layout-widget.vue";
 
 const { t } = useI18n();
 

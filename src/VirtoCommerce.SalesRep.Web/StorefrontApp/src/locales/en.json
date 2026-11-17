@@ -41,7 +41,7 @@
       }
     },
     "hub": {
-      "title": "Sales Rep hub",
+      "title": "Sales Rep Hub",
       "dashboard": {
         "navigation": {
           "link": "Dashboard"
@@ -69,46 +69,7 @@
           "items_unit": "item | items",
           "not_for_checkout": "{count} not for checkout",
           "items_this_week": "{count} item this week | {count} items this week",
-          "mtd_of_ytd": "{percent}% of YTD",
-          "load_failed": "Couldn't load"
-        }
-      },
-      "layout": {
-        "edit": "Edit layout",
-        "editing": "Editing layout",
-        "hint": "— drag a block by its handle to reorder it, or hide it with ✕.",
-        "hint_keyboard": "Keyboard: press space on a block to pick it up, arrow keys to move it, space to drop, escape to cancel.",
-        "save": "Save layout",
-        "cancel": "Cancel",
-        "reset": "Reset",
-        "save_failed": "The layout could not be saved. Your changes are still here — try again.",
-        "load_failed": "The saved layout could not be loaded, so the default arrangement is shown. Editing is unavailable until it loads — try refreshing the page.",
-        "hidden_widgets": "Hidden widgets",
-        "visible_stats": "Visible stats",
-        "hidden_stats": "Hidden stats",
-        "empty_visible": "Drag a stat here to show it",
-        "empty_hidden": "Drag a stat here to hide it",
-        "max_rows": "Max rows",
-        "restored": "Default layout restored.",
-        "empty": {
-          "title": "All blocks are hidden",
-          "text": "Every stat and widget on this page has been moved to {hidden} in layout settings. Restore the default layout to bring everything back, or open {edit} to choose exactly what to show.",
-          "hidden": "Hidden",
-          "restore": "Restore default layout"
-        },
-        "a11y": {
-          "reorder": "Reorder {title}",
-          "hide": "Hide {title}",
-          "show": "Show {title}",
-          "grabbed": "{title} grabbed. Position {position} of {total}. Use the arrow keys to move it, space to drop it, escape to cancel.",
-          "grabbed_parkable": "{title} grabbed. Position {position} of {total}. Use the left and right arrow keys to move it, up and down to hide or show it, space to drop it, escape to cancel.",
-          "moved": "{title} moved to position {position} of {total}.",
-          "dropped": "{title} dropped at position {position} of {total}.",
-          "edge": "{title} is already at position {position} of {total}.",
-          "cancelled": "Move of {title} cancelled.",
-          "parked": "{title} hidden.",
-          "restored": "{title} shown.",
-          "max_rows": "Maximum rows shown by {title}, between {min} and {max}"
+          "mtd_of_ytd": "{percent} of YTD"
         }
       }
     },
@@ -164,12 +125,11 @@
         "last_day": "Last day",
         "last_week": "Last week",
         "last_month": "Last month",
-        "last_year": "Last year",
-        "remove_filter": "Remove filter “{label}”"
+        "last_year": "Last year"
       }
     },
     "communication": {
-      "action": "Send email",
+      "action": "Send message",
       "title": "Send a message",
       "subtitle": "Reaches every member of {organization}",
       "title_label": "Title",
@@ -197,6 +157,12 @@
         "send_email": "Send email",
         "create_quote": "Create quote",
         "schedule_call": "Schedule call"
+      },
+      "call": {
+        "action": "Call customer",
+        "action_with_number": "Call customer, {number}",
+        "no_phone": "No phone number",
+        "choose_number": "Choose a number to call"
       }
     },
     "orders": {
@@ -219,11 +185,12 @@
       "view_all": "All tasks",
       "new_task": "New task",
       "due_dates": "Due dates",
-      "today": "Today",
-      "all": "All",
-      "clear_day_aria": "Clear {date}",
-      "empty": "No tasks in this tab",
+      "empty": "No tasks yet",
       "empty_day": "Nothing due on this day",
+      "no_results": "No tasks match the filters",
+      "search_placeholder": "Search tasks",
+      "search_aria": "Search tasks",
+      "reset_search": "Reset search",
       "load_failed": "Couldn't load tasks",
       "day_task_count": "{count} task | {count} tasks",
       "overdue_total": "{count} overdue task | {count} overdue tasks",
@@ -234,6 +201,8 @@
       },
       "table": {
         "task": "Task",
+        "priority": "Priority",
+        "customer": "Customer",
         "status": "Status",
         "notes": "Notes",
         "actions": "Actions",
@@ -241,6 +210,15 @@
         "reopen": "Reopen",
         "action_aria": "{action}: “{name}”",
         "edit_aria": "Edit “{name}”"
+      },
+      "filters": {
+        "all_customers": "All customers",
+        "customers_label": "Customers",
+        "all_statuses": "All statuses",
+        "status_label": "Status",
+        "all_priorities": "All priorities",
+        "priorities_label": "Priorities",
+        "due_today": "Due today"
       },
       "status": {
         "upcoming": "Upcoming",
@@ -274,7 +252,7 @@
         "due_date_label": "Due date",
         "time_label": "Time",
         "customer_label": "Customer",
-        "customer_placeholder": "Search customers by name",
+        "customer_placeholder": "No customer",
         "customer_error": "The customer list could not be loaded. Please try again.",
         "call_name": "Call",
         "priority_label": "Priority",
@@ -419,6 +397,19 @@
       },
       "published": "Published {date}"
     },
+    "coupons": {
+      "title": "Available coupons",
+      "empty": "No coupons available",
+      "load_failed": "Couldn't load coupons",
+      "uses_left": "{left} use left out of {total} | {left} uses left out of {total}",
+      "unlimited": "Unlimited",
+      "view_all": "All promotion coupons",
+      "breadcrumb": "Promotion coupons",
+      "page": {
+        "title": "Promotion coupons for {customer}",
+        "title_fallback": "Promotion coupons"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
@@ -442,6 +433,9 @@
           "All": "All"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Remove filter “{label}”"
     },
     "list_sharing": {
       "share_customers_label": "Customers",
