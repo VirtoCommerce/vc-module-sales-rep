@@ -26,6 +26,7 @@ using VirtoCommerce.ProfileExperienceApiModule.Data.Aggregates.Vendor;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Authorization;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Configuration;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Middlewares;
+using VirtoCommerce.ProfileExperienceApiModule.Data.Models;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Schemas;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Services;
 using VirtoCommerce.ProfileExperienceApiModule.Data.Validators;
@@ -76,7 +77,7 @@ internal static class StorefrontShellModules
             .AddXRecommendModule();
     }
 
-    /// <summary>X-Profile (vc-module-profile-experience-api 3.1019.0, the newest on the X-Order 3.1011 this module references).</summary>
+    /// <summary>X-Profile (vc-module-profile-experience-api 3.1025.0).</summary>
     private static IServiceCollection AddXProfileModule(this IServiceCollection services)
     {
         _ = new GraphQLBuilder(services, builder => builder.AddSchema(services, typeof(ProfileMarker)));
@@ -103,6 +104,7 @@ internal static class StorefrontShellModules
         services.AddPipeline<TaxEvaluationContext>(builder => builder.AddMiddleware(typeof(LoadUserToEvalContextMiddleware)));
         services.AddPipeline<PriceEvaluationContext>(builder => builder.AddMiddleware(typeof(LoadUserToEvalContextMiddleware)));
         services.AddPipeline<VendorAggregate>();
+        services.AddPipeline<ContactOrganizationsContext>();
 
         return services;
     }

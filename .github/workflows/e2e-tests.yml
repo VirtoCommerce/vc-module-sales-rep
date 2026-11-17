@@ -41,9 +41,10 @@ jobs:
         run: |
           ref="$FRONTEND"
           if [ -z "$ref" ]; then
-            # The newest theme release: the repository also publishes its facade as core-v* releases.
+            # The highest theme release by version: the list comes newest first, so a hotfix of an older line (2.51.3
+            # after 2.62.0) would head it, and the repository also publishes its facade as core-v* releases.
             ref=$(gh release list --repo VirtoCommerce/vc-frontend --exclude-drafts --exclude-pre-releases --limit 30 \
-              --json tagName --jq '[.[] | select(.tagName | test("^[0-9]+[.][0-9]+[.][0-9]+$"))][0].tagName')
+              --json tagName --jq '[.[].tagName | select(test("^[0-9]+[.][0-9]+[.][0-9]+$"))] | sort_by(split(".") | map(tonumber)) | last')
           fi
           echo "vc-frontend: $ref"
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
