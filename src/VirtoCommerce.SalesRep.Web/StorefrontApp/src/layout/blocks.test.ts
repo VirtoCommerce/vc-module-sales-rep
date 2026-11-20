@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MIN_ROWS } from "@vc-frontend/core";
 import {
   CUSTOMER_PROFILE_LAYOUT_SCOPE,
+  CUSTOMER_SALES_BLOCK_ID,
   DASHBOARD_LAYOUT_SCOPE,
   DOCUMENTS_BLOCK_ID,
   DOCUMENTS_DEFAULT_ROWS,
@@ -71,5 +72,32 @@ describe("conditional blocks", () => {
       region: "mainRight",
       settings: [{ kind: "maxRows", default: TASKS_DEFAULT_ROWS, min: MIN_ROWS, max: TASKS_MAX_ROWS }],
     });
+  });
+});
+
+describe("customer sales block", () => {
+  // Persisted as `block.type` in every saved layout.
+  it("pins the block id", () => {
+    expect(CUSTOMER_SALES_BLOCK_ID).toBe("sales");
+  });
+
+  it("leads the customer profile's left column, ahead of the orders", () => {
+    const left = customerProfileBlocks
+      .filter((block) => block.region === "mainLeft")
+      .toSorted((a, b) => a.order - b.order)
+      .map((block) => block.id);
+
+    expect(left[0]).toBe(CUSTOMER_SALES_BLOCK_ID);
+    expect(left).toContain("orders");
+  });
+
+  it("is named like the Reporting page's card", () => {
+    expect(customerProfileBlocks.find((block) => block.id === CUSTOMER_SALES_BLOCK_ID)?.titleKey).toBe(
+      "sales_rep.reporting.card_title",
+    );
+  });
+
+  it("stays off the hub dashboard", () => {
+    expect(dashboardBlocks.some((block) => block.id === CUSTOMER_SALES_BLOCK_ID)).toBe(false);
   });
 });
