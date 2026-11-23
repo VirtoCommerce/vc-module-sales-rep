@@ -25,6 +25,7 @@ using VirtoCommerce.Platform.Core.DistributedLock;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Core.Security;
 using VirtoCommerce.Platform.Core.Security.Search;
+using VirtoCommerce.Platform.Core.Security.SignInMethods;
 using VirtoCommerce.Platform.Core.Settings;
 using VirtoCommerce.Platform.Data.Extensions;
 using VirtoCommerce.Platform.Data.Repositories;
@@ -35,6 +36,7 @@ using VirtoCommerce.Platform.Security;
 using VirtoCommerce.Platform.Security.Authorization;
 using VirtoCommerce.Platform.Security.Repositories;
 using VirtoCommerce.Platform.Security.Services;
+using VirtoCommerce.Platform.Security.SignInMethods;
 using VirtoCommerce.SearchModule.Core.Extensions;
 using VirtoCommerce.SearchModule.Core.Model;
 using VirtoCommerce.SearchModule.Core.Services;
@@ -162,7 +164,8 @@ internal static partial class PlatformModules
 
     /// <summary>
     /// Accounts and roles, as Platform.Web registers them: its <c>AddSecurityServices</c> (the platform's custom
-    /// Identity stack, two-factor sign-in, the user and role searches), then ASP.NET Identity over the security database.
+    /// Identity stack, two-factor sign-in, the sign-in methods, the user and role searches), then ASP.NET Identity over
+    /// the security database.
     /// The data protection keys live in memory. Left out with the OpenIddict token server: API keys, sign-in logs and
     /// the token validators.
     /// </summary>
@@ -194,6 +197,10 @@ internal static partial class PlatformModules
         services.AddSingleton<Func<SignInManager<ApplicationUser>>>(provider => () => provider.CreateScope().ServiceProvider.GetService<SignInManager<ApplicationUser>>());
         services.TryAddScoped<IUserClaimsPrincipalFactory<ApplicationUser>, CustomUserClaimsPrincipalFactory>();
         services.AddScoped<ITwoFactorSignInService, TwoFactorSignInService>();
+
+        services.AddScoped<ISignInMethodService, SignInMethodService>();
+        services.AddScoped<ISignInMethodProvider, PasswordSignInMethodProvider>();
+        services.AddScoped<ISignInMethodProvider, ExternalSignInMethodProvider>();
 
         // Startup's factory for the account sessions service, which X-Profile's password commands take. The service
         // itself revokes OpenIddict tokens, and the token server is not hosted (TestTokenService): no path here signs
