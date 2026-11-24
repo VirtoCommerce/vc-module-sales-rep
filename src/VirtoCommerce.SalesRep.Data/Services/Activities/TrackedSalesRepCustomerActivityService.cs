@@ -20,6 +20,7 @@ namespace VirtoCommerce.SalesRep.Data.Services.Activities;
 public class TrackedSalesRepCustomerActivityService : SalesRepCustomerActivityService
 {
     private readonly ISalesRepPlatformAnalytics _platformAnalytics;
+    private readonly ILogger<SalesRepCustomerActivityService> _logger;
 
     public TrackedSalesRepCustomerActivityService(
         IOptionalDependency<IAnalyticsService> analyticsService,
@@ -30,6 +31,7 @@ public class TrackedSalesRepCustomerActivityService : SalesRepCustomerActivitySe
         : base(analyticsService, availability, scope, logger)
     {
         _platformAnalytics = platformAnalytics;
+        _logger = logger;
     }
 
     public override async Task<SalesRepCustomerActivitySummary> GetSummaryAsync(SalesRepCustomerActivityCriteria criteria)
@@ -46,8 +48,26 @@ public class TrackedSalesRepCustomerActivityService : SalesRepCustomerActivitySe
         }
 
         var result = AbstractTypeFactory<SalesRepCustomerActivitySummary>.TryCreateInstance();
-        result.IsAnalyticsAvailable = true;
 
+        try
+        {
+            await FillAsync(result, searchService, criteria);
+            result.IsAnalyticsAvailable = true;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // createdOn beside these is database data: letting this out would lose it to a reporting outage.
+            _logger.LogWarning(ex, "Platform analytics summary is unavailable for organization {OrganizationId} in store {StoreId}",
+                criteria.OrganizationId, criteria.StoreId);
+
+            result = AbstractTypeFactory<SalesRepCustomerActivitySummary>.TryCreateInstance();
+        }
+
+        return result;
+    }
+
+    protected virtual async Task FillAsync(SalesRepCustomerActivitySummary result, IAnalyticsEventSearchService searchService, SalesRepCustomerActivityCriteria criteria)
+    {
         var visitsTask = GetLatestAsync(searchService, criteria, ModuleConstants.Analytics.PlatformEventNames.SessionStart, withSubjectOnly: false);
         var lastSearchTask = GetLatestAsync(searchService, criteria, ModuleConstants.Analytics.PlatformEventNames.Search, withSubjectOnly: true);
         var lastProductViewTask = GetLatestAsync(searchService, criteria, ModuleConstants.Analytics.PlatformEventNames.ViewItem, withSubjectOnly: true);
@@ -69,8 +89,6 @@ public class TrackedSalesRepCustomerActivityService : SalesRepCustomerActivitySe
             result.LastViewedProduct = AbstractTypeFactory<SalesRepActivityProduct>.TryCreateInstance();
             result.LastViewedProduct.Code = lastProductView.Subject;
         }
-
-        return result;
     }
 
     // The newest matching event, with the count of all of them.

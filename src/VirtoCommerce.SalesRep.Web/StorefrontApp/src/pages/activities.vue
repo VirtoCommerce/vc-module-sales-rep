@@ -140,7 +140,7 @@ import { useSalesRepBrowseHistory } from "../composables/useSalesRepBrowseHistor
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import { useSharedSalesRepCustomersCount } from "../composables/useSalesRepCustomersCount";
 import { useSalesRepPeriodFilter } from "../composables/useSalesRepPeriodFilter";
-import { isSalesRepAnalyticsEnabled } from "../composables/useSalesRepsConfig";
+import { isSalesRepAnalyticsEnabled, isTrackedActivityFromPlatform } from "../composables/useSalesRepsConfig";
 import { useSalesRepSearchHistory } from "../composables/useSalesRepSearchHistory";
 import {
   ACTIVITY_CATEGORIES,
@@ -205,6 +205,8 @@ const { t } = useI18n();
 // Without the analytics module the tracked categories are left out altogether — tabs, marks, caveat and notice —
 // rather than shown unavailable. The module set does not change while the page is open.
 const isAnalyticsEnabled = isSalesRepAnalyticsEnabled();
+// The platform's own store has an event within seconds and counts every one: no delay to mark, nothing approximate.
+const isDelayed = !isTrackedActivityFromPlatform();
 const visibleCategories = isAnalyticsEnabled
   ? ACTIVITY_CATEGORIES
   : ACTIVITY_CATEGORIES.filter((name) => !TRACKED_ACTIVITY_CATEGORIES.has(name));
@@ -401,7 +403,7 @@ const failedText = computed(() => {
 });
 
 // The caveat concerns tracked (GA-sourced) rows, so it shows for those tabs and for the mixed "All" view.
-const showCaveat = computed(() => isTracked(category.value));
+const showCaveat = computed(() => isDelayed && isTracked(category.value));
 
 const { hasNoCustomers } = useSharedSalesRepCustomersCount();
 
@@ -505,7 +507,7 @@ function isTracked(name?: string): boolean {
 }
 
 function trackedHint(name?: string): string | undefined {
-  return isTracked(name) ? t("sales_rep.activity.tracked_hint") : undefined;
+  return isDelayed && isTracked(name) ? t("sales_rep.activity.tracked_hint") : undefined;
 }
 
 // Every badge reads the counts request, the selected tab included: one figure, one source.

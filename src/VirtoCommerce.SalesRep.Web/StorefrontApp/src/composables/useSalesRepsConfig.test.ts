@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ENABLED_KEY,
+  ANALYTICS_ENABLED_KEY,
   ANALYTICS_MODULE_ID,
   GOOGLE_ANALYTICS_MODULE_ID,
   MARKETING_MODULE_ID,
@@ -122,17 +123,24 @@ describe("useSalesRepsConfig", () => {
       checkPermissions.mockReturnValue(true);
     });
 
-    it("is the source while the store chose it and the analytics module is in the list", () => {
+    // Every other key reads as on, so SalesRep.Enabled stays on while the test turns the analytics store off.
+    function setCollecting(isCollecting: boolean): void {
+      isEnabled.mockImplementation((key: string) => key !== ANALYTICS_ENABLED_KEY || isCollecting);
+    }
+
+    it("is the source while the store chose it and the analytics store collects for the store", () => {
       settingValues.set(TRACKED_ACTIVITY_SOURCE_KEY, TRACKED_ACTIVITY_SOURCE_PLATFORM);
-      installedModules.add(ANALYTICS_MODULE_ID);
+      setCollecting(true);
 
       expect(isTrackedActivityFromPlatform()).toBe(true);
       expect(isSalesRepAnalyticsEnabled()).toBe(true);
     });
 
     // The backend falls back to Google Analytics here, and so does the gate.
-    it("is not the source when the store chose it but the analytics module is not in the list", () => {
+    it("is not the source when the store chose it but the analytics store does not collect", () => {
       settingValues.set(TRACKED_ACTIVITY_SOURCE_KEY, TRACKED_ACTIVITY_SOURCE_PLATFORM);
+      installedModules.add(ANALYTICS_MODULE_ID);
+      setCollecting(false);
 
       expect(isTrackedActivityFromPlatform()).toBe(false);
       expect(isSalesRepAnalyticsEnabled()).toBe(false);
@@ -143,7 +151,7 @@ describe("useSalesRepsConfig", () => {
     });
 
     it("is not the source for a store that did not choose it", () => {
-      installedModules.add(ANALYTICS_MODULE_ID);
+      setCollecting(true);
 
       expect(isTrackedActivityFromPlatform()).toBe(false);
       expect(isSalesRepAnalyticsEnabled()).toBe(false);

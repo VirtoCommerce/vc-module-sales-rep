@@ -37,12 +37,18 @@ public class SalesRepPlatformAnalytics : ISalesRepPlatformAnalytics
             return null;
         }
 
-        var store = (await _storeService.GetAsync([storeId], responseGroup: null, clone: false)).FirstOrDefault();
-        var source = store?.Settings?.GetValue<string>(ModuleConstants.Settings.General.TrackedActivitySource);
+        var source = await GetSourceAsync(storeId);
 
         return ModuleConstants.Analytics.TrackedActivitySources.Platform.EqualsIgnoreCase(source) && await searchService.IsAvailableAsync(storeId)
             ? searchService
             : null;
+    }
+
+    protected virtual async Task<string> GetSourceAsync(string storeId)
+    {
+        var store = (await _storeService.GetAsync([storeId], responseGroup: null, clone: false)).FirstOrDefault();
+
+        return store?.Settings?.GetValue<string>(ModuleConstants.Settings.General.TrackedActivitySource);
     }
 
     public virtual async Task<AnalyticsEventSearchCriteria> CreateCriteriaAsync(
@@ -59,7 +65,8 @@ public class SalesRepPlatformAnalytics : ISalesRepPlatformAnalytics
         }
 
         // A rep is a member of every organization they serve, so the rep's own storefront sessions carry that
-        // organization like a customer's.
+        // organization like a customer's. These are the reps of today: the store does not mark who was a rep when
+        // an event happened, so the sessions of a rep since unassigned read as the customer's.
         var repMemberships = await _organizationAccessService.GetGrantingMembershipsAsync(organizationIds: organizationIds);
 
         var result = AbstractTypeFactory<AnalyticsEventSearchCriteria>.TryCreateInstance();

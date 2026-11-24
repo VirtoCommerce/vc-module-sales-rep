@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -32,6 +33,7 @@ public class TrackedSalesRepActivitySource : AnalyticsSalesRepActivitySource
     ];
 
     private readonly ISalesRepPlatformAnalytics _platformAnalytics;
+    private readonly ILogger<AnalyticsSalesRepActivitySource> _logger;
 
     public TrackedSalesRepActivitySource(
         IOptionalDependency<IAnalyticsService> analyticsService,
@@ -41,6 +43,7 @@ public class TrackedSalesRepActivitySource : AnalyticsSalesRepActivitySource
         : base(analyticsService, scope, logger)
     {
         _platformAnalytics = platformAnalytics;
+        _logger = logger;
     }
 
     public override async Task<SalesRepActivitySearchResult> SearchAsync(SalesRepActivitySearchCriteria criteria)
@@ -61,16 +64,27 @@ public class TrackedSalesRepActivitySource : AnalyticsSalesRepActivitySource
             return result;
         }
 
-        var searchCriteria = await _platformAnalytics.CreateCriteriaAsync(criteria.StoreId, criteria.OrganizationIds, category.EventName, criteria.From, criteria.To);
-        searchCriteria.WithSubjectOnly = category.WithSubjectOnly;
-        searchCriteria.Skip = criteria.Skip;
-        searchCriteria.Take = criteria.Take;
+        try
+        {
+            var searchCriteria = await _platformAnalytics.CreateCriteriaAsync(criteria.StoreId, criteria.OrganizationIds, category.EventName, criteria.From, criteria.To);
+            searchCriteria.WithSubjectOnly = category.WithSubjectOnly;
+            searchCriteria.Skip = criteria.Skip;
+            searchCriteria.Take = criteria.Take;
 
-        var searchResult = await searchService.SearchAsync(searchCriteria);
+            var searchResult = await searchService.SearchAsync(searchCriteria);
 
-        result.TotalCount = searchResult.TotalCount;
-        result.EventCount = searchResult.TotalCount;
-        result.Results = searchResult.Results.Select(x => ToEvent(category, x)).ToList();
+            result.TotalCount = searchResult.TotalCount;
+            result.EventCount = searchResult.TotalCount;
+            result.Results = searchResult.Results.Select(x => ToEvent(category, x)).ToList();
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Merged with orders and customers: letting this out would empty every tab over a reporting problem.
+            _logger.LogWarning(ex, "Platform analytics activity category {Category} is unavailable for store {StoreId}",
+                category.Category, criteria.StoreId);
+
+            result.IsAnalyticsAvailable = false;
+        }
 
         return result;
     }
@@ -101,11 +115,13 @@ public class TrackedSalesRepActivitySource : AnalyticsSalesRepActivitySource
     // The tracked name of the only item, shown when the catalog no longer has the product.
     private static string GetItemName(IDictionary<string, object> properties)
     {
+        // The storefront sends this, so it is whatever a browser chose to send: only a plain value is a name.
         return properties != null
             && properties.TryGetValue("items", out var items)
             && items is JArray { Count: > 0 } array
             && array[0] is JObject item
-                ? item.Value<string>("item_name")
+            && item["item_name"] is JValue { Value: not null } name
+                ? Convert.ToString(name.Value, CultureInfo.InvariantCulture)
                 : null;
     }
 }

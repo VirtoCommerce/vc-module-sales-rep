@@ -1,5 +1,6 @@
 import { useModuleSettings, useUser } from "@vc-frontend/core";
 import {
+  ANALYTICS_ENABLED_KEY,
   ANALYTICS_MODULE_ID,
   ENABLED_KEY,
   GOOGLE_ANALYTICS_MODULE_ID,
@@ -34,11 +35,12 @@ export function isSalesRepTasksEnabled(): boolean {
 }
 
 // Whether the store reads its tracked activity from the platform's own analytics store. The backend makes the same
-// choice from the same setting and falls back to Google Analytics when that store is not there, so both must hold.
+// choice from the same two settings and falls back to Google Analytics when that store does not collect, so both
+// must hold here too.
 export function isTrackedActivityFromPlatform(): boolean {
   return (
     useModuleSettings(MODULE_ID).getSettingValue(TRACKED_ACTIVITY_SOURCE_KEY) === TRACKED_ACTIVITY_SOURCE_PLATFORM &&
-    useModuleSettings(ANALYTICS_MODULE_ID).hasModuleSettings.value
+    useModuleSettings(ANALYTICS_MODULE_ID).isEnabled(ANALYTICS_ENABLED_KEY)
   );
 }
 

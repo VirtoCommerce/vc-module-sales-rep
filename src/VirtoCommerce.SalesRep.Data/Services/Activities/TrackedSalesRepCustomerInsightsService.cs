@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using VirtoCommerce.AnalyticsModule.Core.Models;
 using VirtoCommerce.AnalyticsModule.Core.Services;
+using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Exceptions;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Common;
 using VirtoCommerce.Platform.Core.Modularity;
@@ -90,11 +91,19 @@ public class TrackedSalesRepCustomerInsightsService : SalesRepCustomerInsightsSe
             return [];
         }
 
-        var searchCriteria = await _platformAnalytics.CreateCriteriaAsync(criteria.StoreId, criteria.OrganizationIds, eventName, criteria.From, criteria.To);
+        try
+        {
+            var searchCriteria = await _platformAnalytics.CreateCriteriaAsync(criteria.StoreId, criteria.OrganizationIds, eventName, criteria.From, criteria.To);
 
-        return await searchService.GetSubjectSummariesAsync(
-            searchCriteria,
-            IsDateSort(criteria) ? AnalyticsSummarySort.Date : AnalyticsSummarySort.Count,
-            criteria.Take);
+            return await searchService.GetSubjectSummariesAsync(
+                searchCriteria,
+                IsDateSort(criteria) ? AnalyticsSummarySort.Date : AnalyticsSummarySort.Count,
+                criteria.Take);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException and not AnalyticsException)
+        {
+            // The one failure the callers of these reads know: they answer "unavailable" instead of failing the query.
+            throw new AnalyticsException("The platform analytics store could not be read.", ex);
+        }
     }
 }

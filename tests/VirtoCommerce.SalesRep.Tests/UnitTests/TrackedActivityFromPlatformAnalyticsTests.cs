@@ -9,6 +9,7 @@ using Newtonsoft.Json.Linq;
 using VirtoCommerce.AnalyticsModule.Core.Models;
 using VirtoCommerce.AnalyticsModule.Core.Services;
 using VirtoCommerce.CustomerModule.Core.Model;
+using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Exceptions;
 using VirtoCommerce.GoogleEcommerceAnalyticsModule.Core.Services;
 using VirtoCommerce.Platform.Core.Modularity;
 using VirtoCommerce.Platform.Modules;
@@ -70,7 +71,7 @@ public class TrackedActivityFromPlatformAnalyticsTests
     }
 
     [Fact]
-    public async Task Insights_LeaveOutRepsImpersonatedSessionsAndOtherOrganizations()
+    public async Task Insights_ReadWithTheCriteriaTheyAreGiven_SoRepsImpersonatedSessionsAndOtherOrganizationsStayOut()
     {
         _eventStore.Add(PlatformEventNames.Search, "customer term", _noon);
         _eventStore.Add(PlatformEventNames.Search, "rep term", _noon, userId: "rep-1");
@@ -233,6 +234,128 @@ public class TrackedActivityFromPlatformAnalyticsTests
         (await platformAnalytics.GetSearchServiceAsync(StoreId)).Should().BeNull();
     }
 
+    [Theory]
+    [InlineData("Platform", true, true)]
+    [InlineData("platform", true, true)]
+    [InlineData("GoogleAnalytics", true, false)]
+    [InlineData(null, true, false)]
+    [InlineData("Platform", false, false)]
+    public async Task SearchService_IsOfferedOnlyToAStoreThatChoseThePlatformAndCollects(string source, bool isCollecting, bool expected)
+    {
+        _eventStore.IsCollecting = isCollecting;
+        var platformAnalytics = new PlatformAnalyticsWithSource(_eventStore, source);
+
+        var searchService = await platformAnalytics.GetSearchServiceAsync(StoreId);
+
+        (searchService != null).Should().Be(expected);
+    }
+
+    [Fact]
+    public async Task SearchService_IsNotOfferedWithoutAStore()
+    {
+        (await new PlatformAnalyticsWithSource(_eventStore, "Platform").GetSearchServiceAsync(null)).Should().BeNull();
+        (await new PlatformAnalyticsWithSource(_eventStore, "Platform").GetSearchServiceAsync(string.Empty)).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Criteria_AskForTheRepsOfTheNamedOrganizationsOnly()
+    {
+        var organizationAccess = new FakeOrganizationAccessService("rep-1");
+        var platformAnalytics = new SalesRepPlatformAnalytics(new StubOptionalDependency<IAnalyticsEventSearchService>(_eventStore), storeService: null, organizationAccess);
+
+        await platformAnalytics.CreateCriteriaAsync(StoreId, ["org-1", "org-2"], PlatformEventNames.Search, null, null);
+
+        organizationAccess.RequestedOrganizationIds.Should().Equal("org-1", "org-2");
+        organizationAccess.RequestedUserIds.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Feed_AndSummary_SkipASearchWithoutATermAndAViewWithoutAProduct()
+    {
+        _eventStore.Add(PlatformEventNames.Search, "bolt", _noon.AddMinutes(-10));
+        _eventStore.Add(PlatformEventNames.Search, null, _noon);
+        _eventStore.Add(PlatformEventNames.ViewItem, "SKU-1", _noon.AddMinutes(-10));
+        _eventStore.Add(PlatformEventNames.ViewItem, null, _noon);
+
+        var searches = await CreateActivitySource().SearchAsync(CreateFeedCriteria(ModuleConstants.Activities.Categories.Searches, take: 5, skip: 0));
+        var summary = await CreateActivityService().GetSummaryAsync(new SalesRepCustomerActivityCriteria { StoreId = StoreId, OrganizationId = "org-1" });
+
+        searches.TotalCount.Should().Be(1);
+        searches.Results.Should().ContainSingle().Which.SearchTerm.Should().Be("bolt");
+        summary.LastSearchTerm.Should().Be("bolt");
+        summary.LastViewedProduct.Code.Should().Be("SKU-1");
+    }
+
+    [Fact]
+    public async Task Feed_WithoutOrganizations_ReadsNothing()
+    {
+        _eventStore.Add(PlatformEventNames.Search, "bolt", _noon);
+        var criteria = CreateFeedCriteria(ModuleConstants.Activities.Categories.Searches, take: 5, skip: 0);
+        criteria.OrganizationIds = [];
+
+        var result = await CreateActivitySource().SearchAsync(criteria);
+
+        result.Results.Should().BeEmpty();
+        _eventStore.ReadCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task Feed_CountsOnly_WhenNoRowsAreAskedFor()
+    {
+        _eventStore.Add(PlatformEventNames.Search, "bolt", _noon);
+        _eventStore.Add(PlatformEventNames.Search, "nut", _noon);
+
+        var result = await CreateActivitySource().SearchAsync(CreateFeedCriteria(ModuleConstants.Activities.Categories.Searches, take: 0, skip: 0));
+
+        result.TotalCount.Should().Be(2);
+        result.Results.Should().BeEmpty();
+    }
+
+    [Theory]
+    [InlineData("{\"a\":1}")]
+    [InlineData("[1,2]")]
+    public async Task Feed_AProductNameThatIsNotAPlainValue_IsLeftOutNotThrown(string itemName)
+    {
+        _eventStore.Add(PlatformEventNames.ViewItem, "SKU-1", _noon, properties: new Dictionary<string, object>
+        {
+            ["items"] = JArray.Parse("[{\"item_id\":\"SKU-1\",\"item_name\":" + itemName + "}]"),
+        });
+
+        var result = await CreateActivitySource().SearchAsync(CreateFeedCriteria(ModuleConstants.Activities.Categories.ProductViews, take: 5, skip: 0));
+
+        var row = result.Results.Should().ContainSingle().Subject;
+        row.ProductCode.Should().Be("SKU-1");
+        row.ProductName.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WhenThePlatformStoreFails_TheFeedSaysUnavailableAndTheSummaryKeepsItsShape()
+    {
+        _eventStore.Failure = new InvalidOperationException("the analytics database is down");
+
+        var feed = await CreateActivitySource().SearchAsync(CreateFeedCriteria(ModuleConstants.Activities.Categories.Searches, take: 5, skip: 0));
+        var summary = await CreateActivityService().GetSummaryAsync(new SalesRepCustomerActivityCriteria { StoreId = StoreId, OrganizationId = "org-1" });
+
+        feed.IsAnalyticsAvailable.Should().BeFalse();
+        feed.Results.Should().BeEmpty();
+        summary.IsAnalyticsAvailable.Should().BeFalse();
+        summary.VisitsCount.Should().Be(0);
+        summary.LastSearchTerm.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task WhenThePlatformStoreFails_InsightsThrowTheFailureTheirCallersTurnIntoUnavailable()
+    {
+        _eventStore.Failure = new InvalidOperationException("the analytics database is down");
+        var service = CreateInsightsService();
+
+        var searchTerms = () => service.GetSearchTermsAsync(CreateInsightsCriteria(ModuleConstants.Insights.Sort.Count));
+        var browsedProducts = () => service.GetBrowsedProductsAsync(CreateInsightsCriteria(ModuleConstants.Insights.Sort.Date));
+
+        await searchTerms.Should().ThrowAsync<AnalyticsException>();
+        await browsedProducts.Should().ThrowAsync<AnalyticsException>();
+    }
+
     private TrackedSalesRepCustomerInsightsService CreateInsightsService()
     {
         return new TrackedSalesRepCustomerInsightsService(
@@ -315,6 +438,10 @@ public class TrackedActivityFromPlatformAnalyticsTests
 
         public int ReadCount { get; private set; }
 
+        public bool IsCollecting { get; set; } = true;
+
+        public Exception Failure { get; set; }
+
         public void Add(
             string name,
             string subject,
@@ -339,7 +466,7 @@ public class TrackedActivityFromPlatformAnalyticsTests
 
         public Task<bool> IsAvailableAsync(string storeId)
         {
-            return Task.FromResult(true);
+            return Task.FromResult(IsCollecting);
         }
 
         public Task<AnalyticsEventSearchResult> SearchAsync(AnalyticsEventSearchCriteria criteria)
@@ -376,6 +503,11 @@ public class TrackedActivityFromPlatformAnalyticsTests
         {
             ReadCount++;
 
+            if (Failure != null)
+            {
+                throw Failure;
+            }
+
             return _events.Where(x =>
                 x.StoreId == criteria.StoreId
                 && criteria.Names.Contains(x.Name)
@@ -390,8 +522,15 @@ public class TrackedActivityFromPlatformAnalyticsTests
 
     private sealed class FakeOrganizationAccessService(params string[] repUserIds) : ISalesRepOrganizationAccessService
     {
+        public IList<string> RequestedUserIds { get; private set; }
+
+        public IList<string> RequestedOrganizationIds { get; private set; }
+
         public Task<IList<OrganizationMembership>> GetGrantingMembershipsAsync(IList<string> userIds = null, IList<string> organizationIds = null)
         {
+            RequestedUserIds = userIds;
+            RequestedOrganizationIds = organizationIds;
+
             return Task.FromResult<IList<OrganizationMembership>>(repUserIds
                 .Select(x => new OrganizationMembership { UserId = x, OrganizationId = organizationIds?.FirstOrDefault() })
                 .ToList());
@@ -406,6 +545,16 @@ public class TrackedActivityFromPlatformAnalyticsTests
         public Task<IList<string>> GetVisibleOrganizationIdsAsync(string userId, string organizationId) => throw new NotSupportedException();
 
         public Task<IList<OrganizationMembership>> GetVisibleGrantingMembershipsAsync(string userId, string organizationId) => throw new NotSupportedException();
+    }
+
+    /// <summary>The real gate, with the store's setting given instead of read from a store.</summary>
+    private sealed class PlatformAnalyticsWithSource(IAnalyticsEventSearchService searchService, string source)
+        : SalesRepPlatformAnalytics(new StubOptionalDependency<IAnalyticsEventSearchService>(searchService), storeService: null, new FakeOrganizationAccessService())
+    {
+        protected override Task<string> GetSourceAsync(string storeId)
+        {
+            return Task.FromResult(source);
+        }
     }
 
     private sealed class StubOptionalDependency<T>(T value) : IOptionalDependency<T>

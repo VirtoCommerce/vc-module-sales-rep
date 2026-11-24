@@ -886,20 +886,22 @@ Caveats inherent to the source, by design:
 
 ## Tracked metrics from the platform's own analytics store
 
-A store can read the same metrics from the platform's own analytics event store instead of Google Analytics: the optional **`VirtoCommerce.Analytics`** module, which the storefront writes to directly. The store setting **`SalesRep.TrackedActivity.Source`** chooses the source: `GoogleAnalytics` (the default) or `Platform`. `Platform` is honoured only while the Analytics module is installed, its storage is available and `Analytics.Enabled` is on for the store; otherwise the reads fall back to Google Analytics, and `isAnalyticsAvailable` says whether either source answered. The GraphQL contract is the same for both sources.
+A store can read the same metrics from the platform's own analytics event store instead of Google Analytics: the optional **`VirtoCommerce.Analytics`** module, which the storefront writes to directly. The store setting **`SalesRep.TrackedActivity.Source`** chooses the source: `GoogleAnalytics` (the default) or `Platform`. `Platform` is honoured only while the Analytics module is installed, its storage is available and `Analytics.Enabled` is on for the store; otherwise the reads fall back to Google Analytics, and `isAnalyticsAvailable` says whether either source answered. The store's storefront must carry the tracker that writes to that store (the `analytics` module of vc-frontend): without it the source is available and empty. The GraphQL fields are the same for both sources; the dates differ, as described below.
 
 | Metric (GraphQL field) | Event in the store | Notes |
 |---|---|---|
 | `salesRepActivities` → `searches`, `salesRepCustomerInsights.searchTerms`, `lastSearchTerm` | `search` | the term is lower-cased; one row per search |
 | `salesRepActivities` → `productViews`, `salesRepCustomerInsights.browsedProducts`, `lastViewedProduct` | `view_item` | the subject is the product **code**, resolved against the catalog as before |
-| `salesRepActivities` → `logins`, `visitsCount`, `lastWebLogin` | `session_start` | a visit: a storefront session of a signed-in customer, counted again when they switch organization. A sign-in itself is stored without an organization, so it cannot be attributed to a customer here |
+| `salesRepActivities` → `logins`, `visitsCount`, `lastWebLogin` | `session_start` | a visit, not a sign-in: a storefront session of a signed-in customer in one browser tab, counted again when they switch organization. A customer who opens products in new tabs makes several. A sign-in itself is stored without an organization, so it cannot be attributed to a customer here |
 
 What changes for a reader:
 
-- **Exact times.** Feed rows carry `precision: exact` and a `count` of 1, where Google Analytics gives an hour bucket.
+- **Exact times.** Feed rows carry `precision: exact` and a `count` of 1, where Google Analytics gives an hour bucket. The insights lists carry their last date under `sort: "count"` too, where Google Analytics returns null.
 - **No processing lag.** An event is readable seconds after it happened, so the storefront hub drops its "can take up to 48 hours" mark.
-- **The same audience.** Only customers' own sessions (`SessionKind = self`) of the organizations the rep serves; the storefront activity of the reps who serve those organizations is left out by user id, the way the `is_sales_rep` dimension does it for Google Analytics.
-- **History starts when the store starts collecting.** Nothing is imported from Google Analytics.
+- **The same audience, with one difference.** Only customers' own sessions (`SessionKind = self`) of the organizations the rep serves; the storefront activity of the reps who serve those organizations is left out by user id. Those are the reps of today: the store does not mark who was a rep when an event happened, as the `is_sales_rep` dimension does for Google Analytics, so the own sessions of a rep who has since been unassigned read as the customer's.
+- **History starts when the store starts collecting and ends at its retention.** Nothing is imported from Google Analytics, and events older than `Analytics.RetentionDays` are deleted, so an "all time" total covers that window.
+- **A failing store is "unavailable", not an error.** As with Google Analytics, a read that fails leaves the orders and customers of the feed and the database fields of the summary in place and turns `isAnalyticsAvailable` off.
+- **`ISalesRepAnalyticsScope` does not apply.** That scope builds Google Analytics filters; the platform reads are scoped by `ISalesRepPlatformAnalytics`.
 
 The module's `.Core` assembly ships in this module's package (`module.keep`), so a platform without the Analytics module still starts this one. The diagnostics endpoint describes Google Analytics only.
 
