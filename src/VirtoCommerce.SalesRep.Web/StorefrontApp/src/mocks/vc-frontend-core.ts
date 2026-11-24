@@ -44,6 +44,7 @@ export const useModuleSettings = () => ({
   isEnabled: () => true,
   getModuleSettings: () => undefined,
   hasModuleSettings: computed(() => true),
+  getSettingValue: () => undefined,
 });
 export const useModal = () => ({ openModal: () => {}, closeModal: () => {} });
 export const useNotifications = () => ({ success: () => {}, error: () => {}, warning: () => {}, info: () => {} });

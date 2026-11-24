@@ -1,7 +1,10 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
 import TrackedMetricHint from "./tracked-metric-hint.vue";
+
+const isTrackedActivityFromPlatform = vi.hoisted(() => vi.fn(() => false));
+vi.mock("../composables/useSalesRepsConfig", () => ({ isTrackedActivityFromPlatform }));
 
 const createWrapper = createWrapperFactory(mount, TrackedMetricHint, {
   global: {
@@ -18,6 +21,10 @@ const createWrapper = createWrapperFactory(mount, TrackedMetricHint, {
 });
 
 describe("TrackedMetricHint", () => {
+  beforeEach(() => {
+    isTrackedActivityFromPlatform.mockReturnValue(false);
+  });
+
   // On its own (the profile's definition rows) the hint needs a trigger the keyboard can reach.
   it("has a focusable trigger of its own", () => {
     const wrapper = createWrapper();
@@ -34,5 +41,17 @@ describe("TrackedMetricHint", () => {
     expect(wrapper.find("[tabindex]").exists()).toBe(false);
     expect(wrapper.findComponent({ name: "VcTooltipStub" }).exists()).toBe(false);
     expect(wrapper.get('[data-name="hourglass"]').attributes("aria-label")).toBe("sales_rep.activity.tracked_hint");
+  });
+
+  // The platform's own store has an event within seconds: no delay to warn about, in either form.
+  it("is absent when the tracked figures come from the platform's own store", () => {
+    isTrackedActivityFromPlatform.mockReturnValue(true);
+
+    expect(createWrapper().find(".tracked-metric-hint").exists()).toBe(false);
+    expect(
+      createWrapper({ props: { iconOnly: true } })
+        .find(".tracked-metric-hint")
+        .exists(),
+    ).toBe(false);
   });
 });

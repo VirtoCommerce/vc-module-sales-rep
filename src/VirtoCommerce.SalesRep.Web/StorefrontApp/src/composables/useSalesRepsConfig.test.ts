@@ -1,27 +1,34 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ENABLED_KEY,
+  ANALYTICS_MODULE_ID,
   GOOGLE_ANALYTICS_MODULE_ID,
   MARKETING_MODULE_ID,
   MODULE_ID,
   SALES_REP_ACCESS_PERMISSION,
+  TRACKED_ACTIVITY_SOURCE_KEY,
+  TRACKED_ACTIVITY_SOURCE_PLATFORM,
 } from "../constants";
 import {
   isSalesRepAnalyticsEnabled,
+  isTrackedActivityFromPlatform,
   isSalesRepCouponsEnabled,
   isSalesRepsEnabled,
   isSalesRepUser,
 } from "./useSalesRepsConfig";
 
 // The store's module list: an id is in it while that module is installed and enabled.
-const { isEnabled, installedModules, useModuleSettings } = vi.hoisted(() => {
+const { isEnabled, installedModules, settingValues, useModuleSettings } = vi.hoisted(() => {
   const isEnabledFn = vi.fn();
   const installed = new Set<string>();
+  const values = new Map<string, unknown>();
   return {
     isEnabled: isEnabledFn,
     installedModules: installed,
+    settingValues: values,
     useModuleSettings: vi.fn((moduleId: string) => ({
       isEnabled: isEnabledFn,
+      getSettingValue: (key: string) => values.get(key),
       hasModuleSettings: { value: installed.has(moduleId) },
     })),
   };
@@ -36,6 +43,7 @@ const { checkPermissions } = vi.hoisted(() => ({ checkPermissions: vi.fn() }));
 
 beforeEach(() => {
   installedModules.clear();
+  settingValues.clear();
 });
 
 describe("useSalesRepsConfig", () => {
@@ -104,6 +112,40 @@ describe("useSalesRepsConfig", () => {
       installedModules.add(GOOGLE_ANALYTICS_MODULE_ID);
       checkPermissions.mockReturnValue(false);
 
+      expect(isSalesRepAnalyticsEnabled()).toBe(false);
+    });
+  });
+
+  describe("tracked activity from the platform's own analytics store", () => {
+    beforeEach(() => {
+      isEnabled.mockReturnValue(true);
+      checkPermissions.mockReturnValue(true);
+    });
+
+    it("is the source while the store chose it and the analytics module is in the list", () => {
+      settingValues.set(TRACKED_ACTIVITY_SOURCE_KEY, TRACKED_ACTIVITY_SOURCE_PLATFORM);
+      installedModules.add(ANALYTICS_MODULE_ID);
+
+      expect(isTrackedActivityFromPlatform()).toBe(true);
+      expect(isSalesRepAnalyticsEnabled()).toBe(true);
+    });
+
+    // The backend falls back to Google Analytics here, and so does the gate.
+    it("is not the source when the store chose it but the analytics module is not in the list", () => {
+      settingValues.set(TRACKED_ACTIVITY_SOURCE_KEY, TRACKED_ACTIVITY_SOURCE_PLATFORM);
+
+      expect(isTrackedActivityFromPlatform()).toBe(false);
+      expect(isSalesRepAnalyticsEnabled()).toBe(false);
+
+      installedModules.add(GOOGLE_ANALYTICS_MODULE_ID);
+
+      expect(isSalesRepAnalyticsEnabled()).toBe(true);
+    });
+
+    it("is not the source for a store that did not choose it", () => {
+      installedModules.add(ANALYTICS_MODULE_ID);
+
+      expect(isTrackedActivityFromPlatform()).toBe(false);
       expect(isSalesRepAnalyticsEnabled()).toBe(false);
     });
   });

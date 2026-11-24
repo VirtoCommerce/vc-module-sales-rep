@@ -108,7 +108,10 @@ vi.mock("../composables/useSalesRepCustomersCount", () => ({
 
 // Whether the analytics module is installed and enabled; the page reads it once, when it sets up.
 const analytics = vi.hoisted(() => ({ enabled: true }));
-vi.mock("../composables/useSalesRepsConfig", () => ({ isSalesRepAnalyticsEnabled: () => analytics.enabled }));
+vi.mock("../composables/useSalesRepsConfig", () => ({
+  isSalesRepAnalyticsEnabled: () => analytics.enabled,
+  isTrackedActivityFromPlatform: () => false,
+}));
 
 vi.mock("../composables/useSalesRepActivities", () => ({
   useSalesRepActivities: (options: ActivityOptionsType = {}) => {
