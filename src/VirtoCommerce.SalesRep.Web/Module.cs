@@ -114,15 +114,16 @@ public class Module : IModule, IHasConfiguration
 
         serviceCollection.AddTransient<ISalesRepActivitySource, OrdersSalesRepActivitySource>();
         serviceCollection.AddTransient<ISalesRepActivitySource, CustomersSalesRepActivitySource>();
-        serviceCollection.AddTransient<ISalesRepActivitySource, AnalyticsSalesRepActivitySource>();
+        serviceCollection.AddTransient<ISalesRepPlatformAnalytics, SalesRepPlatformAnalytics>();
+        serviceCollection.AddTransient<ISalesRepActivitySource, TrackedSalesRepActivitySource>();
         serviceCollection.AddTransient<ISalesRepStoreAccessService, SalesRepStoreAccessService>();
-        serviceCollection.AddTransient<ISalesRepAnalyticsAvailability, SalesRepAnalyticsAvailability>();
+        serviceCollection.AddTransient<ISalesRepAnalyticsAvailability, TrackedSalesRepAnalyticsAvailability>();
         serviceCollection.AddTransient<ISalesRepAnalyticsScope, SalesRepAnalyticsScope>();
         serviceCollection.AddTransient<ISalesRepActivityService, SalesRepActivityService>();
 
-        serviceCollection.AddTransient<ISalesRepCustomerActivityService, SalesRepCustomerActivityService>();
+        serviceCollection.AddTransient<ISalesRepCustomerActivityService, TrackedSalesRepCustomerActivityService>();
 
-        serviceCollection.AddTransient<ISalesRepCustomerInsightsService, SalesRepCustomerInsightsService>();
+        serviceCollection.AddTransient<ISalesRepCustomerInsightsService, TrackedSalesRepCustomerInsightsService>();
 
         serviceCollection.AddTransient<ISalesRepAnalyticsDiagnosticsService, SalesRepAnalyticsDiagnosticsService>();
 

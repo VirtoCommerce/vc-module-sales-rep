@@ -1,13 +1,13 @@
 <template>
   <!-- Inside a chip, the chip itself is the tooltip's trigger (its `hint`): the labelled icon alone, so nothing focusable
        sits inside the chip's button. -->
-  <span v-if="iconOnly" class="tracked-metric-hint tracked-metric-hint--icon-only">
+  <span v-if="isDelayed && iconOnly" class="tracked-metric-hint tracked-metric-hint--icon-only">
     <VcIcon name="hourglass" :size="14" :label="t('sales_rep.activity.tracked_hint')" />
   </span>
 
   <!-- lazy: otherwise the popover mounts at once and floating-ui's autoUpdate measures the trigger every frame, once
        per hint. -->
-  <VcTooltip v-else class="tracked-metric-hint" lazy placement="top">
+  <VcTooltip v-else-if="isDelayed" class="tracked-metric-hint" lazy placement="top">
     <!-- A focusable trigger of our own, so the hint opens from the keyboard as well as on hover. -->
     <template #default="{ triggerProps }">
       <span class="tracked-metric-hint__trigger" tabindex="0" v-bind="triggerProps">
@@ -23,6 +23,7 @@
 
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
+import { isTrackedActivityFromPlatform } from "../composables/useSalesRepsConfig";
 
 interface IProps {
   // Inside a control that is itself the hint's trigger: the mark without a trigger of its own.
@@ -33,6 +34,9 @@ defineProps<IProps>();
 
 // Marks a tracked (GA) figure with the one thing a reader can act on: it can take up to 48 hours to appear.
 const { t } = useI18n();
+
+// The platform's own store has an event within seconds, so there is nothing to warn about.
+const isDelayed = !isTrackedActivityFromPlatform();
 </script>
 
 <style lang="scss">

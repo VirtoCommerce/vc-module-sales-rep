@@ -140,6 +140,13 @@ export const TASK_MANAGEMENT_MODULE_ID = "VirtoCommerce.TaskManagement";
 // Tracked activity (VCST-5337). Read from Google Analytics by vc-module-google-ecommerce-analytics, an OPTIONAL
 // backend dependency: the hub's GA-based parts show only while that module is installed and enabled.
 export const GOOGLE_ANALYTICS_MODULE_ID = "VirtoCommerce.GoogleEcommerceAnalytics";
+
+// The other source of tracked activity: the platform's own analytics store (vc-module-analytics), also an OPTIONAL
+// backend dependency. A store reads it while this module's setting says so and that module collects for the store.
+export const ANALYTICS_MODULE_ID = "VirtoCommerce.Analytics";
+export const ANALYTICS_ENABLED_KEY = "Analytics.Enabled";
+export const TRACKED_ACTIVITY_SOURCE_KEY = "SalesRep.TrackedActivity.Source";
+export const TRACKED_ACTIVITY_SOURCE_PLATFORM = "Platform";
 export const TASKS_ROUTE_NAME = "SalesRepTasks";
 export const TASKS_ROUTE_SEGMENT = "tasks";
 export const TASKS_NAV_LINK_ID = "sales-rep-tasks";

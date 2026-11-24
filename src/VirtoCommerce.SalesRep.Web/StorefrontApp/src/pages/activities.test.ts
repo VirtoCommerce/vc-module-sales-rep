@@ -107,8 +107,11 @@ vi.mock("../composables/useSalesRepCustomersCount", () => ({
 }));
 
 // Whether the analytics module is installed and enabled; the page reads it once, when it sets up.
-const analytics = vi.hoisted(() => ({ enabled: true }));
-vi.mock("../composables/useSalesRepsConfig", () => ({ isSalesRepAnalyticsEnabled: () => analytics.enabled }));
+const analytics = vi.hoisted(() => ({ enabled: true, fromPlatform: false }));
+vi.mock("../composables/useSalesRepsConfig", () => ({
+  isSalesRepAnalyticsEnabled: () => analytics.enabled,
+  isTrackedActivityFromPlatform: () => analytics.fromPlatform,
+}));
 
 vi.mock("../composables/useSalesRepActivities", () => ({
   useSalesRepActivities: (options: ActivityOptionsType = {}) => {
@@ -329,6 +332,7 @@ async function selectPeriod(wrapper: ReturnType<typeof createWrapper>, period: s
 
 beforeEach(() => {
   analytics.enabled = true;
+  analytics.fromPlatform = false;
   customersCount.hasNoCustomers.value = false;
   viewport.width.value = 1280;
   customerState.organizationName.value = undefined;
@@ -490,6 +494,19 @@ describe("Activities page", () => {
     const wrapper = createWrapper();
 
     expect(caveat(wrapper).exists()).toBe(true);
+  });
+
+  // The platform's own store has an event within seconds and counts every one.
+  it("says nothing about a delay or approximate figures when the tracked rows come from the platform's own store", () => {
+    analytics.fromPlatform = true;
+    state.items.value = [{ category: "orders", type: "orderPlaced" }];
+
+    const wrapper = createWrapper();
+    const tabs = findChips(wrapper)[0];
+
+    expect(caveat(wrapper).exists()).toBe(false);
+    expect(tabs.props("allHint")).toBeUndefined();
+    expect((tabs.props("rules") as SalesRepRuleType[]).every((rule) => rule.hint === undefined)).toBe(true);
   });
 
   // A failure gets its own view — it must not read as "no activity" (VCST-5586).

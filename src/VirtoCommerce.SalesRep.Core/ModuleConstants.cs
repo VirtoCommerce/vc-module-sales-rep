@@ -113,6 +113,23 @@ public static class ModuleConstants
             public const string Customer = "false";
             public const string SalesRep = "true";
         }
+
+        // Where the tracked figures (searches, product views, visits) are read from; the value of
+        // Settings.General.TrackedActivitySource.
+        public static class TrackedActivitySources
+        {
+            public const string GoogleAnalytics = "GoogleAnalytics";
+            public const string Platform = "Platform";
+        }
+
+        // Event names of the platform's own analytics store (VirtoCommerce.Analytics), which the storefront tracker
+        // writes. A visit is a session of a signed-in customer; the store has no organization on a sign-in itself.
+        public static class PlatformEventNames
+        {
+            public const string Search = "search";
+            public const string ViewItem = "view_item";
+            public const string SessionStart = "session_start";
+        }
     }
 
     public static class Insights
@@ -192,11 +209,23 @@ public static class ModuleConstants
                 IsPublic = true,
             };
 
+            // Public: the storefront plugin shows the tracked parts of the hub by the source that feeds them.
+            public static SettingDescriptor TrackedActivitySource { get; } = new()
+            {
+                Name = "SalesRep.TrackedActivity.Source",
+                GroupName = "Sales Rep|General",
+                ValueType = SettingValueType.ShortText,
+                AllowedValues = [Analytics.TrackedActivitySources.GoogleAnalytics, Analytics.TrackedActivitySources.Platform],
+                DefaultValue = Analytics.TrackedActivitySources.GoogleAnalytics,
+                IsPublic = true,
+            };
+
             public static IEnumerable<SettingDescriptor> AllGeneralSettings
             {
                 get
                 {
                     yield return SalesRepEnabled;
+                    yield return TrackedActivitySource;
                 }
             }
         }

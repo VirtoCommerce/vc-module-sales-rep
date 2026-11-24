@@ -1,11 +1,15 @@
 import { useModuleSettings, useUser } from "@vc-frontend/core";
 import {
+  ANALYTICS_ENABLED_KEY,
+  ANALYTICS_MODULE_ID,
   ENABLED_KEY,
   GOOGLE_ANALYTICS_MODULE_ID,
   MARKETING_MODULE_ID,
   MODULE_ID,
   SALES_REP_ACCESS_PERMISSION,
   TASK_MANAGEMENT_MODULE_ID,
+  TRACKED_ACTIVITY_SOURCE_KEY,
+  TRACKED_ACTIVITY_SOURCE_PLATFORM,
 } from "../constants";
 
 // The Sales reps feature is gated by the backend module's storefront setting
@@ -30,11 +34,24 @@ export function isSalesRepTasksEnabled(): boolean {
   return isSalesRepUser() && useModuleSettings(TASK_MANAGEMENT_MODULE_ID).hasModuleSettings.value;
 }
 
-// Tracked activity, gated the same way on vc-module-google-ecommerce-analytics: module absent or disabled => no
-// entry => the hub leaves its GA-based parts out rather than showing them unavailable. Storefront tagging is the
-// host's own and goes on either way.
+// Whether the store reads its tracked activity from the platform's own analytics store. The backend makes the same
+// choice from the same two settings and falls back to Google Analytics when that store does not collect, so both
+// must hold here too.
+export function isTrackedActivityFromPlatform(): boolean {
+  return (
+    useModuleSettings(MODULE_ID).getSettingValue(TRACKED_ACTIVITY_SOURCE_KEY) === TRACKED_ACTIVITY_SOURCE_PLATFORM &&
+    useModuleSettings(ANALYTICS_MODULE_ID).isEnabled(ANALYTICS_ENABLED_KEY)
+  );
+}
+
+// Tracked activity, gated the same way on the module that feeds it: absent or disabled => no entry => the hub leaves
+// its tracked parts out rather than showing them unavailable. Storefront tagging is the host's own and goes on
+// either way.
 export function isSalesRepAnalyticsEnabled(): boolean {
-  return isSalesRepUser() && useModuleSettings(GOOGLE_ANALYTICS_MODULE_ID).hasModuleSettings.value;
+  return (
+    isSalesRepUser() &&
+    (isTrackedActivityFromPlatform() || useModuleSettings(GOOGLE_ANALYTICS_MODULE_ID).hasModuleSettings.value)
+  );
 }
 
 // Coupons (VCST-6158) ride on vc-module-marketing the same way: present in the store's module list => enabled.
