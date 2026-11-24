@@ -41,6 +41,11 @@ export const CUSTOMER_ORDER_ROUTE_SEGMENT = `${CUSTOMER_ORDERS_ROUTE_SEGMENT}/:o
 export const CUSTOMER_ACTIVITIES_ROUTE_NAME = "SalesRepCustomerActivities";
 export const CUSTOMER_ACTIVITIES_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/activities`;
 
+// All promotion coupons, under a customer's profile like their orders (VCST-6158). The list is store-wide, not
+// per customer; the route keeps the rep in the customer's context.
+export const CUSTOMER_COUPONS_ROUTE_NAME = "SalesRepCustomerCoupons";
+export const CUSTOMER_COUPONS_ROUTE_SEGMENT = `${CUSTOMER_PROFILE_ROUTE_SEGMENT}/coupons`;
+
 // The storefront's own order page: an order the rep placed opens there, where their buyer actions still
 // work. The hub's page is read-only for everyone.
 export const BUYER_ORDER_ROUTE_NAME = "OrderDetails" satisfies HostRouteNameType;
@@ -66,6 +71,12 @@ export const DASHBOARD_NAV_LINK_ID = "sales-rep-dashboard";
 // Header icon row link to the hub dashboard; first in the row, ahead of Bulk order (0).
 export const HUB_HEADER_LINK_ID = "sales-rep-hub-header";
 export const HUB_HEADER_LINK_PRIORITY = -10;
+
+// Reporting: monthly revenue, orders and AOV across the rep's customers.
+// Not "reporting": the host owns /company/reporting.
+export const REPORTING_ROUTE_NAME = "SalesRepReporting";
+export const REPORTING_ROUTE_SEGMENT = "customer-sales";
+export const REPORTING_NAV_LINK_ID = "sales-rep-reporting";
 
 // The rep's own activity page (VCST-5337); a sibling of the hub pages under "Company".
 export const ACTIVITIES_ROUTE_NAME = "SalesRepActivities";
@@ -113,7 +124,7 @@ export const RANKED_ACTIVITY_CATEGORIES = new Set<string>([ACTIVITY_CATEGORY.sea
 // checks for the read permission itself (an admin/writer also carries it through checkPermissions'
 // isAdministrator shortcut or the role that grants access).
 export const SALES_REP_DOCUMENTS_READ_PERMISSION = "sales-rep-documents:read";
-// Layout block id — persisted as block.type in saved layouts, so it is load-bearing (see LAYOUT_SCOPE notes).
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
 export const DOCUMENTS_BLOCK_ID = "documents";
 export const DOCUMENTS_ROUTE_NAME = "SalesRepDocuments";
 export const DOCUMENTS_ROUTE_SEGMENT = "documents";
@@ -132,10 +143,13 @@ export const GOOGLE_ANALYTICS_MODULE_ID = "VirtoCommerce.GoogleEcommerceAnalytic
 export const TASKS_ROUTE_NAME = "SalesRepTasks";
 export const TASKS_ROUTE_SEGMENT = "tasks";
 export const TASKS_NAV_LINK_ID = "sales-rep-tasks";
-// Layout block id — persisted as block.type in saved layouts, so it is load-bearing (see LAYOUT_SCOPE notes).
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
 export const TASKS_BLOCK_ID = "tasks";
 // Page size for the Tasks page's task table (offset-as-cursor, like useSalesRepDocuments).
 export const TASKS_PAGE_SIZE = 15;
+// How long the Tasks page's list and dots wait for its filters to settle: a multi-select stays open for the next pick,
+// so picks come in bursts, and each would otherwise refetch both.
+export const TASKS_FILTERS_DEBOUNCE_MS = 300;
 // Dashboard widget row cap — follows documents: default 5, max 10.
 export const TASKS_DEFAULT_ROWS = 5;
 export const TASKS_MAX_ROWS = 10;
@@ -143,9 +157,8 @@ export const TASKS_MAX_ROWS = 10;
 // fails closed — keep it aligned with a real rule); no surface offers a sort control, so the rule list itself is
 // not fetched.
 export const TASKS_SORT_RULE = "due-date";
-// The filter rule the dashboard's overdue notice deep-links to. Same string the counts query aliases in
-// salesRepTaskCountsQuery.graphql; a name the project does not offer falls back to the day view, because
-// the chips drop a selection no rule matches.
+// The filter rule the dashboard's overdue notice links to and counts with (salesRepOverdueTaskCountQuery.graphql).
+// A name the project does not offer falls back to every status, because the Tasks page drops a status no rule matches.
 export const TASKS_OVERDUE_RULE = "overdue";
 // Upper bound on the month query behind the calendar dots. A rep's month is tens of tasks; the cap only
 // stops a pathological book of business from pulling an unbounded page for three dots a day.
@@ -158,6 +171,15 @@ export const CALL_DEFAULT_TIME = "09:00";
 export const CALL_TIME_STEP_MINUTES = 15;
 // The form picks a call's start only; a calendar event needs an end, so a call goes there as half an hour.
 export const CALL_DURATION_MINUTES = 30;
+
+// Coupons (VCST-6158). Backed by vc-module-marketing, an OPTIONAL backend dependency, gated like tasks.
+export const MARKETING_MODULE_ID = "VirtoCommerce.Marketing";
+// Layout block id — persisted as block.type in saved layouts, so it is load-bearing.
+export const COUPONS_BLOCK_ID = "coupons";
+export const COUPONS_DEFAULT_ROWS = 5;
+export const COUPONS_MAX_ROWS = 20;
+// Page size of the all-coupons page (offset-as-cursor, like the documents page).
+export const COUPONS_PAGE_SIZE = 10;
 
 // Backs the "New orders" card; order filter rules are raw order statuses, so this uses the "New"
 // status (an unrecognized name fails closed — keep it aligned with a real status). The card's label
@@ -173,29 +195,9 @@ export const TOP_SELLERS_DEFAULT_TAKE = 5;
 // backend caches these criteria. The rule lists in useSalesRepRules stay cache-first: static data.
 export const HUB_FETCH_POLICY: WatchQueryFetchPolicy = "cache-and-network";
 
-// Saved layout (VCST-5367). The backend types `scope` and `region.id` as free-form `String`, not
-// enums — an unrecognized value does not error, it silently addresses a different (empty) document.
-// So these literals are load-bearing: changing one strands every layout already saved under the old
-// value. `layout/document.test.ts` and `composables/useSalesRepLayout.test.ts` pin them.
-export const LAYOUT_SCHEMA_VERSION = 1;
-export const DASHBOARD_LAYOUT_SCOPE = "dashboard";
-export const CUSTOMER_PROFILE_LAYOUT_SCOPE = "customerProfile";
-// Ordered so serialization always emits regions in a stable sequence.
-export const LAYOUT_REGION_IDS = ["statistics", "mainLeft", "mainRight"] as const;
-// What a widget can be dragged by: its whole header. `.vc-widget__header-container` is a VcWidget
-// internal, not a published contract, so a rename there silently kills header drags —
-// `layout-block-widget.test.ts` mounts a real widget against this to catch it.
-export const WIDGET_DRAG_HANDLE_SELECTOR = ".vc-widget__header-container";
-// Controls that sit inside that header, so without this a mousedown on ✕ or in the rows field starts
-// a drag instead. SortableJS `filter` takes a comma-separated selector list.
-export const WIDGET_DRAG_FILTER_SELECTOR = ".layout-widget__hide, .layout-widget__rows";
+export const DASHBOARD_LAYOUT_SCOPE = "salesRepDashboard";
+export const CUSTOMER_PROFILE_LAYOUT_SCOPE = "salesRepCustomerProfile";
 
-// Per-widget settings (VCST-5649), persisted as scalars in each block's `settings` list. Like the
-// scope and region ids above these strings are load-bearing: renaming one strands every saved value.
-export const SETTING_MAX_ROWS = "maxRows";
-// One sibling key per rule the rep unchecked; a checked rule writes nothing, so a status the backend
-// adds later shows up checked without a migration.
-export const SETTING_HIDDEN_TAB_PREFIX = "tab.";
 // Default row caps, per the design. Below the widgets' own page sizes, which stay the fallback for a
 // widget rendered outside a layout.
 export const ORDERS_DEFAULT_ROWS = 5;
@@ -206,8 +208,6 @@ export const TOP_SELLERS_MAX_ROWS = 10;
 // Documents widget row cap (VCST-5730) — follows top-sellers: default 5, max 10.
 export const DOCUMENTS_DEFAULT_ROWS = 5;
 export const DOCUMENTS_MAX_ROWS = 10;
-export const MIN_ROWS = 1;
-
 // salesRepCustomerInsights sort names: "count" ranks by occurrences (Top), "date" by the latest hour bucket (Recent).
 export const INSIGHTS_DEFAULT_ROWS = 5;
 export const INSIGHTS_MAX_ROWS = 20;

@@ -1,6 +1,7 @@
 import { useUser } from "@vc-frontend/core";
 import {
   isSalesRepAnalyticsEnabled,
+  isSalesRepCouponsEnabled,
   isSalesRepsEnabled,
   isSalesRepTasksEnabled,
 } from "./composables/useSalesRepsConfig";
@@ -15,6 +16,8 @@ import {
   CUSTOMER_ORDERS_ROUTE_SEGMENT,
   CUSTOMER_ACTIVITIES_ROUTE_NAME,
   CUSTOMER_ACTIVITIES_ROUTE_SEGMENT,
+  CUSTOMER_COUPONS_ROUTE_NAME,
+  CUSTOMER_COUPONS_ROUTE_SEGMENT,
   CUSTOMER_ORDER_ROUTE_NAME,
   CUSTOMER_ORDER_ROUTE_SEGMENT,
   CUSTOMER_PROFILE_ROUTE_NAME,
@@ -25,6 +28,8 @@ import {
   DOCUMENTS_ROUTE_SEGMENT,
   MY_CUSTOMERS_ROUTE_NAME,
   MY_CUSTOMERS_ROUTE_SEGMENT,
+  REPORTING_ROUTE_NAME,
+  REPORTING_ROUTE_SEGMENT,
   ROUTE_NAME,
   ROUTE_SEGMENT,
   SALES_REP_ACCESS_PERMISSION,
@@ -39,7 +44,9 @@ const MyCustomersPage = () => import("./pages/my-customers.vue");
 const CustomerProfilePage = () => import("./pages/customer-profile.vue");
 const DashboardPage = () => import("./pages/dashboard.vue");
 const ActivitiesPage = () => import("./pages/activities.vue");
+const CustomerCouponsPage = () => import("./pages/customer-coupons.vue");
 const DocumentsPage = () => import("./pages/documents.vue");
+const ReportingPage = () => import("./pages/reporting.vue");
 const TasksPage = () => import("./pages/sales-rep-tasks-page.vue");
 
 // Reps only: the My customers gate (SalesRep.Enabled + sales-rep:access) AND every extra permission
@@ -79,15 +86,18 @@ const guardRepRoute: NavigationGuard = (_to, _from, next) => {
   }
 };
 
-// One customer's activity page is the customer activity widget's, and that widget exists only with the analytics
-// module: without it nothing leads to the page, and the profile's own orders list what it would show.
-const guardCustomerActivitiesRoute: NavigationGuard = (to, from, next) => {
-  if (isSalesRepAnalyticsEnabled()) {
-    guardCustomerRoute(to, from, next);
-  } else if (guardSalesRep(next)) {
-    next({ name: CUSTOMER_PROFILE_ROUTE_NAME, params: { organizationId: to.params.organizationId } });
-  }
-};
+// A customer page that belongs to a widget on an optional module: without the module nothing leads to the page, so a
+// rep who lands on it goes back to that customer's profile. Used by the activity page (analytics module) and the
+// coupons page (marketing module).
+const guardCustomerModuleRoute =
+  (isModuleEnabled: () => boolean): NavigationGuard =>
+  (to, from, next) => {
+    if (isModuleEnabled()) {
+      guardCustomerRoute(to, from, next);
+    } else if (guardSalesRep(next)) {
+      next({ name: CUSTOMER_PROFILE_ROUTE_NAME, params: { organizationId: to.params.organizationId } });
+    }
+  };
 
 // Relative path -> mounts under the "Company" parent (/company/sales-reps).
 export const salesRepsRoute: RouteRecordRaw = {
@@ -101,6 +111,15 @@ export const dashboardRoute: RouteRecordRaw = {
   path: DASHBOARD_ROUTE_SEGMENT,
   name: DASHBOARD_ROUTE_NAME,
   component: DashboardPage,
+  meta: repRouteMeta,
+  beforeEnter: guardRepRoute,
+};
+
+// Reporting (VCST-6255) -> /company/customer-sales.
+export const reportingRoute: RouteRecordRaw = {
+  path: REPORTING_ROUTE_SEGMENT,
+  name: REPORTING_ROUTE_NAME,
+  component: ReportingPage,
   meta: repRouteMeta,
   beforeEnter: guardRepRoute,
 };
@@ -192,7 +211,17 @@ export const customerActivitiesRoute: RouteRecordRaw = {
   component: ActivitiesPage,
   props: true,
   meta: repRouteMeta,
-  beforeEnter: guardCustomerActivitiesRoute,
+  beforeEnter: guardCustomerModuleRoute(isSalesRepAnalyticsEnabled),
+};
+
+// All promotion coupons (VCST-6158) -> /company/my-customers/:organizationId/coupons.
+export const customerCouponsRoute: RouteRecordRaw = {
+  path: CUSTOMER_COUPONS_ROUTE_SEGMENT,
+  name: CUSTOMER_COUPONS_ROUTE_NAME,
+  component: CustomerCouponsPage,
+  props: true,
+  meta: repRouteMeta,
+  beforeEnter: guardCustomerModuleRoute(isSalesRepCouponsEnabled),
 };
 
 // No customer in the route, so the page needs no id check — only the reps-only gate.
@@ -212,6 +241,7 @@ export function isMyCustomersArea(route: RouteLocationNormalizedLoaded): boolean
     route.name === CUSTOMER_PROFILE_ROUTE_NAME ||
     route.name === CUSTOMER_ORDERS_ROUTE_NAME ||
     route.name === CUSTOMER_ORDER_ROUTE_NAME ||
-    route.name === CUSTOMER_ACTIVITIES_ROUTE_NAME
+    route.name === CUSTOMER_ACTIVITIES_ROUTE_NAME ||
+    route.name === CUSTOMER_COUPONS_ROUTE_NAME
   );
 }

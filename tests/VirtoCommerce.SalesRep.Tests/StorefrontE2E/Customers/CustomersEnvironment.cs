@@ -66,14 +66,13 @@ public sealed class CustomersEnvironment : StorefrontEnvironment
     }
 
     /// <summary>
-    /// The pushes sent with the message's text, read between requests. The push channel is the harness's capturing
-    /// double, one list for the whole group, so a test finds its own by a text no other test sends.
+    /// The pushes sent with the message's text, read between requests. The push module saves every send in the group's
+    /// one database, so a test finds its own by a text no other test sends.
     /// </summary>
     internal Task<IList<PushMessage>> PushesAsync(string message)
-        => RunExclusiveAsync(context => Task.FromResult<IList<PushMessage>>(context
-            .GetRequiredService<TestGraphQlConfiguration.CapturingPushMessageService>().Saved
+        => RunExclusiveAsync<IList<PushMessage>>(async context => (await context.GetPushMessagesAsync())
             .Where(x => x.ShortMessage == message)
-            .ToList()));
+            .ToList());
 
     private protected override async Task SeedAsync(SalesRepTestContext context)
     {

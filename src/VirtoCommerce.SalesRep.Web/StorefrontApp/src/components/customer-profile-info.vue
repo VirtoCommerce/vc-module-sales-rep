@@ -26,9 +26,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useI18n } from "vue-i18n";
+import { LayoutWidget } from "@vc-frontend/core";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import CustomerCallAction from "./customer-call-action.vue";
-import LayoutWidget from "./layout-widget.vue";
 import type { CustomerPhoneType } from "../phones";
 
 interface IProps {

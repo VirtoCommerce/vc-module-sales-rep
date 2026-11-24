@@ -1,4 +1,4 @@
-import { computed, ref, watch } from "vue";
+import { computed, watch } from "vue";
 import { globals, Logger } from "@vc-frontend/core";
 import { SalesRepCustomerOptionsDocument } from "../api/graphql/types";
 import { formatCustomerLocation } from "../utils";
@@ -6,10 +6,14 @@ import { useSalesRepHubQuery } from "./useSalesRepHubQuery";
 import type { OrganizationRowType } from "../types";
 
 // The picker filters client-side, so a rep serving more customers than this cannot reach the overflow (warned below).
-// Paging them all in waits on server-side search in `VcSelect`; VCST-5923.
-const OPTIONS_LIMIT = 100;
+// 1000 covers the most customers a rep is expected to serve (100-200 is typical); the select draws every option it
+// lists, so beyond that it needs the server-side search and paging in `VcSelect` (VCST-5923, VCST-6273).
+const OPTIONS_LIMIT = 1000;
 
-/** A customer the rep may pick: in the list-sharing picker, in the Send a message popup, or as a call's customer. */
+/**
+ * A customer the rep may pick: in the list-sharing picker, in the Send a message popup, as a task's customer, or in
+ * the Tasks page's filter.
+ */
 export type SalesRepCustomerOptionType = OrganizationRowType;
 
 // The rep's served customer organizations, resolved server-side from their claims. Uses its own narrow query rather
@@ -24,18 +28,15 @@ export function useSalesRepCustomerOptions() {
     sort: "name:asc",
   }));
 
-  const { result, loading, onError, onResult } = useSalesRepHubQuery(SalesRepCustomerOptionsDocument, variables);
+  const { result, loading, error, onError } = useSalesRepHubQuery(SalesRepCustomerOptionsDocument, variables);
 
   // An empty dropdown on a failed fetch reads as "this rep serves nobody"; callers surface this on the field instead.
-  const failed = ref(false);
+  // Read from `error`, which turns on in the same tick as `loading` turns off: `onError` fires a tick later, and a
+  // caller watching `loading` would meanwhile take the empty list for a complete one.
+  const failed = computed(() => error.value != null);
 
-  onError((error) => {
-    failed.value = true;
-    Logger.error("[sales-rep] salesRepCustomers (customer options) failed:", error);
-  });
-
-  onResult(() => {
-    failed.value = false;
+  onError((queryError) => {
+    Logger.error("[sales-rep] salesRepCustomers (customer options) failed:", queryError);
   });
 
   const options = computed<SalesRepCustomerOptionType[]>(() =>
@@ -68,5 +69,5 @@ export function useSalesRepCustomerOptions() {
     return options.value.find((option) => option.organizationId === organizationId);
   }
 
-  return { options, findOption, loading, failed };
+  return { options, totalCount, findOption, loading, failed };
 }

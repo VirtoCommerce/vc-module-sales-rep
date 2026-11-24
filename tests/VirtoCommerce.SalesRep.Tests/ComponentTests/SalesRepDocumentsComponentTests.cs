@@ -23,8 +23,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 
 /// <summary>
 /// The documents library against the REAL file-experience-api upload service and assets services (AssetEntry CRUD +
-/// search on in-memory SQLite) and the module's own metadata DbContext — only the binary storage is an in-memory
-/// double. Covers the two-step intake (file upload → library registration with ownership) → search round-trip
+/// search on in-memory SQLite), the module's own metadata DbContext and the file system blob provider over a folder of
+/// the test's own (<see cref="SalesRepTestContext.AssetsRootPath"/>). Covers the two-step intake (file upload → library registration with ownership) → search round-trip
 /// (paging, default createdDate:desc sort, keyword, category filter/counts), the delete cascade (metadata +
 /// AssetEntry + blob), and scope isolation (foreign files must never appear or be deleted).
 /// </summary>
@@ -149,13 +149,13 @@ public class SalesRepDocumentsComponentTests
         using var ctx = SalesRepTestContext.Create();
         var document = await ctx.UploadDocumentAsync("Doomed.pdf", "Catalogs", new SalesRepDocumentMetadata { Summary = "gone soon" });
 
-        var blobProvider = ctx.GetRequiredService<InMemoryBlobStorageProvider>();
-        blobProvider.BlobUrls.Should().HaveCount(1);
+        // The file system blob provider wrote it to the assets folder.
+        ctx.GetBlobUrls().Should().HaveCount(1);
 
         await ctx.GetRequiredService<ISalesRepDocumentService>().DeleteAsync([document.Id]);
 
         // Blob gone.
-        blobProvider.BlobUrls.Should().BeEmpty();
+        ctx.GetBlobUrls().Should().BeEmpty();
 
         // AssetEntry row gone.
         var entries = await ctx.GetRequiredService<IAssetEntryService>().GetAsync([document.FileId]);
@@ -180,17 +180,17 @@ public class SalesRepDocumentsComponentTests
         using var ctx = SalesRepTestContext.Create();
         var document = await ctx.UploadDocumentAsync("Doomed.pdf", "Catalogs");
 
-        var blobProvider = ctx.GetRequiredService<InMemoryBlobStorageProvider>();
-        blobProvider.FailOnRemoveWith = new IOException("Storage offline.");
-
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
-        await documentService.DeleteAsync([document.Id]);
+        using (RefuseBlobRemoval(ctx))
+        {
+            await documentService.DeleteAsync([document.Id]);
+        }
 
         // Metadata and file record are gone; only the blob remains as debris.
         (await documentService.GetByIdAsync(document.Id)).Should().BeNull();
         (await ctx.GetRequiredService<ISalesRepDocumentSearchService>().SearchAsync(new SalesRepDocumentSearchCriteria()))
             .TotalCount.Should().Be(0);
-        blobProvider.BlobUrls.Should().HaveCount(1);
+        ctx.GetBlobUrls().Should().HaveCount(1);
 
         // Idempotent: repeating the call finds nothing and succeeds.
         await documentService.DeleteAsync([document.Id]);
@@ -254,8 +254,9 @@ public class SalesRepDocumentsComponentTests
         using var ctx = SalesRepTestContext.Create();
         var document = await ctx.UploadDocumentAsync("Vanished.pdf", "Catalogs");
 
-        var blobProvider = ctx.GetRequiredService<InMemoryBlobStorageProvider>();
-        await blobProvider.RemoveAsync([.. blobProvider.BlobUrls]);
+        // Gone from the storage behind the platform's back. The file system provider throws for a missing file
+        // (File.GetAttributes): the delete must take that like any other storage failure.
+        File.Delete(Path.Combine(ctx.AssetsRootPath, ctx.GetBlobUrls().Single()));
 
         var documentService = ctx.GetRequiredService<ISalesRepDocumentService>();
         await documentService.DeleteAsync([document.Id]);
@@ -591,4 +592,36 @@ public class SalesRepDocumentsComponentTests
     }
 
     private static DateTime Utc(int year, int month, int day) => new(year, month, day, 0, 0, 0, DateTimeKind.Utc);
+
+    /// <summary>
+    /// The file system refuses to delete the document's file until disposed, as an offline or read-only storage
+    /// refuses: on Windows a file another process holds open can't be deleted; elsewhere a file in a folder without
+    /// write permission can't.
+    /// </summary>
+    private static IDisposable RefuseBlobRemoval(SalesRepTestContext ctx)
+    {
+        var file = Path.Combine(ctx.AssetsRootPath, ctx.GetBlobUrls().Single());
+
+        if (OperatingSystem.IsWindows())
+        {
+            return new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.None);
+        }
+
+        var folder = Path.GetDirectoryName(file)!;
+        var mode = File.GetUnixFileMode(folder);
+        File.SetUnixFileMode(folder, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+
+        return new FolderModeRestore(folder, mode);
+    }
+
+    private sealed class FolderModeRestore(string folder, UnixFileMode mode) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                File.SetUnixFileMode(folder, mode);
+            }
+        }
+    }
 }

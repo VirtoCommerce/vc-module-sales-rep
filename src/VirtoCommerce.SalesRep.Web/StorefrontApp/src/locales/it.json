@@ -69,46 +69,7 @@
           "items_unit": "articolo | articoli",
           "not_for_checkout": "{count} fuori dal checkout",
           "items_this_week": "{count} articolo questa settimana | {count} articoli questa settimana",
-          "mtd_of_ytd": "{percent}% dell'anno",
-          "load_failed": "Caricamento non riuscito"
-        }
-      },
-      "layout": {
-        "edit": "Modifica layout",
-        "editing": "Modifica del layout",
-        "hint": "— trascina un blocco dalla maniglia per riordinarlo oppure nascondilo con ✕.",
-        "hint_keyboard": "Tastiera: la barra spaziatrice afferra un blocco, le frecce lo spostano, spazio lo rilascia, Esc annulla.",
-        "save": "Salva layout",
-        "cancel": "Annulla",
-        "reset": "Ripristina",
-        "save_failed": "Impossibile salvare il layout. Le modifiche sono ancora qui: riprova.",
-        "load_failed": "Impossibile caricare il layout salvato, quindi è mostrata la disposizione predefinita. La modifica non è disponibile fino al caricamento: aggiorna la pagina.",
-        "hidden_widgets": "Widget nascosti",
-        "visible_stats": "Statistiche visibili",
-        "hidden_stats": "Statistiche nascoste",
-        "empty_visible": "Trascina qui una statistica per mostrarla",
-        "empty_hidden": "Trascina qui una statistica per nasconderla",
-        "max_rows": "Righe massime",
-        "restored": "Layout predefinito ripristinato.",
-        "empty": {
-          "title": "Tutti i blocchi sono nascosti",
-          "text": "Tutte le statistiche e i widget di questa pagina sono stati spostati in {hidden} nelle impostazioni del layout. Ripristina il layout predefinito per riportare tutto, oppure apri {edit} per scegliere esattamente cosa mostrare.",
-          "hidden": "Nascosti",
-          "restore": "Ripristina layout predefinito"
-        },
-        "a11y": {
-          "reorder": "Riordina {title}",
-          "hide": "Nascondi {title}",
-          "show": "Mostra {title}",
-          "grabbed": "{title} preso. Posizione {position} di {total}. Usa le frecce per spostarlo, spazio per rilasciarlo, esc per annullare.",
-          "grabbed_parkable": "{title} preso. Posizione {position} di {total}. Usa le frecce sinistra e destra per spostarlo, su e giù per nasconderlo o mostrarlo, spazio per rilasciarlo, esc per annullare.",
-          "moved": "{title} spostato alla posizione {position} di {total}.",
-          "dropped": "{title} rilasciato alla posizione {position} di {total}.",
-          "edge": "{title} è già in posizione {position} di {total}.",
-          "cancelled": "Spostamento di {title} annullato.",
-          "parked": "{title} nascosto.",
-          "restored": "{title} mostrato.",
-          "max_rows": "Righe massime mostrate da {title}, tra {min} e {max}"
+          "mtd_of_ytd": "{percent} dell'anno"
         }
       }
     },
@@ -161,8 +122,7 @@
         "last_day": "Ultimo giorno",
         "last_week": "Ultima settimana",
         "last_month": "Ultimo mese",
-        "last_year": "Ultimo anno",
-        "remove_filter": "Rimuovi il filtro «{label}»"
+        "last_year": "Ultimo anno"
       }
     },
     "communication": {
@@ -227,11 +187,12 @@
       "view_all": "Tutte le attività",
       "new_task": "Nuova attività",
       "due_dates": "Scadenze",
-      "today": "Oggi",
-      "all": "Tutte",
-      "clear_day_aria": "Rimuovi {date}",
-      "empty": "Nessuna attività in questa scheda",
+      "empty": "Ancora nessuna attività",
       "empty_day": "Nessuna scadenza in questo giorno",
+      "no_results": "Nessuna attività corrisponde ai filtri",
+      "search_placeholder": "Cerca attività",
+      "search_aria": "Cerca attività",
+      "reset_search": "Reimposta ricerca",
       "load_failed": "Impossibile caricare le attività",
       "day_task_count": "{count} attività | {count} attività",
       "overdue_total": "{count} attività scaduta | {count} attività scadute",
@@ -242,6 +203,8 @@
       },
       "table": {
         "task": "Attività",
+        "priority": "Priorità",
+        "customer": "Cliente",
         "status": "Stato",
         "notes": "Note",
         "actions": "Azioni",
@@ -249,6 +212,15 @@
         "reopen": "Riapri",
         "action_aria": "{action}: «{name}»",
         "edit_aria": "Modifica «{name}»"
+      },
+      "filters": {
+        "all_customers": "Tutti i clienti",
+        "customers_label": "Clienti",
+        "all_statuses": "Tutti gli stati",
+        "status_label": "Stato",
+        "all_priorities": "Tutte le priorità",
+        "priorities_label": "Priorità",
+        "due_today": "Scade oggi"
       },
       "status": {
         "upcoming": "In arrivo",
@@ -282,7 +254,7 @@
         "due_date_label": "Data di scadenza",
         "time_label": "Ora",
         "customer_label": "Cliente",
-        "customer_placeholder": "Cerca clienti per nome",
+        "customer_placeholder": "Nessun cliente",
         "customer_error": "Non è stato possibile caricare l'elenco dei clienti. Riprova.",
         "call_name": "Chiamata",
         "priority_label": "Priorità",
@@ -427,6 +399,19 @@
       },
       "published": "Pubblicato {date}"
     },
+    "coupons": {
+      "title": "Coupon disponibili",
+      "empty": "Nessun coupon disponibile",
+      "load_failed": "Impossibile caricare i coupon",
+      "uses_left": "{left} utilizzo rimasto su {total} | {left} utilizzi rimasti su {total}",
+      "unlimited": "Illimitato",
+      "view_all": "Tutti i coupon promozionali",
+      "breadcrumb": "Coupon promozionali",
+      "page": {
+        "title": "Coupon promozionali per {customer}",
+        "title_fallback": "Coupon promozionali"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
@@ -450,6 +435,9 @@
           "All": "Tutti"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Rimuovi il filtro «{label}»"
     },
     "list_sharing": {
       "share_customers_label": "Clienti",
@@ -475,6 +463,91 @@
       "scope_label": "Clienti specifici",
       "status": "Condivisa con 1 cliente | Condivisa con {count} clienti",
       "badge": "Consigliato dal tuo rappresentante commerciale"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Report"
+      },
+      "title": "Report",
+      "subtitle": "Vendite, ordini e valore medio ordine dei tuoi clienti, rispetto all'anno scorso",
+      "period_label": "Periodo",
+      "periods": {
+        "six_months": "6 mesi",
+        "twelve_months": "12 mesi",
+        "year": "Anno in corso",
+        "q1": "T1",
+        "q2": "T2",
+        "q3": "T3",
+        "q4": "T4"
+      },
+      "customer_label": "Cliente",
+      "all_customers": "Tutti i miei clienti ({count})",
+      "all_customers_plain": "Tutti i miei clienti",
+      "customers_failed": "Impossibile caricare i tuoi clienti",
+      "load_failed": "Impossibile caricare il report. Riprova più tardi.",
+      "last_year": "Anno scorso",
+      "last_year_toggle": "Mostra l'anno scorso nel grafico «{chart}»",
+      "upcoming": "In arrivo",
+      "cancelled_excluded": "Ordini annullati esclusi",
+      "sales_chart": {
+        "title": "Vendite mensili · {period}",
+        "subtitle": "In media {value} per mese chiuso"
+      },
+      "aov_chart": {
+        "title": "Valore medio ordine",
+        "subtitle_period": "AOV nel periodo: {aov}"
+      },
+      "legend": {
+        "sales_closed": "Vendite, mesi chiusi",
+        "aov_closed": "AOV, mesi chiusi",
+        "current": "Questo mese, a oggi",
+        "projection": "Previsione a fine mese",
+        "last_year": "Anno scorso",
+        "vs_last_year": "vs stesso mese dell'anno scorso",
+        "up": "aumento",
+        "down": "calo"
+      },
+      "tooltip": {
+        "revenue": "Entrate",
+        "revenue_to_date": "Entrate a oggi",
+        "projection": "Previsione a fine mese",
+        "aov": "AOV",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Entrate, {month}",
+        "last_year_aov": "AOV, {month}"
+      },
+      "card_title": "Statistiche di vendita",
+      "all_orders": "Tutti gli ordini",
+      "kpi": {
+        "sales": "Vendite · {period}",
+        "orders": "Ordini · {period}",
+        "aov": "Valore medio ordine · {period}",
+        "month_to_date": "{month} a oggi · giorno {day} di {days}",
+        "projected": "{share} del mese · previsione {value}",
+        "vs_last_year": "{change} vs anno scorso"
+      },
+      "chart_periods": {
+        "six_months": "ultimi 6 mesi",
+        "twelve_months": "ultimi 12 mesi",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "AOV, {currency}"
+      },
+      "table": {
+        "toggle": "Mostra come tabella",
+        "description": "Vendite, ordini e valore medio ordine per mese",
+        "month": "Mese",
+        "sales": "Vendite",
+        "orders": "Ordini",
+        "aov": "AOV",
+        "last_year": "Stesso mese dell'anno scorso",
+        "change": "vs anno scorso"
+      },
+      "footnote": "{from} – {to}, mese corrente fino al {today}. Le vendite sono nette, per data dell'ordine; gli ordini annullati sono esclusi.",
+      "footnote_closed": "{from} – {to}. Le vendite sono nette, per data dell'ordine; gli ordini annullati sono esclusi.",
+      "footnote_upcoming": "Questo periodo non è ancora iniziato."
     }
   }
 }

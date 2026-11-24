@@ -69,46 +69,7 @@
           "items_unit": "vare | varer",
           "not_for_checkout": "{count} ikke til kassen",
           "items_this_week": "{count} vare denne uken | {count} varer denne uken",
-          "mtd_of_ytd": "{percent}% av året",
-          "load_failed": "Kunne ikke laste"
-        }
-      },
-      "layout": {
-        "edit": "Rediger oppsett",
-        "editing": "Redigerer oppsett",
-        "hint": "— dra en blokk etter håndtaket for å endre rekkefølgen, eller skjul den med ✕.",
-        "hint_keyboard": "Tastatur: mellomromstasten tar tak i en blokk, piltastene flytter den, mellomrom slipper den, Esc avbryter.",
-        "save": "Lagre oppsett",
-        "cancel": "Avbryt",
-        "reset": "Tilbakestill",
-        "save_failed": "Oppsettet kunne ikke lagres. Endringene dine er fortsatt her — prøv igjen.",
-        "load_failed": "Det lagrede oppsettet kunne ikke lastes, så standardrekkefølgen vises. Redigering er utilgjengelig til det er lastet — last siden på nytt.",
-        "hidden_widgets": "Skjulte moduler",
-        "visible_stats": "Synlige nøkkeltall",
-        "hidden_stats": "Skjulte nøkkeltall",
-        "empty_visible": "Dra et nøkkeltall hit for å vise det",
-        "empty_hidden": "Dra et nøkkeltall hit for å skjule det",
-        "max_rows": "Maks. rader",
-        "restored": "Standardoppsettet er gjenopprettet.",
-        "empty": {
-          "title": "Alle blokker er skjult",
-          "text": "Alle nøkkeltall og moduler på denne siden er flyttet til {hidden} i oppsettinnstillingene. Gjenopprett standardoppsettet for å få alt tilbake, eller åpne {edit} for å velge nøyaktig hva som skal vises.",
-          "hidden": "Skjulte",
-          "restore": "Gjenopprett standardoppsett"
-        },
-        "a11y": {
-          "reorder": "Endre rekkefølge på {title}",
-          "hide": "Skjul {title}",
-          "show": "Vis {title}",
-          "grabbed": "{title} tatt opp. Posisjon {position} av {total}. Bruk piltastene for å flytte, mellomrom for å slippe, escape for å avbryte.",
-          "grabbed_parkable": "{title} tatt opp. Posisjon {position} av {total}. Bruk venstre og høyre piltast for å flytte, opp og ned for å skjule eller vise, mellomrom for å slippe, escape for å avbryte.",
-          "moved": "{title} flyttet til posisjon {position} av {total}.",
-          "dropped": "{title} sluppet på posisjon {position} av {total}.",
-          "edge": "{title} er allerede på plass {position} av {total}.",
-          "cancelled": "Flytting av {title} avbrutt.",
-          "parked": "{title} skjult.",
-          "restored": "{title} vist.",
-          "max_rows": "Maksimalt antall rader vist av {title}, mellom {min} og {max}"
+          "mtd_of_ytd": "{percent} av året"
         }
       }
     },
@@ -161,8 +122,7 @@
         "last_day": "Siste dag",
         "last_week": "Siste uke",
         "last_month": "Siste måned",
-        "last_year": "Siste år",
-        "remove_filter": "Fjern filteret «{label}»"
+        "last_year": "Siste år"
       }
     },
     "communication": {
@@ -227,11 +187,12 @@
       "view_all": "Alle oppgaver",
       "new_task": "Ny oppgave",
       "due_dates": "Frister",
-      "today": "I dag",
-      "all": "Alle",
-      "clear_day_aria": "Fjern {date}",
-      "empty": "Ingen oppgaver i denne fanen",
+      "empty": "Ingen oppgaver ennå",
       "empty_day": "Ingenting har frist denne dagen",
+      "no_results": "Ingen oppgaver samsvarer med filtrene",
+      "search_placeholder": "Søk i oppgaver",
+      "search_aria": "Søk i oppgaver",
+      "reset_search": "Tilbakestill søk",
       "load_failed": "Kunne ikke laste oppgavene",
       "day_task_count": "{count} oppgave | {count} oppgaver",
       "overdue_total": "{count} forfalt oppgave | {count} forfalte oppgaver",
@@ -242,6 +203,8 @@
       },
       "table": {
         "task": "Oppgave",
+        "priority": "Prioritet",
+        "customer": "Kunde",
         "status": "Status",
         "notes": "Notater",
         "actions": "Handlinger",
@@ -249,6 +212,15 @@
         "reopen": "Gjenåpne",
         "action_aria": "{action}: «{name}»",
         "edit_aria": "Rediger «{name}»"
+      },
+      "filters": {
+        "all_customers": "Alle kunder",
+        "customers_label": "Kunder",
+        "all_statuses": "Alle statuser",
+        "status_label": "Status",
+        "all_priorities": "Alle prioriteter",
+        "priorities_label": "Prioriteter",
+        "due_today": "Frist i dag"
       },
       "status": {
         "upcoming": "Kommende",
@@ -282,7 +254,7 @@
         "due_date_label": "Frist",
         "time_label": "Klokkeslett",
         "customer_label": "Kunde",
-        "customer_placeholder": "Søk etter kunder på navn",
+        "customer_placeholder": "Ingen kunde",
         "customer_error": "Kundelisten kunne ikke lastes. Prøv igjen.",
         "call_name": "Samtale",
         "priority_label": "Prioritet",
@@ -427,6 +399,19 @@
       },
       "published": "Publisert {date}"
     },
+    "coupons": {
+      "title": "Tilgjengelige kuponger",
+      "empty": "Ingen tilgjengelige kuponger",
+      "load_failed": "Kunne ikke laste inn kuponger",
+      "uses_left": "{left} av {total} bruk igjen",
+      "unlimited": "Ubegrenset",
+      "view_all": "Alle kampanjekuponger",
+      "breadcrumb": "Kampanjekuponger",
+      "page": {
+        "title": "Kampanjekuponger for {customer}",
+        "title_fallback": "Kampanjekuponger"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
@@ -450,6 +435,9 @@
           "All": "Alle"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Fjern filteret «{label}»"
     },
     "list_sharing": {
       "share_customers_label": "Kunder",
@@ -475,6 +463,91 @@
       "scope_label": "Bestemte kunder",
       "status": "Delt med 1 kunde | Delt med {count} kunder",
       "badge": "Anbefalt av din salgsrepresentant"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Rapporter"
+      },
+      "title": "Rapporter",
+      "subtitle": "Salg, ordrer og gjennomsnittlig ordreverdi for kundene dine sammenlignet med i fjor",
+      "period_label": "Periode",
+      "periods": {
+        "six_months": "6 måneder",
+        "twelve_months": "12 måneder",
+        "year": "Inneværende år",
+        "q1": "Q1",
+        "q2": "Q2",
+        "q3": "Q3",
+        "q4": "Q4"
+      },
+      "customer_label": "Kunde",
+      "all_customers": "Alle mine kunder ({count})",
+      "all_customers_plain": "Alle mine kunder",
+      "customers_failed": "Kunne ikke laste kundene dine",
+      "load_failed": "Kunne ikke laste rapporten. Prøv igjen senere.",
+      "last_year": "I fjor",
+      "last_year_toggle": "Vis tall for i fjor i diagrammet «{chart}»",
+      "upcoming": "Kommende",
+      "cancelled_excluded": "Kansellerte ordrer er ikke medregnet",
+      "sales_chart": {
+        "title": "Salg per måned · {period}",
+        "subtitle": "Gjennomsnitt {value} / avsluttet måned"
+      },
+      "aov_chart": {
+        "title": "Gjennomsnittlig ordreverdi",
+        "subtitle_period": "Snittordreverdi for perioden: {aov}"
+      },
+      "legend": {
+        "sales_closed": "Salg, avsluttede måneder",
+        "aov_closed": "Snittordreverdi, avsluttede måneder",
+        "current": "Denne måneden, hittil",
+        "projection": "Prognose ved månedsslutt",
+        "last_year": "I fjor",
+        "vs_last_year": "vs samme måned i fjor",
+        "up": "økning",
+        "down": "nedgang"
+      },
+      "tooltip": {
+        "revenue": "Inntekter",
+        "revenue_to_date": "Inntekter hittil",
+        "projection": "Prognose ved månedsslutt",
+        "aov": "Snittordreverdi",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Inntekter, {month}",
+        "last_year_aov": "Snittordreverdi, {month}"
+      },
+      "card_title": "Salgsstatistikk",
+      "all_orders": "Alle bestillinger",
+      "kpi": {
+        "sales": "Salg · {period}",
+        "orders": "Ordrer · {period}",
+        "aov": "Gjennomsnittlig ordreverdi · {period}",
+        "month_to_date": "Hittil i {month} · dag {day} av {days}",
+        "projected": "{share} av måneden · prognose {value}",
+        "vs_last_year": "{change} vs i fjor"
+      },
+      "chart_periods": {
+        "six_months": "siste 6 måneder",
+        "twelve_months": "siste 12 måneder",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "Snittordreverdi, {currency}"
+      },
+      "table": {
+        "toggle": "Vis som tabell",
+        "description": "Salg, ordrer og gjennomsnittlig ordreverdi per måned",
+        "month": "Måned",
+        "sales": "Salg",
+        "orders": "Ordrer",
+        "aov": "Snittordreverdi",
+        "last_year": "Samme måned i fjor",
+        "change": "vs i fjor"
+      },
+      "footnote": "{from} – {to}, inneværende måned til og med {today}. Salget er netto, etter ordredato; kansellerte ordrer er ikke medregnet.",
+      "footnote_closed": "{from} – {to}. Salget er netto, etter ordredato; kansellerte ordrer er ikke medregnet.",
+      "footnote_upcoming": "Denne perioden har ikke startet ennå."
     }
   }
 }

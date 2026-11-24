@@ -156,7 +156,7 @@ public class SalesRepOrderIsolationGraphQlTests
 
         (await ctx.ExecuteGraphQlAsync(AllCustomerOrders, rep.UserId)).Should().Contain("ORD-MOVED");
 
-        OrderSeeder.MoveToOrganization(ctx, "o-1", "org-2");
+        await OrderSeeder.MoveToOrganizationAsync(ctx, "o-1", "org-2");
 
         var list = await ctx.ExecuteGraphQlAsync(AllCustomerOrders, rep.UserId);
         list.Should().NotContain("\"errors\"");

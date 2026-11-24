@@ -1,7 +1,6 @@
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -62,13 +61,14 @@ public sealed class StorefrontBootContractTests
             new { storeId = InProcessBackend.StoreId, userId = rep.UserId, currencyCode = "EUR", cultureName = "en-US" });
         await PostAsync(client, "GetSearchHistory", "common/queries/getSearchHistory/getSearchHistory.graphql",
             new { storeId = InProcessBackend.StoreId, maxCount = 5 });
-        await PostAsync(client, "GetOrganizationAddresses", "organization/queries/getOrganizationAddresses/getOrganizationAddressesQuery.graphql",
-            new { id = "boot-org", userId = rep.UserId, first = 10 });
+        await PostAsync(client, "GetCurrentOrganizationAddresses", "organization/queries/getCurrentOrganizationAddresses/getCurrentOrganizationAddresses.graphql",
+            new { first = 10 });
     }
 
     private static async Task<JsonElement> PostAsync(HttpClient client, string operationName, string document, object variables)
     {
-        var response = await client.PostAsJsonAsync("/graphql", new
+        // As the storefront's Apollo client posts: application/json exactly, the only JSON type X-API accepts.
+        var response = await GraphQlHttp.PostAsync(client, new
         {
             operationName,
             query = StorefrontDocuments.Load(document, InstalledModules),

@@ -99,9 +99,9 @@ public class SalesRepGraphQlComponentTests
         // org-1: the owner is the primary contact, and one of its phones is the customer's phone. The member service
         // orders phones by their generated row ids, not by entry, so either number can come first.
         json.Should().Contain("owner-1").And.Contain("999-0001").And.Contain("999-0002");
-        json.Should().MatchRegex("\"organizationId\":\"org-1\",\"phone\":\"\\\\u002B1-999-000[12]\"");
+        json.Should().MatchRegex("\"organizationId\":\"org-1\",\"phone\":\"\\+1-999-000[12]\"");
         // org-2's owner has no phone, so `phone` falls back to the organization's.
-        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"\\u002B1-222-0000\"");
+        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"+1-222-0000\"");
     }
 
     [Fact]
@@ -129,8 +129,8 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"\\u002B1-999-0001\"");
-        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"\\u002B1-222-0000\"");
+        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"+1-999-0001\"");
+        json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":\"+1-222-0000\"");
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"\\u002B1-333-0001\",\"primaryContact\":{\"id\":\"customer-1\"}");
+        json.Should().Contain("\"organizationId\":\"org-1\",\"phone\":\"+1-333-0001\",\"primaryContact\":{\"id\":\"customer-1\"}");
         // org-2's only contact member is the rep, so it has no primary contact and no phone.
         json.Should().Contain("\"organizationId\":\"org-2\",\"phone\":null,\"primaryContact\":null");
         json.Should().NotContain("555-0100"); // the rep's phone
@@ -234,17 +234,19 @@ public class SalesRepGraphQlComponentTests
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-1", org: "org-1", number: "ORD-1", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        // The store labels the status for en-US, as an administrator does in the Order.Status dictionary.
+        await ctx.TranslateOrderStatusesAsync(("Cancelled", "en-US", "Canceled"));
 
         // The cultureName argument on salesRepCustomers must reach the nested lastOrder SalesRepOrderType resolvers
         // (the builder copies it to the UserContext). Asserted on both culture-dependent fields: statusDisplayValue
-        // (StubLocalizableSettingService renders "<raw> (<culture>)") and total.formattedAmount.
+        // (the en-US label, the raw status without the culture) and total.formattedAmount.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepCustomers(cultureName:\"en-US\") { items { lastOrder { status statusDisplayValue total { formattedAmount } } } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"status\":\"Cancelled\"");
-        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\"");
+        json.Should().Contain("\"statusDisplayValue\":\"Canceled\"");
         json.Should().Contain("\"formattedAmount\":\"$123.45\""); // money localized on the lastOrder path too
     }
 
@@ -566,8 +568,9 @@ public class SalesRepGraphQlComponentTests
         {
             o.BusinessCategory = "Retailer";
             o.IconUrl = "https://cdn.test/org-1.png";
-            // CountryName + RegionName are set so MemberService.FillAddressNames doesn't call the (dataless)
-            // CountriesService in the harness. The storefront formats the display string from these structured parts.
+            // CountryName + RegionName are set, as an address saved from a form carries them (MemberService fills only
+            // the missing ones from the platform's country list). The storefront formats the display string from these
+            // structured parts.
             o.Addresses = [new VirtoCommerce.CustomerModule.Core.Model.Address { Line1 = "1 Main St", City = "Seattle", RegionName = "WA", CountryName = "United States", CountryCode = "US", PostalCode = "98101", IsDefault = true }];
         });
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
@@ -1153,17 +1156,19 @@ public class SalesRepGraphQlComponentTests
         await ctx.SeedOrganizationsAsync("org-1");
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, id: "o-cancelled", org: "org-1", number: "ORD-CANCELLED", createdDate: new DateTime(2026, 6, 1, 0, 0, 0, DateTimeKind.Utc), status: "Cancelled");
+        // The store labels the status for en-US, as an administrator does in the Order.Status dictionary.
+        await ctx.TranslateOrderStatusesAsync(("Cancelled", "en-US", "Canceled"));
 
         // statusDisplayValue is the order's RAW status localized via X-API's LocalizedField. The cultureName argument
-        // is copied to the UserContext by the builder, so it reaches the per-item resolver (StubLocalizableSettingService
-        // renders "<raw> (<culture>)"), which also proves the culture actually propagated.
+        // is copied to the UserContext by the builder, so it reaches the per-item resolver, which reads the en-US label;
+        // without the culture it would answer the raw status.
         var json = await ctx.ExecuteGraphQlAsync(
             "query { salesRepOrders(organizationId:\"org-1\", cultureName:\"en-US\") { items { number status statusDisplayValue } } }",
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
         json.Should().Contain("\"status\":\"Cancelled\"");                        // raw status preserved
-        json.Should().Contain("\"statusDisplayValue\":\"Cancelled (en-US)\""); // raw status localized in the requested culture
+        json.Should().Contain("\"statusDisplayValue\":\"Canceled\""); // raw status localized in the requested culture
     }
 
     [Fact]
@@ -1728,8 +1733,8 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        var orgB = json.IndexOf("\"organizationId\":\"org-b\",\"phone\":\"\\u002B1-200-0000\"", StringComparison.Ordinal);
-        var orgA = json.IndexOf("\"organizationId\":\"org-a\",\"phone\":\"\\u002B1-100-0000\"", StringComparison.Ordinal);
+        var orgB = json.IndexOf("\"organizationId\":\"org-b\",\"phone\":\"+1-200-0000\"", StringComparison.Ordinal);
+        var orgA = json.IndexOf("\"organizationId\":\"org-a\",\"phone\":\"+1-100-0000\"", StringComparison.Ordinal);
         orgB.Should().BeGreaterThanOrEqualTo(0);
         orgA.Should().BeGreaterThan(orgB);
 
@@ -1739,7 +1744,7 @@ public class SalesRepGraphQlComponentTests
             userId: rep.UserId);
 
         json.Should().NotContain("\"errors\"");
-        json.Should().Contain("\"organizationId\":\"org-a\",\"phone\":\"\\u002B1-100-0000\"").And.NotContain("org-b");
+        json.Should().Contain("\"organizationId\":\"org-a\",\"phone\":\"+1-100-0000\"").And.NotContain("org-b");
     }
 
     [Fact]

@@ -1,6 +1,10 @@
 using System;
-using System.Linq;
+using System.Threading.Tasks;
+using VirtoCommerce.OrdersModule.Core.Model;
+using VirtoCommerce.OrdersModule.Core.Services;
 using VirtoCommerce.OrdersModule.Data.Model;
+using VirtoCommerce.Platform.Core.Common;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
 
@@ -84,17 +88,17 @@ internal static class OrderSeeder
         }
 
         db.Add(order);
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 
-    // Reproduces what the orders REST update can do to an already-indexed order: the row moves organization,
-    // the document does not.
-    public static void MoveToOrganization(SalesRepTestContext ctx, string id, string organizationId)
+    // Reproduces what the orders REST update can do to an already-indexed order: the order moves organization through
+    // the orders module's service (which drops its cached copy), the document does not (the module reindexes in a job).
+    public static async Task MoveToOrganizationAsync(SalesRepTestContext ctx, string id, string organizationId)
     {
-        using var db = ctx.NewOrderDbContext();
-        var order = db.Set<CustomerOrderEntity>().First(x => x.Id == id);
+        var orders = ctx.GetRequiredService<ICustomerOrderService>();
+        var order = await orders.GetByIdAsync(id, CustomerOrderResponseGroup.Full.ToString());
 
         order.OrganizationId = organizationId;
-        db.SaveChanges();
+        await orders.SaveChangesAsync([order]);
     }
 }

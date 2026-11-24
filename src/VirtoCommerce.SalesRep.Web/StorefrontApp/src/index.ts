@@ -3,6 +3,7 @@ import {
   EXTENSION_NAMES,
   globals,
   Logger,
+  registerBlock,
   registerCacheTypePolicies,
   registerLocaleLoader,
   ROUTES,
@@ -12,9 +13,11 @@ import {
   useWishlistSharingScopes,
 } from "@vc-frontend/core";
 import { computed, defineAsyncComponent } from "vue";
+import { statisticsTypePolicies } from "./api/graphql/cache-policies";
 import { useSharedSalesRepCustomersCount } from "./composables/useSalesRepCustomersCount";
 import {
   isSalesRepAnalyticsEnabled,
+  isSalesRepCouponsEnabled,
   isSalesRepsEnabled,
   isSalesRepTasksEnabled,
   isSalesRepUser,
@@ -35,13 +38,15 @@ import {
   HUB_SECTION_ID,
   MY_CUSTOMERS_NAV_LINK_ID,
   MY_CUSTOMERS_ROUTE_NAME,
+  REPORTING_NAV_LINK_ID,
+  REPORTING_ROUTE_NAME,
   SALES_REP_ACCESS_PERMISSION,
   SALES_REP_DOCUMENTS_READ_PERMISSION,
 } from "./constants";
-import { layoutTypePolicies } from "./layout/cache-policies";
+import { registerHubBlocks } from "./layout/blocks";
+import { couponsBlock } from "./layout/coupons-block";
 import { customerActivityBlock } from "./layout/customer-activity-block";
 import { documentsBlock } from "./layout/documents-block";
-import { registerBlock } from "./layout/registry";
 import { tasksBlock } from "./layout/tasks-block";
 import { salesRepHubHeaderMenuSchema, salesRepMenuSchema } from "./menu";
 import {
@@ -49,6 +54,7 @@ import {
   tasksRoute,
   allCustomerOrdersRoute,
   customerActivitiesRoute,
+  customerCouponsRoute,
   customerOrderRoute,
   customerOrdersRoute,
   customerProfileRoute,
@@ -56,6 +62,7 @@ import {
   documentsRoute,
   isMyCustomersArea,
   myCustomersRoute,
+  reportingRoute,
   salesRepsRoute,
 } from "./routes";
 import type { ExtendedMenuLinkType, I18n, ILanguage } from "@vc-frontend/core";
@@ -129,6 +136,7 @@ export function init(): void {
   // Relative routes -> mount under the Company parent (/company/sales-reps, /company/dashboard, /company/my-customers).
   router.addRoute(ROUTES.COMPANY.NAME, salesRepsRoute);
   router.addRoute(ROUTES.COMPANY.NAME, dashboardRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, reportingRoute);
   router.addRoute(ROUTES.COMPANY.NAME, myCustomersRoute);
   // Customer profile (VCST-5308) -> /company/my-customers/:organizationId.
   router.addRoute(ROUTES.COMPANY.NAME, customerProfileRoute);
@@ -142,6 +150,7 @@ export function init(): void {
   // Activity feed (VCST-5337) -> /company/activities; one customer's, under their profile like their orders.
   router.addRoute(ROUTES.COMPANY.NAME, activitiesRoute);
   router.addRoute(ROUTES.COMPANY.NAME, customerActivitiesRoute);
+  router.addRoute(ROUTES.COMPANY.NAME, customerCouponsRoute);
 
   const { mergeMenuSchema, registerAccountSection } = useNavigations();
   const { checkPermissions } = useUser();
@@ -152,6 +161,9 @@ export function init(): void {
   // all stay invisible.
   const canReadDocuments = checkPermissions(SALES_REP_ACCESS_PERMISSION, SALES_REP_DOCUMENTS_READ_PERMISSION);
   const tasksEnabled = isSalesRepTasksEnabled();
+
+  // The hub's own blocks go into the host's layout engine first; the ones below join only when their feature does.
+  registerHubBlocks();
 
   // Same one-shot registration seam as the documents widget, and the same caveat: while the tasks module is
   // absent the block is unknown to the layout registry, so a layout SAVED in that state drops its persisted
@@ -164,6 +176,11 @@ export function init(): void {
   // the analytics module does.
   if (isSalesRepAnalyticsEnabled()) {
     registerBlock(CUSTOMER_PROFILE_LAYOUT_SCOPE, customerActivityBlock);
+  }
+
+  // Same seam and caveat, for the customer profile's coupons widget (VCST-6158) on vc-module-marketing.
+  if (isSalesRepCouponsEnabled()) {
+    registerBlock(CUSTOMER_PROFILE_LAYOUT_SCOPE, couponsBlock);
   }
 
   if (canReadDocuments) {
@@ -252,6 +269,12 @@ export function init(): void {
         route: { name: DASHBOARD_ROUTE_NAME },
       },
       {
+        id: REPORTING_NAV_LINK_ID,
+        title: "sales_rep.reporting.navigation.link",
+        icon: "chart-bar",
+        route: { name: REPORTING_ROUTE_NAME },
+      },
+      {
         id: MY_CUSTOMERS_NAV_LINK_ID,
         title: "sales_rep.my_customers.navigation.link",
         icon: "users",
@@ -272,9 +295,8 @@ export function init(): void {
     isVisible: computed(() => isSalesRepsEnabled() && checkPermissions(SALES_REP_ACCESS_PERMISSION)),
   });
 
-  // Layout regions and blocks carry ids that repeat across surfaces, so Apollo would normalize them
-  // into entities shared by every scope. See layout/cache-policies.ts.
-  registerCacheTypePolicies(layoutTypePolicies, { owner: "sales-rep" });
+  // The statistics have no id, and several queries write the same entries. See api/graphql/cache-policies.ts.
+  registerCacheTypePolicies(statisticsTypePolicies, { owner: "sales-rep" });
 
   loadLocale();
 }

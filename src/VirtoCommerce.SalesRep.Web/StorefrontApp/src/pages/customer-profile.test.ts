@@ -22,9 +22,17 @@ vi.mock("../composables/useSalesRepCustomer", () => ({
     notFound: state.notFound,
   }),
 }));
+// The gate the page hands the widgets: their statistics queries run only while it holds.
+const widgets = vi.hoisted(() => ({ settled: undefined as { value: boolean } | undefined }));
+
 vi.mock("../composables/useSalesRepCustomerWidgets", async () => {
   const { ref } = await import("vue");
-  return { useSalesRepCustomerWidgets: () => ({ cards: ref([]) }) };
+  return {
+    useSalesRepCustomerWidgets: (visibility: { settled: { value: boolean } }) => {
+      widgets.settled = visibility.settled;
+      return { cards: ref([]) };
+    },
+  };
 });
 vi.mock("@vc-frontend/core", async (importOriginal) => {
   const { computed, unref } = await import("vue");
@@ -59,6 +67,7 @@ beforeEach(() => {
   state.loading.value = false;
   state.failed.value = false;
   state.notFound.value = false;
+  widgets.settled = undefined;
 });
 
 describe("CustomerProfile states", () => {
@@ -100,5 +109,42 @@ describe("CustomerProfile states", () => {
     expect(emptyView(wrapper).attributes("text")).toBe("sales_rep.customer_profile.load_failed");
     expect(emptyView(wrapper).attributes("variant")).toBe("error");
     expect(wrapper.find("layout-surface-stub").exists()).toBe(false);
+  });
+});
+
+// No surface renders for a customer that failed to load or is not the rep's, so their cards' figures are never
+// asked for either.
+describe("CustomerProfile statistics", () => {
+  it("are asked for once the layout settled and the customer resolved", () => {
+    state.customer.value = { organizationId: "org-1", organizationName: "Acme" };
+
+    createWrapper();
+
+    expect(widgets.settled?.value).toBe(true);
+  });
+
+  // The read decides whether the organization is the rep's, so nothing is asked for an unserved or unknown one.
+  it("are held back while the customer is still loading", () => {
+    state.loading.value = true;
+
+    createWrapper();
+
+    expect(widgets.settled?.value).toBe(false);
+  });
+
+  it("are held back for a customer that failed to load", () => {
+    state.failed.value = true;
+
+    createWrapper();
+
+    expect(widgets.settled?.value).toBe(false);
+  });
+
+  it("are held back for a customer that is not found", () => {
+    state.notFound.value = true;
+
+    createWrapper();
+
+    expect(widgets.settled?.value).toBe(false);
   });
 });

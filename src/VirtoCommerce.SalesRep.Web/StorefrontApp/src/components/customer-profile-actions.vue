@@ -61,12 +61,11 @@
 
 <script setup lang="ts">
 import { useI18n } from "vue-i18n";
-import { useModal } from "@vc-frontend/core";
+import { LayoutWidget, useModal } from "@vc-frontend/core";
 import { useSalesRepCustomer } from "../composables/useSalesRepCustomer";
 import { isSalesRepTasksEnabled } from "../composables/useSalesRepsConfig";
 import { CALL_TASK_TYPE } from "../constants";
 import CustomerCommunicationModal from "./customer-communication-modal.vue";
-import LayoutWidget from "./layout-widget.vue";
 import SalesRepTaskModal from "./sales-rep-task-modal.vue";
 
 interface IProps {

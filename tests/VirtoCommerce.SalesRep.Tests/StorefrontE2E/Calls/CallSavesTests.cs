@@ -40,7 +40,8 @@ public sealed class CallSavesTests(CallsEnvironment env)
             await SaveAsync(page, dialog);
 
             await ShowAllAsync(page);
-            await Expect(Row(page, name)).ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 9:00 AM · Customer not assigned · Call");
+            await Expect(Row(page, name)).ToContainTextAsync($"Due {CallsEnvironment.ListedTomorrow}, 9:00 AM · Call");
+            await Expect(CustomerCell(page, name)).ToHaveTextAsync("—");
         });
 
         var task = await env.WaitForTaskAsync(x => x.Name == name);
@@ -115,30 +116,6 @@ public sealed class CallSavesTests(CallsEnvironment env)
         var task = await env.WaitForTaskAsync(x => x.ResponsibleId == rep.Id && x.ObjectId == CallsEnvironment.ContosoId && x.DueDate == CallsEnvironment.At(7, 15));
         task.Should().NotBeNull();
         task.Type.Should().Be(Call);
-    }
-
-    [Fact(Timeout = 300_000, Skip = "VCST-6455: a refused save shows the generic error toast, and the server's reason is dropped.")]
-    public async Task ScheduleCall_Refused_ShowsTheReason()
-    {
-        var rep = await env.NewRepAsync();
-        await using var session = await OpenAsync(rep.UserId, $"/company/my-customers/{CallsEnvironment.ContosoId}");
-
-        await session.RunAsync(nameof(ScheduleCall_Refused_ShowsTheReason), async page =>
-        {
-            var dialog = await ScheduleCallAsync(page);
-            await TypeDayAsync(dialog, CallsEnvironment.Tomorrow);
-
-            await env.StopServingAsync(rep.UserId, CallsEnvironment.ContosoId);
-            await SaveButton(dialog).ClickAsync();
-
-            // The rep is told why. Retrying the same draft gets the same answer, so "try again later" is no reason.
-            await Expect(page.GetByText("Customer not found")).ToBeVisibleAsync();
-            await Expect(page.GetByText("Something went wrong. Please try again later.")).ToHaveCountAsync(0);
-            await Expect(Field(dialog, "Customer")).ToHaveValueAsync(CallsEnvironment.ContosoName);
-            await Expect(DueDate(dialog)).ToHaveValueAsync(CallsEnvironment.TypedTomorrow);
-        });
-
-        (await env.CountTasksAsync(x => x.ResponsibleId == rep.Id)).Should().Be(0);
     }
 
     [Fact(Timeout = 300_000)]

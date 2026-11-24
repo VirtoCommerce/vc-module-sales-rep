@@ -3,17 +3,21 @@ import { CUSTOMER_PROFILE_LAYOUT_SCOPE, DASHBOARD_ROUTE_NAME, HUB_HEADER_LINK_ID
 import type { MenuType } from "@vc-frontend/core";
 import type { DeepPartial } from "utility-types";
 
-const config = vi.hoisted(() => ({ analyticsEnabled: true, isSalesRep: true }));
+const config = vi.hoisted(() => ({ analyticsEnabled: true, couponsEnabled: true, isSalesRep: true }));
 const mergeMenuSchema = vi.hoisted(() => vi.fn<(schema: DeepPartial<MenuType>) => void>());
+// Block ids init() registered, per scope.
+const registered = vi.hoisted(() => new Map<string, string[]>());
 
 vi.mock("./composables/useSalesRepsConfig", () => ({
   isSalesRepsEnabled: () => true,
   isSalesRepUser: () => config.isSalesRep,
   isSalesRepTasksEnabled: () => false,
   isSalesRepAnalyticsEnabled: () => config.analyticsEnabled,
+  isSalesRepCouponsEnabled: () => config.couponsEnabled,
 }));
 
-// init() adds routes and merges its locales into the host's i18n, so both have to exist.
+// init() adds routes, merges its locales into the host's i18n, registers its blocks into the host's layout
+// registry and its header links into the host's menus, so all of these have to exist.
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   globals: {
@@ -22,18 +26,22 @@ vi.mock("@vc-frontend/core", async (importOriginal) => ({
     router: { addRoute: vi.fn() },
     i18n: { global: { locale: "en", getLocaleMessage: () => ({}), setLocaleMessage: vi.fn() } },
   },
+  registerBlock: (scope: string, block: { id: string }) => {
+    registered.set(scope, [...(registered.get(scope) ?? []), block.id]);
+  },
   useNavigations: () => ({ mergeMenuSchema, registerAccountSection: () => {} }),
 }));
 
 // init() registers once per module instance (the MF loader re-invokes the entry on HMR), so each case loads a fresh
-// one, and reads the layout registry that instance registered into.
+// one and reads what that instance registered.
 async function profileBlocksAfterInit(): Promise<string[]> {
   vi.resetModules();
-  const [{ init }, { getBlockRegistry }] = await Promise.all([import("./index"), import("./layout/registry")]);
+  registered.clear();
+  const { init } = await import("./index");
 
   init();
 
-  return getBlockRegistry(CUSTOMER_PROFILE_LAYOUT_SCOPE).map((block) => block.id);
+  return registered.get(CUSTOMER_PROFILE_LAYOUT_SCOPE) ?? [];
 }
 
 // The links a fresh init() merged into the desktop header icon row and the mobile main menu.
@@ -52,6 +60,7 @@ async function headerRowLinksAfterInit() {
 
 beforeEach(() => {
   config.analyticsEnabled = true;
+  config.couponsEnabled = true;
   config.isSalesRep = true;
   mergeMenuSchema.mockClear();
 });
@@ -68,6 +77,22 @@ describe("plugin init: the customer activity widget", () => {
     const blocks = await profileBlocksAfterInit();
 
     expect(blocks).not.toContain("customer_activity");
+    expect(blocks.length).toBeGreaterThan(0);
+  });
+});
+
+// The coupons widget (VCST-6158) reads vc-module-marketing: it exists only while that module does.
+describe("plugin init: the coupons widget", () => {
+  it("is on the customer profile while the marketing module is installed", async () => {
+    expect(await profileBlocksAfterInit()).toContain("coupons");
+  });
+
+  it("is not on the customer profile without the marketing module", async () => {
+    config.couponsEnabled = false;
+
+    const blocks = await profileBlocksAfterInit();
+
+    expect(blocks).not.toContain("coupons");
     expect(blocks.length).toBeGreaterThan(0);
   });
 });

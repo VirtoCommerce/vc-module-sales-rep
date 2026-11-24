@@ -9,6 +9,7 @@ using VirtoCommerce.SalesRep.Core.Models;
 using VirtoCommerce.SalesRep.Core.Services.Statistics;
 using VirtoCommerce.SalesRep.Data.Services.Statistics;
 using VirtoCommerce.SalesRep.Tests.ComponentTests.Infrastructure;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 using Xunit;
 
 namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
@@ -18,7 +19,8 @@ namespace VirtoCommerce.SalesRep.Tests.ComponentTests;
 /// orders into in-memory SQLite, execute real GraphQL through the real scoped schema / MediatR handler / the
 /// real <c>CustomerOrderStatisticsService</c>, and assert the aggregated, currency-converted numbers exactly.
 /// Money fields are MoneyType (like SalesRepOrder.total), so the numeric value is asserted via <c>{ amount }</c>.
-/// The only stand-ins are the peripheral currency/store data sources (fixed rates in <c>TestGraphQlConfiguration</c>).
+/// The currencies and stores are the harness's, saved through the core and store modules: USD primary, EUR at 1.25,
+/// every store's default EUR (<see cref="SalesRepTestContext"/>).
 /// </summary>
 [Trait("Category", "Component")]
 public class SalesRepCustomerOrderStatisticsGraphQlTests
@@ -154,7 +156,7 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
         var rep = await ctx.CreateRepAsync("Jane", "Rep", "jane@test.com", "org-1");
         SeedOrder(ctx, "usd", "org-1", 100m, _feb2026, currency: "USD");
 
-        // No currencyCode, but a store is given → the store's default currency (EUR in the test store double) wins.
+        // No currencyCode, but a store is given → the store's default currency (EUR, as the harness's stores have it) wins.
         var json = await ctx.ExecuteGraphQlAsync(
             $$"""
               query { salesRepCustomerOrderStatistics(organizationId:"org-1", storeId: "B2B-store") {
@@ -676,6 +678,6 @@ public class SalesRepCustomerOrderStatisticsGraphQlTests
             CreatedDate = createdDate,
             ModifiedDate = createdDate,
         });
-        db.SaveChanges();
+        db.SaveChangesKeepingDates();
     }
 }

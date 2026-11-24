@@ -69,46 +69,7 @@
           "items_unit": "item | items",
           "not_for_checkout": "{count} not for checkout",
           "items_this_week": "{count} item this week | {count} items this week",
-          "mtd_of_ytd": "{percent}% of YTD",
-          "load_failed": "Couldn't load"
-        }
-      },
-      "layout": {
-        "edit": "Edit layout",
-        "editing": "Editing layout",
-        "hint": "— drag a block by its handle to reorder it, or hide it with ✕.",
-        "hint_keyboard": "Keyboard: press space on a block to pick it up, arrow keys to move it, space to drop, escape to cancel.",
-        "save": "Save layout",
-        "cancel": "Cancel",
-        "reset": "Reset",
-        "save_failed": "The layout could not be saved. Your changes are still here — try again.",
-        "load_failed": "The saved layout could not be loaded, so the default arrangement is shown. Editing is unavailable until it loads — try refreshing the page.",
-        "hidden_widgets": "Hidden widgets",
-        "visible_stats": "Visible stats",
-        "hidden_stats": "Hidden stats",
-        "empty_visible": "Drag a stat here to show it",
-        "empty_hidden": "Drag a stat here to hide it",
-        "max_rows": "Max rows",
-        "restored": "Default layout restored.",
-        "empty": {
-          "title": "All blocks are hidden",
-          "text": "Every stat and widget on this page has been moved to {hidden} in layout settings. Restore the default layout to bring everything back, or open {edit} to choose exactly what to show.",
-          "hidden": "Hidden",
-          "restore": "Restore default layout"
-        },
-        "a11y": {
-          "reorder": "Reorder {title}",
-          "hide": "Hide {title}",
-          "show": "Show {title}",
-          "grabbed": "{title} grabbed. Position {position} of {total}. Use the arrow keys to move it, space to drop it, escape to cancel.",
-          "grabbed_parkable": "{title} grabbed. Position {position} of {total}. Use the left and right arrow keys to move it, up and down to hide or show it, space to drop it, escape to cancel.",
-          "moved": "{title} moved to position {position} of {total}.",
-          "dropped": "{title} dropped at position {position} of {total}.",
-          "edge": "{title} is already at position {position} of {total}.",
-          "cancelled": "Move of {title} cancelled.",
-          "parked": "{title} hidden.",
-          "restored": "{title} shown.",
-          "max_rows": "Maximum rows shown by {title}, between {min} and {max}"
+          "mtd_of_ytd": "{percent} of YTD"
         }
       }
     },
@@ -161,8 +122,7 @@
         "last_day": "Last day",
         "last_week": "Last week",
         "last_month": "Last month",
-        "last_year": "Last year",
-        "remove_filter": "Remove filter “{label}”"
+        "last_year": "Last year"
       }
     },
     "communication": {
@@ -227,11 +187,12 @@
       "view_all": "All tasks",
       "new_task": "New task",
       "due_dates": "Due dates",
-      "today": "Today",
-      "all": "All",
-      "clear_day_aria": "Clear {date}",
-      "empty": "No tasks in this tab",
+      "empty": "No tasks yet",
       "empty_day": "Nothing due on this day",
+      "no_results": "No tasks match the filters",
+      "search_placeholder": "Search tasks",
+      "search_aria": "Search tasks",
+      "reset_search": "Reset search",
       "load_failed": "Couldn't load tasks",
       "day_task_count": "{count} task | {count} tasks",
       "overdue_total": "{count} overdue task | {count} overdue tasks",
@@ -242,6 +203,8 @@
       },
       "table": {
         "task": "Task",
+        "priority": "Priority",
+        "customer": "Customer",
         "status": "Status",
         "notes": "Notes",
         "actions": "Actions",
@@ -249,6 +212,15 @@
         "reopen": "Reopen",
         "action_aria": "{action}: “{name}”",
         "edit_aria": "Edit “{name}”"
+      },
+      "filters": {
+        "all_customers": "All customers",
+        "customers_label": "Customers",
+        "all_statuses": "All statuses",
+        "status_label": "Status",
+        "all_priorities": "All priorities",
+        "priorities_label": "Priorities",
+        "due_today": "Due today"
       },
       "status": {
         "upcoming": "Upcoming",
@@ -282,7 +254,7 @@
         "due_date_label": "Due date",
         "time_label": "Time",
         "customer_label": "Customer",
-        "customer_placeholder": "Search customers by name",
+        "customer_placeholder": "No customer",
         "customer_error": "The customer list could not be loaded. Please try again.",
         "call_name": "Call",
         "priority_label": "Priority",
@@ -427,6 +399,19 @@
       },
       "published": "Published {date}"
     },
+    "coupons": {
+      "title": "Available coupons",
+      "empty": "No coupons available",
+      "load_failed": "Couldn't load coupons",
+      "uses_left": "{left} use left out of {total} | {left} uses left out of {total}",
+      "unlimited": "Unlimited",
+      "view_all": "All promotion coupons",
+      "breadcrumb": "Promotion coupons",
+      "page": {
+        "title": "Promotion coupons for {customer}",
+        "title_fallback": "Promotion coupons"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
@@ -450,6 +435,9 @@
           "All": "All"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Remove filter “{label}”"
     },
     "list_sharing": {
       "share_customers_label": "Customers",
@@ -475,6 +463,91 @@
       "scope_label": "Specific customers",
       "status": "Shared with 1 customer | Shared with {count} customers",
       "badge": "Recommended by your sales representative"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Reporting"
+      },
+      "title": "Reporting",
+      "subtitle": "Sales, orders and average order value for your customers, compared with last year",
+      "period_label": "Period",
+      "periods": {
+        "six_months": "6 months",
+        "twelve_months": "12 months",
+        "year": "Current year",
+        "q1": "Q1",
+        "q2": "Q2",
+        "q3": "Q3",
+        "q4": "Q4"
+      },
+      "customer_label": "Customer",
+      "all_customers": "All my customers ({count})",
+      "all_customers_plain": "All my customers",
+      "customers_failed": "Couldn't load your customers",
+      "load_failed": "Couldn't load the report. Try again later.",
+      "last_year": "Last year",
+      "last_year_toggle": "Show last year on {chart}",
+      "upcoming": "Upcoming",
+      "cancelled_excluded": "Cancelled orders excluded",
+      "sales_chart": {
+        "title": "Monthly sales · {period}",
+        "subtitle": "Average {value} / closed month"
+      },
+      "aov_chart": {
+        "title": "Average order value",
+        "subtitle_period": "AOV {aov} over the period"
+      },
+      "legend": {
+        "sales_closed": "Sales, closed months",
+        "aov_closed": "AOV, closed months",
+        "current": "This month, to date",
+        "projection": "Projected month end",
+        "last_year": "Last year",
+        "vs_last_year": "vs same month last year",
+        "up": "up",
+        "down": "down"
+      },
+      "tooltip": {
+        "revenue": "Revenue",
+        "revenue_to_date": "Revenue to date",
+        "projection": "Projected month end",
+        "aov": "AOV",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Revenue, {month}",
+        "last_year_aov": "AOV, {month}"
+      },
+      "card_title": "Sales statistics",
+      "all_orders": "All orders",
+      "kpi": {
+        "sales": "Sales · {period}",
+        "orders": "Orders · {period}",
+        "aov": "Average order value · {period}",
+        "month_to_date": "{month} to date · day {day} of {days}",
+        "projected": "{share} of the month · projected {value}",
+        "vs_last_year": "{change} vs last year"
+      },
+      "chart_periods": {
+        "six_months": "last 6 months",
+        "twelve_months": "last 12 months",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "AOV, {currency}"
+      },
+      "table": {
+        "toggle": "Show as table",
+        "description": "Monthly sales, orders and average order value",
+        "month": "Month",
+        "sales": "Sales",
+        "orders": "Orders",
+        "aov": "AOV",
+        "last_year": "Same month last year",
+        "change": "vs last year"
+      },
+      "footnote": "{from} – {to}, current month to {today}. Sales are net, by order date; cancelled orders are excluded.",
+      "footnote_closed": "{from} – {to}. Sales are net, by order date; cancelled orders are excluded.",
+      "footnote_upcoming": "This period hasn't started yet."
     }
   }
 }

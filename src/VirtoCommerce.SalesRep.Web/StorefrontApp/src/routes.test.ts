@@ -4,6 +4,7 @@ import {
   activitiesRoute,
   allCustomerOrdersRoute,
   customerActivitiesRoute,
+  customerCouponsRoute,
   customerOrderRoute,
   customerOrdersRoute,
   customerProfileRoute,
@@ -11,6 +12,7 @@ import {
   documentsRoute,
   isMyCustomersArea,
   myCustomersRoute,
+  reportingRoute,
   salesRepsRoute,
   tasksRoute,
 } from "./routes";
@@ -21,7 +23,7 @@ import type {
   RouteRecordRaw,
 } from "vue-router";
 
-const access = vi.hoisted(() => ({ isRep: true, tasksEnabled: true, analyticsEnabled: true }));
+const access = vi.hoisted(() => ({ isRep: true, tasksEnabled: true, analyticsEnabled: true, couponsEnabled: true }));
 
 vi.mock("@vc-frontend/core", async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
@@ -32,6 +34,7 @@ vi.mock("./composables/useSalesRepsConfig", () => ({
   isSalesRepTasksEnabled: () => access.tasksEnabled,
   // A rep's check, as the real one is: a non-rep never has the analytics surfaces.
   isSalesRepAnalyticsEnabled: () => access.isRep && access.analyticsEnabled,
+  isSalesRepCouponsEnabled: () => access.isRep && access.couponsEnabled,
 }));
 
 const to = { params: { organizationId: "org-1", orderId: "o-1" } } as unknown as RouteLocationNormalized;
@@ -46,6 +49,7 @@ afterEach(() => {
   access.isRep = true;
   access.tasksEnabled = true;
   access.analyticsEnabled = true;
+  access.couponsEnabled = true;
 });
 
 const at = (name: string) => ({ name, query: {} }) as unknown as RouteLocationNormalizedLoaded;
@@ -56,6 +60,7 @@ const at = (name: string) => ({ name, query: {} }) as unknown as RouteLocationNo
 describe("sales-rep routes", () => {
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -64,6 +69,7 @@ describe("sales-rep routes", () => {
     ["documents", documentsRoute],
     ["activities", activitiesRoute],
     ["customer activities", customerActivitiesRoute],
+    ["customer coupons", customerCouponsRoute],
   ])("clears requiresOrganization on the rep-facing %s route", (_name, route) => {
     expect(route.meta?.requiresOrganization).toBe(false);
   });
@@ -75,6 +81,11 @@ describe("sales-rep routes", () => {
     expect(activitiesRoute.props).toBeUndefined();
     expect(customerActivitiesRoute.path).toBe("my-customers/:organizationId/activities");
     expect(customerActivitiesRoute.props).toBe(true);
+  });
+
+  it("nests the coupons page under the customer, with the id from the path", () => {
+    expect(customerCouponsRoute.path).toBe("my-customers/:organizationId/coupons");
+    expect(customerCouponsRoute.props).toBe(true);
   });
 
   it("nests the customer orders list under the customer", () => {
@@ -90,10 +101,16 @@ describe("sales-rep routes", () => {
     expect(allCustomerOrdersRoute.path).toBe("customer-orders");
   });
 
+  // An equal path loses to the host's route on a reload or a link.
+  it("keeps Reporting off the host's Company Reporting path", () => {
+    expect(reportingRoute.path).toBe("customer-sales");
+  });
+
   // guardSalesRep only calls next() to bounce a non-rep, so a beforeEnter that forgets to call it on the way
   // through leaves the click doing nothing at all.
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -103,6 +120,7 @@ describe("sales-rep routes", () => {
     ["tasks", tasksRoute],
     ["activities", activitiesRoute],
     ["customer activities", customerActivitiesRoute],
+    ["customer coupons", customerCouponsRoute],
   ])("lets a sales rep through the %s route", (_name, route: RouteRecordRaw) => {
     const next = runGuard(route);
 
@@ -112,6 +130,7 @@ describe("sales-rep routes", () => {
 
   it.each([
     ["dashboard", dashboardRoute],
+    ["reporting", reportingRoute],
     ["my customers", myCustomersRoute],
     ["customer profile", customerProfileRoute],
     ["customer orders", customerOrdersRoute],
@@ -121,6 +140,7 @@ describe("sales-rep routes", () => {
     ["tasks", tasksRoute],
     ["activities", activitiesRoute],
     ["customer activities", customerActivitiesRoute],
+    ["customer coupons", customerCouponsRoute],
   ])("resolves the %s route exactly once, to the account Dashboard, for a non-rep", (_name, route: RouteRecordRaw) => {
     access.isRep = false;
 
@@ -136,6 +156,16 @@ describe("sales-rep routes", () => {
     access.analyticsEnabled = false;
 
     const next = runGuard(customerActivitiesRoute);
+
+    expect(next).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledWith({ name: "SalesRepCustomerProfile", params: { organizationId: "org-1" } });
+  });
+
+  // Same for the coupons page, which goes with the coupons widget and so with vc-module-marketing.
+  it("sends a sales rep to the customer's profile when the marketing module is not installed", () => {
+    access.couponsEnabled = false;
+
+    const next = runGuard(customerCouponsRoute);
 
     expect(next).toHaveBeenCalledTimes(1);
     expect(next).toHaveBeenCalledWith({ name: "SalesRepCustomerProfile", params: { organizationId: "org-1" } });
@@ -165,6 +195,7 @@ describe("sales-rep account rail areas", () => {
     ["a customer's orders", true, at("SalesRepCustomerOrders")],
     ["one of a customer's orders", true, at("SalesRepCustomerOrder")],
     ["a customer's activity", true, at("SalesRepCustomerActivities")],
+    ["the coupons page", true, at("SalesRepCustomerCoupons")],
     ["the rep's own activity", false, at("SalesRepActivities")],
     ["the all-customers order list", false, at("SalesRepAllCustomerOrders")],
     ["the dashboard", false, at("SalesRepDashboard")],

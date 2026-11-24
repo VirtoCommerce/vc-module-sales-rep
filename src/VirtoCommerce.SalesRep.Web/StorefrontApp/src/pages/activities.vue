@@ -129,7 +129,7 @@
 import { useBreakpoints } from "@vueuse/core";
 import { computed, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
-import { BREAKPOINTS, getProductRoute, ROUTES, useBreadcrumbs, usePageHead } from "@vc-frontend/core";
+import { BREAKPOINTS, formatStatCount, getProductRoute, ROUTES, useBreadcrumbs, usePageHead } from "@vc-frontend/core";
 import ActivityRow from "../components/activity-row.vue";
 import ActivityTopList from "../components/activity-top-list.vue";
 import SalesRepRuleChip from "../components/sales-rep-rule-chip.vue";
@@ -156,7 +156,7 @@ import {
   TRACKED_ACTIVITY_CATEGORIES,
   MY_CUSTOMERS_ROUTE_NAME,
 } from "../constants";
-import { activityCategoryIcon, activityKey, formatStatCount, searchResultsRoute } from "../utils";
+import { activityCategoryIcon, activityKey, searchResultsRoute } from "../utils";
 import type { ActivityCategoryType } from "../constants";
 import type { SalesRepPeriodType } from "../composables/useSalesRepPeriodFilter";
 import type { SalesRepRuleType } from "../types";

@@ -69,46 +69,7 @@
           "items_unit": "artikel | artiklar",
           "not_for_checkout": "{count} inte till kassan",
           "items_this_week": "{count} artikel denna vecka | {count} artiklar denna vecka",
-          "mtd_of_ytd": "{percent}% av året",
-          "load_failed": "Kunde inte läsas in"
-        }
-      },
-      "layout": {
-        "edit": "Redigera layout",
-        "editing": "Redigerar layout",
-        "hint": "— dra ett block i handtaget för att ändra ordning, eller dölj det med ✕.",
-        "hint_keyboard": "Tangentbord: mellanslag tar tag i ett block, piltangenterna flyttar det, mellanslag släpper, Esc avbryter.",
-        "save": "Spara layout",
-        "cancel": "Avbryt",
-        "reset": "Återställ",
-        "save_failed": "Layouten kunde inte sparas. Dina ändringar finns kvar — försök igen.",
-        "load_failed": "Den sparade layouten kunde inte läsas in, så standardordningen visas. Redigering är inte tillgänglig förrän den lästs in — uppdatera sidan.",
-        "hidden_widgets": "Dolda widgetar",
-        "visible_stats": "Synliga nyckeltal",
-        "hidden_stats": "Dolda nyckeltal",
-        "empty_visible": "Dra ett nyckeltal hit för att visa det",
-        "empty_hidden": "Dra ett nyckeltal hit för att dölja det",
-        "max_rows": "Max rader",
-        "restored": "Standardlayouten har återställts.",
-        "empty": {
-          "title": "Alla block är dolda",
-          "text": "Alla nyckeltal och widgetar på den här sidan har flyttats till {hidden} i layoutinställningarna. Återställ standardlayouten för att få tillbaka allt, eller öppna {edit} för att välja exakt vad som ska visas.",
-          "hidden": "Dolda",
-          "restore": "Återställ standardlayout"
-        },
-        "a11y": {
-          "reorder": "Ändra ordning på {title}",
-          "hide": "Dölj {title}",
-          "show": "Visa {title}",
-          "grabbed": "{title} upplockad. Position {position} av {total}. Använd piltangenterna för att flytta, mellanslag för att släppa, escape för att avbryta.",
-          "grabbed_parkable": "{title} upplockad. Position {position} av {total}. Använd vänster och höger piltangent för att flytta, upp och ner för att dölja eller visa, mellanslag för att släppa, escape för att avbryta.",
-          "moved": "{title} flyttad till position {position} av {total}.",
-          "dropped": "{title} släppt på position {position} av {total}.",
-          "edge": "{title} är redan på plats {position} av {total}.",
-          "cancelled": "Flytt av {title} avbruten.",
-          "parked": "{title} dold.",
-          "restored": "{title} visas.",
-          "max_rows": "Maximalt antal rader som visas av {title}, mellan {min} och {max}"
+          "mtd_of_ytd": "{percent} av året"
         }
       }
     },
@@ -161,8 +122,7 @@
         "last_day": "Sista dagen",
         "last_week": "Förra veckan",
         "last_month": "Förra månaden",
-        "last_year": "Förra året",
-        "remove_filter": "Ta bort filtret ”{label}”"
+        "last_year": "Förra året"
       }
     },
     "communication": {
@@ -227,11 +187,12 @@
       "view_all": "Alla uppgifter",
       "new_task": "Ny uppgift",
       "due_dates": "Förfallodatum",
-      "today": "I dag",
-      "all": "Alla",
-      "clear_day_aria": "Rensa {date}",
-      "empty": "Inga uppgifter på den här fliken",
+      "empty": "Inga uppgifter ännu",
       "empty_day": "Inget förfaller denna dag",
+      "no_results": "Inga uppgifter matchar filtren",
+      "search_placeholder": "Sök uppgifter",
+      "search_aria": "Sök uppgifter",
+      "reset_search": "Återställ sökning",
       "load_failed": "Kunde inte läsa in uppgifterna",
       "day_task_count": "{count} uppgift | {count} uppgifter",
       "overdue_total": "{count} försenad uppgift | {count} försenade uppgifter",
@@ -242,6 +203,8 @@
       },
       "table": {
         "task": "Uppgift",
+        "priority": "Prioritet",
+        "customer": "Kund",
         "status": "Status",
         "notes": "Anteckningar",
         "actions": "Åtgärder",
@@ -249,6 +212,15 @@
         "reopen": "Återöppna",
         "action_aria": "{action}: ”{name}”",
         "edit_aria": "Redigera ”{name}”"
+      },
+      "filters": {
+        "all_customers": "Alla kunder",
+        "customers_label": "Kunder",
+        "all_statuses": "Alla statusar",
+        "status_label": "Status",
+        "all_priorities": "Alla prioriteter",
+        "priorities_label": "Prioriteter",
+        "due_today": "Förfaller i dag"
       },
       "status": {
         "upcoming": "Kommande",
@@ -282,7 +254,7 @@
         "due_date_label": "Förfallodatum",
         "time_label": "Klockslag",
         "customer_label": "Kund",
-        "customer_placeholder": "Sök kunder efter namn",
+        "customer_placeholder": "Ingen kund",
         "customer_error": "Kundlistan kunde inte laddas. Försök igen.",
         "call_name": "Samtal",
         "priority_label": "Prioritet",
@@ -427,6 +399,19 @@
       },
       "published": "Publicerad {date}"
     },
+    "coupons": {
+      "title": "Tillgängliga kuponger",
+      "empty": "Inga tillgängliga kuponger",
+      "load_failed": "Det gick inte att läsa in kuponger",
+      "uses_left": "{left} användning kvar av {total} | {left} användningar kvar av {total}",
+      "unlimited": "Obegränsad",
+      "view_all": "Alla kampanjkuponger",
+      "breadcrumb": "Kampanjkuponger",
+      "page": {
+        "title": "Kampanjkuponger för {customer}",
+        "title_fallback": "Kampanjkuponger"
+      }
+    },
     "rules": {
       "task": {
         "filter": {
@@ -450,6 +435,9 @@
           "All": "Alla"
         }
       }
+    },
+    "filters": {
+      "remove_filter": "Ta bort filtret ”{label}”"
     },
     "list_sharing": {
       "share_customers_label": "Kunder",
@@ -475,6 +463,91 @@
       "scope_label": "Specifika kunder",
       "status": "Delad med 1 kund | Delad med {count} kunder",
       "badge": "Rekommenderas av din säljare"
+    },
+    "reporting": {
+      "navigation": {
+        "link": "Rapporter"
+      },
+      "title": "Rapporter",
+      "subtitle": "Försäljning, order och genomsnittligt ordervärde för dina kunder jämfört med förra året",
+      "period_label": "Period",
+      "periods": {
+        "six_months": "6 månader",
+        "twelve_months": "12 månader",
+        "year": "Innevarande år",
+        "q1": "Q1",
+        "q2": "Q2",
+        "q3": "Q3",
+        "q4": "Q4"
+      },
+      "customer_label": "Kund",
+      "all_customers": "Alla mina kunder ({count})",
+      "all_customers_plain": "Alla mina kunder",
+      "customers_failed": "Kunde inte läsa in dina kunder",
+      "load_failed": "Kunde inte läsa in rapporten. Försök igen senare.",
+      "last_year": "Förra året",
+      "last_year_toggle": "Visa förra året i diagrammet ”{chart}”",
+      "upcoming": "Kommande",
+      "cancelled_excluded": "Annullerade order ingår inte",
+      "sales_chart": {
+        "title": "Försäljning per månad · {period}",
+        "subtitle": "I genomsnitt {value} / avslutad månad"
+      },
+      "aov_chart": {
+        "title": "Genomsnittligt ordervärde",
+        "subtitle_period": "Snittordervärde för perioden: {aov}"
+      },
+      "legend": {
+        "sales_closed": "Försäljning, avslutade månader",
+        "aov_closed": "Snittordervärde, avslutade månader",
+        "current": "Denna månad, hittills",
+        "projection": "Prognos vid månadens slut",
+        "last_year": "Förra året",
+        "vs_last_year": "vs samma månad förra året",
+        "up": "ökning",
+        "down": "minskning"
+      },
+      "tooltip": {
+        "revenue": "Intäkter",
+        "revenue_to_date": "Intäkter hittills",
+        "projection": "Prognos vid månadens slut",
+        "aov": "Snittordervärde",
+        "vs_month": "vs {month}",
+        "last_year_revenue": "Intäkter, {month}",
+        "last_year_aov": "Snittordervärde, {month}"
+      },
+      "card_title": "Försäljningsstatistik",
+      "all_orders": "Alla beställningar",
+      "kpi": {
+        "sales": "Försäljning · {period}",
+        "orders": "Order · {period}",
+        "aov": "Genomsnittligt ordervärde · {period}",
+        "month_to_date": "Hittills i {month} · dag {day} av {days}",
+        "projected": "{share} av månaden · prognos {value}",
+        "vs_last_year": "{change} vs förra året"
+      },
+      "chart_periods": {
+        "six_months": "senaste 6 månaderna",
+        "twelve_months": "senaste 12 månaderna",
+        "year": "{year}",
+        "quarter": "{period} {year}"
+      },
+      "axis": {
+        "aov": "Snittordervärde, {currency}"
+      },
+      "table": {
+        "toggle": "Visa som tabell",
+        "description": "Försäljning, order och genomsnittligt ordervärde per månad",
+        "month": "Månad",
+        "sales": "Försäljning",
+        "orders": "Order",
+        "aov": "Snittordervärde",
+        "last_year": "Samma månad förra året",
+        "change": "vs förra året"
+      },
+      "footnote": "{from} – {to}, innevarande månad till och med {today}. Försäljningen redovisas netto, per orderdatum; annullerade order ingår inte.",
+      "footnote_closed": "{from} – {to}. Försäljningen redovisas netto, per orderdatum; annullerade order ingår inte.",
+      "footnote_upcoming": "Den här perioden har inte börjat än."
     }
   }
 }

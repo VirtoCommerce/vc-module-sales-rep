@@ -8,6 +8,9 @@
         placement="bottom-end"
         role="dialog"
         :aria-label="t('sales_rep.communication.call.choose_number')"
+        :shift-options="{ padding: 16 }"
+        bg-color="--color-additional-50"
+        shadow
         lazy
         @toggle="menuOpened = $event"
       >
@@ -18,15 +21,13 @@
         </template>
 
         <template #content="{ close }">
-          <ul class="customer-call-action__menu">
+          <ul class="customer-call-action__menu" @focusout="closeWhenFocusLeaves($event, close)">
             <li v-for="phone in phones" :key="phone.href">
-              <VcMenuItem :external-link="phone.href" size="sm" nowrap @click="close()">
-                <template v-if="phone.name">
-                  <span class="customer-call-action__name">{{ phone.name }}</span>
-                  ·
-                </template>
-
-                <span class="customer-call-action__number">{{ phone.number }}</span>
+              <VcMenuItem :external-link="phone.href" size="sm" @click="close()">
+                <span class="customer-call-action__entry">
+                  <span v-if="phone.name" class="customer-call-action__name">{{ phone.name }} ·</span>
+                  <span class="customer-call-action__number">{{ phone.number }}</span>
+                </span>
               </VcMenuItem>
             </li>
           </ul>
@@ -89,6 +90,17 @@ const tooltipDisabled = computed(() => menuOpened.value || (props.variant === "b
 
 const label = computed(() => (props.variant === "button" ? t("sales_rep.communication.call.action") : undefined));
 
+// Tab past the last number leaves the panel. Left open, the list would cover the next rows' controls, and Escape only
+// reaches it from inside, so it closes as soon as focus moves anywhere outside it.
+function closeWhenFocusLeaves(event: FocusEvent, close: () => void): void {
+  const next = event.relatedTarget;
+  const panel = (event.currentTarget as HTMLElement).closest("[role='dialog']");
+
+  if (next instanceof Node && !panel?.contains(next)) {
+    close();
+  }
+}
+
 const buttonProps = computed(() =>
   props.variant === "button"
     ? { size: "sm" as const, variant: "outline" as const, prependIcon: "phone" }
@@ -111,15 +123,20 @@ const buttonProps = computed(() =>
   }
 
   &__menu {
-    @apply flex min-w-56 flex-col py-1;
+    @apply flex min-w-56 max-w-[calc(100vw-2rem)] flex-col py-1;
+  }
+
+  // A long organization name wraps; the number never breaks and moves to the next line whole when it does not fit.
+  &__entry {
+    @apply flex flex-wrap items-baseline gap-x-1 [word-break:normal];
   }
 
   &__name {
-    @apply font-medium text-neutral-900;
+    @apply font-medium text-neutral-900 [overflow-wrap:anywhere];
   }
 
   &__number {
-    @apply text-neutral-600 [font-variant-numeric:tabular-nums];
+    @apply whitespace-nowrap text-neutral-600 [font-variant-numeric:tabular-nums];
   }
 }
 </style>

@@ -27,15 +27,16 @@ export type SalesRepTaskDayType = {
 
 export type SalesRepTaskDayMarkersType = Record<string, SalesRepTaskDayType>;
 
-/** The Tasks page's non-status views: today, another picked day, or every task. */
-export type SalesRepTaskScopeType = "today" | "day" | "all";
-
-export type SalesRepTaskCountsType = {
-  today: number;
-  all: number;
-  upcoming: number;
-  overdue: number;
-  completed: number;
+/** What the Tasks page narrows its list and its calendar dots by, besides the day. Each one intersects with the rest. */
+export type SalesRepTaskFiltersType = {
+  /** Matched against the name and the notes; "" for none. */
+  keyword: string;
+  /** A rule name from salesRepTaskFilterRules; undefined for every status. */
+  status?: string;
+  /** Organization ids; empty for every customer. */
+  customerIds: string[];
+  /** TaskPriority names; empty for every priority. */
+  priorities: string[];
 };
 
 export type SalesRepTaskInputType = {

@@ -1,5 +1,5 @@
 import { mount } from "@vue/test-utils";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import CustomerCallAction from "./customer-call-action.vue";
 import type { CustomerPhoneType } from "../phones";
 
@@ -11,6 +11,8 @@ vi.mock("vue-i18n", () => ({
 
 const jane: CustomerPhoneType = { name: "Jane Smith", number: "+1 555 010 2030", href: "tel:+15550102030" };
 const office: CustomerPhoneType = { name: "Acme Corp", number: "555 000", href: "tel:555000" };
+
+const closeMenu = vi.fn();
 
 function mountAction(phones: CustomerPhoneType[], variant?: "icon" | "button") {
   return mount(CustomerCallAction, {
@@ -25,8 +27,9 @@ function mountAction(phones: CustomerPhoneType[], variant?: "icon" | "button") {
         VcPopover: {
           name: "VcPopover",
           emits: ["toggle"],
+          setup: () => ({ closeMenu }),
           template:
-            "<div class='popover'><slot :trigger-props=\"{ 'aria-expanded': false }\" /><div class='menu'><slot name='content' :close='() => {}' /></div></div>",
+            "<div class='popover'><slot :trigger-props=\"{ 'aria-expanded': false }\" /><div class='menu' role='dialog' tabindex='-1'><slot name='content' :close='closeMenu' /></div></div>",
         },
         VcButton: {
           props: ["externalLink", "disabled", "icon", "prependIcon"],
@@ -107,6 +110,38 @@ describe("CustomerCallAction", () => {
     expect(tooltipOf(mountAction([], "button"))).toEqual({
       text: "sales_rep.communication.call.no_phone",
       disabled: false,
+    });
+  });
+
+  describe("focus leaving the number list", () => {
+    beforeEach(() => closeMenu.mockClear());
+
+    function leaveFocus(wrapper: ReturnType<typeof mountAction>, relatedTarget: EventTarget | null) {
+      wrapper.find(".menu-item").element.dispatchEvent(new FocusEvent("focusout", { bubbles: true, relatedTarget }));
+    }
+
+    it("closes the list when Tab moves focus past the last number", () => {
+      const wrapper = mountAction([jane, office]);
+      const nextRowLink = document.createElement("a");
+
+      leaveFocus(wrapper, nextRowLink);
+
+      expect(closeMenu).toHaveBeenCalledOnce();
+    });
+
+    it("keeps the list open while focus moves between numbers or onto the panel", () => {
+      const wrapper = mountAction([jane, office]);
+
+      leaveFocus(wrapper, wrapper.findAll(".menu-item")[1].element);
+      leaveFocus(wrapper, wrapper.find(".menu").element);
+
+      expect(closeMenu).not.toHaveBeenCalled();
+    });
+
+    it("keeps the list open when focus leaves the window", () => {
+      leaveFocus(mountAction([jane, office]), null);
+
+      expect(closeMenu).not.toHaveBeenCalled();
     });
   });
 });

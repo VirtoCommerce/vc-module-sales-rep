@@ -20,7 +20,7 @@
         required
       />
 
-      <!-- Right under Title: it decides the fields below (a call adds Customer and Time). Absent in call mode, where
+      <!-- Right under Title: it decides the fields below (a call adds Time). Absent in call mode, where
            the type is Call by definition, and when nobody has configured the TaskManagement.TaskTypes dictionary.
            `clearable` is bound rather than bare: VcSelect counts "" as a selection, so it would offer a Clear
            on an empty Type (QA M-2), and "" is this form's own convention for an unset field. -->
@@ -34,12 +34,7 @@
         enable-teleport
       />
 
-      <SalesRepTaskCustomerSelect
-        v-if="isCall"
-        v-model="customerId"
-        :name="initial?.customerName"
-        :disabled="loading"
-      />
+      <SalesRepTaskCustomerSelect v-model="customerId" :name="initial?.customerName" :disabled="loading" />
 
       <div :class="['sales-rep-task-modal__when', { 'sales-rep-task-modal__when--timed': isCall }]">
         <!-- enable-teleport: inside a modal the popover would otherwise clip against the dialog's overflow. -->
@@ -141,7 +136,14 @@ import { useSalesRepTaskMutations } from "../composables/useSalesRepTaskMutation
 import { useSalesRepTaskTypes } from "../composables/useSalesRepTaskTypes";
 import { CALL_DEFAULT_TIME, CALL_TIME_STEP_MINUTES } from "../constants";
 import { openBlankTab, saveFile } from "../files";
-import { dueDateForDay, dueDateForDayAndTime, isCallTask, localDayKey, localTimeKey } from "../tasks";
+import {
+  dueDateForDay,
+  dueDateForDayAndTime,
+  isCallTask,
+  localDayKey,
+  localTimeKey,
+  taskPriorityItems,
+} from "../tasks";
 import SalesRepTaskCustomerSelect from "./sales-rep-task-customer-select.vue";
 import TimeSelect from "./time-select.vue";
 import type { SalesRepTaskFieldsFragment } from "../api/graphql/types";
@@ -179,8 +181,6 @@ const MAX_DESCRIPTION_LENGTH = 1000;
 // onto the control they render, so this is fixable here without touching the ui-kit.
 const REQUIRED_ARIA = { "aria-required": "true" };
 
-const PRIORITIES = ["Lowest", "Low", "Normal", "High", "Highest"] as const;
-
 const { t } = useI18n();
 const notifications = useNotifications();
 const { openModal } = useModal();
@@ -189,9 +189,7 @@ const modalComponent = useTemplateRef<InstanceType<typeof VcModal>>("modalCompon
 const { create, update, remove: removeTask, loading } = useSalesRepTaskMutations();
 const { types } = useSalesRepTaskTypes();
 
-const priorityItems = computed(() =>
-  PRIORITIES.map((value) => ({ value, label: t(`sales_rep.tasks.priority.${value.toLowerCase()}`) })),
-);
+const priorityItems = computed(() => taskPriorityItems(t));
 
 // The task being edited, or what a new one starts from. A deliberate snapshot: useForm seeds the fields once, and a
 // modal instance is constructed per open with fixed props, so there is no later prop change to track.
@@ -251,7 +249,7 @@ const { value: type } = useField<string>("type");
 const { value: customerId } = useField<string>("customerId");
 const { value: description } = useField<string>("description");
 
-// The type decides the fields: a call adds the time of day and the customer.
+// The type decides the fields: a call adds the time of day.
 const isCall = computed(() => isCallTask(type.value));
 
 // A new call can go to the rep's calendars; asked every time, never remembered.
@@ -318,9 +316,9 @@ const save = handleSubmit(async (data) => {
       : dueDateForDay(data.dueDate, props.task?.dueDate),
     priority: data.priority || undefined,
     type: data.type || undefined,
-    // Customer is a call's field. Any other task sends back the link it came with (only the API sets one there),
-    // because updateSalesRepTask replaces the task.
-    customerId: isCall.value ? data.customerId || undefined : props.task?.customerId,
+    // None is sent as none: updateSalesRepTask replaces the task, so that unlinks the customer. A link the rep cannot
+    // see (a customer they no longer serve, another feature's record) arrives as none and is kept by the API.
+    customerId: data.customerId || undefined,
     description: data.description?.trim() || undefined,
   };
 

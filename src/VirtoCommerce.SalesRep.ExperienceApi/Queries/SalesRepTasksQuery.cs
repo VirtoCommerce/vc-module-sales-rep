@@ -21,6 +21,10 @@ public class SalesRepTasksQuery : SearchQuery<SalesRepTaskSearchResult>
 
     public DateTime? Today { get; set; }
 
+    public IList<string> CustomerIds { get; set; }
+
+    public IList<string> Priorities { get; set; }
+
     public string UserId { get; set; }
 
     public string MemberId { get; set; }
@@ -36,6 +40,8 @@ public class SalesRepTasksQuery : SearchQuery<SalesRepTaskSearchResult>
         yield return Argument<StringGraphType>(SalesRepFilters.ArgumentName, "Filter-rule name from salesRepTaskFilterRules. Omit for all the caller's tasks; an unrecognized name returns nothing rather than the unfiltered list.");
         yield return Argument<SalesRepStatisticsPeriodInputType>(nameof(Period), "Due-date window. Intersects with the filter rule rather than replacing it.");
         yield return Argument<DateTimeGraphType>(nameof(Today), "Start of the caller's local day, which is where 'overdue' ends and 'upcoming' begins. Defaults to the current UTC day.");
+        yield return Argument<ListGraphType<NonNullGraphType<StringGraphType>>>(nameof(CustomerIds), "Customer organizations the tasks are linked to; omit for all. A customer the caller does not serve matches nothing.");
+        yield return Argument<ListGraphType<NonNullGraphType<StringGraphType>>>(nameof(Priorities), "Task priorities (Lowest, Low, Normal, High, Highest; any case); omit for all. An unrecognized name returns nothing rather than the unfiltered list.");
     }
 
     public override void Map(IResolveFieldContext context)
@@ -46,6 +52,8 @@ public class SalesRepTasksQuery : SearchQuery<SalesRepTaskSearchResult>
         Filter = context.GetArgument<string>(SalesRepFilters.ArgumentName);
         Period = context.GetArgument<SalesRepStatisticsPeriodInput>(nameof(Period));
         Today = context.GetArgument<DateTime?>(nameof(Today));
+        CustomerIds = context.GetArgument<IList<string>>(nameof(CustomerIds));
+        Priorities = context.GetArgument<IList<string>>(nameof(Priorities));
         UserId = context.GetCurrentUserId();
         MemberId = context.GetCurrentMemberId();
     }

@@ -1,17 +1,18 @@
 # VC-Shell app E2E (draft)
 
 Playwright tests that drive the **sales-rep VC-Shell app** (`src/VirtoCommerce.SalesRep.Web/App`) against the
-**component harness hosted inside the test process**. The same `SalesRepTestContext` (in-memory SQLite, RAM Lucene,
-hand-written doubles) sits behind Kestrel on a loopback port and serves two things from one origin: the module's
-own REST controllers, hosted as they are, and the built app as static files under `/apps/vc-sales-rep/`. A test
-seeds through the DbContexts, acts through the browser and asserts against the same rows. No dev server, no proxy,
-no second dotnet process.
+**component harness hosted inside the test process**. The same `SalesRepTestContext` (the module and the platform
+around it, as they start up, on in-memory SQLite and a RAM Lucene index: see the storefront README's Platform and
+modules) sits behind Kestrel on a loopback port and serves two things from one origin: the module's own REST
+controllers, hosted as they are, and the built app as static files under `/apps/vc-sales-rep/`. A test seeds through
+the modules' services, acts through the browser and asserts against the same rows. No dev server, no proxy, no second
+dotnet process.
 
 ```
-test process ─┬─ Kestrel (InProcessVCShellBackend) ── SalesRepTestContext (SQLite + Lucene + doubles)
+test process ─┬─ Kestrel (InProcessVCShellBackend) ── SalesRepTestContext (platform + modules, SQLite + Lucene)
               │     ├─ /api/sales-rep/**            SalesRepController, SalesRepDocumentsController (the module's .Web assembly)
               │     ├─ /api/platform/security/**    login / logout / currentuser replicas over Identity + the real claims factory
-              │     ├─ /api/stores/search, /api/organizations/search   replicas over the harness services
+              │     ├─ /api/stores/search, /api/organizations/search   replicas over the store and customer modules' searches
               │     └─ /apps/vc-sales-rep/**         App/dist (static)
               └─ Playwright → Chromium ──► http://127.0.0.1:<port>/apps/vc-sales-rep/#/sales-reps
 ```
@@ -20,12 +21,11 @@ test process ─┬─ Kestrel (InProcessVCShellBackend) ── SalesRepTestCont
 
 | Piece | File | Role |
 |---|---|---|
-| Backend host | `Infrastructure/InProcessVCShellBackend.cs` | Copies the harness registrations into a `WebApplication`, starts Kestrel on port 0, self-checks the app page and the auth wall. |
-| Services | `Infrastructure/VCShellServices.cs` | Real claim producers; MVC over the module's controllers with the platform's JSON contract; the Identity cookie as the auth scheme; the pipeline. |
+| Backend host | `Infrastructure/InProcessVCShellBackend.cs` | Copies the harness registrations into a `WebApplication` (Development, its container validated but for the lifetimes, as the storefront host), lets the platform's and the modules' startup run on it, names the store, starts Kestrel on port 0, self-checks the app page and the auth wall. |
+| Services | `Infrastructure/VCShellServices.cs` | The token service; the permission policies; MVC over the module's controllers with the platform's JSON contract; the Identity cookie as the auth scheme; Kestrel's synchronous IO; the pipeline. |
 | Replicas | `Infrastructure/VCShellPlatformEndpoints.cs` | The platform endpoints the framework and the blades call whose controllers are not packaged: login, logout, currentuser, pushnotifications, apps, ui/customization, externalsignin providers, stores and organizations search, and the test-only `/e2e/sign-in`. |
 | JSON | `Infrastructure/PlatformJson.cs` | `Startup.AddNewtonsoftJson` as the platform configures it, plus the two converters it adds at runtime. |
-| Policies | `Infrastructure/PermissionPolicyProvider.cs` | `[Authorize("permission")]` resolved to the platform's own permission requirement and handler. |
-| Dynamic properties | `Infrastructure/EmptyDynamicPropertyMetaDataResolver.cs` | The process-wide metadata the JSON contract consults; the harness has none. |
+| Policies | `Infrastructure/PermissionPolicyProvider.cs` | Platform.Web's permission policy provider (not on NuGet), restated: `[Authorize("permission")]` for a registered permission resolved to the platform's own permission requirement and handler. |
 | Group fixture | `Infrastructure/VCShellAppEnvironment.cs` | Backend + seed + browser per xunit collection; `OpenAsync(userId, route)` = signed-in context on the app route. |
 | Session | `Infrastructure/VCShellSession.cs` | Records console errors, dialogs, API responses of 400 and above and failed requests; a failing test gets them plus a screenshot in its message. |
 | App location | `Infrastructure/VCShellAppLocation.cs` | Finds the built app; without one the group fails with the command that builds it. |
@@ -69,8 +69,8 @@ Diagnostics land in `bin/Debug/net10.0/VCShellAppE2E-diagnostics/`: `environment
   permission check.
 - **The platform's JSON contract has process-wide state.** Serializing a member consults
   `DynamicPropertyMetadata`, which `Startup.Configure` initializes once; without it every organization search
-  answers 500. The host initializes it with a resolver that owns no services, so later groups in the same process
-  are unaffected.
+  answers 500. The host initializes it with the platform's own resolver, from the process's own services
+  (`PlatformStatics.Services`) rather than the host's, so later groups in the same process are unaffected.
 - **Member searches with a type filter go to the index**, so the seed indexes the organizations it creates.
 - **The routes are hash-based under the base path**: `/apps/vc-sales-rep/#/sales-reps`, not `/apps/vc-sales-rep/sales-reps`.
 - **Locators**: the framework marks menu items (blade name), toolbar buttons (`add`, `save`, `block`, ...), select

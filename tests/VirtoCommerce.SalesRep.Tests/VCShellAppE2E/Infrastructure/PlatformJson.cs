@@ -2,9 +2,12 @@ using System.IO;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using VirtoCommerce.Platform.Core.DynamicProperties;
 using VirtoCommerce.Platform.Core.JsonConverters;
+using VirtoCommerce.SalesRep.Tests.Infrastructure;
 
 namespace VirtoCommerce.SalesRep.Tests.VCShellAppE2E.Infrastructure;
 
@@ -21,9 +24,9 @@ internal static class PlatformJson
     {
         settings.ContractResolver = new PolymorphJsonContractResolver();
         settings.Converters.Add(new StringEnumConverter());
-        // The two converters Startup.Configure adds at runtime: dynamic property values by name, polymorphic
-        // materialization of overridden types.
-        settings.Converters.Add(new DynamicObjectPropertyJsonConverter(EmptyDynamicPropertyMetaDataResolver.Instance));
+        // The two converters Startup.Configure adds at runtime: dynamic property values by name (the platform's own
+        // resolver, process-wide as the converter is), polymorphic materialization of overridden types.
+        settings.Converters.Add(new DynamicObjectPropertyJsonConverter(PlatformStatics.Services.GetRequiredService<IDynamicPropertyMetaDataResolver>()));
         settings.Converters.Add(new PolymorphJsonConverter());
         settings.PreserveReferencesHandling = PreserveReferencesHandling.None;
         settings.ReferenceLoopHandling = ReferenceLoopHandling.Ignore;
