@@ -179,6 +179,16 @@ describe("WishlistSharingRecipients", () => {
     expect(component.getByTestId("wishlist-sharing-remove-recipient-org-1").closest("button")).toBeDisabled();
   });
 
+  describe("a read-only list", () => {
+    it("shows the recipients and nothing that would change them", () => {
+      renderRecipients(customers(2), { readonly: true });
+
+      expect(rows()).toHaveLength(2);
+      expect(component.queryByTestId("wishlist-sharing-clear-recipients-button")).toBeNull();
+      expect(component.queryByTestId("wishlist-sharing-remove-recipient-org-1")).toBeNull();
+    });
+  });
+
   describe("a list short enough to read at a glance", () => {
     it("still offers Clear all, and no expand toggle", () => {
       renderRecipients(customers(3));

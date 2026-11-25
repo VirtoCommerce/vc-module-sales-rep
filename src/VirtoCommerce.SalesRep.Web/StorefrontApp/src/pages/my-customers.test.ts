@@ -3,11 +3,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h, inject, provide } from "vue";
 import type { InjectionKey } from "vue";
 import { createWrapperFactory } from "@vc-frontend/core/testing";
+import CustomerCommunicationModal from "../components/customer-communication-modal.vue";
 import MyCustomers from "./my-customers.vue";
 
 const state = await vi.hoisted(async () => {
   const { ref } = await import("vue");
   return {
+    openModal: vi.fn(),
     items: ref<Record<string, unknown>[]>([]),
     loading: ref(false),
     error: ref<Error | null>(null),
@@ -53,6 +55,10 @@ vi.mock("../composables/useSalesRepColumnSort", async () => {
 vi.mock("../composables/useSalesRepCommunication", () => ({
   useSalesRepCommunication: () => ({ send: vi.fn(), sending: false }),
 }));
+vi.mock("@vc-frontend/core", async (importOriginal) => ({
+  ...(await importOriginal<Record<string, unknown>>()),
+  useModal: () => ({ openModal: state.openModal }),
+}));
 
 const createWrapper = createWrapperFactory(mount, MyCustomers, {
   global: {
@@ -80,6 +86,7 @@ const createWrapper = createWrapperFactory(mount, MyCustomers, {
 const emptyViews = (wrapper: ReturnType<typeof createWrapper>) => wrapper.findAll("vc-empty-view-stub");
 
 beforeEach(() => {
+  state.openModal.mockClear();
   state.items.value = [];
   state.loading.value = false;
   state.error.value = null;
@@ -87,6 +94,17 @@ beforeEach(() => {
   state.filter.value = undefined;
   state.filterRulesFailed.value = false;
   state.sortRulesFailed.value = false;
+});
+
+describe("MyCustomers Send message", () => {
+  // A row's envelope opens the popup with that customer; the page's own button is for picking them in the popup.
+  it("opens the message popup with nobody picked", async () => {
+    const wrapper = createWrapper();
+
+    await wrapper.find("[data-test-id='my-customers-send-message-button']").trigger("click");
+
+    expect(state.openModal).toHaveBeenCalledWith({ component: CustomerCommunicationModal, props: {} });
+  });
 });
 
 // The segment chips and the sortable headers vanish without their rules, with nothing saying why (VCST-5682).
