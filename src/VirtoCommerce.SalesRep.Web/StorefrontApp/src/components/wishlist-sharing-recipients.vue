@@ -1,6 +1,6 @@
 <template>
   <div data-test-id="wishlist-sharing-recipients" class="wishlist-sharing-recipients">
-    <template v-if="recipients.length">
+    <template v-if="recipients.length && !readonly">
       <div class="wishlist-sharing-recipients__header">
         <span class="wishlist-sharing-recipients__title">
           {{ t("sales_rep.list_sharing.recipients_title", { count: recipients.length }) }}
@@ -44,6 +44,7 @@
           </span>
 
           <VcButton
+            v-if="!readonly"
             :data-test-id="`wishlist-sharing-remove-recipient-${recipient.organizationId}`"
             :aria-label="t('sales_rep.list_sharing.remove_recipient_button', { name: recipient.organizationName })"
             :size="isMobile ? 'xs' : 'sm'"
@@ -122,6 +123,8 @@ interface IProps {
   collapsedRows?: number;
   /** Recipients the last `clear` took away, offered back until the rep does something else. */
   clearedCount?: number;
+  /** Shows the rows only: no Clear all and no remove buttons, for an audience the rep cannot change. */
+  readonly?: boolean;
 }
 
 const emit = defineEmits<IEmits>();
@@ -144,7 +147,8 @@ const visibleRecipients = computed(() =>
   collapsible.value && !expanded.value ? props.recipients.slice(0, props.collapsedRows) : props.recipients,
 );
 
-// The rows the clear takes away carry the focus with them, so hand it to the Undo that replaces them.
+// The rows the clear takes away carry the focus with them, so hand it to the Undo that replaces them. Without one (the
+// Send a message popup offers no Undo), the block unmounts and the parent places the focus.
 async function requestClear(): Promise<void> {
   emit("clear");
 
@@ -162,8 +166,8 @@ async function requestRestore(): Promise<void> {
   clearButton.value?.$el?.focus();
 }
 
-// The deleted row takes the focus with it. Nowhere to send it once the list empties: the block unmounts, and
-// `VcSelect` exposes no focus method.
+// The deleted row takes the focus with it, so hand it to the remove button that takes its place. Once the list empties,
+// the block unmounts and the parent places the focus: the Send a message popup hands it to its Customers field.
 async function requestRemove(organizationId: string, index: number): Promise<void> {
   emit("remove", organizationId);
 

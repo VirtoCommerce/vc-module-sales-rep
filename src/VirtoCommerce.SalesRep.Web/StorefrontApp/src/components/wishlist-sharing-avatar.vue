@@ -46,7 +46,8 @@ const initials = computed(() =>
 
 <style lang="scss">
 .wishlist-sharing-avatar {
-  @apply flex shrink-0 items-center justify-center size-8 rounded-full bg-secondary-500 text-xs font-black text-additional-50 overflow-clip;
+  // 600, not 500: white initials on 500 come to 4.05:1 in the default theme, under the 4.5:1 their 12px needs.
+  @apply flex shrink-0 items-center justify-center size-8 rounded-full bg-secondary-600 text-xs font-black text-additional-50 overflow-clip;
 
   &__image {
     @apply size-full object-cover;
